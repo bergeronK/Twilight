@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
-<title>Twilight</title>
 <link rel="manifest" href="manifest.json" />
+<title>Twilight</title>
 <style>
   html, body { margin: 0; padding: 0; background: #070a14; -webkit-text-size-adjust: 100%; }
   #root { min-height: 100vh; }
@@ -16,11 +16,10 @@
 </head>
 <body>
 <div id="root"><div class="boot">Starting Twilight…</div></div>
-<div id="root"><div class="boot">Starting the twilight console…</div></div>
 <script>
   function showError(e){
     var r = document.getElementById('root');
-    if (r) r.innerHTML = '<div class="err"><b>The console hit an error:</b>\n\n' +
+    if (r) r.innerHTML = '<div class="err"><b>Twilight hit an error:</b>\n\n' +
       String((e && (e.stack || e.message)) || e).replace(/</g,'&lt;') + '</div>';
   }
   window.onerror = function(msg, src, line, col, error){ showError(error || msg); return true; };
@@ -332,14 +331,10 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 
 </script>
 <script>
-/* ---- Twilight (combined app) ---- */
-/* ---- Twilight console (pre-compiled, no build step needed) ---- */
-const {
-  useState,
-  useEffect,
-  useMemo,
-  useRef
-} = React;
+/* shared hooks destructure */
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ---- shared math/astronomy constants and helpers (from console) ---- */
 const D2R = Math.PI / 180,
   R2D = 180 / Math.PI;
 const rev = x => (x % 360 + 360) % 360;
@@ -852,114 +847,6 @@ function tzFromLonState(lon, state) {
   if (lon >= -114) return "America/Denver";
   return "America/Los_Angeles";
 }
-
-/* ---- Ephemeris astronomy utilities ---- */
-   ============================================================ */
-const RAD = Math.PI / 180;
-const rad = d => d * RAD;
-const deg = r => r / RAD;
-function solarParams(y, m, d) {
-  const JD = Date.UTC(y, m - 1, d, 12, 0, 0) / 86400000 + 2440587.5;
-  const T = (JD - 2451545.0) / 36525;
-  const L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
-  const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
-  const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
-  const C = Math.sin(rad(M)) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(rad(2 * M)) * (0.019993 - 0.000101 * T) + Math.sin(rad(3 * M)) * 0.000289;
-  const trueLong = L0 + C;
-  const appLong = trueLong - 0.00569 - 0.00478 * Math.sin(rad(125.04 - 1934.136 * T));
-  const obliq = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60;
-  const obliqCorr = obliq + 0.00256 * Math.cos(rad(125.04 - 1934.136 * T));
-  const decl = deg(Math.asin(Math.sin(rad(obliqCorr)) * Math.sin(rad(appLong))));
-  const vY = Math.tan(rad(obliqCorr / 2)) ** 2;
-  const eqTime = 4 * deg(vY * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * vY * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * vY * vY * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
-  return {
-    decl,
-    eqTime
-  };
-}
-
-// Returns UTC minutes-from-midnight for an event, or a status flag if it never happens.
-function eventUTC(lat, lon, p, altDeg, rise) {
-  const zen = 90 - altDeg;
-  const cosH = (Math.cos(rad(zen)) - Math.sin(rad(lat)) * Math.sin(rad(p.decl))) / (Math.cos(rad(lat)) * Math.cos(rad(p.decl)));
-  if (cosH > 1) return {
-    none: "below"
-  }; // sun never reaches this altitude (too low)
-  if (cosH < -1) return {
-    none: "above"
-  }; // sun never drops to this altitude (too high)
-  const HA = deg(Math.acos(cosH));
-  const utc = rise ? 720 - 4 * (lon + HA) - p.eqTime : 720 - 4 * (lon - HA) - p.eqTime;
-  return {
-    utc
-  };
-}
-
-// Sun altitude (deg) at a given UTC minute, for the curve + hover.
-function altAt(lat, lon, p, utcMin) {
-  const solarNoon = 720 - 4 * lon - p.eqTime;
-  const H = (utcMin - solarNoon) / 4; // degrees
-  const sinAlt = Math.sin(rad(lat)) * Math.sin(rad(p.decl)) + Math.cos(rad(lat)) * Math.cos(rad(p.decl)) * Math.cos(rad(H));
-  return deg(Math.asin(Math.max(-1, Math.min(1, sinAlt))));
-}
-
-/* ---------- formatting helpers ---------- */
-const pad2 = n => String(n).padStart(2, "0");
-function fmtLocal(utcMin, offMin) {
-  let t = utcMin + offMin;
-  let dayShift = Math.floor(t / 1440);
-  t = (t % 1440 + 1440) % 1440;
-  let h = Math.floor(t / 60);
-  let mn = Math.round(t - h * 60);
-  if (mn === 60) {
-    mn = 0;
-    h = (h + 1) % 24;
-  }
-  const tag = dayShift < 0 ? " \u22121d" : dayShift > 0 ? " +1d" : "";
-  return pad2(h) + ":" + pad2(mn) + tag;
-}
-function durStr(mins) {
-  if (mins == null) return "\u2014";
-  const m = Math.round(mins);
-  return Math.floor(m / 60) + "h " + pad2(m % 60) + "m";
-}
-const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
-function utcDate(y, m, d, utcMin) {
-  return new Date(Date.UTC(y, m - 1, d) + utcMin * 60000);
-}
-function icalStamp(date) {
-  return date.getUTCFullYear() + pad2(date.getUTCMonth() + 1) + pad2(date.getUTCDate()) + "T" + pad2(date.getUTCHours()) + pad2(date.getUTCMinutes()) + pad2(date.getUTCSeconds()) + "Z";
-}
-
-/* The six twilight phases + reference events. */
-const ALT = {
-  sun: -0.833,
-  civil: -6,
-  nautical: -12,
-  astro: -18
-};
-function computeDay(lat, lon, y, m, d) {
-  const p = solarParams(y, m, d);
-  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
-  return {
-    p,
-    astroDawn: ev(ALT.astro, true),
-    nautDawn: ev(ALT.nautical, true),
-    civilDawn: ev(ALT.civil, true),
-    sunrise: ev(ALT.sun, true),
-    sunset: ev(ALT.sun, false),
-    civilDusk: ev(ALT.civil, false),
-    nautDusk: ev(ALT.nautical, false),
-    astroDusk: ev(ALT.astro, false),
-    noon: 720 - 4 * lon - p.eqTime
-  };
-}
-
-/* ============================================================
-   COMPONENT
-   ============================================================ */
-
-/* ---- RealtimeTwilight component ---- */
 function RealtimeTwilight() {
   const [loc, setLoc] = useState(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1919,7 +1806,116 @@ function EventCol({
   }, fmtT(e.t, tz)))));
 }
 
-/* ---- TwilightEphemeris component ---- */
+/* ---- Ephemeris-specific utilities (not in console) ---- */
+/* ============================================================
+   ASTRONOMY  —  NOAA solar position equations (single-pass)
+   Verified against published almanac sunrise/sunset to the minute.
+   Longitude convention: positive EAST. Altitudes are sun-center
+   degrees relative to the true horizon.
+   ============================================================ */
+const RAD = Math.PI / 180;
+const rad = d => d * RAD;
+const deg = r => r / RAD;
+function solarParams(y, m, d) {
+  const JD = Date.UTC(y, m - 1, d, 12, 0, 0) / 86400000 + 2440587.5;
+  const T = (JD - 2451545.0) / 36525;
+  const L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
+  const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+  const e = 0.016708634 - T * (0.000042037 + 0.0000001267 * T);
+  const C = Math.sin(rad(M)) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(rad(2 * M)) * (0.019993 - 0.000101 * T) + Math.sin(rad(3 * M)) * 0.000289;
+  const trueLong = L0 + C;
+  const appLong = trueLong - 0.00569 - 0.00478 * Math.sin(rad(125.04 - 1934.136 * T));
+  const obliq = 23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60;
+  const obliqCorr = obliq + 0.00256 * Math.cos(rad(125.04 - 1934.136 * T));
+  const decl = deg(Math.asin(Math.sin(rad(obliqCorr)) * Math.sin(rad(appLong))));
+  const vY = Math.tan(rad(obliqCorr / 2)) ** 2;
+  const eqTime = 4 * deg(vY * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * vY * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * vY * vY * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
+  return {
+    decl,
+    eqTime
+  };
+}
+
+// Returns UTC minutes-from-midnight for an event, or a status flag if it never happens.
+function eventUTC(lat, lon, p, altDeg, rise) {
+  const zen = 90 - altDeg;
+  const cosH = (Math.cos(rad(zen)) - Math.sin(rad(lat)) * Math.sin(rad(p.decl))) / (Math.cos(rad(lat)) * Math.cos(rad(p.decl)));
+  if (cosH > 1) return {
+    none: "below"
+  }; // sun never reaches this altitude (too low)
+  if (cosH < -1) return {
+    none: "above"
+  }; // sun never drops to this altitude (too high)
+  const HA = deg(Math.acos(cosH));
+  const utc = rise ? 720 - 4 * (lon + HA) - p.eqTime : 720 - 4 * (lon - HA) - p.eqTime;
+  return {
+    utc
+  };
+}
+
+// Sun altitude (deg) at a given UTC minute, for the curve + hover.
+function altAt(lat, lon, p, utcMin) {
+  const solarNoon = 720 - 4 * lon - p.eqTime;
+  const H = (utcMin - solarNoon) / 4; // degrees
+  const sinAlt = Math.sin(rad(lat)) * Math.sin(rad(p.decl)) + Math.cos(rad(lat)) * Math.cos(rad(p.decl)) * Math.cos(rad(H));
+  return deg(Math.asin(Math.max(-1, Math.min(1, sinAlt))));
+}
+
+/* ---------- formatting helpers ---------- */
+const pad2 = n => String(n).padStart(2, "0");
+function fmtLocal(utcMin, offMin) {
+  let t = utcMin + offMin;
+  let dayShift = Math.floor(t / 1440);
+  t = (t % 1440 + 1440) % 1440;
+  let h = Math.floor(t / 60);
+  let mn = Math.round(t - h * 60);
+  if (mn === 60) {
+    mn = 0;
+    h = (h + 1) % 24;
+  }
+  const tag = dayShift < 0 ? " \u22121d" : dayShift > 0 ? " +1d" : "";
+  return pad2(h) + ":" + pad2(mn) + tag;
+}
+function durStr(mins) {
+  if (mins == null) return "\u2014";
+  const m = Math.round(mins);
+  return Math.floor(m / 60) + "h " + pad2(m % 60) + "m";
+}
+const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
+function utcDate(y, m, d, utcMin) {
+  return new Date(Date.UTC(y, m - 1, d) + utcMin * 60000);
+}
+function icalStamp(date) {
+  return date.getUTCFullYear() + pad2(date.getUTCMonth() + 1) + pad2(date.getUTCDate()) + "T" + pad2(date.getUTCHours()) + pad2(date.getUTCMinutes()) + pad2(date.getUTCSeconds()) + "Z";
+}
+
+/* The six twilight phases + reference events. */
+const ALT = {
+  sun: -0.833,
+  civil: -6,
+  nautical: -12,
+  astro: -18
+};
+function computeDay(lat, lon, y, m, d) {
+  const p = solarParams(y, m, d);
+  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  return {
+    p,
+    astroDawn: ev(ALT.astro, true),
+    nautDawn: ev(ALT.nautical, true),
+    civilDawn: ev(ALT.civil, true),
+    sunrise: ev(ALT.sun, true),
+    sunset: ev(ALT.sun, false),
+    civilDusk: ev(ALT.civil, false),
+    nautDusk: ev(ALT.nautical, false),
+    astroDusk: ev(ALT.astro, false),
+    noon: 720 - 4 * lon - p.eqTime
+  };
+}
+
+/* ============================================================
+   COMPONENT
+   ============================================================ */
 function TwilightEphemeris() {
   const [lat, setLat] = useState("40.7128");
   const [lon, setLon] = useState("-74.0060");
@@ -2707,53 +2703,36 @@ function TwilightEphemeris() {
   }, "Computed with the NOAA solar-position algorithm. Sunrise/sunset use the upper-limb convention (\u22120.833\xB0, including atmospheric refraction); twilight phases use sun-center altitudes of \u22126\xB0 / \u221212\xB0 / \u221218\xB0. Accuracy is typically within \xB11 minute; refraction near the horizon varies with weather, so treat horizon events as approximate.")));
 }
 
-/* ---- TwilightApp root component ---- */
+/* ---- Root tab app ---- */
 function TwilightApp() {
   const [activeTab, setActiveTab] = React.useState('console');
-
-  const tabBarStyle = {
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-    background: '#0d1322',
-    borderBottom: '1px solid #2a3550',
-    display: 'flex',
-    fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
-  };
-
-  const btnBase = {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '12px 28px',
-    fontSize: '13px',
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase',
-    transition: 'color 0.15s, border-bottom 0.15s',
-  };
-
-  const activeStyle = {
-    ...btnBase,
-    color: '#d9ad62',
-    borderBottom: '2px solid #d9ad62',
-  };
-
-  const inactiveStyle = {
-    ...btnBase,
-    color: '#6b7a99',
-    borderBottom: '2px solid transparent',
-  };
-
+  const tabStyle = active => ({
+    fontFamily: "'IBM Plex Mono',monospace",
+    fontSize: 12,
+    letterSpacing: 1,
+    padding: "9px 20px",
+    cursor: "pointer",
+    border: "none",
+    borderBottom: active ? "2px solid #d9ad62" : "2px solid transparent",
+    background: "transparent",
+    color: active ? "#d9ad62" : "#9c947f",
+    transition: ".15s",
+    textTransform: "uppercase"
+  });
   return React.createElement(React.Fragment, null,
-    React.createElement('div', { style: tabBarStyle },
-      React.createElement('button', {
-        style: activeTab === 'console' ? activeStyle : inactiveStyle,
-        onClick: () => setActiveTab('console'),
-      }, 'Console'),
-      React.createElement('button', {
-        style: activeTab === 'ephemeris' ? activeStyle : inactiveStyle,
-        onClick: () => setActiveTab('ephemeris'),
-      }, 'Ephemeris')
+    React.createElement("div", {
+      style: {
+        background: "#070a14",
+        borderBottom: "1px solid #2a3550",
+        display: "flex",
+        gap: 0,
+        position: "sticky",
+        top: 0,
+        zIndex: 100
+      }
+    },
+      React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => setActiveTab('console') }, "Console"),
+      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => setActiveTab('ephemeris') }, "Ephemeris")
     ),
     activeTab === 'console'
       ? React.createElement(RealtimeTwilight)
@@ -2761,12 +2740,11 @@ function TwilightApp() {
   );
 }
 
-(function mount() {
+/* ---- Mount ---- */
+(function() {
   try {
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(TwilightApp));
-  } catch (err) {
-    showError(err);
-  }
+  } catch(err) { showError(err); }
 })();
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
