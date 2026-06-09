@@ -2704,8 +2704,21 @@ function TwilightEphemeris() {
 }
 
 /* ---- Root tab app ---- */
+/* ---- Visitor Counter ---- */
+const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
+
 function TwilightApp() {
   const [activeTab, setActiveTab] = React.useState('console');
+  const [visitorCount, setVisitorCount] = React.useState(null);
+
+  React.useEffect(() => {
+    if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
+    fetch(COUNTER_WORKER_URL)
+      .then(r => r.json())
+      .then(d => { if (typeof d.count === 'number') setVisitorCount(d.count); })
+      .catch(() => {});
+  }, []);
+
   const tabStyle = active => ({
     fontFamily: "'IBM Plex Mono',monospace",
     fontSize: 12,
@@ -2725,6 +2738,7 @@ function TwilightApp() {
         background: "#070a14",
         borderBottom: "1px solid #2a3550",
         display: "flex",
+        alignItems: "center",
         gap: 0,
         position: "sticky",
         top: 0,
@@ -2732,7 +2746,18 @@ function TwilightApp() {
       }
     },
       React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => setActiveTab('console') }, "Console"),
-      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => setActiveTab('ephemeris') }, "Ephemeris")
+      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => setActiveTab('ephemeris') }, "Ephemeris"),
+      visitorCount !== null && React.createElement("span", {
+        style: {
+          marginLeft: "auto",
+          marginRight: 14,
+          fontFamily: "'IBM Plex Mono',monospace",
+          fontSize: 10,
+          color: "#4a5a7a",
+          letterSpacing: 0.5,
+          whiteSpace: "nowrap"
+        }
+      }, visitorCount.toLocaleString(), " visitors")
     ),
     activeTab === 'console'
       ? React.createElement(RealtimeTwilight)
