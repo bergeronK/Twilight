@@ -891,15 +891,14 @@ function tzFromLonState(lon, state) {
   if (lon >= -114) return "America/Denver";
   return "America/Los_Angeles";
 }
-function RealtimeTwilight() {
+function RealtimeTwilight({ onEphemeris } = {}) {
   const [loc, setLoc] = useState(() => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return PRESETS.find(p => p.tz === tz) || {
-      name: "Boston",
-      lat: 42.3601,
-      lon: -71.0589,
-      tz: "America/New_York"
-    };
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const lat = parseFloat(p.get('lat')), lon = parseFloat(p.get('lon'));
+      if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, name: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    } catch(e) {}
+    try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch(e) { return PRESETS[0]; }
   });
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
@@ -914,6 +913,16 @@ function RealtimeTwilight() {
   const factRef = useRef();
   const factBag = useRef([]);
   const tick = useRef();
+  const [shareCopied, setShareCopied] = React.useState(false);
+  const shareLocation = () => {
+    const url = `${location.origin}?lat=${loc.lat.toFixed(4)}&lon=${loc.lon.toFixed(4)}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }).catch(() => {});
+  };
+  const [issData, setIssData] = React.useState(null);
+  const [issPasses, setIssPasses] = React.useState([]);
   const nextFact = () => {
     setFactIdx(cur => {
       if (factBag.current.length === 0) {
@@ -947,6 +956,22 @@ function RealtimeTwilight() {
     tick.current = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick.current);
   }, []);
+  React.useEffect(() => {
+    try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
+  }, [loc]);
+  React.useEffect(() => {
+    fetch(`https://api.wheretheiss.at/v1/satellites/25544`)
+      .then(r => r.json())
+      .then(d => setIssData(d))
+      .catch(() => {});
+  }, []);
+  React.useEffect(() => {
+    if (!loc) return;
+    fetch(`https://api.open-notify.org/iss-pass.json?lat=${loc.lat}&lon=${loc.lon}&n=3&alt=100`)
+      .then(r => r.json())
+      .then(d => { if (d.response) setIssPasses(d.response); })
+      .catch(() => {});
+  }, [loc.lat, loc.lon]);
   const useMyLocation = () => {
     if (!navigator.geolocation) {
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
@@ -1181,7 +1206,7 @@ function RealtimeTwilight() {
   }, "Live Nautical Almanac"), React.createElement("h1", {
     style: {
       fontFamily: "'Cormorant Garamond',Georgia,serif",
-      fontWeight: 900,
+      fontWeight: 700,
       fontSize: "clamp(26px,5.4vw,50px)",
       lineHeight: .98,
       margin: "8px 0 14px",
@@ -1237,7 +1262,16 @@ function RealtimeTwilight() {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
     title: "Save this location"
-  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save")), geoMsg && React.createElement("div", {
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save"),
+  React.createElement("button", {
+    className: "rtbtn",
+    onClick: shareLocation,
+    title: "Copy shareable link"
+  }, shareCopied ? "\u2713 Copied!" : "\u2398 Share"),
+  onEphemeris && React.createElement("button", {
+    className: "rtbtn",
+    onClick: onEphemeris
+  }, "Ephemeris \u2192")), geoMsg && React.createElement("div", {
     style: {
       fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
@@ -1506,7 +1540,7 @@ function RealtimeTwilight() {
   }, "Right Now"), React.createElement("div", {
     style: {
       fontFamily: "'Cormorant Garamond',Georgia,serif",
-      fontWeight: 900,
+      fontWeight: 700,
       fontSize: 34,
       color: meta.color,
       lineHeight: 1.05,
@@ -1668,10 +1702,53 @@ function RealtimeTwilight() {
           React.createElement("span", { style: { fontSize: 18, color: p.color } }, p.symbol),
           React.createElement("div", null,
             React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 16, fontWeight: 600, color: p.color } }, p.name),
-            React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } }, p.alt.toFixed(0), "\xB0 alt")
+            React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } },
+              p.alt.toFixed(0), "° alt · ",
+              (["N","NE","E","SE","S","SW","W","NW","N"])[Math.round(p.az / 45) % 8]
+            )
           )
         )
       )
+    )
+  ),
+  React.createElement("section", {
+    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
+  },
+    React.createElement("div", {
+      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
+    }, "ISS · International Space Station"),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" } },
+      issData && React.createElement("div", { style: { minWidth: 160 } },
+        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginBottom: 4 } }, "Current position"),
+        React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 18, fontWeight: 600 } },
+          parseFloat(issData.latitude).toFixed(1), "° ", parseFloat(issData.latitude) >= 0 ? "N" : "S", " · ",
+          parseFloat(issData.longitude).toFixed(1), "° ", parseFloat(issData.longitude) >= 0 ? "E" : "W"
+        ),
+        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginTop: 2 } },
+          parseFloat(issData.altitude).toFixed(0), " km altitude · ", parseFloat(issData.velocity).toFixed(0), " km/h"
+        )
+      ),
+      issPasses.length > 0 && React.createElement("div", null,
+        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginBottom: 4 } }, "Upcoming passes over your location"),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+          ...issPasses.map((p, i) =>
+            React.createElement("div", {
+              key: i,
+              style: { background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 12px" }
+            },
+              React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 15, fontWeight: 600 } },
+                new Date(p.risetime * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              ),
+              React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } },
+                Math.round(p.duration / 60), " min visible"
+              )
+            )
+          )
+        )
+      ),
+      !issData && !issPasses.length && React.createElement("div", {
+        style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 12, color: C.inkDim }
+      }, "Loading ISS data…")
     )
   ),
   React.createElement("section", {
@@ -1719,8 +1796,8 @@ function RealtimeTwilight() {
     }
   }, [{
     c: "#e08a3c",
-    n: "Civil −0° to −6°",
-    t: "Horizon sharp. Brightest bodies only. Outdoor work, first/last bright-planet sights."
+    n: "Civil · Golden Hour",
+    t: "Horizon sharp. Warm golden light ideal for photography. Brightest bodies only. First/last bright-planet sights."
   }, {
     c: "#5a7fb0",
     n: "Nautical −6° to −12°",
@@ -1792,7 +1869,7 @@ function RealtimeTwilight() {
   }, "The Gloaming \xB7 Curiosities"), React.createElement("h2", {
     style: {
       fontFamily: "'Cormorant Garamond',Georgia,serif",
-      fontWeight: 900,
+      fontWeight: 700,
       fontSize: "clamp(22px,4vw,32px)",
       margin: "6px 0 0"
     }
@@ -2443,7 +2520,10 @@ function TwilightEphemeris() {
   }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
     style: {
       margin: "6px 0 0",
-      font: "600 clamp(26px,5.4vw,50px)/1 'Cormorant Garamond',Georgia,serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontWeight: 700,
+      fontSize: "clamp(26px,5.4vw,50px)",
+      lineHeight: 1,
       letterSpacing: "-.01em",
       color: ink
     }
@@ -2945,8 +3025,34 @@ function TwilightEphemeris() {
 const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
 
 function TwilightApp() {
-  const [activeTab, setActiveTab] = React.useState('console');
+  const [activeTab, setActiveTab] = React.useState(() => localStorage.getItem('tw_tab') || 'console');
+  const switchTab = t => { setActiveTab(t); localStorage.setItem('tw_tab', t); };
   const [visitorCount, setVisitorCount] = React.useState(null);
+  const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
+  const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
+  const touchStartX = React.useRef(null);
+  const handleTouchStart = e => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = e => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 70) switchTab(dx < 0 ? 'ephemeris' : 'console');
+    touchStartX.current = null;
+  };
+  const [installPrompt, setInstallPrompt] = React.useState(null);
+  const [installDismissed, setInstallDismissed] = React.useState(() => localStorage.getItem('tw_nodismiss') === '1');
+
+  React.useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const doInstall = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then(() => setInstallPrompt(null));
+  };
+  const dismissInstall = () => { setInstallDismissed(true); localStorage.setItem('tw_nodismiss', '1'); };
 
   React.useEffect(() => {
     if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
@@ -2970,6 +3076,29 @@ function TwilightApp() {
     textTransform: "uppercase"
   });
   return React.createElement(React.Fragment, null,
+    redMode && React.createElement("style", null, `#root { filter: brightness(0.75) saturate(0) sepia(1) hue-rotate(-30deg) saturate(200%) !important; }`),
+    installPrompt && !installDismissed && React.createElement("div", {
+      style: {
+        background: "#0e1628",
+        borderBottom: "1px solid #2a3550",
+        padding: "8px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        fontFamily: "'Space Grotesk',sans-serif",
+        fontSize: 12
+      }
+    },
+      React.createElement("span", { style: { color: "#9c947f", flex: 1 } }, "📲 Add Twilight to your home screen for quick access"),
+      React.createElement("button", {
+        onClick: doInstall,
+        style: { background: "#d9ad62", color: "#070a14", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", cursor: "pointer", fontWeight: 600 }
+      }, "Install"),
+      React.createElement("button", {
+        onClick: dismissInstall,
+        style: { background: "transparent", color: "#4a5a7a", border: "none", fontSize: 16, cursor: "pointer", padding: "2px 6px" }
+      }, "✕")
+    ),
     React.createElement("div", {
       style: {
         background: "#070a14",
@@ -2982,8 +3111,8 @@ function TwilightApp() {
         zIndex: 100
       }
     },
-      React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => setActiveTab('console') }, "Console"),
-      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => setActiveTab('ephemeris') }, "Ephemeris"),
+      React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
+      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => switchTab('ephemeris') }, "Ephemeris"),
       visitorCount !== null && React.createElement("span", {
         style: {
           marginLeft: "auto",
@@ -2994,13 +3123,30 @@ function TwilightApp() {
           letterSpacing: 0.5,
           whiteSpace: "nowrap"
         }
-      }, visitorCount.toLocaleString(), " visitors")
+      }, visitorCount.toLocaleString(), " visitors"),
+      React.createElement("button", {
+        onClick: toggleRed,
+        title: redMode ? "Exit red light mode" : "Red light mode",
+        style: {
+          marginLeft: redMode ? 8 : 0,
+          marginRight: 10,
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontSize: 16,
+          opacity: 0.7,
+          padding: "4px 6px",
+          color: redMode ? "#ff4444" : "#4a5a7a"
+        }
+      }, redMode ? "🔴" : "🌙")
     ),
     React.createElement("div", {
       key: activeTab,
-      style: { animation: "tabFade 0.25s ease" }
+      style: { animation: "tabFade 0.25s ease" },
+      onTouchStart: handleTouchStart,
+      onTouchEnd: handleTouchEnd
     },
-      activeTab === 'console' ? React.createElement(RealtimeTwilight) : React.createElement(TwilightEphemeris)
+      activeTab === 'console' ? React.createElement(RealtimeTwilight, { onEphemeris: () => switchTab('ephemeris') }) : React.createElement(TwilightEphemeris)
     )
   );
 }
