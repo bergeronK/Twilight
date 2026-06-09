@@ -15,6 +15,7 @@
   .boot, .err { font-family: ui-monospace, Menlo, Consolas, monospace; padding: 26px; line-height: 1.5; }
   .boot { color: #9c947f; font-size: 13px; }
   .err { color: #e7b3a3; font-size: 12px; white-space: pre-wrap; }
+  @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -361,6 +362,46 @@ function sunAltitude(date, lat, lonE) {
   const ha = tst / 4 - 180;
   const cosZ = Math.sin(lat * D2R) * Math.sin(decl) + Math.cos(lat * D2R) * Math.cos(decl) * Math.cos(ha * D2R);
   return 90 - acos(cosZ);
+}
+/* ---- Planetary visibility ---- */
+function planetAltAz(planetName, date, lat, lonE) {
+  const d = jd(date) - 2451543.5;
+  const ecl = 23.4393 - 3.563e-7 * d;
+  const els = {
+    Mercury: [0.387098, 0.205635, 7.0047, 48.3313, 29.1241, 168.6562, 4.0923344368],
+    Venus:   [0.723330, 0.006773, 3.3946, 76.6799, 54.8910, 48.0052,  1.6021302244],
+    Mars:    [1.523688, 0.093405, 1.8497, 49.5574, 286.5016, 18.6021, 0.5240207766],
+    Jupiter: [5.202534, 0.048498, 1.2990, 100.4542, 273.8777, 19.8950, 0.0830853001],
+    Saturn:  [9.554909, 0.055546, 2.4446, 113.6634, 339.3939, 316.9670, 0.0334442282],
+  };
+  const el = els[planetName]; if (!el) return null;
+  const [a, e, I, O, w, M0, n] = el;
+  const M = rev(M0 + n * d);
+  let E = M + R2D * e * sin(M) * (1 + e * cos(M));
+  for (let k = 0; k < 6; k++) E = E - (E - R2D * e * sin(E) - M) / (1 - e * cos(E));
+  const xv = a * (cos(E) - e);
+  const yv = a * (Math.sqrt(1 - e * e) * sin(E));
+  const v = rev(atan2(yv, xv));
+  const r = Math.sqrt(xv * xv + yv * yv);
+  const xh = r * (cos(O) * cos(v + w - O) - sin(O) * sin(v + w - O) * cos(I));
+  const yh = r * (sin(O) * cos(v + w - O) + cos(O) * sin(v + w - O) * cos(I));
+  const zh = r * (sin(v + w - O) * sin(I));
+  const ws = 282.9404 + 4.70935e-5 * d;
+  const Ms = rev(356.0470 + 0.9856002585 * d);
+  const vs = rev(Ms + R2D * 0.016709 * sin(Ms));
+  const xs = 1.0 * cos(vs + ws);
+  const ys = 1.0 * sin(vs + ws);
+  const xg = xh + xs, yg = yh + ys, zg = zh;
+  const xe = xg;
+  const ye = yg * cos(ecl) - zg * sin(ecl);
+  const ze = yg * sin(ecl) + zg * cos(ecl);
+  const ra = rev(atan2(ye, xe));
+  const dec = atan2(ze, Math.sqrt(xe * xe + ye * ye));
+  let ha = rev(rev(gmst(date) + lonE) - ra);
+  if (ha > 180) ha -= 360;
+  const alt = asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(ha));
+  const az = rev(atan2(sin(ha), cos(ha) * sin(lat) - Math.tan(dec * D2R) * cos(lat)) + 180);
+  return { alt, az };
 }
 function moonState(date, lat, lonE) {
   const d = jd(date) - 2451543.5;
@@ -866,6 +907,9 @@ function RealtimeTwilight() {
   const [zip, setZip] = useState("");
   const [zipMsg, setZipMsg] = useState("");
   const [zipBusy, setZipBusy] = useState(false);
+  const [saved, setSaved] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
+  });
   const [factIdx, setFactIdx] = useState(null);
   const factRef = useRef();
   const factBag = useRef([]);
@@ -885,6 +929,12 @@ function RealtimeTwilight() {
       }
       return factBag.current.pop();
     });
+  };
+  const toggleSave = () => {
+    const isAlready = saved.some(s => s.lat === loc.lat && s.lon === loc.lon);
+    const next = isAlready ? saved.filter(s => !(s.lat === loc.lat && s.lon === loc.lon)) : [...saved, loc].slice(-3);
+    setSaved(next);
+    try { localStorage.setItem('tw_saved', JSON.stringify(next)); } catch(e) {}
   };
   const goToFacts = () => {
     nextFact();
@@ -1023,6 +1073,16 @@ function RealtimeTwilight() {
     } : null;
   }, [day, now]);
   const moonNext = useMemo(() => day.moonEv.find(e => e.t > now), [day, now]);
+  const nextSunEv = useMemo(() => day.sunEv.find(e => e.t > now), [day, now]);
+  const planets = useMemo(() => {
+    const names = ["Venus","Jupiter","Mars","Saturn","Mercury"];
+    const colors = { Venus:"#f5e6c8", Jupiter:"#e8d5b8", Mars:"#e8846a", Saturn:"#d4c28a", Mercury:"#b8b4a8" };
+    const symbols = { Venus:"♀", Jupiter:"♃", Mars:"♂", Saturn:"♄", Mercury:"☿" };
+    return names
+      .map(n => ({ name: n, color: colors[n], symbol: symbols[n], ...planetAltAz(n, new Date(now), loc.lat, loc.lon) }))
+      .filter(p => p && p.alt > 5)
+      .sort((a, b) => b.alt - a.alt);
+  }, [now, loc]);
   const downloadICS = () => {
     if (!win) return;
     const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -1173,14 +1233,31 @@ function RealtimeTwilight() {
   }, "\u25CE Use my location"), React.createElement("button", {
     className: "rtbtn",
     onClick: () => setPickerOpen(v => !v)
-  }, "Set location \u25BE")), geoMsg && React.createElement("div", {
+  }, "Set location \u25BE"), React.createElement("button", {
+    className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
+    onClick: toggleSave,
+    title: "Save this location"
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save")), geoMsg && React.createElement("div", {
     style: {
       fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
       color: C.inkDim,
       marginTop: 8
     }
-  }, geoMsg), pickerOpen && React.createElement("div", {
+  }, geoMsg),
+  saved.length > 0 && React.createElement("div", {
+    style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }
+  },
+    React.createElement("span", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", alignSelf: "center" } }, "Saved:"),
+    ...saved.map((s, i) =>
+      React.createElement("button", {
+        key: i,
+        className: "rtbtn" + (s.lat === loc.lat && s.lon === loc.lon ? " solid" : ""),
+        onClick: () => { setLoc(s); setPickerOpen(false); }
+      }, s.name)
+    )
+  ),
+  pickerOpen && React.createElement("div", {
     style: {
       marginTop: 12
     }
@@ -1441,7 +1518,30 @@ function RealtimeTwilight() {
       fontSize: 13.5,
       minHeight: 34
     }
-  }, live.phase === "day" ? "Sun above the horizon. Wait for dusk to begin sights." : live.phase === "civil" ? "Brightest bodies only; horizon razor-sharp. Window approaching." : live.phase === "naut" ? "Horizon and navigational stars both present — take your sights now." : live.phase === "astro" ? "Horizon fading into sky-glow; sky deep enough for faint objects." : "Full darkness. No marine horizon; ideal for deep-sky observing."), React.createElement("div", {
+  }, live.phase === "day" ? "Sun above the horizon. Wait for dusk to begin sights." : live.phase === "civil" ? "Brightest bodies only; horizon razor-sharp. Window approaching." : live.phase === "naut" ? "Horizon and navigational stars both present — take your sights now." : live.phase === "astro" ? "Horizon fading into sky-glow; sky deep enough for faint objects." : "Full darkness. No marine horizon; ideal for deep-sky observing."),
+  nextSunEv && React.createElement("div", {
+    style: {
+      marginTop: 10,
+      padding: "8px 10px",
+      borderRadius: 8,
+      background: "rgba(255,255,255,0.03)",
+      border: `1px solid ${C.line}`
+    }
+  },
+    React.createElement("div", {
+      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 3 }
+    }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
+    React.createElement("div", {
+      style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 28, fontWeight: 600, lineHeight: 1 }
+    }, (() => {
+      const ms = nextSunEv.t - now;
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
+    })())
+  ),
+  React.createElement("div", {
     className: "rt-readouts",
     style: {
       display: "flex",
@@ -1506,34 +1606,75 @@ function RealtimeTwilight() {
       color: C.inkDim,
       marginTop: 6
     }
-  }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight.")), React.createElement("div", {
-    style: {
-      marginTop: 14,
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      fontSize: 13,
-      color: C.ink
-    }
-  }, React.createElement("span", {
-    style: {
-      width: 18,
-      height: 18,
-      borderRadius: "50%",
-      background: "#e8ecf4",
-      opacity: 0.4 + live.m.illum * 0.6,
-      flexShrink: 0,
-      boxShadow: "0 0 8px rgba(220,228,245,.4)"
-    }
-  }), React.createElement("span", {
-    style: {
-      color: C.inkDim
-    }
-  }, "Moon ", moonName(live.m.age), " \xB7 ", Math.round(live.m.illum * 100), "% lit \xB7", " ", live.m.alt > 0 ? React.createElement(React.Fragment, null, "up now (", live.m.alt.toFixed(0), "\xB0)", live.moonPen > 0.3 ? React.createElement("span", {
-    style: {
-      color: "#c97a5a"
-    }
-  }, " \u2014 washing out faint stars") : "") : moonNext ? React.createElement(React.Fragment, null, moonNext.dir === "up" ? "rises" : "sets", " ", fmtT(moonNext.t, loc.tz)) : "below horizon"))))), React.createElement("section", {
+  }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight.")),
+  React.createElement("div", {
+    style: { marginTop: 14, display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: C.ink }
+  },
+    React.createElement("svg", {
+      width: 36, height: 36, viewBox: "-18 -18 36 36",
+      style: { flexShrink: 0, filter: `drop-shadow(0 0 6px rgba(200,215,245,${(live.m.illum * 0.7).toFixed(2)}))` }
+    },
+      React.createElement("circle", { r: 18, fill: "#0d1020" }),
+      (() => {
+        const R = 18;
+        const illum = live.m.illum;
+        const age = live.m.age;
+        if (illum < 0.01) return null;
+        if (illum > 0.99) return React.createElement("circle", { r: R, fill: "#c8d4ea" });
+        const isWaxing = age < 14.76;
+        const elong = age / 29.53 * 360;
+        const rx = Math.abs(Math.cos(elong * Math.PI / 180)) * R;
+        let path;
+        if (isWaxing) {
+          const sw = elong < 90 ? 0 : 1;
+          path = `M 0,${-R} A ${R},${R} 0 0,1 0,${R} A ${rx.toFixed(2)},${R} 0 0,${sw} 0,${-R} Z`;
+        } else {
+          const wa = 360 - elong;
+          const rxW = Math.abs(Math.cos(wa * Math.PI / 180)) * R;
+          const sw = wa < 90 ? 1 : 0;
+          path = `M 0,${-R} A ${R},${R} 0 0,0 0,${R} A ${rxW.toFixed(2)},${R} 0 0,${sw} 0,${-R} Z`;
+        }
+        return React.createElement("path", { d: path, fill: "#c8d4ea" });
+      })()
+    ),
+    React.createElement("span", { style: { color: C.inkDim } },
+      moonName(live.m.age), " \xB7 ", Math.round(live.m.illum * 100), "% lit \xB7 ",
+      live.m.alt > 0
+        ? React.createElement(React.Fragment, null, "up now (", live.m.alt.toFixed(0), "\xB0)",
+            live.moonPen > 0.3 ? React.createElement("span", { style: { color: "#c97a5a" } }, " \u2014 washing out faint stars") : "")
+        : moonNext
+          ? React.createElement(React.Fragment, null, moonNext.dir === "up" ? "rises" : "sets", " ", fmtT(moonNext.t, loc.tz))
+          : "below horizon"
+    )
+  )))),
+  planets.length > 0 && React.createElement("section", {
+    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
+  },
+    React.createElement("div", {
+      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
+    }, "Planets above the horizon"),
+    React.createElement("div", {
+      style: { display: "flex", flexWrap: "wrap", gap: 10 }
+    },
+      ...planets.map(p =>
+        React.createElement("div", {
+          key: p.name,
+          style: {
+            display: "flex", alignItems: "center", gap: 8,
+            background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`,
+            borderRadius: 10, padding: "8px 14px"
+          }
+        },
+          React.createElement("span", { style: { fontSize: 18, color: p.color } }, p.symbol),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 16, fontWeight: 600, color: p.color } }, p.name),
+            React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } }, p.alt.toFixed(0), "\xB0 alt")
+          )
+        )
+      )
+    )
+  ),
+  React.createElement("section", {
     style: {
       maxWidth: 1080,
       margin: "22px auto 0",
@@ -2193,6 +2334,47 @@ function TwilightEphemeris() {
     font: "600 13px 'Space Grotesk',sans-serif",
     letterSpacing: ".04em"
   };
+  const upcomingEvents = useMemo(() => {
+    const now2 = Date.now();
+    const events = [];
+    const lunarCycle = 29.53 * 24 * 3600000;
+    for (let t = now2; t < now2 + 6 * lunarCycle; t += 86400000) {
+      const m = moonState(new Date(t), 0, 0);
+      const m2 = moonState(new Date(t + 86400000), 0, 0);
+      if (m.age > m2.age && m2.age < 1) { events.push({ t, type: "New Moon", color: "#7a8a9e", symbol: "🌑" }); }
+      if (Math.abs(m.age - 14.76) < 0.5 && (events.length === 0 || events[events.length-1].type !== "Full Moon")) {
+        events.push({ t, type: "Full Moon", color: "#e8ecf4", symbol: "🌕" });
+      }
+    }
+    const yr = new Date().getFullYear();
+    [
+      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f", symbol: "♈" },
+      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879", symbol: "☀️" },
+      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f", symbol: "♎" },
+      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4", symbol: "❄️" },
+    ].forEach(e => {
+      const t = new Date(yr, e.month, e.day).getTime();
+      if (t > now2) events.push({ t, type: e.type, color: e.color, symbol: e.symbol });
+      const t2 = new Date(yr + 1, e.month, e.day).getTime();
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: e.type, color: e.color, symbol: e.symbol });
+    });
+    const showers = [
+      { month: 0, day: 3, name: "Quadrantids", peak: "~120/hr", color: "#a8c8e8" },
+      { month: 3, day: 22, name: "Lyrids", peak: "~20/hr", color: "#c8b8e8" },
+      { month: 4, day: 6, name: "Eta Aquariids", peak: "~60/hr", color: "#b8d8c8" },
+      { month: 7, day: 12, name: "Perseids", peak: "~100/hr", color: "#f2c879" },
+      { month: 9, day: 21, name: "Orionids", peak: "~20/hr", color: "#e8c8b8" },
+      { month: 10, day: 17, name: "Leonids", peak: "~15/hr", color: "#c8d8e8" },
+      { month: 11, day: 14, name: "Geminids", peak: "~150/hr", color: "#e8f0a8" },
+    ];
+    showers.forEach(s => {
+      const t = new Date(yr, s.month, s.day).getTime();
+      if (t > now2) events.push({ t, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+      const t2 = new Date(yr + 1, s.month, s.day).getTime();
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+    });
+    return events.sort((a, b) => a.t - b.t).slice(0, 8);
+  }, []);
   const stars = useMemo(() => Array.from({
     length: 70
   }, () => ({
@@ -2721,7 +2903,34 @@ function TwilightEphemeris() {
       color: dim,
       textAlign: "right"
     }
-  }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high.")))), /*#__PURE__*/React.createElement("footer", {
+  }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high."))))
+  , /*#__PURE__*/React.createElement("section", {
+    style: { maxWidth: 1180, margin: "22px auto 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(120,140,200,.16)", borderRadius: 16, padding: "20px 24px 24px" }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: gold, textTransform: "uppercase", marginBottom: 16 }
+    }, "Upcoming sky events"),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }
+    },
+      ...upcomingEvents.map((ev, i) =>
+        /*#__PURE__*/React.createElement("div", {
+          key: i,
+          style: { padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(120,140,200,.16)", background: "rgba(255,255,255,0.02)" }
+        },
+          /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
+            /*#__PURE__*/React.createElement("span", { style: { fontSize: 16 } }, ev.symbol),
+            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: dim } },
+              new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 17, fontWeight: 600, color: ev.color } }, ev.type),
+          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: dim, marginTop: 2 } }, ev.note)
+        )
+      )
+    )
+  )
+  , /*#__PURE__*/React.createElement("footer", {
     style: {
       marginTop: 28,
       font: "11px 'Space Grotesk',sans-serif",
@@ -2787,9 +2996,12 @@ function TwilightApp() {
         }
       }, visitorCount.toLocaleString(), " visitors")
     ),
-    activeTab === 'console'
-      ? React.createElement(RealtimeTwilight)
-      : React.createElement(TwilightEphemeris)
+    React.createElement("div", {
+      key: activeTab,
+      style: { animation: "tabFade 0.25s ease" }
+    },
+      activeTab === 'console' ? React.createElement(RealtimeTwilight) : React.createElement(TwilightEphemeris)
+    )
   );
 }
 
