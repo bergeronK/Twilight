@@ -921,8 +921,6 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       setTimeout(() => setShareCopied(false), 2000);
     }).catch(() => {});
   };
-  const [issData, setIssData] = React.useState(null);
-  const [issPasses, setIssPasses] = React.useState([]);
   const nextFact = () => {
     setFactIdx(cur => {
       if (factBag.current.length === 0) {
@@ -959,19 +957,6 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   React.useEffect(() => {
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
   }, [loc]);
-  React.useEffect(() => {
-    fetch(`https://api.wheretheiss.at/v1/satellites/25544`)
-      .then(r => r.json())
-      .then(d => setIssData(d))
-      .catch(() => {});
-  }, []);
-  React.useEffect(() => {
-    if (!loc) return;
-    fetch(`https://api.open-notify.org/iss-pass.json?lat=${loc.lat}&lon=${loc.lon}&n=3&alt=100`)
-      .then(r => r.json())
-      .then(d => { if (d.response) setIssPasses(d.response); })
-      .catch(() => {});
-  }, [loc.lat, loc.lon]);
   const useMyLocation = () => {
     if (!navigator.geolocation) {
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
@@ -1709,46 +1694,6 @@ function RealtimeTwilight({ onEphemeris } = {}) {
           )
         )
       )
-    )
-  ),
-  React.createElement("section", {
-    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
-  },
-    React.createElement("div", {
-      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
-    }, "ISS · International Space Station"),
-    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" } },
-      issData && React.createElement("div", { style: { minWidth: 160 } },
-        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginBottom: 4 } }, "Current position"),
-        React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 18, fontWeight: 600 } },
-          parseFloat(issData.latitude).toFixed(1), "° ", parseFloat(issData.latitude) >= 0 ? "N" : "S", " · ",
-          parseFloat(issData.longitude).toFixed(1), "° ", parseFloat(issData.longitude) >= 0 ? "E" : "W"
-        ),
-        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginTop: 2 } },
-          parseFloat(issData.altitude).toFixed(0), " km altitude · ", parseFloat(issData.velocity).toFixed(0), " km/h"
-        )
-      ),
-      issPasses.length > 0 && React.createElement("div", null,
-        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim, marginBottom: 4 } }, "Upcoming passes over your location"),
-        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-          ...issPasses.map((p, i) =>
-            React.createElement("div", {
-              key: i,
-              style: { background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 12px" }
-            },
-              React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 15, fontWeight: 600 } },
-                new Date(p.risetime * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              ),
-              React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } },
-                Math.round(p.duration / 60), " min visible"
-              )
-            )
-          )
-        )
-      ),
-      !issData && !issPasses.length && React.createElement("div", {
-        style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 12, color: C.inkDim }
-      }, "Loading ISS data…")
     )
   ),
   React.createElement("section", {
@@ -2543,77 +2488,47 @@ function TwilightEphemeris() {
       padding: 20
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: labelSt
-  }, "Latitude"), /*#__PURE__*/React.createElement("input", {
-    style: inputSt,
-    value: lat,
-    onChange: e => setLat(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: labelSt
-  }, "Longitude"), /*#__PURE__*/React.createElement("input", {
-    style: inputSt,
-    value: lon,
-    onChange: e => setLon(e.target.value)
-  }))), /*#__PURE__*/React.createElement("button", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }
+  },
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { style: labelSt }, "Latitude"),
+      /*#__PURE__*/React.createElement("input", { style: inputSt, value: lat, onChange: e => setLat(e.target.value) })
+    ),
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { style: labelSt }, "Longitude"),
+      /*#__PURE__*/React.createElement("input", { style: inputSt, value: lon, onChange: e => setLon(e.target.value) })
+    )
+  ),
+  /*#__PURE__*/React.createElement("button", {
     onClick: useMyLocation,
-    style: {
-      ...btn,
-      marginTop: 10,
-      width: "100%",
-      background: "rgba(120,140,200,.14)",
-      color: ink,
-      border: "1px solid rgba(120,140,200,.25)"
-    }
-  }, "\u2316 Use my location"), geoMsg && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 6,
-      fontSize: 12,
-      color: dim,
-      fontFamily: "'Space Grotesk',sans-serif"
-    }
-  }, geoMsg), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: labelSt
-  }, "Date"), /*#__PURE__*/React.createElement("input", {
-    type: "date",
-    style: inputSt,
-    value: dateStr,
-    onChange: e => setDateStr(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 16,
-      display: "grid",
-      gridTemplateColumns: "1fr auto",
-      gap: 10,
-      alignItems: "end"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: labelSt
-  }, "UTC offset (std, hrs)"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    step: "0.25",
-    style: inputSt,
-    value: offset,
-    onChange: e => setOffset(e.target.value === "" ? 0 : Number(e.target.value))
-  })), /*#__PURE__*/React.createElement("button", {
-    onClick: autoOffset,
-    style: {
-      ...btn,
-      background: "rgba(242,200,121,.14)",
-      color: gold,
-      border: "1px solid rgba(242,200,121,.3)",
-      height: 39
-    }
-  }, "auto")), /*#__PURE__*/React.createElement("label", {
+    style: { ...btn, marginTop: 10, width: "100%", background: "rgba(120,140,200,.14)", color: ink, border: "1px solid rgba(120,140,200,.25)" }
+  }, "\u2316 Use my location"),
+  geoMsg && /*#__PURE__*/React.createElement("div", {
+    style: { marginTop: 6, fontSize: 12, color: dim, fontFamily: "'Space Grotesk',sans-serif" }
+  }, geoMsg),
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }
+  },
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { style: labelSt }, "Date"),
+      /*#__PURE__*/React.createElement("input", { type: "date", style: inputSt, value: dateStr, onChange: e => setDateStr(e.target.value) })
+    ),
+    /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { style: labelSt }, "UTC offset (hrs)"),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "stretch", marginTop: 6 } },
+        /*#__PURE__*/React.createElement("input", {
+          type: "number", step: "0.25",
+          style: { ...inputSt, marginTop: 0, flex: 1, minWidth: 0 },
+          value: offset,
+          onChange: e => setOffset(e.target.value === "" ? 0 : Number(e.target.value))
+        }),
+        /*#__PURE__*/React.createElement("button", {
+          onClick: autoOffset,
+          style: { ...btn, background: "rgba(242,200,121,.14)", color: gold, border: "1px solid rgba(242,200,121,.3)", padding: "0 14px", flexShrink: 0 }
+        }, "Auto")
+      )
+    )
+  ), /*#__PURE__*/React.createElement("label", {
     style: {
       marginTop: 16,
       display: "flex",
