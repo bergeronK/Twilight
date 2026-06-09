@@ -1042,11 +1042,11 @@ function RealtimeTwilight() {
   };
   const sunY = Math.max(6, Math.min(96, horizonY - live.alt * 1.15));
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Spectral:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600&family=Spectral:wght@300;400;500&display=swap');
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid ${C.brass};background:transparent;color:${C.brass};transition:.15s}
+    .rtbtn{font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid ${C.brass};background:transparent;color:${C.brass};transition:.15s}
     .rtbtn:hover{background:${C.brass};color:#0a1018}
     .rtbtn.solid{background:${C.brass};color:#0a1018;font-weight:600}
     .rt-sky{min-height:380px}
@@ -1084,7 +1084,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
       letterSpacing: 5,
       color: C.brass,
@@ -1092,7 +1092,7 @@ function RealtimeTwilight() {
     }
   }, "Live Nautical Almanac"), React.createElement("h1", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontWeight: 900,
       fontSize: "clamp(26px,5.4vw,50px)",
       lineHeight: .98,
@@ -1116,13 +1116,13 @@ function RealtimeTwilight() {
     }
   }, React.createElement("span", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontSize: 22,
       fontWeight: 600
     }
   }, "\uD83D\uDCCD ", loc.name), React.createElement("span", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
       color: C.inkDim
     }
@@ -1147,7 +1147,7 @@ function RealtimeTwilight() {
     onClick: () => setPickerOpen(v => !v)
   }, "Set location \u25BE")), geoMsg && React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
       color: C.inkDim,
       marginTop: 8
@@ -1158,7 +1158,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -1183,7 +1183,7 @@ function RealtimeTwilight() {
     placeholder: "e.g. 02108",
     "aria-label": "US ZIP code",
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 15,
       letterSpacing: 1,
       width: 130,
@@ -1203,13 +1203,13 @@ function RealtimeTwilight() {
     }
   }, zipBusy ? "…" : "Go"), zipMsg && React.createElement("span", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 11,
       color: zipMsg.includes("…") ? C.inkDim : "#c99"
     }
   }, zipMsg)), React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -1293,7 +1293,7 @@ function RealtimeTwilight() {
       left: `${s.x}%`,
       top: `${s.y / 58 * horizonY}%`,
       transform: "translate(8px,-50%)",
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       color: C.brassHi,
       textShadow: "0 0 6px #000",
@@ -1329,7 +1329,7 @@ function RealtimeTwilight() {
       top: `${horizonY}%`,
       right: 14,
       transform: "translateY(8px)",
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 1,
       color: live.hv > 0.1 ? "#bcd0e6" : "#5a6478"
@@ -1355,7 +1355,7 @@ function RealtimeTwilight() {
     }
   }), React.createElement("span", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       color: C.brass
     }
@@ -1371,7 +1371,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("span", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       color: "#cdd6e4"
     }
@@ -1392,7 +1392,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -1400,7 +1400,7 @@ function RealtimeTwilight() {
     }
   }, "Right Now"), React.createElement("div", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontWeight: 900,
       fontSize: 34,
       color: meta.color,
@@ -1442,7 +1442,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -1450,7 +1450,7 @@ function RealtimeTwilight() {
     }
   }, win ? win.open ? "Window open now" : `Next sextant window · ${win.kind.toLowerCase()}` : "Sextant window"), win ? React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontSize: 26,
       fontWeight: 600,
       margin: "5px 0 2px"
@@ -1462,7 +1462,7 @@ function RealtimeTwilight() {
     }
   }, "\u2192"), " ", fmtT(win.e, loc.tz)), React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 12,
       color: win.open ? C.brassHi : C.inkDim
     }
@@ -1516,7 +1516,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -1581,7 +1581,7 @@ function RealtimeTwilight() {
     }
   }), React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 12,
       color: C.brassHi,
       letterSpacing: .5
@@ -1614,7 +1614,7 @@ function RealtimeTwilight() {
     }
   }, React.createElement("div", null, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -1622,7 +1622,7 @@ function RealtimeTwilight() {
     }
   }, "The Gloaming \xB7 Curiosities"), React.createElement("h2", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontWeight: 900,
       fontSize: "clamp(22px,4vw,32px)",
       margin: "6px 0 0"
@@ -1661,7 +1661,7 @@ function RealtimeTwilight() {
   }, React.createElement("span", {
     style: {
       display: "inline-block",
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 1.5,
       textTransform: "uppercase",
@@ -1673,7 +1673,7 @@ function RealtimeTwilight() {
     }
   }, FACTS[factIdx].tag), React.createElement("h3", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontWeight: 600,
       fontSize: "clamp(20px,3.4vw,27px)",
       margin: "12px 0 10px",
@@ -1691,7 +1691,7 @@ function RealtimeTwilight() {
   }, FACTS[factIdx].body), React.createElement("div", {
     style: {
       marginTop: 16,
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10.5,
       color: C.inkDim,
       letterSpacing: 1
@@ -1700,7 +1700,7 @@ function RealtimeTwilight() {
     style: {
       maxWidth: 1080,
       margin: "16px auto 0",
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10.5,
       color: C.inkDim,
       lineHeight: 1.6
@@ -1718,7 +1718,7 @@ function RO({
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 10,
       letterSpacing: 1.5,
       color: C.inkDim,
@@ -1726,7 +1726,7 @@ function RO({
     }
   }, label), React.createElement("div", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 24,
       fontWeight: 600,
       color: accent || C.ink,
@@ -1763,7 +1763,7 @@ function EventCol({
   const rows = order.map(k => events.find(e => e.key === k && e.dir === dir)).filter(Boolean);
   return React.createElement("div", null, React.createElement("div", {
     style: {
-      fontFamily: "'Fraunces',serif",
+      fontFamily: "'Cormorant Garamond',Georgia,serif",
       fontSize: 18,
       fontWeight: 600,
       marginBottom: 8
@@ -1799,7 +1799,7 @@ function EventCol({
     }
   }, dir === "up" ? LABELS[e.key] : LABELS_PM[e.key]), React.createElement("span", {
     style: {
-      fontFamily: "'IBM Plex Mono',monospace",
+      fontFamily: "'Space Grotesk',sans-serif",
       fontSize: 14,
       color: C.ink
     }
@@ -2141,7 +2141,7 @@ function TwilightEphemeris() {
     backdropFilter: "blur(6px)"
   };
   const labelSt = {
-    font: "600 11px 'IBM Plex Mono',monospace",
+    font: "600 11px 'Space Grotesk',sans-serif",
     letterSpacing: ".12em",
     textTransform: "uppercase",
     color: dim
@@ -2154,7 +2154,7 @@ function TwilightEphemeris() {
     background: "rgba(8,11,26,.7)",
     border: "1px solid rgba(120,140,200,.22)",
     borderRadius: 9,
-    font: "16px 'IBM Plex Mono',monospace",
+    font: "16px 'Space Grotesk',sans-serif",
     outline: "none"
   };
   const btn = {
@@ -2162,7 +2162,7 @@ function TwilightEphemeris() {
     padding: "10px 16px",
     borderRadius: 10,
     border: "none",
-    font: "600 13px 'IBM Plex Mono',monospace",
+    font: "600 13px 'Space Grotesk',sans-serif",
     letterSpacing: ".04em"
   };
   const stars = useMemo(() => Array.from({
@@ -2233,7 +2233,7 @@ function TwilightEphemeris() {
   }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
     style: {
       margin: "6px 0 0",
-      font: "600 clamp(34px,6vw,58px)/1 'Fraunces',serif",
+      font: "600 clamp(34px,6vw,58px)/1 'Cormorant Garamond',Georgia,serif",
       letterSpacing: "-.01em",
       color: ink
     }
@@ -2285,7 +2285,7 @@ function TwilightEphemeris() {
       marginTop: 6,
       fontSize: 12,
       color: dim,
-      fontFamily: "'IBM Plex Mono',monospace"
+      fontFamily: "'Space Grotesk',sans-serif"
     }
   }, geoMsg), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2354,14 +2354,14 @@ function TwilightEphemeris() {
     }
   })), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      font: "500 14px 'IBM Plex Mono',monospace",
+      font: "500 14px 'Space Grotesk',sans-serif",
       color: ink
     }
   }, "Daylight saving (+1h)"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: dim,
-      fontFamily: "'IBM Plex Mono',monospace"
+      fontFamily: "'Space Grotesk',sans-serif"
     }
   }, "Active offset \xB7 ", tzLabel))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2439,12 +2439,12 @@ function TwilightEphemeris() {
   }, /*#__PURE__*/React.createElement("h2", {
     style: {
       margin: 0,
-      font: "600 19px 'Fraunces',serif",
+      font: "600 19px 'Cormorant Garamond',Georgia,serif",
       color: ink
     }
   }, "Solar altitude through the day"), /*#__PURE__*/React.createElement("span", {
     style: {
-      font: "12px 'IBM Plex Mono',monospace",
+      font: "12px 'Space Grotesk',sans-serif",
       color: dim
     }
   }, valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0 \u00B7 ${dateStr}` : "enter valid coordinates")), !valid ? /*#__PURE__*/React.createElement("div", {
@@ -2519,7 +2519,7 @@ function TwilightEphemeris() {
     y: Yc(a) + 3,
     textAnchor: "end",
     style: {
-      font: "10px 'IBM Plex Mono',monospace",
+      font: "10px 'Space Grotesk',sans-serif",
       fill: a === 0 ? gold : dim
     }
   }, a, "\xB0"))), [0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => /*#__PURE__*/React.createElement("g", {
@@ -2536,7 +2536,7 @@ function TwilightEphemeris() {
     y: H - padB + 16,
     textAnchor: "middle",
     style: {
-      font: "10px 'IBM Plex Mono',monospace",
+      font: "10px 'Space Grotesk',sans-serif",
       fill: dim
     }
   }, pad2(h), ":00"))), bands.map((b, i) => {
@@ -2551,7 +2551,7 @@ function TwilightEphemeris() {
       y: y + h / 2 + 3,
       textAnchor: "end",
       style: {
-        font: "9px 'IBM Plex Mono',monospace",
+        font: "9px 'Space Grotesk',sans-serif",
         fill: "rgba(220,228,255,.45)",
         letterSpacing: ".08em",
         textTransform: "uppercase"
@@ -2599,14 +2599,14 @@ function TwilightEphemeris() {
     x: "8",
     y: "17",
     style: {
-      font: "600 11px 'IBM Plex Mono',monospace",
+      font: "600 11px 'Space Grotesk',sans-serif",
       fill: ink
     }
   }, pad2(Math.floor(hover.mLocal / 60)), ":", pad2(Math.round(hover.mLocal % 60)), " \xA0 ", hover.alt.toFixed(1), "\xB0"), /*#__PURE__*/React.createElement("text", {
     x: "8",
     y: "32",
     style: {
-      font: "10px 'IBM Plex Mono',monospace",
+      font: "10px 'Space Grotesk',sans-serif",
       fill: gold
     }
   }, hover.phase))))), valid && /*#__PURE__*/React.createElement("div", {
@@ -2629,7 +2629,7 @@ function TwilightEphemeris() {
   }, "\uD83C\uDF0C Astronomical dark window (tonight)"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 4,
-      font: "500 17px 'IBM Plex Mono',monospace",
+      font: "500 17px 'Space Grotesk',sans-serif",
       color: ink
     }
   }, darkStart != null ? `${fmtLocal(darkStart, offMin)} \u2192 ${fmtLocal(darkEnd, offMin)}` : "No true darkness \u2014 sun stays above \u221218\u00B0")), /*#__PURE__*/React.createElement("div", {
@@ -2640,7 +2640,7 @@ function TwilightEphemeris() {
     style: labelSt
   }, "Duration"), /*#__PURE__*/React.createElement("div", {
     style: {
-      font: "600 22px 'Fraunces',serif",
+      font: "600 22px 'Cormorant Garamond',Georgia,serif",
       color: gold
     }
   }, durStr(darkDur)))), valid && /*#__PURE__*/React.createElement("div", {
@@ -2676,27 +2676,27 @@ function TwilightEphemeris() {
       }
     }, name), /*#__PURE__*/React.createElement("div", {
       style: {
-        font: "11px 'IBM Plex Mono',monospace",
+        font: "11px 'Space Grotesk',sans-serif",
         color: dim
       }
     }, sub)), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "right",
-        font: "600 18px 'IBM Plex Mono',monospace",
+        font: "600 18px 'Space Grotesk',sans-serif",
         color: e.none ? dim : isNoon ? gold : ink
       }
     }, e.none === "above" ? "\u2014 high" : e.none === "below" ? "\u2014 low" : fmtLocal(e.utc, offMin)));
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "10px 14px",
-      font: "11px 'IBM Plex Mono',monospace",
+      font: "11px 'Space Grotesk',sans-serif",
       color: dim,
       textAlign: "right"
     }
   }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high.")))), /*#__PURE__*/React.createElement("footer", {
     style: {
       marginTop: 28,
-      font: "11px 'IBM Plex Mono',monospace",
+      font: "11px 'Space Grotesk',sans-serif",
       color: dim,
       lineHeight: 1.7
     }
@@ -2720,7 +2720,7 @@ function TwilightApp() {
   }, []);
 
   const tabStyle = active => ({
-    fontFamily: "'IBM Plex Mono',monospace",
+    fontFamily: "'Space Grotesk',sans-serif",
     fontSize: 12,
     letterSpacing: 1,
     padding: "9px 20px",
@@ -2751,7 +2751,7 @@ function TwilightApp() {
         style: {
           marginLeft: "auto",
           marginRight: 14,
-          fontFamily: "'IBM Plex Mono',monospace",
+          fontFamily: "'Space Grotesk',sans-serif",
           fontSize: 10,
           color: "#4a5a7a",
           letterSpacing: 0.5,
