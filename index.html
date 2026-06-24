@@ -612,10 +612,23 @@ function localMidnight(tz, baseMs) {
   for (let k = 0; k < 3; k++) g = Date.UTC(+p.year, +p.month - 1, +p.day, 0, 0, 0) - tzOffset(new Date(g), tz) * 60000;
   return g;
 }
+/* ---- Global user preferences (external store, no prop drilling) ---- */
+const prefStore = (() => {
+  let h24 = false;
+  try { h24 = localStorage.getItem('tw_h24') === '1'; } catch (e) {}
+  const subs = new Set();
+  return {
+    getH24: () => h24,
+    setH24: v => { h24 = !!v; try { localStorage.setItem('tw_h24', h24 ? '1' : '0'); } catch (e) {} subs.forEach(f => f()); },
+    subscribe: f => { subs.add(f); return () => subs.delete(f); }
+  };
+})();
+function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
   hour: "numeric",
-  minute: "2-digit"
+  minute: "2-digit",
+  hourCycle: prefStore.getH24() ? "h23" : "h12"
 }).format(new Date(t));
 const dateKey = (t, tz) => new Intl.DateTimeFormat("en-CA", {
   timeZone: tz,
@@ -1259,6 +1272,7 @@ function tzFromLonState(lon, state) {
   return "America/Los_Angeles";
 }
 function RealtimeTwilight({ onEphemeris } = {}) {
+  const h24 = useH24();
   const [loc, setLoc] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -1481,6 +1495,18 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
   };
   const sunY = Math.max(6, Math.min(96, horizonY - live.alt * 1.15));
+  /* ---- "Tonight at a glance" verdict, derived entirely from live data ---- */
+  const glance = (() => {
+    const moonUp = live.m.alt > 0;
+    const illumPct = Math.round(live.m.illum * 100);
+    const ph = live.phase;
+    if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
+    if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
+    if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible — the sextant window is open.", tone: "var(--band-naut)" };
+    if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
+    if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
+    return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
+  })();
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
     left: Math.random() * 100,
@@ -1598,7 +1624,8 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     timeZone: loc.tz,
     hour: "numeric",
     minute: "2-digit",
-    second: "2-digit"
+    second: "2-digit",
+    hourCycle: h24 ? "h23" : "h12"
   }).format(new Date(now)))), React.createElement("div", {
     className: "rt-spacer",
     style: {
@@ -1723,7 +1750,42 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       setLoc(p);
       setPickerOpen(false);
     }
-  }, p.name))))), React.createElement("section", {
+  }, p.name))))),
+  React.createElement("section", {
+    className: "tw-panel",
+    style: {
+      maxWidth: 1080, margin: "0 auto 16px",
+      background: `linear-gradient(135deg, ${C.panelHi}, ${C.panel})`,
+      border: `1px solid ${C.line}`, borderRadius: 16,
+      padding: "18px 22px", display: "flex", flexWrap: "wrap",
+      alignItems: "center", gap: "16px 28px"
+    }
+  },
+    React.createElement("div", { style: { flex: "1 1 280px", minWidth: 0 } },
+      React.createElement("div", {
+        style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 }
+      }, "Tonight at a glance"),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+        React.createElement("span", { "aria-hidden": "true", style: { width: 11, height: 11, borderRadius: "50%", background: glance.tone, boxShadow: `0 0 10px ${glance.tone}`, flexShrink: 0 } }),
+        React.createElement("span", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: "clamp(22px,3.4vw,30px)", fontWeight: 700, color: glance.tone, lineHeight: 1.05 } }, glance.head)
+      ),
+      React.createElement("div", { style: { fontFamily: "'Spectral',Georgia,serif", fontSize: 14.5, color: C.inkDim, marginTop: 6, lineHeight: 1.5 } }, glance.sub)
+    ),
+    React.createElement("div", {
+      style: { display: "flex", gap: 22, flexWrap: "wrap" }
+    },
+      [
+        { k: "Limiting mag", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: "naked-eye depth" },
+        { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
+        { k: "Planets up", v: String(planets.length), h: "above horizon" }
+      ].map(s => React.createElement("div", { key: s.k, style: { minWidth: 64 } },
+        React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1 } }, s.v),
+        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 9.5, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase", marginTop: 5 } }, s.k),
+        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10.5, color: C.inkDim, marginTop: 2 } }, s.h)
+      ))
+    )
+  ),
+  React.createElement("section", {
     style: {
       maxWidth: 1080,
       margin: "0 auto",
@@ -2439,7 +2501,11 @@ function fmtLocal(utcMin, offMin) {
     h = (h + 1) % 24;
   }
   const tag = dayShift < 0 ? " \u22121d" : dayShift > 0 ? " +1d" : "";
-  return pad2(h) + ":" + pad2(mn) + tag;
+  if (prefStore.getH24()) return pad2(h) + ":" + pad2(mn) + tag;
+  const ap = h < 12 ? "AM" : "PM";
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return h12 + ":" + pad2(mn) + " " + ap + tag;
 }
 function durStr(mins) {
   if (mins == null) return "\u2014";
@@ -2482,6 +2548,7 @@ function computeDay(lat, lon, y, m, d) {
    COMPONENT
    ============================================================ */
 function TwilightEphemeris() {
+  useH24();
   const [lat, setLat] = useState("40.7128");
   const [lon, setLon] = useState("-74.0060");
   const [dateStr, setDateStr] = useState("2026-06-21");
@@ -3322,6 +3389,10 @@ function TwilightApp() {
   const [visitorCount, setVisitorCount] = React.useState(null);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
+  const h24 = useH24();
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
+  const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
   const touchStartX = React.useRef(null);
   const handleTouchStart = e => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = e => {
@@ -3332,6 +3403,13 @@ function TwilightApp() {
   };
   const [installPrompt, setInstallPrompt] = React.useState(null);
   const [installDismissed, setInstallDismissed] = React.useState(() => localStorage.getItem('tw_nodismiss') === '1');
+
+  React.useEffect(() => {
+    if (!settingsOpen) return;
+    const close = () => setSettingsOpen(false);
+    const id = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => { clearTimeout(id); document.removeEventListener('click', close); };
+  }, [settingsOpen]);
 
   React.useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); };
@@ -3445,6 +3523,49 @@ function TwilightApp() {
         }
       }, visitorCount.toLocaleString(), " visitors"),
       React.createElement("button", {
+        onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
+        title: "Settings",
+        "aria-label": "Settings",
+        "aria-expanded": settingsOpen,
+        style: {
+          marginLeft: visitorCount === null ? "auto" : 0,
+          marginRight: 2,
+          background: "transparent", border: "none", cursor: "pointer",
+          fontSize: 15, opacity: settingsOpen ? 1 : 0.7, padding: "4px 6px",
+          color: settingsOpen ? "var(--accent)" : "var(--ink-dim)"
+        }
+      }, "⚙"),
+      settingsOpen && React.createElement("div", {
+        onClick: e => e.stopPropagation(),
+        style: {
+          position: "absolute", top: "100%", right: 8, marginTop: 6,
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-1)",
+          padding: "12px 14px", minWidth: 224, zIndex: 200,
+          fontFamily: "'Space Grotesk',sans-serif"
+        }
+      },
+        React.createElement("div", { style: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 } }, "Settings"),
+        React.createElement("label", {
+          style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)" }
+        },
+          React.createElement("span", null, "24-hour time"),
+          React.createElement("span", {
+            onClick: () => prefStore.setH24(!h24),
+            role: "switch", "aria-checked": h24, tabIndex: 0,
+            onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setH24(!h24); } },
+            style: {
+              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+              background: h24 ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+              transition: ".2s", display: "inline-block"
+            }
+          }, React.createElement("span", {
+            style: { display: "block", width: 18, height: 18, borderRadius: "50%", background: "var(--on-accent)", transform: h24 ? "translateX(18px)" : "translateX(0)", transition: ".2s" }
+          }))
+        ),
+        React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } }, h24 ? "Times shown as 13:30." : "Times shown as 1:30 PM.")
+      ),
+      React.createElement("button", {
         onClick: toggleRed,
         title: redMode ? "Exit red light mode" : "Red light mode",
         "aria-label": redMode ? "Exit red light mode" : "Enable red light mode",
@@ -3461,6 +3582,29 @@ function TwilightApp() {
           color: redMode ? "#ff4444" : "var(--ink-faint)"
         }
       }, redMode ? "🔴" : "🌙")
+    ),
+    !hintDismissed && React.createElement("div", {
+      style: {
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "8px 16px", fontFamily: "'Space Grotesk',sans-serif", fontSize: 12,
+        color: "var(--ink-dim)", background: "var(--surface)",
+        borderBottom: "1px solid var(--line)"
+      }
+    },
+      React.createElement("span", { "aria-hidden": "true", style: { color: "var(--accent)" } }, "↔"),
+      React.createElement("span", { style: { flex: 1 } },
+        "Two views: ",
+        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Console"),
+        " for tonight's live sky and ",
+        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
+        " for any date — tap the tabs above or swipe left/right."
+      ),
+      React.createElement("button", {
+        onClick: dismissHint,
+        "aria-label": "Dismiss tip",
+        title: "Got it",
+        style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 15, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }
+      }, "✕")
     ),
     React.createElement("div", {
       key: activeTab,
