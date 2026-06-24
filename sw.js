@@ -1,10 +1,12 @@
-const CACHE = 'twilight-v4';
+const CACHE = 'twilight-v6';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png'
+  '/icon-512.png',
+  '/icon-512-maskable.png',
+  '/og-image.png'
 ];
 
 self.addEventListener('install', event => {
