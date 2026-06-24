@@ -88,6 +88,8 @@
   }
   /* Hide the wordmark on very narrow screens so the tab bar never crowds */
   @media (max-width:420px){ .tw-brand-word{ display:none; } }
+  /* Free up room for the Share button on small screens */
+  @media (max-width:560px){ .tw-visitors{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
   .tw-panel{ box-shadow:var(--shadow-1), inset 0 1px 0 var(--panel-top); }
   *, *::before, *::after { box-sizing: border-box; }
@@ -1334,14 +1336,6 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   const factRef = useRef();
   const factBag = useRef([]);
   const tick = useRef();
-  const [shareCopied, setShareCopied] = React.useState(false);
-  const shareLocation = () => {
-    const url = `${location.origin}?lat=${loc.lat.toFixed(4)}&lon=${loc.lon.toFixed(4)}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
-    }).catch(() => {});
-  };
   const nextFact = () => {
     setFactIdx(cur => {
       if (factBag.current.length === 0) {
@@ -1688,11 +1682,6 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     onClick: toggleSave,
     title: "Save this location"
   }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save"),
-  React.createElement("button", {
-    className: "rtbtn",
-    onClick: shareLocation,
-    title: "Copy shareable link"
-  }, shareCopied ? "\u2713 Copied!" : "\u2398 Share"),
   onEphemeris && React.createElement("button", {
     className: "rtbtn",
     onClick: onEphemeris
@@ -3438,6 +3427,20 @@ function TwilightApp() {
   const h24 = useH24();
   const bortle = useBortle();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [shared, setShared] = React.useState(false);
+  const doShare = async () => {
+    let url = location.origin + location.pathname;
+    try {
+      const l = JSON.parse(localStorage.getItem('tw_loc') || 'null');
+      if (l && typeof l.lat === 'number' && typeof l.lon === 'number')
+        url = `${location.origin}${location.pathname}?lat=${l.lat.toFixed(4)}&lon=${l.lon.toFixed(4)}`;
+    } catch (e) {}
+    const data = { title: 'Twilight', text: 'Live sky dashboard & twilight ephemeris', url };
+    if (navigator.share) {
+      try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); setShared(true); setTimeout(() => setShared(false), 2000); } catch (e) {}
+  };
   const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
   const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
   const touchStartX = React.useRef(null);
@@ -3558,7 +3561,7 @@ function TwilightApp() {
         }
       },
         React.createElement("svg", {
-          "aria-hidden": "true", width: 22, height: 22, viewBox: "0 0 32 32",
+          "aria-hidden": "true", width: 32, height: 32, viewBox: "0 0 32 32",
           style: { display: "block", flexShrink: 0 }
         },
           React.createElement("circle", { cx: 16, cy: 16, r: 14.5, fill: "var(--btn-fill)", stroke: "var(--btn-border)", strokeWidth: 1 }),
@@ -3571,6 +3574,7 @@ function TwilightApp() {
       React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
       React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => switchTab('ephemeris') }, "Ephemeris"),
       visitorCount !== null && React.createElement("span", {
+        className: "tw-visitors",
         style: {
           marginLeft: "auto",
           marginRight: 14,
@@ -3582,12 +3586,37 @@ function TwilightApp() {
         }
       }, visitorCount.toLocaleString(), " visitors"),
       React.createElement("button", {
+        onClick: doShare,
+        title: "Share this view",
+        "aria-label": "Share",
+        style: {
+          marginLeft: visitorCount === null ? "auto" : 0,
+          marginRight: 6,
+          display: "inline-flex", alignItems: "center", gap: 7,
+          padding: "7px 14px", borderRadius: 20,
+          border: "1px solid var(--btn-border)", background: "var(--btn-fill)",
+          color: "var(--accent-hi)", cursor: "pointer",
+          font: "600 13px var(--font-ui)", letterSpacing: ".02em", whiteSpace: "nowrap"
+        }
+      },
+        React.createElement("svg", {
+          "aria-hidden": "true", width: 17, height: 17, viewBox: "0 0 24 24",
+          fill: "none", stroke: "currentColor", strokeWidth: 2,
+          strokeLinecap: "round", strokeLinejoin: "round", style: { display: "block" }
+        },
+          React.createElement("path", { d: "M12 3 V14" }),
+          React.createElement("path", { d: "M8 7 L12 3 L16 7" }),
+          React.createElement("path", { d: "M8 10 H7 a2 2 0 0 0 -2 2 V19 a2 2 0 0 0 2 2 H17 a2 2 0 0 0 2 -2 V12 a2 2 0 0 0 -2 -2 H16" })
+        ),
+        shared ? "Copied!" : "Share"
+      ),
+      React.createElement("button", {
         onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
         title: "Settings",
         "aria-label": "Settings",
         "aria-expanded": settingsOpen,
         style: {
-          marginLeft: visitorCount === null ? "auto" : 0,
+          marginLeft: 0,
           marginRight: 2,
           background: "transparent", border: "none", cursor: "pointer",
           fontSize: 15, opacity: settingsOpen ? 1 : 0.7, padding: "4px 6px",
