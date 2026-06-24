@@ -14,13 +14,16 @@
 <meta property="og:title" content="Twilight — Live Sky Dashboard & Twilight Ephemeris" />
 <meta property="og:description" content="Real-time sky dashboard and twilight ephemeris for celestial navigation and stargazing: live sun & moon, limiting magnitude, sextant windows, and precise dawn & dusk." />
 <meta property="og:url" content="https://twilyte.info/" />
-<meta property="og:image" content="https://twilyte.info/icon-512.png" />
-<meta property="og:image:alt" content="Twilight app icon" />
+<meta property="og:image" content="https://twilyte.info/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Twilight — live sky dashboard and twilight ephemeris" />
 <!-- Twitter -->
-<meta name="twitter:card" content="summary" />
+<meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Twilight — Live Sky Dashboard & Twilight Ephemeris" />
 <meta name="twitter:description" content="Real-time sky dashboard and twilight ephemeris for celestial navigation and stargazing." />
-<meta name="twitter:image" content="https://twilyte.info/icon-512.png" />
+<meta name="twitter:image" content="https://twilyte.info/og-image.png" />
+<meta name="twitter:image:alt" content="Twilight — live sky dashboard and twilight ephemeris" />
 <!-- PWA / iOS -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -58,6 +61,19 @@
     --band-naut:#5a7fb0;
     --band-astro:#2b3358;
     --band-night:#1a1f38;
+    /* typography */
+    --font-display:'Cormorant Garamond',Georgia,serif;  /* headings */
+    --font-body:'Spectral',Georgia,serif;               /* running text */
+    --font-ui:'Space Grotesk',sans-serif;               /* labels, UI, numerals */
+    /* type scale (available for incremental adoption) */
+    --text-2xs:10px;
+    --text-xs:11px;
+    --text-sm:13px;
+    --text-md:15px;
+    --text-lg:18px;
+    --text-xl:22px;
+    --text-2xl:28px;
+    --text-3xl:clamp(26px,5.4vw,50px);
     /* lines & shape & elevation */
     --line:#2a3550;
     --radius:16px;
@@ -88,7 +104,7 @@
     max-width:520px; margin:18vh auto 0; padding:24px 26px;
     border:1px solid var(--line); border-radius:var(--radius); line-height:1.55;
   }
-  .noscript h1{ font-family:'Cormorant Garamond',Georgia,serif; margin:0 0 8px; }
+  .noscript h1{ font-family:var(--font-display); margin:0 0 8px; }
   /* Respect users who prefer reduced motion: stop the twinkle/fade animations */
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{
@@ -612,18 +628,36 @@ function localMidnight(tz, baseMs) {
   for (let k = 0; k < 3; k++) g = Date.UTC(+p.year, +p.month - 1, +p.day, 0, 0, 0) - tzOffset(new Date(g), tz) * 60000;
   return g;
 }
+/* ---- Bortle dark-sky scale: naked-eye limiting magnitude (NELM) per class ---- */
+const BORTLE = {
+  0: { nelm: null, label: "Not set — theoretical dark sky" },
+  1: { nelm: 7.8, label: "1 · Excellent dark-sky site" },
+  2: { nelm: 7.3, label: "2 · Typical truly dark site" },
+  3: { nelm: 6.9, label: "3 · Rural sky" },
+  4: { nelm: 6.4, label: "4 · Rural / suburban transition" },
+  5: { nelm: 5.9, label: "5 · Suburban sky" },
+  6: { nelm: 5.4, label: "6 · Bright suburban sky" },
+  7: { nelm: 4.9, label: "7 · Suburban / urban transition" },
+  8: { nelm: 4.4, label: "8 · City sky" },
+  9: { nelm: 4.0, label: "9 · Inner-city sky" }
+};
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
-  let h24 = false;
+  let h24 = false, bortle = 0;
   try { h24 = localStorage.getItem('tw_h24') === '1'; } catch (e) {}
+  try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   const subs = new Set();
+  const emit = () => subs.forEach(f => f());
   return {
     getH24: () => h24,
-    setH24: v => { h24 = !!v; try { localStorage.setItem('tw_h24', h24 ? '1' : '0'); } catch (e) {} subs.forEach(f => f()); },
+    setH24: v => { h24 = !!v; try { localStorage.setItem('tw_h24', h24 ? '1' : '0'); } catch (e) {} emit(); },
+    getBortle: () => bortle,
+    setBortle: v => { bortle = v | 0; try { localStorage.setItem('tw_bortle', String(bortle)); } catch (e) {} emit(); },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
 function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
+function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
   hour: "numeric",
@@ -1273,6 +1307,7 @@ function tzFromLonState(lon, state) {
 }
 function RealtimeTwilight({ onEphemeris } = {}) {
   const h24 = useH24();
+  const bortle = useBortle();
   const [loc, setLoc] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -1437,7 +1472,10 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     const alt = sunAltitude(d, loc.lat, loc.lon);
     const m = moonState(d, loc.lat, loc.lon);
     const dep = Math.max(0, -alt);
-    const base = alt > 0 ? -10 : limitingMag(dep);
+    const darkLimit = alt > 0 ? -10 : limitingMag(dep);
+    const nelm = BORTLE[bortle] ? BORTLE[bortle].nelm : null;
+    // Light pollution sets a ceiling: you can't see fainter than your sky's NELM.
+    const base = (nelm != null && alt <= 0) ? Math.min(darkLimit, nelm) : darkLimit;
     const moonPen = m.alt > 0 ? m.illum * Math.min(1, m.alt / 40) * 2.2 : 0;
     const mag = base - moonPen;
     return {
@@ -1450,7 +1488,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       sky: skyColors(alt),
       phase: phaseOf(alt)
     };
-  }, [now, loc.lat, loc.lon]);
+  }, [now, loc.lat, loc.lon, bortle]);
   const win = useMemo(() => {
     const open = day.wins.find(w => w.s <= now && now <= w.e);
     if (open) return {
@@ -1519,7 +1557,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid ${C.brass};background:transparent;color:${C.brass};transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
+    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid ${C.brass};background:transparent;color:${C.brass};transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
     .rtbtn:hover{background:var(--accent-soft);border-color:var(--accent-hi);color:var(--accent-hi);transform:translateY(-1px)}
     .rtbtn.solid{background:${C.brass};color:var(--on-accent);font-weight:600;box-shadow:var(--shadow-2)}
     .rtbtn.solid:hover{background:var(--accent-hi);color:var(--on-accent)}
@@ -1549,7 +1587,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       position: "relative",
       background: `radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, ${C.base} 55%)`,
       color: C.ink,
-      fontFamily: "'Spectral',Georgia,serif",
+      fontFamily: "var(--font-body)",
       padding: "clamp(14px,3.5vw,40px)"
     }
   }, React.createElement("style", null, css),
@@ -1578,7 +1616,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 11,
       letterSpacing: 5,
       color: C.brass,
@@ -1586,7 +1624,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, "Live Nautical Almanac"), React.createElement("h1", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontWeight: 700,
       fontSize: "clamp(26px,5.4vw,50px)",
       lineHeight: .98,
@@ -1610,13 +1648,13 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("span", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontSize: 22,
       fontWeight: 600
     }
   }, "\uD83D\uDCCD ", loc.name), React.createElement("span", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 11,
       color: C.inkDim
     }
@@ -1655,7 +1693,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     onClick: onEphemeris
   }, "Ephemeris \u2192")), geoMsg && React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 11,
       color: C.inkDim,
       marginTop: 8
@@ -1664,7 +1702,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   saved.length > 0 && React.createElement("div", {
     style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }
   },
-    React.createElement("span", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", alignSelf: "center" } }, "Saved:"),
+    React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", alignSelf: "center" } }, "Saved:"),
     ...saved.map((s, i) =>
       React.createElement("button", {
         key: i,
@@ -1679,7 +1717,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -1704,7 +1742,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     placeholder: "e.g. 02108",
     "aria-label": "US ZIP code",
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 15,
       letterSpacing: 1,
       width: 130,
@@ -1724,13 +1762,13 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, zipBusy ? "…" : "Go"), zipMsg && React.createElement("span", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 11,
       color: zipMsg.includes("…") ? C.inkDim : "#c99"
     }
   }, zipMsg)), React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -1763,25 +1801,25 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   },
     React.createElement("div", { style: { flex: "1 1 280px", minWidth: 0 } },
       React.createElement("div", {
-        style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 }
+        style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 }
       }, "Tonight at a glance"),
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
         React.createElement("span", { "aria-hidden": "true", style: { width: 11, height: 11, borderRadius: "50%", background: glance.tone, boxShadow: `0 0 10px ${glance.tone}`, flexShrink: 0 } }),
-        React.createElement("span", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: "clamp(22px,3.4vw,30px)", fontWeight: 700, color: glance.tone, lineHeight: 1.05 } }, glance.head)
+        React.createElement("span", { style: { fontFamily: "var(--font-display)", fontSize: "clamp(22px,3.4vw,30px)", fontWeight: 700, color: glance.tone, lineHeight: 1.05 } }, glance.head)
       ),
-      React.createElement("div", { style: { fontFamily: "'Spectral',Georgia,serif", fontSize: 14.5, color: C.inkDim, marginTop: 6, lineHeight: 1.5 } }, glance.sub)
+      React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 14.5, color: C.inkDim, marginTop: 6, lineHeight: 1.5 } }, glance.sub)
     ),
     React.createElement("div", {
       style: { display: "flex", gap: 22, flexWrap: "wrap" }
     },
       [
-        { k: "Limiting mag", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: "naked-eye depth" },
+        { k: "Limiting mag", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `Bortle ${bortle} sky` : "naked-eye depth" },
         { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
         { k: "Planets up", v: String(planets.length), h: "above horizon" }
       ].map(s => React.createElement("div", { key: s.k, style: { minWidth: 64 } },
-        React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1 } }, s.v),
-        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 9.5, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase", marginTop: 5 } }, s.k),
-        React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10.5, color: C.inkDim, marginTop: 2 } }, s.h)
+        React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1 } }, s.v),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 9.5, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase", marginTop: 5 } }, s.k),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 2 } }, s.h)
       ))
     )
   ),
@@ -1849,7 +1887,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       left: `${s.x}%`,
       top: `${s.y / 58 * horizonY}%`,
       transform: "translate(8px,-50%)",
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       color: C.brassHi,
       textShadow: "0 0 6px #000",
@@ -1885,7 +1923,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       top: `${horizonY}%`,
       right: 14,
       transform: "translateY(8px)",
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 1,
       color: live.hv > 0.1 ? "#bcd0e6" : "#5a6478"
@@ -1911,7 +1949,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }), React.createElement("span", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       color: C.brass
     }
@@ -1927,7 +1965,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("span", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       color: "#cdd6e4"
     }
@@ -1948,7 +1986,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -1956,7 +1994,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, "Right Now"), React.createElement("div", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontWeight: 700,
       fontSize: 34,
       color: meta.color,
@@ -1980,10 +2018,10 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   },
     React.createElement("div", {
-      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 3 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 3 }
     }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
     React.createElement("div", {
-      style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 28, fontWeight: 600, lineHeight: 1 }
+      style: { fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 600, lineHeight: 1 }
     }, (() => {
       const ms = nextSunEv.t - now;
       const h = Math.floor(ms / 3600000);
@@ -2021,7 +2059,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 2,
       color: C.brass,
@@ -2029,7 +2067,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, win ? win.open ? "Window open now" : `Next sextant window · ${win.kind.toLowerCase()}` : "Sextant window"), win ? React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontSize: 26,
       fontWeight: 600,
       margin: "5px 0 2px"
@@ -2041,7 +2079,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, "\u2192"), " ", fmtT(win.e, loc.tz)), React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 12,
       color: win.open ? C.brassHi : C.inkDim
     }
@@ -2103,7 +2141,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
   },
     React.createElement("div", {
-      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
     }, "Planets above the horizon"),
     React.createElement("div", {
       style: { display: "flex", flexWrap: "wrap", gap: 10 }
@@ -2119,8 +2157,8 @@ function RealtimeTwilight({ onEphemeris } = {}) {
         },
           React.createElement("span", { style: { fontSize: 18, color: p.color } }, p.symbol),
           React.createElement("div", null,
-            React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 16, fontWeight: 600, color: p.color } }, p.name),
-            React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: C.inkDim } },
+            React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 600, color: p.color } }, p.name),
+            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: C.inkDim } },
               p.alt.toFixed(0), "° alt · ",
               (["N","NE","E","SE","S","SW","W","NW","N"])[Math.round(p.az / 45) % 8]
             )
@@ -2141,7 +2179,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -2207,7 +2245,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }), React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 12,
       color: C.brassHi,
       letterSpacing: .5
@@ -2241,7 +2279,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, React.createElement("div", null, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 3,
       color: C.brass,
@@ -2249,7 +2287,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, "The Gloaming \xB7 Curiosities"), React.createElement("h2", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontWeight: 700,
       fontSize: "clamp(22px,4vw,32px)",
       margin: "6px 0 0"
@@ -2288,7 +2326,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   }, React.createElement("span", {
     style: {
       display: "inline-block",
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 1.5,
       textTransform: "uppercase",
@@ -2300,7 +2338,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, FACTS[factIdx].tag), React.createElement("h3", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontWeight: 600,
       fontSize: "clamp(20px,3.4vw,27px)",
       margin: "12px 0 10px",
@@ -2308,7 +2346,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     }
   }, FACTS[factIdx].title), React.createElement("p", {
     style: {
-      fontFamily: "'Spectral',serif",
+      fontFamily: "var(--font-body)",
       fontSize: 16.5,
       lineHeight: 1.62,
       color: "#d7cfb8",
@@ -2318,7 +2356,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
   }, FACTS[factIdx].body), React.createElement("div", {
     style: {
       marginTop: 16,
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10.5,
       color: C.inkDim,
       letterSpacing: 1
@@ -2327,7 +2365,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     style: {
       maxWidth: 1080,
       margin: "16px auto 0",
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10.5,
       color: C.inkDim,
       lineHeight: 1.6
@@ -2345,7 +2383,7 @@ function RO({
     }
   }, React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 10,
       letterSpacing: 1.5,
       color: C.inkDim,
@@ -2353,7 +2391,7 @@ function RO({
     }
   }, label), React.createElement("div", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 24,
       fontWeight: 600,
       color: accent || C.ink,
@@ -2390,7 +2428,7 @@ function EventCol({
   const rows = order.map(k => events.find(e => e.key === k && e.dir === dir)).filter(Boolean);
   return React.createElement("div", null, React.createElement("div", {
     style: {
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontSize: 18,
       fontWeight: 600,
       marginBottom: 8
@@ -2426,7 +2464,7 @@ function EventCol({
     }
   }, dir === "up" ? LABELS[e.key] : LABELS_PM[e.key]), React.createElement("span", {
     style: {
-      fontFamily: "'Space Grotesk',sans-serif",
+      fontFamily: "var(--font-ui)",
       fontSize: 14,
       color: C.ink
     }
@@ -2774,7 +2812,7 @@ function TwilightEphemeris() {
     boxShadow: "var(--shadow-1)"
   };
   const labelSt = {
-    font: "600 11px 'Space Grotesk',sans-serif",
+    font: "600 11px var(--font-ui)",
     letterSpacing: ".12em",
     textTransform: "uppercase",
     color: dim
@@ -2787,7 +2825,7 @@ function TwilightEphemeris() {
     background: "var(--field-bg)",
     border: "1px solid var(--line)",
     borderRadius: 9,
-    font: "16px 'Space Grotesk',sans-serif",
+    font: "16px var(--font-ui)",
     outline: "none"
   };
   const btn = {
@@ -2795,7 +2833,7 @@ function TwilightEphemeris() {
     padding: "10px 16px",
     borderRadius: 10,
     border: "none",
-    font: "600 13px 'Space Grotesk',sans-serif",
+    font: "600 13px var(--font-ui)",
     letterSpacing: ".04em"
   };
   const upcomingEvents = useMemo(() => {
@@ -2858,7 +2896,7 @@ function TwilightEphemeris() {
       overflow: "hidden",
       color: ink,
       background: "radial-gradient(1200px 700px at 75% -10%,var(--bg-glow-2) 0%,var(--bg) 55%,#05060f 100%)",
-      fontFamily: "'Cormorant Garamond',Georgia,serif"
+      fontFamily: "var(--font-display)"
     }
   }, /*#__PURE__*/React.createElement("style", null, `
         @keyframes tw { 0%,100%{opacity:.25} 50%{opacity:1} }
@@ -2909,7 +2947,7 @@ function TwilightEphemeris() {
   }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
     style: {
       margin: "6px 0 0",
-      fontFamily: "'Cormorant Garamond',Georgia,serif",
+      fontFamily: "var(--font-display)",
       fontWeight: 700,
       fontSize: "clamp(26px,5.4vw,50px)",
       lineHeight: 1,
@@ -2948,7 +2986,7 @@ function TwilightEphemeris() {
     style: { ...btn, marginTop: 10, width: "100%", background: "rgba(120,140,200,.14)", color: ink, border: "1px solid rgba(120,140,200,.25)" }
   }, "\u2316 Use my location"),
   geoMsg && /*#__PURE__*/React.createElement("div", {
-    style: { marginTop: 6, fontSize: 12, color: dim, fontFamily: "'Space Grotesk',sans-serif" }
+    style: { marginTop: 6, fontSize: 12, color: dim, fontFamily: "var(--font-ui)" }
   }, geoMsg),
   /*#__PURE__*/React.createElement("div", {
     style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }
@@ -3003,14 +3041,14 @@ function TwilightEphemeris() {
     }
   })), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      font: "500 14px 'Space Grotesk',sans-serif",
+      font: "500 14px var(--font-ui)",
       color: ink
     }
   }, "Daylight saving (+1h)"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: dim,
-      fontFamily: "'Space Grotesk',sans-serif"
+      fontFamily: "var(--font-ui)"
     }
   }, "Active offset \xB7 ", tzLabel))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3088,12 +3126,12 @@ function TwilightEphemeris() {
   }, /*#__PURE__*/React.createElement("h2", {
     style: {
       margin: 0,
-      font: "600 19px 'Cormorant Garamond',Georgia,serif",
+      font: "600 19px var(--font-display)",
       color: ink
     }
   }, "Solar altitude through the day"), /*#__PURE__*/React.createElement("span", {
     style: {
-      font: "12px 'Space Grotesk',sans-serif",
+      font: "12px var(--font-ui)",
       color: dim
     }
   }, valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0 \u00B7 ${dateStr}` : "enter valid coordinates")), !valid ? /*#__PURE__*/React.createElement("div", {
@@ -3168,7 +3206,7 @@ function TwilightEphemeris() {
     y: Yc(a) + 3,
     textAnchor: "end",
     style: {
-      font: "10px 'Space Grotesk',sans-serif",
+      font: "10px var(--font-ui)",
       fill: a === 0 ? gold : dim
     }
   }, a, "\xB0"))), [0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => /*#__PURE__*/React.createElement("g", {
@@ -3185,7 +3223,7 @@ function TwilightEphemeris() {
     y: H - padB + 16,
     textAnchor: "middle",
     style: {
-      font: "10px 'Space Grotesk',sans-serif",
+      font: "10px var(--font-ui)",
       fill: dim
     }
   }, pad2(h), ":00"))), bands.map((b, i) => {
@@ -3200,7 +3238,7 @@ function TwilightEphemeris() {
       y: y + h / 2 + 3,
       textAnchor: "end",
       style: {
-        font: "9px 'Space Grotesk',sans-serif",
+        font: "9px var(--font-ui)",
         fill: "rgba(220,228,255,.45)",
         letterSpacing: ".08em",
         textTransform: "uppercase"
@@ -3248,14 +3286,14 @@ function TwilightEphemeris() {
     x: "8",
     y: "17",
     style: {
-      font: "600 11px 'Space Grotesk',sans-serif",
+      font: "600 11px var(--font-ui)",
       fill: ink
     }
   }, pad2(Math.floor(hover.mLocal / 60)), ":", pad2(Math.round(hover.mLocal % 60)), " \xA0 ", hover.alt.toFixed(1), "\xB0"), /*#__PURE__*/React.createElement("text", {
     x: "8",
     y: "32",
     style: {
-      font: "10px 'Space Grotesk',sans-serif",
+      font: "10px var(--font-ui)",
       fill: gold
     }
   }, hover.phase))))), valid && /*#__PURE__*/React.createElement("div", {
@@ -3278,7 +3316,7 @@ function TwilightEphemeris() {
   }, "\uD83C\uDF0C Astronomical dark window (tonight)"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 4,
-      font: "500 17px 'Space Grotesk',sans-serif",
+      font: "500 17px var(--font-ui)",
       color: ink
     }
   }, darkStart != null ? `${fmtLocal(darkStart, offMin)} \u2192 ${fmtLocal(darkEnd, offMin)}` : "No true darkness \u2014 sun stays above \u221218\u00B0")), /*#__PURE__*/React.createElement("div", {
@@ -3289,7 +3327,7 @@ function TwilightEphemeris() {
     style: labelSt
   }, "Duration"), /*#__PURE__*/React.createElement("div", {
     style: {
-      font: "600 22px 'Cormorant Garamond',Georgia,serif",
+      font: "600 22px var(--font-display)",
       color: gold
     }
   }, durStr(darkDur)))), valid && /*#__PURE__*/React.createElement("div", {
@@ -3320,25 +3358,25 @@ function TwilightEphemeris() {
       }
     }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
-        font: "500 15px 'Cormorant Garamond',Georgia,serif",
+        font: "500 15px var(--font-display)",
         color: ink
       }
     }, name), /*#__PURE__*/React.createElement("div", {
       style: {
-        font: "11px 'Space Grotesk',sans-serif",
+        font: "11px var(--font-ui)",
         color: dim
       }
     }, sub)), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "right",
-        font: "600 18px 'Space Grotesk',sans-serif",
+        font: "600 18px var(--font-ui)",
         color: e.none ? dim : isNoon ? gold : ink
       }
     }, e.none === "above" ? "\u2014 high" : e.none === "below" ? "\u2014 low" : fmtLocal(e.utc, offMin)));
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "10px 14px",
-      font: "11px 'Space Grotesk',sans-serif",
+      font: "11px var(--font-ui)",
       color: dim,
       textAlign: "right"
     }
@@ -3347,7 +3385,7 @@ function TwilightEphemeris() {
     style: { maxWidth: 1180, margin: "22px auto 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(120,140,200,.16)", borderRadius: 16, padding: "20px 24px 24px" }
   },
     /*#__PURE__*/React.createElement("div", {
-      style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, letterSpacing: 3, color: gold, textTransform: "uppercase", marginBottom: 16 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: gold, textTransform: "uppercase", marginBottom: 16 }
     }, "Upcoming sky events"),
     /*#__PURE__*/React.createElement("div", {
       style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }
@@ -3359,12 +3397,12 @@ function TwilightEphemeris() {
         },
           /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
             /*#__PURE__*/React.createElement("span", { style: { fontSize: 16 } }, ev.symbol),
-            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: dim } },
+            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: dim } },
               new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
             )
           ),
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: 17, fontWeight: 600, color: ev.color } }, ev.type),
-          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Space Grotesk',sans-serif", fontSize: 10, color: dim, marginTop: 2 } }, ev.note)
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 600, color: ev.color } }, ev.type),
+          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: dim, marginTop: 2 } }, ev.note)
         )
       )
     )
@@ -3372,7 +3410,7 @@ function TwilightEphemeris() {
   , /*#__PURE__*/React.createElement("footer", {
     style: {
       marginTop: 28,
-      font: "11px 'Space Grotesk',sans-serif",
+      font: "11px var(--font-ui)",
       color: dim,
       lineHeight: 1.7
     }
@@ -3390,6 +3428,7 @@ function TwilightApp() {
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
   const h24 = useH24();
+  const bortle = useBortle();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
   const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
@@ -3433,7 +3472,7 @@ function TwilightApp() {
   }, []);
 
   const tabStyle = active => ({
-    fontFamily: "'Space Grotesk',sans-serif",
+    fontFamily: "var(--font-ui)",
     fontSize: 12,
     letterSpacing: 1,
     padding: "9px 20px",
@@ -3467,14 +3506,14 @@ function TwilightApp() {
         display: "flex",
         alignItems: "center",
         gap: 10,
-        fontFamily: "'Space Grotesk',sans-serif",
+        fontFamily: "var(--font-ui)",
         fontSize: 12
       }
     },
       React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "📲 Add Twilight to your home screen for quick access"),
       React.createElement("button", {
         onClick: doInstall,
-        style: { background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "'Space Grotesk',sans-serif", cursor: "pointer", fontWeight: 600 }
+        style: { background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "var(--font-ui)", cursor: "pointer", fontWeight: 600 }
       }, "Install"),
       React.createElement("button", {
         onClick: dismissInstall,
@@ -3501,7 +3540,7 @@ function TwilightApp() {
         style: {
           display: "flex", alignItems: "center", gap: 7,
           padding: "0 16px 0 18px", marginRight: 2,
-          fontFamily: "'Cormorant Garamond',Georgia,serif",
+          fontFamily: "var(--font-display)",
           fontSize: 18, fontWeight: 700, letterSpacing: ".5px",
           color: "var(--ink)", whiteSpace: "nowrap"
         }
@@ -3515,7 +3554,7 @@ function TwilightApp() {
         style: {
           marginLeft: "auto",
           marginRight: 14,
-          fontFamily: "'Space Grotesk',sans-serif",
+          fontFamily: "var(--font-ui)",
           fontSize: 10,
           color: "var(--ink-faint)",
           letterSpacing: 0.5,
@@ -3542,7 +3581,7 @@ function TwilightApp() {
           background: "var(--surface)", border: "1px solid var(--line)",
           borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-1)",
           padding: "12px 14px", minWidth: 224, zIndex: 200,
-          fontFamily: "'Space Grotesk',sans-serif"
+          fontFamily: "var(--font-ui)"
         }
       },
         React.createElement("div", { style: { fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 } }, "Settings"),
@@ -3563,7 +3602,22 @@ function TwilightApp() {
             style: { display: "block", width: 18, height: 18, borderRadius: "50%", background: "var(--on-accent)", transform: h24 ? "translateX(18px)" : "translateX(0)", transition: ".2s" }
           }))
         ),
-        React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } }, h24 ? "Times shown as 13:30." : "Times shown as 1:30 PM.")
+        React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } }, h24 ? "Times shown as 13:30." : "Times shown as 1:30 PM."),
+        React.createElement("div", { style: { height: 1, background: "var(--line)", margin: "12px 0" } }),
+        React.createElement("div", { style: { fontSize: 13, color: "var(--ink)", marginBottom: 6 } }, "Sky brightness"),
+        React.createElement("select", {
+          value: bortle,
+          "aria-label": "Bortle dark-sky class",
+          onChange: e => prefStore.setBortle(parseInt(e.target.value, 10)),
+          style: {
+            width: "100%", padding: "8px 10px", borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--line)", background: "var(--field-bg)", color: "var(--ink)",
+            font: "13px var(--font-ui)", cursor: "pointer", outline: "none"
+          }
+        }, Object.keys(BORTLE).map(k => React.createElement("option", { key: k, value: k }, BORTLE[k].label))),
+        React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } },
+          bortle ? `Caps the limiting magnitude at ${BORTLE[bortle].nelm} for light pollution.` : "Set your local light pollution for a realistic limiting magnitude."
+        )
       ),
       React.createElement("button", {
         onClick: toggleRed,
@@ -3586,7 +3640,7 @@ function TwilightApp() {
     !hintDismissed && React.createElement("div", {
       style: {
         display: "flex", alignItems: "center", gap: 10,
-        padding: "8px 16px", fontFamily: "'Space Grotesk',sans-serif", fontSize: 12,
+        padding: "8px 16px", fontFamily: "var(--font-ui)", fontSize: 12,
         color: "var(--ink-dim)", background: "var(--surface)",
         borderBottom: "1px solid var(--line)"
       }
