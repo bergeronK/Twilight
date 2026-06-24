@@ -87,7 +87,7 @@
     --panel-top:rgba(255,255,255,.05);  /* hairline top highlight */
   }
   /* Hide the wordmark on very narrow screens so the tab bar never crowds */
-  @media (max-width:420px){ .tw-brand-word{ display:none; } }
+  @media (max-width:359px){ .tw-brand-word{ display:none; } }
   /* Free up room for the Share button on small screens */
   @media (max-width:560px){ .tw-visitors{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
@@ -3560,15 +3560,6 @@ function TwilightApp() {
           color: "var(--ink)", whiteSpace: "nowrap"
         }
       },
-        React.createElement("svg", {
-          "aria-hidden": "true", width: 32, height: 32, viewBox: "0 0 32 32",
-          style: { display: "block", flexShrink: 0 }
-        },
-          React.createElement("circle", { cx: 16, cy: 16, r: 14.5, fill: "var(--btn-fill)", stroke: "var(--btn-border)", strokeWidth: 1 }),
-          React.createElement("path", { d: "M18 8 A8 8 0 1 0 18 24 A6.2 6.2 0 1 1 18 8 Z", fill: "var(--accent)" }),
-          React.createElement("path", { d: "M23 9.4 Q23 12 25.6 12 Q23 12 23 14.6 Q23 12 20.4 12 Q23 12 23 9.4 Z", fill: "var(--accent-hi)" }),
-          React.createElement("circle", { cx: 11.5, cy: 21.5, r: 1, fill: "var(--accent-hi)" })
-        ),
         React.createElement("span", { className: "tw-brand-word" }, "Twilight")
       ),
       React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
