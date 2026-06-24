@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-3/9sNVbLgEF/JKssz3GORYrptSHrOkG+yiIoTWfv93Q=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-stzhi08GGi88uPcdKa6jAiaAI9J3nwj9xLk7QuFwKL4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -61,9 +61,10 @@
     --accent-soft:rgba(217,173,98,.12);
     --on-accent:#0a1018;     /* text on accent fills */
     /* buttons (soft, dusky — not full-brightness brass) */
-    --btn-border:rgba(217,173,98,.30);
-    --btn-fill:rgba(217,173,98,.15);
-    --btn-fill-hi:rgba(217,173,98,.25);
+    --btn-border:rgba(217,173,98,.18);
+    --btn-fill:rgba(217,173,98,.10);
+    --btn-fill-hi:rgba(217,173,98,.16);
+    --btn-ink:rgba(217,173,98,.70);   /* dimmed resting label */
     /* twilight bands (shared color key) */
     --band-day:#7fa9d8;
     --band-civil:#e08a3c;
@@ -104,6 +105,7 @@
   .boot { color: var(--ink-dim); font-size: 13px; }
   .err { color: #e7b3a3; font-size: 12px; white-space: pre-wrap; }
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
   /* ---- accessibility ---- */
   :where(button,a,input,select,[tabindex]):focus-visible{
     outline:2px solid var(--accent-hi);
@@ -1568,7 +1570,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--accent);transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
+    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
     .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);transform:translateY(-1px)}
     .rtbtn.solid{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);font-weight:600}
     .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
@@ -3517,7 +3519,7 @@ function TwilightApp() {
         --ink:#d06a64;--ink-dim:#9a4a46;--ink-faint:#6e302e;
         --accent:#e06a60;--accent-hi:#ff8a7e;--accent-soft:rgba(224,106,96,.12);
         --on-accent:#160000;--line:#3a1412;
-        --btn-border:rgba(224,106,96,.32);--btn-fill:rgba(224,106,96,.15);--btn-fill-hi:rgba(224,106,96,.26);
+        --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
       }
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
       .tw-stars,.rt-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
@@ -3572,7 +3574,15 @@ function TwilightApp() {
           color: "var(--ink)", whiteSpace: "nowrap"
         }
       },
-        React.createElement("span", { className: "tw-brand-word" }, "Twilight")
+        React.createElement("svg", {
+          "aria-hidden": "true", width: 50, height: 22, viewBox: "0 0 50 22",
+          style: { display: "block", overflow: "visible" }
+        },
+          React.createElement("path", { d: "M13 4.5 Q13 11 19.5 11 Q13 11 13 17.5 Q13 11 6.5 11 Q13 11 13 4.5 Z", fill: "var(--accent-hi)", style: { animation: "twBrandStar 2.6s ease-in-out infinite" } }),
+          React.createElement("path", { d: "M30 4 Q30 7.4 33.4 7.4 Q30 7.4 30 10.8 Q30 7.4 26.6 7.4 Q30 7.4 30 4 Z", fill: "var(--accent)", style: { animation: "twBrandStar 3.4s ease-in-out infinite", animationDelay: ".5s" } }),
+          React.createElement("path", { d: "M40 11 Q40 15 44 15 Q40 15 40 19 Q40 15 36 15 Q40 15 40 11 Z", fill: "var(--accent)", style: { animation: "twBrandStar 2.9s ease-in-out infinite", animationDelay: "1s" } }),
+          React.createElement("circle", { cx: 33, cy: 16.5, r: 1, fill: "var(--accent-hi)", style: { animation: "twBrandStar 2.2s ease-in-out infinite", animationDelay: "1.4s" } })
+        )
       ),
       React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
       React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => switchTab('ephemeris') }, "Ephemeris"),
