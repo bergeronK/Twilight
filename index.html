@@ -2906,6 +2906,8 @@ function TwilightEphemeris() {
     }
   }, /*#__PURE__*/React.createElement("style", null, `
         @keyframes tw { 0%,100%{opacity:.25} 50%{opacity:1} }
+        input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%}
+        input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.8)}
         select{appearance:none}
         ::selection{background:var(--accent);color:var(--on-accent)}
