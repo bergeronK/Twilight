@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v6';
+const CACHE = 'twilight-v7';
 const ASSETS = [
   '/',
   '/index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
   '/icon-512-maskable.png',
+  '/apple-touch-icon.png',
   '/og-image.png'
 ];
 
