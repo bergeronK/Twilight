@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v16';
+const CACHE = 'twilight-v17';
 const ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,13 @@ const ASSETS = [
   '/icon-512.png',
   '/icon-512-maskable.png',
   '/apple-touch-icon.png',
-  '/og-image.png'
+  '/og-image.png',
+  '/fonts/cormorant.woff2',
+  '/fonts/cormorant-i.woff2',
+  '/fonts/spacegrotesk.woff2',
+  '/fonts/spectral-300.woff2',
+  '/fonts/spectral-400.woff2',
+  '/fonts/spectral-500.woff2'
 ];
 
 self.addEventListener('install', event => {
