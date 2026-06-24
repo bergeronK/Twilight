@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v9';
+const CACHE = 'twilight-v10';
 const ASSETS = [
   '/',
   '/index.html',
@@ -30,13 +30,32 @@ self.addEventListener('fetch', event => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      // Return cached version, but also fetch fresh copy in background
-      const fetchPromise = fetch(event.request).then(response => {
+  const req = event.request;
+  const isDoc = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').includes('text/html');
+
+  // Navigations / HTML: network-first so a fresh deploy is picked up
+  // immediately when online, falling back to cache when offline.
+  if (isDoc) {
+    event.respondWith(
+      fetch(req).then(response => {
         if (response && response.status === 200) {
           const clone = response.clone();
-          caches.open(CACHE).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE).then(cache => cache.put(req, clone));
+        }
+        return response;
+      }).catch(() => caches.match(req).then(c => c || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Other assets: stale-while-revalidate.
+  event.respondWith(
+    caches.match(req).then(cached => {
+      const fetchPromise = fetch(req).then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(req, clone));
         }
         return response;
       }).catch(() => cached);
