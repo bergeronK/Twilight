@@ -55,6 +55,10 @@
     --accent-hi:#f0cd87;     /* brass highlight */
     --accent-soft:rgba(217,173,98,.12);
     --on-accent:#0a1018;     /* text on accent fills */
+    /* buttons (soft, dusky — not full-brightness brass) */
+    --btn-border:rgba(217,173,98,.30);
+    --btn-fill:rgba(217,173,98,.15);
+    --btn-fill-hi:rgba(217,173,98,.25);
     /* twilight bands (shared color key) */
     --band-day:#7fa9d8;
     --band-civil:#e08a3c;
@@ -1557,10 +1561,10 @@ function RealtimeTwilight({ onEphemeris } = {}) {
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid ${C.brass};background:transparent;color:${C.brass};transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
-    .rtbtn:hover{background:var(--accent-soft);border-color:var(--accent-hi);color:var(--accent-hi);transform:translateY(-1px)}
-    .rtbtn.solid{background:${C.brass};color:var(--on-accent);font-weight:600;box-shadow:var(--shadow-2)}
-    .rtbtn.solid:hover{background:var(--accent-hi);color:var(--on-accent)}
+    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--accent);transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
+    .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);transform:translateY(-1px)}
+    .rtbtn.solid{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);font-weight:600}
+    .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
     .rt-sky{min-height:380px}
     @media (max-width:780px){
       .rt-grid{grid-template-columns:1fr !important}
@@ -1577,7 +1581,7 @@ function RealtimeTwilight({ onEphemeris } = {}) {
       .rt-readouts>div{flex:1 1 30% !important;min-width:0 !important}
       .rt-ziprow input{flex:1 1 auto;width:auto !important}
     }
-    @media (hover:none){ .rtbtn:active{background:${C.brass};color:var(--on-accent)} }
+    @media (hover:none){ .rtbtn:active{background:var(--btn-fill-hi);border-color:var(--accent);color:var(--accent-hi)} }
   `;
   return React.createElement("div", {
     style: {
@@ -3494,6 +3498,7 @@ function TwilightApp() {
         --ink:#d06a64;--ink-dim:#9a4a46;--ink-faint:#6e302e;
         --accent:#e06a60;--accent-hi:#ff8a7e;--accent-soft:rgba(224,106,96,.12);
         --on-accent:#160000;--line:#3a1412;
+        --btn-border:rgba(224,106,96,.32);--btn-fill:rgba(224,106,96,.15);--btn-fill-hi:rgba(224,106,96,.26);
       }
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
       .tw-stars,.rt-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
@@ -3532,7 +3537,10 @@ function TwilightApp() {
         gap: 0,
         position: "sticky",
         top: 0,
-        zIndex: 100
+        zIndex: 100,
+        paddingTop: "env(safe-area-inset-top)",
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)"
       }
     },
       React.createElement("span", {
