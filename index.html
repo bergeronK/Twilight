@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-JXfk0mQAjkH1Rdlo15i+jxvy1UYIAhVYLCGKQcxld6s=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-R6V9yn/pRGF3RSG99QSkric0TBlWFznkFh0v/b3Kxbs=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -96,6 +96,8 @@
   @media (max-width:359px){ .tw-brand-word{ display:none; } }
   /* Free up room for the Share button on small screens */
   @media (max-width:560px){ .tw-visitors{ display:none; } }
+  /* Share collapses to icon-only on the narrowest screens */
+  @media (max-width:400px){ .tw-share-label{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
   .tw-panel{ box-shadow:var(--shadow-1), inset 0 1px 0 var(--panel-top); }
   *, *::before, *::after { box-sizing: border-box; }
@@ -664,8 +666,8 @@ const BORTLE = {
 };
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
-  let h24 = false, bortle = 0;
-  try { h24 = localStorage.getItem('tw_h24') === '1'; } catch (e) {}
+  let h24 = true, bortle = 0;
+  try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   const subs = new Set();
   const emit = () => subs.forEach(f => f());
@@ -2600,7 +2602,7 @@ function computeDay(lat, lon, y, m, d) {
 /* ============================================================
    COMPONENT
    ============================================================ */
-function TwilightEphemeris() {
+function TwilightEphemeris({ redMode } = {}) {
   useH24();
   const [lat, setLat] = useState("40.7128");
   const [lon, setLon] = useState("-74.0060");
@@ -2905,13 +2907,21 @@ function TwilightEphemeris() {
   const phaseRows = today ? [["Astronomical dawn", today.astroDawn, "#7a78d6", "Sun reaches \u221218\u00B0"], ["Nautical dawn", today.nautDawn, "#5f76c8", "Sun reaches \u221212\u00B0"], ["Civil dawn", today.civilDawn, "#f2a65a", "Sun reaches \u22126\u00B0"], ["Sunrise", today.sunrise, "#ffd479", "Upper limb at horizon"], ["Solar noon", {
     utc: today.noon
   }, gold, "Sun on meridian"], ["Sunset", today.sunset, "#ffd479", "Upper limb at horizon"], ["Civil dusk", today.civilDusk, "#f2a65a", "Sun reaches \u22126\u00B0"], ["Nautical dusk", today.nautDusk, "#5f76c8", "Sun reaches \u221212\u00B0"], ["Astronomical dusk", today.astroDusk, "#7a78d6", "Sun reaches \u221218\u00B0"]] : [];
+  // Live sky glow for the entered location's sky right now (darkened for
+  // readability; themed fallback in red-light mode \u2014 no blue light).
+  const eLat = parseFloat(lat), eLon = parseFloat(lon);
+  const eSky = (!redMode && isFinite(eLat) && isFinite(eLon) && Math.abs(eLat) <= 90 && Math.abs(eLon) <= 180)
+    ? skyColors(sunAltitude(new Date(), eLat, eLon)) : null;
+  const pageBg = eSky
+    ? `radial-gradient(1200px 760px at 75% -12%, ${lerpC(eSky.h, "#04050c", 0.5)} 0%, ${lerpC(eSky.m, "#04050c", 0.66)} 28%, var(--bg) 60%, #05060f 100%)`
+    : "radial-gradient(1200px 700px at 75% -10%,var(--bg-glow-2) 0%,var(--bg) 55%,#05060f 100%)";
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
       position: "relative",
       overflow: "hidden",
       color: ink,
-      background: "radial-gradient(1200px 700px at 75% -10%,var(--bg-glow-2) 0%,var(--bg) 55%,#05060f 100%)",
+      background: pageBg,
       fontFamily: "var(--font-display)"
     }
   }, /*#__PURE__*/React.createElement("style", null, `
@@ -3630,7 +3640,7 @@ function TwilightApp() {
           React.createElement("path", { d: "M8 7 L12 3 L16 7" }),
           React.createElement("path", { d: "M8 10 H7 a2 2 0 0 0 -2 2 V19 a2 2 0 0 0 2 2 H17 a2 2 0 0 0 2 -2 V12 a2 2 0 0 0 -2 -2 H16" })
         ),
-        shared ? "Copied!" : "Share"
+        React.createElement("span", { className: "tw-share-label" }, shared ? "Copied!" : "Share")
       ),
       React.createElement("button", {
         onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
@@ -3737,7 +3747,7 @@ function TwilightApp() {
       onTouchStart: handleTouchStart,
       onTouchEnd: handleTouchEnd
     },
-      activeTab === 'console' ? React.createElement(RealtimeTwilight, { onEphemeris: () => switchTab('ephemeris'), redMode }) : React.createElement(TwilightEphemeris)
+      activeTab === 'console' ? React.createElement(RealtimeTwilight, { onEphemeris: () => switchTab('ephemeris'), redMode }) : React.createElement(TwilightEphemeris, { redMode })
     )
   );
 }
