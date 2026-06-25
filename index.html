@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fh/MRO9+X/5YOA9ryN61lWy8m2GE+6mAHZ/AI7XRT5E=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KZlMSd1hk0Kq4psWCUcmYCSMEIPkokHJk1xO6cT0IW4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -94,10 +94,8 @@
   }
   /* Hide the wordmark on very narrow screens so the tab bar never crowds */
   @media (max-width:359px){ .tw-brand-word{ display:none; } }
-  /* Free up room for the Share button on small screens */
+  /* Free up room on small screens */
   @media (max-width:560px){ .tw-visitors{ display:none; } }
-  /* Share collapses to icon-only on the narrowest screens */
-  @media (max-width:400px){ .tw-share-label{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
   .tw-panel{ box-shadow:var(--shadow-1), inset 0 1px 0 var(--panel-top); }
   *, *::before, *::after { box-sizing: border-box; }
@@ -1631,9 +1629,10 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   // location right now (darkened so panels/text stay readable). Falls back
   // to the themed background in red-light mode (no blue light).
   const darkenTo = (c, k) => lerpC(c, "#04050c", k);
+  const dayK = Math.max(0, Math.min(1, live.alt / 8)); // deepen the wash as the sun climbs
   const pageBg = redMode
     ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
-    : `radial-gradient(135% 92% at 50% -12%, ${darkenTo(live.sky.h, 0.48)} 0%, ${darkenTo(live.sky.m, 0.64)} 34%, var(--bg) 72%)`;
+    : `radial-gradient(135% 92% at 50% -12%, ${darkenTo(live.sky.h, 0.48 + dayK * 0.26)} 0%, ${darkenTo(live.sky.m, 0.64 + dayK * 0.18)} 34%, var(--bg) 72%)`;
   return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -2943,10 +2942,12 @@ function TwilightEphemeris({ redMode } = {}) {
   // Live sky glow for the entered location's sky right now (darkened for
   // readability; themed fallback in red-light mode \u2014 no blue light).
   const eLat = parseFloat(lat), eLon = parseFloat(lon);
-  const eSky = (!redMode && isFinite(eLat) && isFinite(eLon) && Math.abs(eLat) <= 90 && Math.abs(eLon) <= 180)
-    ? skyColors(sunAltitude(new Date(), eLat, eLon)) : null;
+  const eValid = !redMode && isFinite(eLat) && isFinite(eLon) && Math.abs(eLat) <= 90 && Math.abs(eLon) <= 180;
+  const eAlt = eValid ? sunAltitude(new Date(), eLat, eLon) : 0;
+  const eSky = eValid ? skyColors(eAlt) : null;
+  const eDayK = Math.max(0, Math.min(1, eAlt / 8));
   const pageBg = eSky
-    ? `radial-gradient(1200px 760px at 75% -12%, ${lerpC(eSky.h, "#04050c", 0.5)} 0%, ${lerpC(eSky.m, "#04050c", 0.66)} 28%, var(--bg) 60%, #05060f 100%)`
+    ? `radial-gradient(1200px 760px at 75% -12%, ${lerpC(eSky.h, "#04050c", 0.5 + eDayK * 0.26)} 0%, ${lerpC(eSky.m, "#04050c", 0.66 + eDayK * 0.16)} 28%, var(--bg) 60%, #05060f 100%)`
     : "radial-gradient(1200px 700px at 75% -10%,var(--bg-glow-2) 0%,var(--bg) 55%,#05060f 100%)";
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3623,9 +3624,10 @@ function StarFinder({ redMode } = {}) {
   );
   const darkenTo = (c, k) => lerpC(c, "#04050c", k);
   const sky = skyColors(sunAlt);
+  const dayK = Math.max(0, Math.min(1, sunAlt / 8));
   const pageBg = redMode
     ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
-    : `radial-gradient(135% 92% at 50% -12%, ${darkenTo(sky.h, 0.48)} 0%, ${darkenTo(sky.m, 0.64)} 34%, var(--bg) 72%)`;
+    : `radial-gradient(135% 92% at 50% -12%, ${darkenTo(sky.h, 0.48 + dayK * 0.26)} 0%, ${darkenTo(sky.m, 0.64 + dayK * 0.18)} 34%, var(--bg) 72%)`;
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
@@ -3810,39 +3812,12 @@ function TwilightApp() {
         }
       }, visitorCount.toLocaleString(), " visitors"),
       React.createElement("button", {
-        onClick: doShare,
-        title: "Share this view",
-        "aria-label": "Share",
-        style: {
-          marginLeft: "auto",
-          marginRight: 4,
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "9px 12px",
-          border: "none", borderBottom: "2px solid transparent", background: "transparent",
-          color: "var(--accent)", cursor: "pointer",
-          fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: 0.6,
-          textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0,
-          transition: ".15s"
-        }
-      },
-        React.createElement("svg", {
-          "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 24 24",
-          fill: "none", stroke: "currentColor", strokeWidth: 2,
-          strokeLinecap: "round", strokeLinejoin: "round", style: { display: "block" }
-        },
-          React.createElement("path", { d: "M12 3 V14" }),
-          React.createElement("path", { d: "M8 7 L12 3 L16 7" }),
-          React.createElement("path", { d: "M8 10 H7 a2 2 0 0 0 -2 2 V19 a2 2 0 0 0 2 2 H17 a2 2 0 0 0 2 -2 V12 a2 2 0 0 0 -2 -2 H16" })
-        ),
-        React.createElement("span", { className: "tw-share-label" }, shared ? "Copied!" : "Share")
-      ),
-      React.createElement("button", {
         onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
         title: "Settings",
         "aria-label": "Settings",
         "aria-expanded": settingsOpen,
         style: {
-          marginLeft: 0,
+          marginLeft: "auto",
           marginRight: 2,
           background: "transparent", border: "none", cursor: "pointer",
           fontSize: 15, opacity: settingsOpen ? 1 : 0.7, padding: "4px 6px",
@@ -3911,6 +3886,19 @@ function TwilightApp() {
           color: redMode ? "#ff4444" : "var(--ink-faint)"
         }
       }, redMode ? "🔴" : "🌙")
+    ),
+    React.createElement("div", {
+      style: { maxWidth: 1080, margin: "0 auto", padding: "8px clamp(14px,3.5vw,40px) 0", display: "flex", justifyContent: "flex-end" }
+    },
+      React.createElement("button", {
+        onClick: doShare,
+        title: "Share this view",
+        style: {
+          background: "transparent", border: "none", cursor: "pointer", padding: "2px 0",
+          fontFamily: "var(--font-ui)", fontSize: 12.5, letterSpacing: 0.4,
+          color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "3px"
+        }
+      }, shared ? "Copied!" : "Share")
     ),
     !hintDismissed && React.createElement("div", {
       style: {
