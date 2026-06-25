@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-jh0aOTTkJJPrsG0D7XswFgbcoCTYOp43xEkyyA4U4o4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-rJ+aroNtFXtwUfhiChrc0LwDsDbqHeBtkK1XaIyJkCA=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1318,14 +1318,6 @@ function phaseOf(alt) {
   if (alt > -18) return "astro";
   return "night";
 }
-function tzFromLonState(lon, state) {
-  if (state === "AK") return "America/Anchorage";
-  if (state === "HI") return "Pacific/Honolulu";
-  if (lon >= -82.5) return "America/New_York";
-  if (lon >= -97.5) return "America/Chicago";
-  if (lon >= -114) return "America/Denver";
-  return "America/Los_Angeles";
-}
 /* ---- Navigational stars (J2000): [name, RA hours, Dec deg, magnitude] ---- */
 const NAV_STARS = [
   ["Alpheratz",0.140,29.09,2.1],["Ankaa",0.438,-42.31,2.4],["Schedar",0.675,56.54,2.2],
@@ -1359,7 +1351,7 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 }
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
-function RealtimeTwilight({ onEphemeris, redMode } = {}) {
+function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
   const [loc, setLoc] = useState(() => {
@@ -1377,6 +1369,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   const [results, setResults] = useState([]);
   const [searchMsg, setSearchMsg] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
+  const searchSeq = useRef(0);
   const [saved, setSaved] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
   });
@@ -1450,13 +1443,16 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   const searchPlaces = async () => {
     const q = query.trim();
     if (q.length < 2) { setSearchMsg("Type at least 2 letters."); return; }
+    const seq = ++searchSeq.current;
     setSearchBusy(true);
     setSearchMsg("Searching\u2026");
     setResults([]);
     try {
       const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) + "&count=8&language=en&format=json");
+      if (seq !== searchSeq.current) return; // a newer search superseded this one
       if (!r.ok) throw new Error("bad");
       const d = await r.json();
+      if (seq !== searchSeq.current) return;
       const list = (d.results || []).map(p => ({
         label: [p.name, p.admin1, p.country].filter(Boolean).join(", "),
         name: p.name + (p.country_code ? ", " + p.country_code : ""),
@@ -1467,9 +1463,9 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
       setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
       setResults(list);
     } catch (e) {
-      setSearchMsg("Couldn't search \u2014 check your connection.");
+      if (seq === searchSeq.current) setSearchMsg("Couldn't search \u2014 check your connection.");
     }
-    setSearchBusy(false);
+    if (seq === searchSeq.current) setSearchBusy(false);
   };
   const pickPlace = p => {
     setLoc({ name: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
@@ -1726,7 +1722,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
     onClick: useMyLocation
   }, "\u25CE Use my location"), React.createElement("button", {
     className: "rtbtn",
-    onClick: () => setPickerOpen(v => !v)
+    onClick: () => { const open = !pickerOpen; setPickerOpen(open); if (!open) { setResults([]); setQuery(""); setSearchMsg(""); } }
   }, "Set location \u25BE"), React.createElement("button", {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
@@ -2254,7 +2250,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
     }
   }, [{
     c: "var(--band-civil)",
-    n: "Civil · Golden Hour",
+    n: "Civil 0° to −6° (Golden Hour)",
     t: "Horizon sharp. Warm golden light ideal for photography. Brightest bodies only. First/last bright-planet sights."
   }, {
     c: "var(--band-naut)",
@@ -3919,7 +3915,7 @@ function TwilightApp() {
       onTouchStart: handleTouchStart,
       onTouchEnd: handleTouchEnd
     },
-      activeTab === 'console' ? React.createElement(RealtimeTwilight, { onEphemeris: () => switchTab('ephemeris'), redMode }) : activeTab === 'ephemeris' ? React.createElement(TwilightEphemeris, { redMode }) : React.createElement(StarFinder, { redMode })
+      activeTab === 'console' ? React.createElement(RealtimeTwilight, { redMode }) : activeTab === 'ephemeris' ? React.createElement(TwilightEphemeris, { redMode }) : React.createElement(StarFinder, { redMode })
     )
   );
 }
