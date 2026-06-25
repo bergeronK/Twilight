@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-p8W5MZLKLzGYJYbFyzuN5cMXT5Y6fjexYs+GsKmKqKU=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-UJdgWDxZHsbSx24ZZItlcsXWl5gUhUlQOfbdDi7HA10=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1373,9 +1373,10 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [zip, setZip] = useState("");
-  const [zipMsg, setZipMsg] = useState("");
-  const [zipBusy, setZipBusy] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searchMsg, setSearchMsg] = useState("");
+  const [searchBusy, setSearchBusy] = useState(false);
   const [saved, setSaved] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
   });
@@ -1446,37 +1447,33 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   useEffect(() => {
     useMyLocation();
   }, []);
-  const resolveZip = async () => {
-    const q = zip.trim();
-    if (!/^\d{5}$/.test(q)) {
-      setZipMsg("Enter a 5-digit US ZIP.");
-      return;
-    }
-    setZipBusy(true);
-    setZipMsg("Looking up " + q + "\u2026");
+  const searchPlaces = async () => {
+    const q = query.trim();
+    if (q.length < 2) { setSearchMsg("Type at least 2 letters."); return; }
+    setSearchBusy(true);
+    setSearchMsg("Searching\u2026");
+    setResults([]);
     try {
-      const r = await fetch("https://api.zippopotam.us/us/" + q);
-      if (!r.ok) throw new Error("not found");
+      const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) + "&count=8&language=en&format=json");
+      if (!r.ok) throw new Error("bad");
       const d = await r.json();
-      const p = d.places && d.places[0];
-      if (!p) throw new Error("no place");
-      const lat = parseFloat(p.latitude),
-        lon = parseFloat(p.longitude);
-      const state = p["state abbreviation"];
-      setLoc({
-        name: p["place name"] ? p["place name"] + ", " + state : "ZIP " + q,
-        lat: lat,
-        lon: lon,
-        tz: tzFromLonState(lon, state)
-      });
-      setZip("");
-      setZipMsg("");
-      setGeoMsg("");
-      setPickerOpen(false);
+      const list = (d.results || []).map(p => ({
+        label: [p.name, p.admin1, p.country].filter(Boolean).join(", "),
+        name: p.name + (p.country_code ? ", " + p.country_code : ""),
+        lat: p.latitude,
+        lon: p.longitude,
+        tz: p.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+      }));
+      setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
+      setResults(list);
     } catch (e) {
-      setZipMsg("Couldn't resolve that ZIP \u2014 check your connection, or pick a city.");
+      setSearchMsg("Couldn't search \u2014 check your connection.");
     }
-    setZipBusy(false);
+    setSearchBusy(false);
+  };
+  const pickPlace = p => {
+    setLoc({ name: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
+    setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg(""); setPickerOpen(false);
   };
   const dKey = dateKey(now, loc.tz);
   const day = useMemo(() => {
@@ -1615,9 +1612,8 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
     }
     @media (max-width:520px){
       .rtbtn{font-size:12px;padding:9px 14px}
-      .rt-locbar{flex-direction:column;align-items:stretch !important}
       .rt-locbar .rt-spacer{display:none}
-      .rt-locbar button{width:100%}
+      .rt-locname{flex:1 1 100%}
       .rt-sky{min-height:240px}
       .rt-readouts{gap:12px !important}
       .rt-readouts>div{flex:1 1 30% !important;min-width:0 !important}
@@ -1697,6 +1693,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
       borderBottom: `1px solid ${C.line}`
     }
   }, React.createElement("div", {
+    className: "rt-locname",
     style: {
       display: "flex",
       flexDirection: "column"
@@ -1737,11 +1734,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
     title: "Save this location"
-  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save"),
-  onEphemeris && React.createElement("button", {
-    className: "rtbtn",
-    onClick: onEphemeris
-  }, "Ephemeris \u2192")), geoMsg && React.createElement("div", {
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save")), geoMsg && React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 11,
@@ -1774,7 +1767,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
       textTransform: "uppercase",
       marginBottom: 7
     }
-  }, "Enter a US ZIP code"), React.createElement("div", {
+  }, "Search any city or place"), React.createElement("div", {
     className: "rt-ziprow",
     style: {
       display: "flex",
@@ -1783,19 +1776,18 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
       flexWrap: "wrap"
     }
   }, React.createElement("input", {
-    value: zip,
-    onChange: e => setZip(e.target.value.replace(/[^0-9]/g, "").slice(0, 5)),
+    value: query,
+    onChange: e => setQuery(e.target.value),
     onKeyDown: e => {
-      if (e.key === "Enter") resolveZip();
+      if (e.key === "Enter") searchPlaces();
     },
-    inputMode: "numeric",
-    placeholder: "e.g. 02108",
-    "aria-label": "US ZIP code",
+    placeholder: "City or place — e.g. Tokyo, Nairobi, Reykjavík",
+    "aria-label": "Search for a city or place",
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 15,
-      letterSpacing: 1,
-      width: 130,
+      flex: "1 1 220px",
+      minWidth: 0,
       padding: "9px 12px",
       borderRadius: 10,
       border: `1px solid ${C.line}`,
@@ -1805,40 +1797,39 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
     }
   }), React.createElement("button", {
     className: "rtbtn solid",
-    disabled: zipBusy,
-    onClick: resolveZip,
+    disabled: searchBusy,
+    onClick: searchPlaces,
     style: {
-      opacity: zipBusy ? 0.6 : 1
+      opacity: searchBusy ? 0.6 : 1
     }
-  }, zipBusy ? "…" : "Go"), zipMsg && React.createElement("span", {
+  }, searchBusy ? "…" : "Search"), searchMsg && React.createElement("span", {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 11,
-      color: zipMsg.includes("…") ? C.inkDim : "#c99"
+      color: searchMsg.includes("…") ? C.inkDim : "#c99"
     }
-  }, zipMsg)), React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 2,
-      color: C.brass,
-      textTransform: "uppercase",
-      margin: "16px 0 7px"
-    }
-  }, "Or pick a city"), React.createElement("div", {
+  }, searchMsg)), results.length > 0 && React.createElement("div", {
     style: {
       display: "flex",
-      flexWrap: "wrap",
-      gap: 8
+      flexDirection: "column",
+      gap: 6,
+      marginTop: 10
     }
-  }, PRESETS.map(p => React.createElement("button", {
-    key: p.name,
-    className: "rtbtn" + (p.name === loc.name ? " solid" : ""),
-    onClick: () => {
-      setLoc(p);
-      setPickerOpen(false);
+  }, results.map((p, i) => React.createElement("button", {
+    key: i,
+    onClick: () => pickPlace(p),
+    style: {
+      textAlign: "left",
+      fontFamily: "var(--font-ui)",
+      fontSize: 14,
+      color: C.ink,
+      padding: "9px 12px",
+      borderRadius: 10,
+      border: `1px solid ${C.line}`,
+      background: "rgba(255,255,255,0.03)",
+      cursor: "pointer"
     }
-  }, p.name))))),
+  }, p.label))))),
   React.createElement("section", {
     className: "tw-panel",
     style: {
