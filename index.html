@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-R6V9yn/pRGF3RSG99QSkric0TBlWFznkFh0v/b3Kxbs=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-UUTWmhwaK3GFsJ5b0iRf+sEZmav4+F5+rhjmghYHBoo=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.zippopotam.us https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1328,6 +1328,39 @@ function tzFromLonState(lon, state) {
   if (lon >= -114) return "America/Denver";
   return "America/Los_Angeles";
 }
+/* ---- Navigational stars (J2000): [name, RA hours, Dec deg, magnitude] ---- */
+const NAV_STARS = [
+  ["Alpheratz",0.140,29.09,2.1],["Ankaa",0.438,-42.31,2.4],["Schedar",0.675,56.54,2.2],
+  ["Diphda",0.726,-17.99,2.0],["Achernar",1.629,-57.24,0.5],["Hamal",2.119,23.46,2.0],
+  ["Polaris",2.530,89.26,2.0],["Acamar",2.971,-40.30,2.9],["Menkar",3.038,4.09,2.5],
+  ["Mirfak",3.405,49.86,1.8],["Aldebaran",4.599,16.51,0.9],["Rigel",5.242,-8.20,0.1],
+  ["Capella",5.278,46.00,0.1],["Bellatrix",5.418,6.35,1.6],["Elnath",5.438,28.61,1.7],
+  ["Alnilam",5.604,-1.20,1.7],["Betelgeuse",5.919,7.41,0.5],["Canopus",6.400,-52.70,-0.7],
+  ["Sirius",6.752,-16.72,-1.5],["Adhara",6.977,-28.97,1.5],["Procyon",7.655,5.22,0.4],
+  ["Pollux",7.755,28.03,1.1],["Avior",8.375,-59.51,1.9],["Suhail",9.133,-43.43,2.2],
+  ["Miaplacidus",9.220,-69.72,1.7],["Alphard",9.460,-8.66,2.0],["Regulus",10.139,11.97,1.4],
+  ["Dubhe",11.062,61.75,1.8],["Denebola",11.818,14.57,2.1],["Gienah",12.263,-17.54,2.6],
+  ["Acrux",12.443,-63.10,0.8],["Gacrux",12.519,-57.11,1.6],["Alioth",12.900,55.96,1.8],
+  ["Spica",13.420,-11.16,1.0],["Alkaid",13.792,49.31,1.9],["Hadar",14.064,-60.37,0.6],
+  ["Menkent",14.112,-36.37,2.1],["Arcturus",14.261,19.18,0.0],["Rigil Kentaurus",14.660,-60.84,-0.3],
+  ["Kochab",14.845,74.16,2.1],["Zubenelgenubi",14.848,-16.04,2.8],["Alphecca",15.578,26.71,2.2],
+  ["Antares",16.490,-26.43,1.0],["Atria",16.811,-69.03,1.9],["Sabik",17.173,-15.72,2.4],
+  ["Shaula",17.560,-37.10,1.6],["Rasalhague",17.582,12.56,2.1],["Eltanin",17.943,51.49,2.2],
+  ["Kaus Australis",18.403,-34.38,1.8],["Vega",18.616,38.78,0.0],["Nunki",18.921,-26.30,2.0],
+  ["Altair",19.846,8.87,0.8],["Peacock",20.427,-56.74,1.9],["Deneb",20.690,45.28,1.3],
+  ["Enif",21.736,9.87,2.4],["Al Na'ir",22.137,-46.96,1.7],["Fomalhaut",22.961,-29.62,1.2],
+  ["Scheat",23.063,28.08,2.4],["Markab",23.079,15.21,2.5]
+];
+/* Altitude (Hc) and true azimuth (Zn) of a fixed star — same convention as the sun/moon. */
+function starHcZn(raDeg, dec, lat, lonE, date) {
+  let ha = rev(rev(gmst(date) + lonE) - raDeg);
+  if (ha > 180) ha -= 360;
+  const alt = asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(ha));
+  const az = rev(atan2(sin(ha), cos(ha) * sin(lat) - Math.tan(dec * D2R) * cos(lat)) + 180);
+  return { alt, az };
+}
+const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
 function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -1601,6 +1634,59 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
   const pageBg = redMode
     ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
     : `radial-gradient(135% 92% at 50% -12%, ${darkenTo(live.sky.h, 0.48)} 0%, ${darkenTo(live.sky.m, 0.64)} 34%, var(--bg) 72%)`;
+  // Celestial-navigation star finder: navigational stars currently up, with Hc/Zn.
+  const navStars = useMemo(() => {
+    const dt = new Date(now);
+    return NAV_STARS.map(s => {
+      const p = starHcZn(s[1] * 15, s[2], loc.lat, loc.lon, dt);
+      return { name: s[0], mag: s[3], alt: p.alt, az: p.az };
+    }).filter(s => s.alt > 8).sort((a, b) => a.mag - b.mag);
+  }, [now, loc.lat, loc.lon]);
+  const polaris = useMemo(() => starHcZn(2.530 * 15, 89.26, loc.lat, loc.lon, new Date(now)), [now, loc.lat, loc.lon]);
+  const showPolaris = loc.lat > 0 && polaris.alt > 0;
+  const navHint = live.alt > 0
+    ? "Sun is up — positions shown for planning; stars become observable after sunset."
+    : live.alt > -6
+      ? "Civil twilight — the brightest stars and planets are emerging."
+      : live.alt > -12
+        ? "Nautical twilight — ideal for star sights: stars are out and the sea horizon is still visible."
+        : "Night — stars are out, though the sea horizon can be hard to make out for a sextant fix.";
+  const navHdr = { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase" };
+  const starFinderPanel = React.createElement("section", {
+    className: "tw-panel",
+    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
+  },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 } }, "Celestial Navigation"),
+    React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 8 } }, "Star Finder"),
+    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14 } }, navHint),
+    showPolaris && React.createElement("div", {
+      style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", padding: "10px 12px", marginBottom: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`, borderRadius: 10 }
+    },
+      React.createElement("span", navHdr, "Polaris"),
+      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.ink } }, "altitude ", polaris.alt.toFixed(1), "°"),
+      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "≈ your latitude (", loc.lat.toFixed(1), "°)")
+    ),
+    navStars.length === 0
+      ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No navigational stars above the horizon right now.")
+      : React.createElement("div", null,
+          React.createElement("div", {
+            style: { display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: "8px 16px", alignItems: "baseline" }
+          },
+            React.createElement("div", { key: "h0", style: navHdr }, "Star"),
+            React.createElement("div", { key: "h1", style: { ...navHdr, textAlign: "right" } }, "Alt"),
+            React.createElement("div", { key: "h2", style: { ...navHdr, textAlign: "right" } }, "Az"),
+            ...navStars.slice(0, 14).flatMap((s, i) => [
+              React.createElement("div", { key: "n" + i, style: { fontFamily: "var(--font-display)", fontSize: 15.5, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+                s.name,
+                React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginLeft: 7 } }, "m", s.mag.toFixed(1))),
+              React.createElement("div", { key: "a" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.ink, textAlign: "right" } }, s.alt.toFixed(0), "°"),
+              React.createElement("div", { key: "z" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.inkDim, textAlign: "right", whiteSpace: "nowrap" } }, s.az.toFixed(0), "° ", compass16(s.az))
+            ])
+          ),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 14, lineHeight: 1.5 } },
+            navStars.length, " navigational stars above 8° · Hc = altitude, Zn = true azimuth · J2000 positions, naked-eye accuracy.")
+        )
+  );
   return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -2153,6 +2239,7 @@ function RealtimeTwilight({ onEphemeris, redMode } = {}) {
           : "below horizon"
     )
   )))),
+  starFinderPanel,
   planets.length > 0 && React.createElement("section", {
     className: "tw-panel",
     style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
