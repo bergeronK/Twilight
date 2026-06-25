@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v23';
+const CACHE = 'twilight-v24';
 const ASSETS = [
   '/',
   '/index.html',
