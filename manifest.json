@@ -31,5 +31,37 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-narrow.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Tonight's live sky dashboard for your location"
+    },
+    {
+      "src": "screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Live sky dashboard with the next sextant window"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Twilight Ephemeris",
+      "short_name": "Ephemeris",
+      "description": "Twilight times for any date and place",
+      "url": "/?tab=ephemeris",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Star Finder",
+      "short_name": "Stars",
+      "description": "Navigational stars up now, with a recommended 3-star fix",
+      "url": "/?tab=stars",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

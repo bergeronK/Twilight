@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v30';
+const CACHE = 'twilight-v31';
 const ASSETS = [
   '/',
   '/index.html',
@@ -8,6 +8,8 @@ const ASSETS = [
   '/icon-512-maskable.png',
   '/apple-touch-icon.png',
   '/og-image.png',
+  '/screenshot-narrow.png',
+  '/screenshot-wide.png',
   '/fonts/cormorant.woff2',
   '/fonts/cormorant-i.woff2',
   '/fonts/spacegrotesk.woff2',
