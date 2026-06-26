@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-FoDth1TjxG6kkhdJSkw8j3SZfQ0U8vdPYmgvJ+nyj5E=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2giaN8Jjhwjejn3uEKSS60id0CNgjXTimf6g9FKFMDI=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -33,6 +33,9 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
 <link rel="manifest" href="manifest.json" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Twilight","alternateName":"Twilight — Live Sky Dashboard & Twilight Ephemeris","url":"https://twilyte.info/","description":"Real-time sky dashboard and twilight ephemeris: live sun and moon position, limiting magnitude, sextant windows, and precise civil, nautical, and astronomical dawn & dusk for any location worldwide — for stargazing and celestial navigation.","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires JavaScript","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true}
+</script>
 <style>
   /* ---- Self-hosted fonts (no third-party origins; latin subset, system fallback for symbols) ---- */
   @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/cormorant.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
@@ -3914,6 +3917,21 @@ function TwilightApp() {
       onTouchEnd: handleTouchEnd
     },
       activeTab === 'console' ? React.createElement(RealtimeTwilight, { redMode }) : activeTab === 'ephemeris' ? React.createElement(TwilightEphemeris, { redMode }) : React.createElement(StarFinder, { redMode })
+    ),
+    React.createElement("footer", {
+      style: {
+        maxWidth: 1080, margin: "0 auto", padding: "26px clamp(14px,3.5vw,40px) 40px",
+        borderTop: "1px solid var(--line)", fontFamily: "var(--font-ui)", fontSize: 11.5,
+        lineHeight: 1.7, color: "var(--ink-faint)", display: "flex", flexWrap: "wrap",
+        gap: "4px 18px", justifyContent: "space-between", alignItems: "baseline"
+      }
+    },
+      React.createElement("span", null, "Twilight — a live sky dashboard & twilight ephemeris."),
+      React.createElement("span", null,
+        "Sun & moon: NOAA / Schlyter models · Place search: ",
+        React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
+        " + GeoNames (CC BY 4.0) · No tracking — only an anonymous visit count."
+      )
     )
   );
 }
