@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2giaN8Jjhwjejn3uEKSS60id0CNgjXTimf6g9FKFMDI=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-94ZZTKxH8BEXdfHLsE0hekNMR+5ZlYsqEUNcTcWnqc4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1475,6 +1475,10 @@ function RealtimeTwilight({ redMode } = {}) {
     setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg(""); setPickerOpen(false);
   };
   const dKey = dateKey(now, loc.tz);
+  // The clock/countdown need per-second `now`, but the heavy astronomical
+  // recompute (sun/moon/planet positions) is imperceptible second-to-second,
+  // so key it to the minute to avoid trig work on every tick.
+  const minute = Math.floor(now / 60000);
   const day = useMemo(() => {
     const mid = localMidnight(loc.tz, now);
     const sunEv = scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
@@ -1530,7 +1534,7 @@ function RealtimeTwilight({ redMode } = {}) {
       sky: skyColors(alt),
       phase: phaseOf(alt)
     };
-  }, [now, loc.lat, loc.lon, bortle]);
+  }, [minute, loc.lat, loc.lon, bortle]);
   const win = useMemo(() => {
     const open = day.wins.find(w => w.s <= now && now <= w.e);
     if (open) return {
@@ -1553,7 +1557,7 @@ function RealtimeTwilight({ redMode } = {}) {
       .map(n => ({ name: n, color: colors[n], symbol: symbols[n], ...planetAltAz(n, new Date(now), loc.lat, loc.lon) }))
       .filter(p => p && p.alt > 5)
       .sort((a, b) => b.alt - a.alt);
-  }, [now, loc]);
+  }, [minute, loc]);
   const downloadICS = () => {
     if (!win) return;
     const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -3481,7 +3485,9 @@ function StarFinder({ redMode } = {}) {
   });
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  // No seconds are shown here; star altitudes drift <0.25°/min, so a 30s tick
+  // keeps positions fresh without recomputing 59 stars every second.
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
   const useMyLocation = () => {
     if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
@@ -3632,7 +3638,10 @@ function StarFinder({ redMode } = {}) {
 }
 
 function TwilightApp() {
-  const [activeTab, setActiveTab] = React.useState(() => localStorage.getItem('tw_tab') || 'console');
+  const [activeTab, setActiveTab] = React.useState(() => {
+    try { const t = new URLSearchParams(window.location.search).get('tab'); if (t === 'console' || t === 'ephemeris' || t === 'stars') return t; } catch (e) {}
+    return localStorage.getItem('tw_tab') || 'console';
+  });
   const switchTab = t => { setActiveTab(t); localStorage.setItem('tw_tab', t); };
   const [visitorCount, setVisitorCount] = React.useState(null);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');

@@ -1,0 +1,29 @@
+name: Build guard
+
+# Verifies the strict CSP script hashes match the inline scripts in index.html
+# (and that those scripts parse), plus that manifest.json / sw.js are valid.
+# Prevents shipping a build the browser would refuse to run.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify CSP hashes + inline-script syntax
+        run: node scripts/verify-build.js
+
+      - name: Validate manifest.json
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('✓ manifest.json is valid JSON')"
+
+      - name: Syntax-check service worker
+        run: node --check sw.js && echo "✓ sw.js parses"
