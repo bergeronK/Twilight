@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-94ZZTKxH8BEXdfHLsE0hekNMR+5ZlYsqEUNcTcWnqc4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uffOm9yGmIAvQQVup5nat9Rhz79Wh9HfMULdMM9jJDo=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1354,6 +1354,53 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 }
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+// "Clear AND Dark" observing score (0-100): fuses the cloud forecast (the only
+// new, variable input) with the darkness Twilight already models (twilight
+// phase + moon). Evaluates each forecast hour inside tonight's dark window and
+// returns the best contiguous ~2h block — what people actually plan around.
+function clearDarkScore(wx, loc, bortle, nowMs) {
+  const H = wx && wx.hourly;
+  if (!H || !H.time || !H.time.length) return null;
+  const off = (wx.utc_offset_seconds || 0) * 1000;
+  const cloud = H.cloud_cover || [], high = H.cloud_cover_high || [], precip = H.precipitation_probability || [];
+  const horizon = nowMs + 18 * 3600000;
+  const hours = [];
+  for (let i = 0; i < H.time.length; i++) {
+    const t = Date.parse(H.time[i] + "Z") - off; // local wall-clock -> true epoch
+    if (isNaN(t) || t < nowMs - 1800000 || t > horizon) continue;
+    const d = new Date(t);
+    const alt = sunAltitude(d, loc.lat, loc.lon);
+    if (alt > -6) continue; // daylight / civil twilight: not observing time
+    const m = moonState(d, loc.lat, loc.lon);
+    const moonPen = m.alt > 0 ? m.illum * Math.min(1, m.alt / 40) * 2.2 : 0;
+    const c = cloud[i] == null ? 0 : cloud[i];
+    const hi = high[i] == null ? 0 : high[i];
+    const pp = precip[i] == null ? 0 : precip[i];
+    const precipFactor = pp >= 60 ? 0.15 : pp >= 30 ? 0.6 : 1;
+    const clarity = (1 - c / 100) * (1 - 0.4 * hi / 100) * precipFactor;
+    const moonFactor = Math.max(0, Math.min(1, 1 - moonPen / 2.2));
+    hours.push({ t, astro: alt <= -12, score: 100 * clarity * moonFactor, cloud: c, precip: pp, moonPen });
+  }
+  if (!hours.length) return { score: null, factor: "no night ahead", astro: false };
+  const astroHours = hours.filter(h => h.astro);
+  const pool = astroHours.length ? astroHours : hours; // prefer true astronomical darkness
+  let best = pool[0], bestVal = pool[0].score;
+  for (let i = 0; i < pool.length; i++) {
+    const a = pool[i].score, b = i + 1 < pool.length ? pool[i + 1].score : a;
+    const v = (a + b) / 2;
+    if (v > bestVal) { bestVal = v; best = pool[i]; }
+  }
+  const score = Math.round(bestVal);
+  let factor;
+  if (!astroHours.length) factor = "no astro-dark tonight";
+  else if (best.precip >= 50) factor = "rain likely";
+  else if (score >= 78) factor = "clear & dark";
+  else {
+    const cloudDef = best.cloud / 100, moonDef = best.moonPen / 2.2;
+    factor = cloudDef >= moonDef ? (best.cloud >= 60 ? "cloudy" : "some cloud") : "moonlit";
+  }
+  return { score, factor, bestMs: best.t, astro: astroHours.length > 0 };
+}
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -1373,6 +1420,8 @@ function RealtimeTwilight({ redMode } = {}) {
   const [searchMsg, setSearchMsg] = useState("");
   const [searchBusy, setSearchBusy] = useState(false);
   const searchSeq = useRef(0);
+  const [wx, setWx] = useState(null);
+  const wxSeq = useRef(0);
   const [saved, setSaved] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
   });
@@ -1479,6 +1528,23 @@ function RealtimeTwilight({ redMode } = {}) {
   // recompute (sun/moon/planet positions) is imperceptible second-to-second,
   // so key it to the minute to avoid trig work on every tick.
   const minute = Math.floor(now / 60000);
+  const hourKey = Math.floor(now / 3600000);
+  // Cloud forecast for the "Clear AND Dark" score (Open-Meteo: keyless, CORS,
+  // same vendor as place search). Cached ~1h in localStorage; refetched on
+  // location change and once an hour. Strictly additive — any failure leaves
+  // the score as "—" and the rest of the Console untouched.
+  React.useEffect(() => {
+    const key = `tw_wx_${loc.lat.toFixed(2)}_${loc.lon.toFixed(2)}`;
+    try {
+      const c = JSON.parse(localStorage.getItem(key) || 'null');
+      if (c && Date.now() - c.t < 3600000) { setWx(c.d); return; }
+    } catch (e) {}
+    const seq = ++wxSeq.current;
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=2&timezone=auto`)
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
+      .then(d => { if (seq !== wxSeq.current) return; setWx(d); try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), d })); } catch (e) {} })
+      .catch(() => { if (seq === wxSeq.current) setWx(null); });
+  }, [loc.lat, loc.lon, hourKey]);
   const day = useMemo(() => {
     const mid = localMidnight(loc.tz, now);
     const sunEv = scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
@@ -1535,6 +1601,7 @@ function RealtimeTwilight({ redMode } = {}) {
       phase: phaseOf(alt)
     };
   }, [minute, loc.lat, loc.lon, bortle]);
+  const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
   const win = useMemo(() => {
     const open = day.wins.find(w => w.s <= now && now <= w.e);
     if (open) return {
@@ -1857,6 +1924,7 @@ function RealtimeTwilight({ redMode } = {}) {
       style: { display: "flex", gap: 22, flexWrap: "wrap" }
     },
       [
+        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: wxScore ? wxScore.factor : "forecast unavailable" },
         { k: "Limiting mag", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `Bortle ${bortle} sky` : "naked-eye depth" },
         { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
         { k: "Planets up", v: String(planets.length), h: "above horizon" }
