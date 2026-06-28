@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uffOm9yGmIAvQQVup5nat9Rhz79Wh9HfMULdMM9jJDo=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-MpDSzGxDHp+ZHLGYjgWsyaw2wvwHINV2sQzOmN36zxg=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1381,7 +1381,7 @@ function clearDarkScore(wx, loc, bortle, nowMs) {
     const moonFactor = Math.max(0, Math.min(1, 1 - moonPen / 2.2));
     hours.push({ t, astro: alt <= -12, score: 100 * clarity * moonFactor, cloud: c, precip: pp, moonPen });
   }
-  if (!hours.length) return { score: null, factor: "no night ahead", astro: false };
+  if (!hours.length) return { score: null, factor: "no night ahead", astro: false, hours: [] };
   const astroHours = hours.filter(h => h.astro);
   const pool = astroHours.length ? astroHours : hours; // prefer true astronomical darkness
   let best = pool[0], bestVal = pool[0].score;
@@ -1399,7 +1399,37 @@ function clearDarkScore(wx, loc, bortle, nowMs) {
     const cloudDef = best.cloud / 100, moonDef = best.moonPen / 2.2;
     factor = cloudDef >= moonDef ? (best.cloud >= 60 ? "cloudy" : "some cloud") : "moonlit";
   }
-  return { score, factor, bestMs: best.t, astro: astroHours.length > 0 };
+  return { score, factor, bestMs: best.t, astro: astroHours.length > 0, hours: pool };
+}
+// Hourly "clear & dark" strip across tonight's dark window: one segment per
+// hour, tinted dim->gold by its score, with the best ~2h block ticked in.
+function skyStripEl(wxScore, loc, h24) {
+  if (!wxScore || !wxScore.hours || !wxScore.hours.length) return null;
+  const hours = wxScore.hours;
+  const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
+  const tone = s => lerpC("#1f2740", "#d9ad62", Math.max(0, Math.min(1, s / 100)));
+  const bestSet = new Set([wxScore.bestMs, wxScore.bestMs + 3600000]);
+  return React.createElement("div", {
+    style: { maxWidth: 1080, margin: "0 auto 16px", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 20px" }
+  },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase" } }, "Clear & dark window · tonight"),
+      React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13, color: C.inkDim } },
+        wxScore.score >= 40 ? `Best: ${fmtH(wxScore.bestMs)}–${fmtH(wxScore.bestMs + 2 * 3600000)} · ${wxScore.factor}` : `Best of a poor night · ${wxScore.factor}`)
+    ),
+    React.createElement("div", { style: { display: "flex", gap: 2, alignItems: "stretch" } },
+      hours.map((hr, i) => React.createElement("div", {
+        key: i,
+        title: `${fmtH(hr.t)} · ${Math.round(hr.cloud)}% cloud${hr.moonPen > 0.5 ? " · moonlit" : ""} · score ${Math.round(hr.score)}`,
+        style: { flex: 1, height: 30, background: tone(hr.score), borderRadius: 3, borderTop: bestSet.has(hr.t) ? "2px solid var(--accent-hi)" : "2px solid transparent" }
+      }))
+    ),
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim } },
+      React.createElement("span", null, fmtH(hours[0].t)),
+      React.createElement("span", { style: { textAlign: "center", flex: "1 1 auto", padding: "0 8px" } }, wxScore.astro ? "darker = cloud or moon · brighter = clear & dark" : "nautical twilight only tonight"),
+      React.createElement("span", null, fmtH(hours[hours.length - 1].t))
+    )
+  );
 }
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
@@ -1935,6 +1965,7 @@ function RealtimeTwilight({ redMode } = {}) {
       ))
     )
   ),
+  skyStripEl(wxScore, loc, h24),
   React.createElement("section", {
     style: {
       maxWidth: 1080,
