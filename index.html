@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-MpDSzGxDHp+ZHLGYjgWsyaw2wvwHINV2sQzOmN36zxg=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tlov2WaVxS4N4qWdGV+PQ/U3nr7QWnQK5sFdhBraFjQ=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -667,9 +667,10 @@ const BORTLE = {
 };
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
-  let h24 = true, bortle = 0;
+  let h24 = true, bortle = 0, pro = true; // pro: multi-night planner — free during preview
   try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
+  try { const v = localStorage.getItem('tw_pro'); if (v !== null) pro = v === '1'; } catch (e) {}
   const subs = new Set();
   const emit = () => subs.forEach(f => f());
   return {
@@ -677,11 +678,14 @@ const prefStore = (() => {
     setH24: v => { h24 = !!v; try { localStorage.setItem('tw_h24', h24 ? '1' : '0'); } catch (e) {} emit(); },
     getBortle: () => bortle,
     setBortle: v => { bortle = v | 0; try { localStorage.setItem('tw_bortle', String(bortle)); } catch (e) {} emit(); },
+    getPro: () => pro,
+    setPro: v => { pro = !!v; try { localStorage.setItem('tw_pro', pro ? '1' : '0'); } catch (e) {} emit(); },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
 function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
 function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
+function usePro() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getPro); }
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
   hour: "numeric",
@@ -1285,6 +1289,7 @@ const FACTS = [{
 const C = {
   ink: "var(--ink)",
   inkDim: "var(--ink-dim)",
+  inkFaint: "var(--ink-faint)",
   brass: "var(--accent)",
   brassHi: "var(--accent-hi)",
   panel: "var(--surface)",
@@ -1354,20 +1359,19 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 }
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
-// "Clear AND Dark" observing score (0-100): fuses the cloud forecast (the only
-// new, variable input) with the darkness Twilight already models (twilight
-// phase + moon). Evaluates each forecast hour inside tonight's dark window and
-// returns the best contiguous ~2h block — what people actually plan around.
-function clearDarkScore(wx, loc, bortle, nowMs) {
+// "Clear AND Dark" scoring: fuse the cloud forecast (the only new, variable
+// input) with the darkness Twilight already models (twilight phase + moon).
+// scoreHours samples each forecast hour inside [startMs,endMs] that is dark
+// enough to observe; summarize() reduces those to a night verdict.
+function scoreHours(wx, loc, startMs, endMs) {
   const H = wx && wx.hourly;
-  if (!H || !H.time || !H.time.length) return null;
+  if (!H || !H.time || !H.time.length) return [];
   const off = (wx.utc_offset_seconds || 0) * 1000;
   const cloud = H.cloud_cover || [], high = H.cloud_cover_high || [], precip = H.precipitation_probability || [];
-  const horizon = nowMs + 18 * 3600000;
-  const hours = [];
+  const out = [];
   for (let i = 0; i < H.time.length; i++) {
     const t = Date.parse(H.time[i] + "Z") - off; // local wall-clock -> true epoch
-    if (isNaN(t) || t < nowMs - 1800000 || t > horizon) continue;
+    if (isNaN(t) || t < startMs || t > endMs) continue;
     const d = new Date(t);
     const alt = sunAltitude(d, loc.lat, loc.lon);
     if (alt > -6) continue; // daylight / civil twilight: not observing time
@@ -1379,20 +1383,23 @@ function clearDarkScore(wx, loc, bortle, nowMs) {
     const precipFactor = pp >= 60 ? 0.15 : pp >= 30 ? 0.6 : 1;
     const clarity = (1 - c / 100) * (1 - 0.4 * hi / 100) * precipFactor;
     const moonFactor = Math.max(0, Math.min(1, 1 - moonPen / 2.2));
-    hours.push({ t, astro: alt <= -12, score: 100 * clarity * moonFactor, cloud: c, precip: pp, moonPen });
+    out.push({ t, astro: alt <= -12, score: 100 * clarity * moonFactor, cloud: c, precip: pp, moonPen });
   }
-  if (!hours.length) return { score: null, factor: "no night ahead", astro: false, hours: [] };
+  return out;
+}
+function summarize(hours) {
+  if (!hours.length) return null;
   const astroHours = hours.filter(h => h.astro);
   const pool = astroHours.length ? astroHours : hours; // prefer true astronomical darkness
   let best = pool[0], bestVal = pool[0].score;
   for (let i = 0; i < pool.length; i++) {
     const a = pool[i].score, b = i + 1 < pool.length ? pool[i + 1].score : a;
-    const v = (a + b) / 2;
+    const v = (a + b) / 2; // best contiguous ~2h block
     if (v > bestVal) { bestVal = v; best = pool[i]; }
   }
   const score = Math.round(bestVal);
   let factor;
-  if (!astroHours.length) factor = "no astro-dark tonight";
+  if (!astroHours.length) factor = "no astro-dark";
   else if (best.precip >= 50) factor = "rain likely";
   else if (score >= 78) factor = "clear & dark";
   else {
@@ -1400,6 +1407,25 @@ function clearDarkScore(wx, loc, bortle, nowMs) {
     factor = cloudDef >= moonDef ? (best.cloud >= 60 ? "cloudy" : "some cloud") : "moonlit";
   }
   return { score, factor, bestMs: best.t, astro: astroHours.length > 0, hours: pool };
+}
+// Tonight: the dark window from now to ~18h out.
+function clearDarkScore(wx, loc, bortle, nowMs) {
+  if (!wx || !wx.hourly || !wx.hourly.time || !wx.hourly.time.length) return null;
+  const hours = scoreHours(wx, loc, nowMs - 1800000, nowMs + 18 * 3600000);
+  if (!hours.length) return { score: null, factor: "no night ahead", astro: false, hours: [] };
+  return summarize(hours);
+}
+// Pro: rank the next 7 nights, each scored over its own dusk-to-dawn window.
+function weekOutlook(wx, loc, bortle, nowMs) {
+  if (!wx || !wx.hourly || !wx.hourly.time) return [];
+  const nights = [];
+  for (let i = 0; i < 7; i++) {
+    const mid = localMidnight(loc.tz, nowMs + (i + 1) * 86400000); // upcoming local midnight
+    const start = Math.max(mid - 8 * 3600000, nowMs - 1800000);
+    const sum = summarize(scoreHours(wx, loc, start, mid + 8 * 3600000));
+    nights.push({ i, mid, sum });
+  }
+  return nights;
 }
 // Hourly "clear & dark" strip across tonight's dark window: one segment per
 // hour, tinted dim->gold by its score, with the best ~2h block ticked in.
@@ -1431,9 +1457,54 @@ function skyStripEl(wxScore, loc, h24) {
     )
   );
 }
+// Pro multi-night planner: the next 7 nights ranked by their clear-and-dark
+// score, with the pick of the week flagged. Hidden when Pro is off or no
+// forecast is available.
+function weekPlannerEl(nights, loc, h24, pro) {
+  if (!pro || !nights || !nights.length) return null;
+  const scored = nights.filter(n => n.sum && n.sum.score != null);
+  if (!scored.length) return null;
+  const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
+  const tone = s => lerpC("#1f2740", "#d9ad62", Math.max(0, Math.min(1, s / 100)));
+  let pick = scored[0];
+  scored.forEach(n => { if (n.sum.score > pick.sum.score) pick = n; });
+  const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "short" }).format(new Date(n.mid - 6 * 3600000));
+  return React.createElement("div", {
+    style: { maxWidth: 1080, margin: "0 auto 16px", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 20px" }
+  },
+    React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase" } }, "The week ahead · best nights"),
+      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: 1.5, color: "var(--on-accent)", background: "linear-gradient(90deg,var(--accent),var(--accent-hi))", padding: "1px 6px", borderRadius: 10, fontWeight: 700 } }, "PRO"),
+      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview")
+    ),
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+      nights.map(n => {
+        const ok = n.sum && n.sum.score != null;
+        const isPick = ok && n === pick && pick.sum.score >= 40;
+        return React.createElement("div", {
+          key: n.i,
+          style: {
+            display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 10,
+            background: isPick ? "rgba(217,173,98,.08)" : "transparent",
+            border: isPick ? "1px solid var(--btn-border)" : "1px solid transparent"
+          }
+        },
+          React.createElement("div", { style: { width: 58, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: C.ink } }, dayLabel(n)),
+          React.createElement("div", {
+            style: { width: 42, flexShrink: 0, textAlign: "center", fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: ok ? C.ink : C.inkFaint, padding: "2px 0", borderRadius: 7, background: ok ? tone(n.sum.score) : "transparent" }
+          }, ok ? String(n.sum.score) : "—"),
+          React.createElement("div", { style: { flex: 1, minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } },
+            ok ? `${n.sum.score >= 40 ? fmtH(n.sum.bestMs) + "–" + fmtH(n.sum.bestMs + 2 * 3600000) + " · " : ""}${n.sum.factor}` : "no dark window"),
+          isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 1, color: "var(--accent-hi)", textTransform: "uppercase" } }, "★ pick")
+        );
+      })
+    )
+  );
+}
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
+  const pro = usePro();
   const [loc, setLoc] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -1570,7 +1641,7 @@ function RealtimeTwilight({ redMode } = {}) {
       if (c && Date.now() - c.t < 3600000) { setWx(c.d); return; }
     } catch (e) {}
     const seq = ++wxSeq.current;
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=2&timezone=auto`)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
       .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
       .then(d => { if (seq !== wxSeq.current) return; setWx(d); try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), d })); } catch (e) {} })
       .catch(() => { if (seq === wxSeq.current) setWx(null); });
@@ -1632,6 +1703,7 @@ function RealtimeTwilight({ redMode } = {}) {
     };
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
+  const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
   const win = useMemo(() => {
     const open = day.wins.find(w => w.s <= now && now <= w.e);
     if (open) return {
@@ -1966,6 +2038,7 @@ function RealtimeTwilight({ redMode } = {}) {
     )
   ),
   skyStripEl(wxScore, loc, h24),
+  weekPlannerEl(wxWeek, loc, h24, pro),
   React.createElement("section", {
     style: {
       maxWidth: 1080,
@@ -3747,6 +3820,7 @@ function TwilightApp() {
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
   const h24 = useH24();
   const bortle = useBortle();
+  const pro = usePro();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [shared, setShared] = React.useState(false);
   const doShare = async () => {
@@ -3962,7 +4036,26 @@ function TwilightApp() {
         }, Object.keys(BORTLE).map(k => React.createElement("option", { key: k, value: k }, BORTLE[k].label))),
         React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } },
           bortle ? `Caps the limiting magnitude at ${BORTLE[bortle].nelm} for light pollution.` : "Set your local light pollution for a realistic limiting magnitude."
-        )
+        ),
+        React.createElement("div", { style: { height: 1, background: "var(--line)", margin: "12px 0" } }),
+        React.createElement("label", {
+          style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)" }
+        },
+          React.createElement("span", null, "Week planner ", React.createElement("span", { style: { fontSize: 9, letterSpacing: 1, color: "var(--on-accent)", background: "linear-gradient(90deg,var(--accent),var(--accent-hi))", padding: "1px 5px", borderRadius: 8, fontWeight: 700 } }, "PRO")),
+          React.createElement("span", {
+            onClick: () => prefStore.setPro(!pro),
+            role: "switch", "aria-checked": pro, tabIndex: 0,
+            onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setPro(!pro); } },
+            style: {
+              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+              background: pro ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+              transition: ".2s", display: "inline-block"
+            }
+          }, React.createElement("span", {
+            style: { display: "block", width: 18, height: 18, borderRadius: "50%", background: "var(--on-accent)", transform: pro ? "translateX(18px)" : "translateX(0)", transition: ".2s" }
+          }))
+        ),
+        React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } }, "Ranks the next 7 nights by clear-and-dark conditions. Free during preview.")
       ),
       React.createElement("button", {
         onClick: toggleRed,
