@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tlov2WaVxS4N4qWdGV+PQ/U3nr7QWnQK5sFdhBraFjQ=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uU0A9G56TpRPsBzNRvaZKkpL5/5eMkPMkBrTESa+Yj4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1643,7 +1643,21 @@ function RealtimeTwilight({ redMode } = {}) {
     const seq = ++wxSeq.current;
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
       .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
-      .then(d => { if (seq !== wxSeq.current) return; setWx(d); try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), d })); } catch (e) {} })
+      .then(d => {
+        if (seq !== wxSeq.current) return;
+        setWx(d);
+        try {
+          localStorage.setItem(key, JSON.stringify({ t: Date.now(), d }));
+          // Prune stale per-location entries (e.g. from earlier searched
+          // places) so the cache doesn't grow unbounded across sessions.
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith('tw_wx_') || k === key) continue;
+            const c = JSON.parse(localStorage.getItem(k) || 'null');
+            if (!c || Date.now() - c.t >= 3600000) localStorage.removeItem(k);
+          }
+        } catch (e) {}
+      })
       .catch(() => { if (seq === wxSeq.current) setWx(null); });
   }, [loc.lat, loc.lon, hourKey]);
   const day = useMemo(() => {
@@ -3776,8 +3790,7 @@ function StarFinder({ redMode } = {}) {
     className: "tw-panel",
     style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 } }, "Celestial Navigation"),
-    React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: C.ink, marginBottom: 8 } }, "Star Finder"),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 } }, "Stars up now"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14 } }, navHint),
     polarisBox,
     navStars.length === 0
@@ -4098,11 +4111,13 @@ function TwilightApp() {
     },
       React.createElement("span", { "aria-hidden": "true", style: { color: "var(--accent)" } }, "↔"),
       React.createElement("span", { style: { flex: 1 } },
-        "Two views: ",
+        "Three views: ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Console"),
-        " for tonight's live sky and ",
+        " for tonight's live sky, ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
-        " for any date — tap the tabs above or swipe left/right."
+        " for any date, and ",
+        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Star Finder"),
+        " for a navigation fix — tap the tabs above or swipe left/right."
       ),
       React.createElement("button", {
         onClick: dismissHint,
