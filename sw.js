@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v35';
+const CACHE = 'twilight-v36';
 const ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   '/og-image.png',
   '/screenshot-narrow.png',
   '/screenshot-wide.png',
+  '/bortle-cities.bin',
   '/fonts/cormorant.woff2',
   '/fonts/cormorant-i.woff2',
   '/fonts/spacegrotesk.woff2',

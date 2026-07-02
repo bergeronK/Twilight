@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uU0A9G56TpRPsBzNRvaZKkpL5/5eMkPMkBrTESa+Yj4=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-MrHeZ6qjZpywwSEhK5vI6SQ9atj5N6QpPo/uzy0cAoY=' 'sha256-LYSDPwJgu2OlQrn6OqVN1A4br/C7VoKI6nXAqMVjSNU='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -665,12 +665,64 @@ const BORTLE = {
   8: { nelm: 4.4, label: "8 · City sky" },
   9: { nelm: 4.0, label: "9 · Inner-city sky" }
 };
+/* ---- Auto Bortle estimate from a bundled city/population dataset (SimpleMaps
+   World Cities, CC BY 4.0; see scripts/build-bortle-data.js). Approximates
+   each city's sky-glow contribution as population / distance^2.5 — a simple
+   proxy for how scattered light falls off with distance — summed over every
+   city within 300km, then mapped to a Bortle class via thresholds calibrated
+   against known reference skies (city cores, dark-sky parks, remote desert).
+   Coarse by design: a sensible default, not a substitute for a real sky
+   quality meter. ---- */
+let bortleCitiesPromise = null;
+function loadBortleCities() {
+  if (!bortleCitiesPromise) {
+    bortleCitiesPromise = fetch('bortle-cities.bin')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.arrayBuffer(); })
+      .then(buf => {
+        const dv = new DataView(buf);
+        const n = dv.getUint32(0, true);
+        const lat = new Int16Array(n), lon = new Int16Array(n), pop = new Uint32Array(n);
+        const latOff = 4, lonOff = 4 + n * 2, popOff = 4 + n * 4;
+        for (let i = 0; i < n; i++) {
+          lat[i] = dv.getInt16(latOff + i * 2, true);
+          lon[i] = dv.getInt16(lonOff + i * 2, true);
+          pop[i] = dv.getUint32(popOff + i * 4, true);
+        }
+        return { n, lat, lon, pop };
+      });
+  }
+  return bortleCitiesPromise;
+}
+const BORTLE_THRESH = [0.3, 0.9, 1.5, 2.2, 2.9, 3.5, 4.0, 4.2]; // log10(score+1) cut points for classes 1..9
+function estimateBortle(lat0, lon0, data) {
+  const { n, lat, lon, pop } = data;
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const la = lat[i] / 100, lo = lon[i] / 100;
+    const dLat = (la - lat0) * Math.PI / 180, dLon = (lo - lon0) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat0 * Math.PI / 180) * Math.cos(la * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    const d = 2 * 6371 * Math.asin(Math.sqrt(a));
+    if (d > 300) continue;
+    total += pop[i] / Math.pow(Math.max(d, 5), 2.5);
+  }
+  const score = Math.log10(total + 1);
+  for (let i = 0; i < BORTLE_THRESH.length; i++) if (score < BORTLE_THRESH[i]) return i + 1;
+  return 9;
+}
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
-  let h24 = true, bortle = 0, pro = true; // pro: multi-night planner — free during preview
+  let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
   try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   try { const v = localStorage.getItem('tw_pro'); if (v !== null) pro = v === '1'; } catch (e) {}
+  try {
+    const v = localStorage.getItem('tw_bortle_mode');
+    // A stored mode wins. Otherwise, a pre-existing manual Bortle value from
+    // before auto-detect existed means the user chose it deliberately —
+    // respect that instead of silently overriding it with a guess.
+    if (v === 'auto' || v === 'manual') bortleMode = v;
+    else if (localStorage.getItem('tw_bortle')) bortleMode = 'manual';
+  } catch (e) {}
   const subs = new Set();
   const emit = () => subs.forEach(f => f());
   return {
@@ -678,6 +730,8 @@ const prefStore = (() => {
     setH24: v => { h24 = !!v; try { localStorage.setItem('tw_h24', h24 ? '1' : '0'); } catch (e) {} emit(); },
     getBortle: () => bortle,
     setBortle: v => { bortle = v | 0; try { localStorage.setItem('tw_bortle', String(bortle)); } catch (e) {} emit(); },
+    getBortleMode: () => bortleMode,
+    setBortleMode: v => { bortleMode = v === 'manual' ? 'manual' : 'auto'; try { localStorage.setItem('tw_bortle_mode', bortleMode); } catch (e) {} emit(); },
     getPro: () => pro,
     setPro: v => { pro = !!v; try { localStorage.setItem('tw_pro', pro ? '1' : '0'); } catch (e) {} emit(); },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
@@ -685,6 +739,7 @@ const prefStore = (() => {
 })();
 function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
 function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
+function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortleMode); }
 function usePro() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getPro); }
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
@@ -1504,6 +1559,7 @@ function weekPlannerEl(nights, loc, h24, pro) {
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
+  const bortleMode = useBortleMode();
   const pro = usePro();
   const [loc, setLoc] = useState(() => {
     try {
@@ -1660,6 +1716,17 @@ function RealtimeTwilight({ redMode } = {}) {
       })
       .catch(() => { if (seq === wxSeq.current) setWx(null); });
   }, [loc.lat, loc.lon, hourKey]);
+  // Auto light-pollution estimate: recompute whenever the location changes
+  // or the user switches back to auto mode. A manual override in Settings
+  // sets bortleMode to 'manual', which stops this from overwriting it.
+  React.useEffect(() => {
+    if (bortleMode !== 'auto') return;
+    let cancelled = false;
+    loadBortleCities()
+      .then(data => { if (!cancelled) prefStore.setBortle(estimateBortle(loc.lat, loc.lon, data)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [loc.lat, loc.lon, bortleMode]);
   const day = useMemo(() => {
     const mid = localMidnight(loc.tz, now);
     const sunEv = scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
@@ -3833,6 +3900,7 @@ function TwilightApp() {
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
   const h24 = useH24();
   const bortle = useBortle();
+  const bortleMode = useBortleMode();
   const pro = usePro();
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [shared, setShared] = React.useState(false);
@@ -4037,18 +4105,44 @@ function TwilightApp() {
         React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } }, h24 ? "Times shown as 13:30." : "Times shown as 1:30 PM."),
         React.createElement("div", { style: { height: 1, background: "var(--line)", margin: "12px 0" } }),
         React.createElement("div", { style: { fontSize: 13, color: "var(--ink)", marginBottom: 6 } }, "Sky brightness"),
-        React.createElement("select", {
-          value: bortle,
-          "aria-label": "Bortle dark-sky class",
-          onChange: e => prefStore.setBortle(parseInt(e.target.value, 10)),
-          style: {
-            width: "100%", padding: "8px 10px", borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--line)", background: "var(--field-bg)", color: "var(--ink)",
-            font: "13px var(--font-ui)", cursor: "pointer", outline: "none"
-          }
-        }, Object.keys(BORTLE).map(k => React.createElement("option", { key: k, value: k }, BORTLE[k].label))),
+        React.createElement("label", {
+          style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)", marginBottom: 8 }
+        },
+          React.createElement("span", null, "Auto-detect from location"),
+          React.createElement("span", {
+            onClick: () => prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"),
+            role: "switch", "aria-checked": bortleMode === "auto", tabIndex: 0,
+            onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"); } },
+            style: {
+              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+              background: bortleMode === "auto" ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+              transition: ".2s", display: "inline-block"
+            }
+          }, React.createElement("span", {
+            style: { display: "block", width: 18, height: 18, borderRadius: "50%", background: "var(--on-accent)", transform: bortleMode === "auto" ? "translateX(18px)" : "translateX(0)", transition: ".2s" }
+          }))
+        ),
+        bortleMode === "auto"
+          ? React.createElement("div", {
+              style: {
+                fontSize: 13, color: "var(--ink)", padding: "8px 10px", borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--line)", background: "var(--field-bg)"
+              }
+            }, bortle ? `Detected: ${BORTLE[bortle].label}` : "Detecting…")
+          : React.createElement("select", {
+              value: bortle,
+              "aria-label": "Bortle dark-sky class",
+              onChange: e => prefStore.setBortle(parseInt(e.target.value, 10)),
+              style: {
+                width: "100%", padding: "8px 10px", borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--line)", background: "var(--field-bg)", color: "var(--ink)",
+                font: "13px var(--font-ui)", cursor: "pointer", outline: "none"
+              }
+            }, Object.keys(BORTLE).map(k => React.createElement("option", { key: k, value: k }, BORTLE[k].label))),
         React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } },
-          bortle ? `Caps the limiting magnitude at ${BORTLE[bortle].nelm} for light pollution.` : "Set your local light pollution for a realistic limiting magnitude."
+          bortleMode === "auto"
+            ? "Estimated from nearby city lights — caps the limiting magnitude for light pollution. Turn off to set it yourself."
+            : (bortle ? `Caps the limiting magnitude at ${BORTLE[bortle].nelm} for light pollution.` : "Set your local light pollution for a realistic limiting magnitude.")
         ),
         React.createElement("div", { style: { height: 1, background: "var(--line)", margin: "12px 0" } }),
         React.createElement("label", {
@@ -4146,7 +4240,7 @@ function TwilightApp() {
       React.createElement("span", null,
         "Sun & moon: NOAA / Schlyter models · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
-        " + GeoNames (CC BY 4.0) · No tracking — only an anonymous visit count."
+        " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · No tracking — only an anonymous visit count."
       )
     )
   );
