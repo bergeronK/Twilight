@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-TvyGCIzASVKdfcB3n9QRCGamPkYTiVVVazPphxSM9GA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-l3DhKgLtFRgXA5R6+gpNxiUXZLcFa9B3zfouHwa4FtI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -38,6 +38,7 @@
 </script>
 <style>
   /* ---- Self-hosted fonts (no third-party origins; latin subset, system fallback for symbols) ---- */
+  @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-var.woff2) format('woff2');}
   @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/cormorant.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;font-display:swap;src:url(fonts/cormorant-i.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400 600;font-display:swap;src:url(fonts/spacegrotesk.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
@@ -46,38 +47,39 @@
   @font-face{font-family:'Spectral';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/spectral-500.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   /* ---- Twilight design tokens: single source of truth for the whole app ---- */
   :root{
-    /* surfaces */
-    --bg:#070a14;            /* deepest base */
-    --bg-glow:#101a30;       /* warm-navy radial highlight (console sky) */
-    --bg-glow-2:#16203c;     /* radial highlight (ephemeris sky) */
-    --surface:#0d1322;       /* panel */
-    --surface-2:#141c30;     /* raised panel */
-    --panel-glass:linear-gradient(180deg,rgba(20,28,48,.72),rgba(13,19,34,.72));
-    --field-bg:rgba(8,11,26,.7);
+    /* surfaces — warm near-black: a candle-lit instrument, not a blue dashboard */
+    --bg:#0e0d0b;            /* deepest base */
+    --bg-glow:#161410;       /* warm radial highlight (console sky) */
+    --bg-glow-2:#181511;     /* radial highlight (ephemeris sky) */
+    --surface:#14120f;       /* panel */
+    --surface-2:#1a1713;     /* raised panel */
+    --panel-glass:linear-gradient(180deg,rgba(26,23,19,.72),rgba(20,18,15,.72));
+    --field-bg:rgba(16,14,11,.7);
     /* ink */
-    --ink:#ece3cb;           /* primary text (warm parchment) */
-    --ink-dim:#9c947f;       /* secondary text */
-    --ink-faint:#7c8296;     /* tertiary text (AA-safe on --bg) */
-    /* accent */
-    --accent:#d9ad62;        /* brass */
-    --accent-hi:#f0cd87;     /* brass highlight */
-    --accent-soft:rgba(217,173,98,.12);
-    --on-accent:#0a1018;     /* text on accent fills */
-    /* buttons (soft, dusky — not full-brightness brass) */
-    --btn-border:rgba(217,173,98,.18);
-    --btn-fill:rgba(217,173,98,.10);
-    --btn-fill-hi:rgba(217,173,98,.16);
-    --btn-ink:rgba(217,173,98,.70);   /* dimmed resting label */
+    --ink:#eae7e0;           /* primary text (warm white) */
+    --ink-dim:#a09a8f;       /* secondary text */
+    --ink-faint:#7d766a;     /* tertiary text (AA-safe on --bg) */
+    /* accent — brass, reserved for data that matters */
+    --accent:#d2a04d;
+    --accent-hi:#e5ba6e;
+    --accent-soft:rgba(210,160,77,.12);
+    --on-accent:#161006;     /* text on accent fills */
+    /* buttons (quiet hairline chips; brass only appears on hover/active) */
+    --btn-border:#2b2823;
+    --btn-fill:rgba(210,160,77,.08);
+    --btn-fill-hi:rgba(210,160,77,.15);
+    --btn-ink:#b9b2a4;       /* neutral resting label */
     /* twilight bands (shared color key) */
     --band-day:#7fa9d8;
     --band-civil:#e08a3c;
     --band-naut:#5a7fb0;
     --band-astro:#2b3358;
     --band-night:#1a1f38;
-    /* typography */
-    --font-display:'Cormorant Garamond',Georgia,serif;  /* headings */
-    --font-body:'Spectral',Georgia,serif;               /* running text */
-    --font-ui:'Space Grotesk',sans-serif;               /* labels, UI, numerals */
+    /* typography — strict job split: serif is the voice (wordmark, verdicts),
+       Inter is the instrument (everything functional, with tabular numerals) */
+    --font-display:'Cormorant Garamond',Georgia,serif;  /* wordmark + verdict lines only */
+    --font-body:'Inter',system-ui,sans-serif;           /* running text */
+    --font-ui:'Inter',system-ui,sans-serif;             /* labels, UI, numerals */
     /* type scale (available for incremental adoption) */
     --text-2xs:10px;
     --text-xs:11px;
@@ -88,7 +90,7 @@
     --text-2xl:28px;
     --text-3xl:clamp(26px,5.4vw,50px);
     /* lines & shape & elevation */
-    --line:#2a3550;
+    --line:#211f1b;
     --radius:16px;
     --radius-sm:10px;
     --shadow-1:0 8px 30px rgba(0,0,0,.38);
@@ -1540,26 +1542,29 @@ function skyStripEl(wxScore, loc, h24) {
   if (!wxScore || !wxScore.hours || !wxScore.hours.length) return null;
   const hours = wxScore.hours;
   const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
-  const tone = s => lerpC("#1f2740", "#d9ad62", Math.max(0, Math.min(1, s / 100)));
-  const bestSet = new Set([wxScore.bestMs, wxScore.bestMs + 3600000]);
   return React.createElement("div", {
-    style: { maxWidth: 1080, margin: "0 auto 16px", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 20px" }
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase" } }, "Clear & dark window · tonight"),
-      React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13, color: C.inkDim } },
-        wxScore.score >= 40 ? `Best: ${fmtH(wxScore.bestMs)}–${fmtH(wxScore.bestMs + 2 * 3600000)} · ${wxScore.factor}` : `Best of a poor night · ${wxScore.factor}`)
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "Clear & dark · tonight"),
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.ink, fontVariantNumeric: "tabular-nums" } },
+        wxScore.score >= 40
+          ? React.createElement(React.Fragment, null, "best ", React.createElement("span", { style: { color: C.brass, fontWeight: 550 } }, `${fmtH(wxScore.bestMs)}–${fmtH(wxScore.bestMs + 2 * 3600000)}`))
+          : React.createElement("span", { style: { color: C.inkDim } }, wxScore.factor))
     ),
-    React.createElement("div", { style: { display: "flex", gap: 2, alignItems: "stretch" } },
-      hours.map((hr, i) => React.createElement("div", {
-        key: i,
-        title: `${fmtH(hr.t)} · ${Math.round(hr.cloud)}% cloud${hr.moonPen > 0.5 ? " · moonlit" : ""} · score ${Math.round(hr.score)}`,
-        style: { flex: 1, height: 30, background: tone(hr.score), borderRadius: 3, borderTop: bestSet.has(hr.t) ? "2px solid var(--accent-hi)" : "2px solid transparent" }
-      }))
+    React.createElement("div", { style: { display: "flex", gap: 3, alignItems: "flex-end", height: 42 } },
+      hours.map((hr, i) => {
+        const s = Math.max(0, Math.min(1, hr.score / 100));
+        return React.createElement("div", {
+          key: i,
+          title: `${fmtH(hr.t)} · ${Math.round(hr.cloud)}% cloud${hr.moonPen > 0.5 ? " · moonlit" : ""} · score ${Math.round(hr.score)}`,
+          style: { flex: 1, height: `${Math.round(14 + s * 86)}%`, background: C.brass, opacity: 0.18 + s * 0.82, borderRadius: "2px 2px 0 0" }
+        });
+      })
     ),
-    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim } },
+    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6, fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint, fontVariantNumeric: "tabular-nums" } },
       React.createElement("span", null, fmtH(hours[0].t)),
-      React.createElement("span", { style: { textAlign: "center", flex: "1 1 auto", padding: "0 8px" } }, wxScore.astro ? "darker = cloud or moon · brighter = clear & dark" : "nautical twilight only tonight"),
+      React.createElement("span", { style: { textAlign: "center", flex: "1 1 auto", padding: "0 8px" } }, wxScore.astro ? "taller & brighter = clearer, darker sky" : "nautical twilight only tonight"),
       React.createElement("span", null, fmtH(hours[hours.length - 1].t))
     )
   );
@@ -1572,37 +1577,36 @@ function weekPlannerEl(nights, loc, h24, pro) {
   const scored = nights.filter(n => n.sum && n.sum.score != null);
   if (!scored.length) return null;
   const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
-  const tone = s => lerpC("#1f2740", "#d9ad62", Math.max(0, Math.min(1, s / 100)));
   let pick = scored[0];
   scored.forEach(n => { if (n.sum.score > pick.sum.score) pick = n; });
-  const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "short" }).format(new Date(n.mid - 6 * 3600000));
+  const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
   return React.createElement("div", {
-    style: { maxWidth: 1080, margin: "0 auto 16px", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 20px" }
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
-    React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase" } }, "The week ahead · best nights"),
-      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: 1.5, color: "var(--on-accent)", background: "linear-gradient(90deg,var(--accent),var(--accent-hi))", padding: "1px 6px", borderRadius: 10, fontWeight: 700 } }, "PRO"),
-      !rcPlugin() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview")
+    React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
+      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
+      !rcPlugin() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
+      React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "best nights")
     ),
-    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
-      nights.map(n => {
+    React.createElement("div", null,
+      nights.map((n, idx) => {
         const ok = n.sum && n.sum.score != null;
         const isPick = ok && n === pick && pick.sum.score >= 40;
         return React.createElement("div", {
           key: n.i,
           style: {
-            display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", borderRadius: 10,
-            background: isPick ? "rgba(217,173,98,.08)" : "transparent",
-            border: isPick ? "1px solid var(--btn-border)" : "1px solid transparent"
+            display: "flex", alignItems: "baseline", gap: 12, padding: "9px 0",
+            borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,.035)"
           }
         },
-          React.createElement("div", { style: { width: 58, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: C.ink } }, dayLabel(n)),
+          React.createElement("div", { style: { width: 76, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: isPick ? C.brass : C.ink } }, dayLabel(n)),
           React.createElement("div", {
-            style: { width: 42, flexShrink: 0, textAlign: "center", fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: ok ? C.ink : C.inkFaint, padding: "2px 0", borderRadius: 7, background: ok ? tone(n.sum.score) : "transparent" }
+            style: { width: 38, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.brass : C.inkDim, fontVariantNumeric: "tabular-nums" }
           }, ok ? String(n.sum.score) : "—"),
-          React.createElement("div", { style: { flex: 1, minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } },
+          React.createElement("div", { style: { flex: 1, minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.ink : C.inkDim, fontVariantNumeric: "tabular-nums" } },
             ok ? `${n.sum.score >= 40 ? fmtH(n.sum.bestMs) + "–" + fmtH(n.sum.bestMs + 2 * 3600000) + " · " : ""}${n.sum.factor}` : "no dark window"),
-          isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 1, color: "var(--accent-hi)", textTransform: "uppercase" } }, "★ pick")
+          isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 11.5, fontWeight: 550, color: C.brass } }, "◆ finest")
         );
       })
     )
@@ -1905,9 +1909,9 @@ function RealtimeTwilight({ redMode } = {}) {
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:var(--font-ui);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:6px 13px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s,transform .15s,box-shadow .15s}
-    .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);transform:translateY(-1px)}
-    .rtbtn.solid{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi);font-weight:600}
+    .rtbtn{font-family:var(--font-ui);font-size:12px;font-weight:500;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s}
+    .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi)}
+    .rtbtn.solid{background:var(--btn-fill);border-color:rgba(210,160,77,.4);color:var(--accent-hi);font-weight:550}
     .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
     .rt-sky{min-height:380px}
     @media (max-width:780px){
@@ -1970,76 +1974,52 @@ function RealtimeTwilight({ redMode } = {}) {
       maxWidth: 1080,
       margin: "0 auto 22px"
     }
-  }, React.createElement("div", {
+  }, React.createElement("h1", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 11,
-      letterSpacing: 5,
-      color: C.brass,
-      textTransform: "uppercase"
+      fontWeight: 600,
+      fontSize: "clamp(20px,4.4vw,28px)",
+      lineHeight: 1.1,
+      margin: 0,
+      letterSpacing: "-0.015em"
     }
-  }, "Live Nautical Almanac"), React.createElement("h1", {
-    style: {
-      fontFamily: "var(--font-display)",
-      fontWeight: 700,
-      fontSize: "clamp(26px,5.4vw,50px)",
-      lineHeight: .98,
-      margin: "8px 0 14px",
-      letterSpacing: -1
-    }
-  }, "Tonight's Sky, Where You Are"), React.createElement("div", {
-    className: "rt-locbar",
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 12,
-      paddingBottom: 16,
-      borderBottom: `1px solid ${C.line}`
-    }
-  }, React.createElement("div", {
-    className: "rt-locname",
-    style: {
-      display: "flex",
-      flexDirection: "column"
-    }
-  }, React.createElement("span", {
-    style: {
-      fontFamily: "var(--font-display)",
-      fontSize: 22,
-      fontWeight: 600
-    }
-  }, "\uD83D\uDCCD ", loc.name), React.createElement("span", {
+  }, loc.name), React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 11,
-      color: C.inkDim
+      fontSize: 12.5,
+      color: C.inkDim,
+      marginTop: 5,
+      fontVariantNumeric: "tabular-nums"
     }
-  }, loc.lat.toFixed(2), "\xB0, ", loc.lon.toFixed(2), "\xB0 \xB7 ", fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
+  }, Math.abs(loc.lat).toFixed(2), "\xB0 ", loc.lat >= 0 ? "N" : "S", " \xB7 ", Math.abs(loc.lon).toFixed(2), "\xB0 ", loc.lon >= 0 ? "E" : "W", "  \xB7  ", fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
     timeZone: loc.tz,
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
     hourCycle: h24 ? "h23" : "h12"
-  }).format(new Date(now)))), React.createElement("div", {
-    className: "rt-spacer",
+  }).format(new Date(now))), React.createElement("div", {
+    className: "rt-locbar",
     style: {
-      flex: 1
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 14
     }
-  }), React.createElement("button", {
+  }, React.createElement("button", {
     className: "rtbtn solid",
     onClick: useMyLocation
-  }, "\u25CE Use my location"), React.createElement("button", {
+  }, "Use my location"), React.createElement("button", {
     className: "rtbtn",
     onClick: () => { const open = !pickerOpen; setPickerOpen(open); if (!open) { setResults([]); setQuery(""); setSearchMsg(""); } }
   }, "Set location \u25BE"), React.createElement("button", {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
     title: "Save this location"
-  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "\u2605 Saved" : "\u2606 Save"), React.createElement("button", {
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "Saved" : "Save"), React.createElement("button", {
     className: "rtbtn",
     onClick: goToFacts
-  }, "\u2726 Twilight facts")), geoMsg && React.createElement("div", {
+  }, "Twilight facts")), geoMsg && React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 11,
@@ -2136,37 +2116,29 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }, p.label))))),
   React.createElement("section", {
-    className: "tw-panel",
-    style: {
-      maxWidth: 1080, margin: "0 auto 16px",
-      background: `linear-gradient(135deg, ${C.panelHi}, ${C.panel})`,
-      border: `1px solid ${C.line}`, borderRadius: 16,
-      padding: "18px 22px", display: "flex", flexWrap: "wrap",
-      alignItems: "center", gap: "16px 28px"
-    }
+    style: { maxWidth: 1080, margin: "0 auto" }
   },
-    React.createElement("div", { style: { flex: "1 1 280px", minWidth: 0 } },
+    React.createElement("div", { style: { padding: "22px 0 2px" } },
       React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 6 }
-      }, "Tonight at a glance"),
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
-        React.createElement("span", { "aria-hidden": "true", style: { width: 11, height: 11, borderRadius: "50%", background: glance.tone, boxShadow: `0 0 10px ${glance.tone}`, flexShrink: 0 } }),
-        React.createElement("span", { style: { fontFamily: "var(--font-display)", fontSize: "clamp(22px,3.4vw,30px)", fontWeight: 700, color: glance.tone, lineHeight: 1.05 } }, glance.head)
-      ),
-      React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 14.5, color: C.inkDim, marginTop: 6, lineHeight: 1.5 } }, glance.sub)
+        style: { fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "clamp(26px,4.6vw,34px)", fontWeight: 400, color: C.ink, lineHeight: 1.05 }
+      }, glance.head),
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 7 } },
+        React.createElement("span", { "aria-hidden": "true", style: { width: 6, height: 6, borderRadius: "50%", background: glance.tone, boxShadow: `0 0 9px ${glance.tone}`, flexShrink: 0 } }),
+        React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim, lineHeight: 1.5 } }, glance.sub)
+      )
     ),
     React.createElement("div", {
-      style: { display: "flex", gap: 22, flexWrap: "wrap" }
+      style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "20px 16px", padding: "18px 0 24px" }
     },
       [
-        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: wxScore ? wxScore.factor : "forecast unavailable" },
-        { k: "Limiting mag", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `Bortle ${bortle} sky` : "naked-eye depth" },
+        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: wxScore ? wxScore.factor : "forecast unavailable", hero: true },
+        { k: "Limiting magnitude", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `Bortle ${bortle} sky` : "naked-eye depth" },
         { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
         { k: "Planets up", v: String(planets.length), h: "above horizon" }
-      ].map(s => React.createElement("div", { key: s.k, style: { minWidth: 64 } },
-        React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, color: C.ink, lineHeight: 1 } }, s.v),
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 9.5, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase", marginTop: 5 } }, s.k),
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 2 } }, s.h)
+      ].map(s => React.createElement("div", { key: s.k },
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: s.hero ? 450 : 300, color: s.hero ? C.brass : C.ink, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } }, s.v),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginTop: 4 } }, s.k),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, color: C.inkFaint, marginTop: 1 } }, s.h)
       ))
     )
   ),
@@ -4029,16 +4001,16 @@ function TwilightApp() {
 
   const tabStyle = active => ({
     fontFamily: "var(--font-ui)",
-    fontSize: 12,
-    letterSpacing: 0.6,
-    padding: "9px 12px",
+    fontSize: 12.5,
+    fontWeight: 500,
+    letterSpacing: 0,
+    padding: "12px 10px",
     cursor: "pointer",
     border: "none",
     borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
     background: "transparent",
-    color: active ? "var(--accent)" : "var(--ink-dim)",
-    transition: ".15s",
-    textTransform: "uppercase"
+    color: active ? "var(--ink)" : "var(--ink-faint)",
+    transition: ".15s"
   });
   return React.createElement(React.Fragment, null,
     redMode && React.createElement("style", null, `
@@ -4067,7 +4039,7 @@ function TwilightApp() {
         fontSize: 12
       }
     },
-      React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "📲 Add Twilight to your home screen for quick access"),
+      React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "Add Twilight to your home screen for quick access"),
       React.createElement("button", {
         onClick: doInstall,
         style: { background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "var(--font-ui)", cursor: "pointer", fontWeight: 600 }
@@ -4098,22 +4070,20 @@ function TwilightApp() {
       React.createElement("span", {
         "aria-hidden": "true",
         style: {
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "0 8px 0 10px", marginRight: 0,
+          display: "flex", alignItems: "center", gap: 9,
+          padding: "0 14px 0 14px",
           fontFamily: "var(--font-display)",
-          fontSize: 18, fontWeight: 700, letterSpacing: ".5px",
+          fontSize: 20, fontWeight: 600, letterSpacing: ".02em",
           color: "var(--ink)", whiteSpace: "nowrap"
         }
       },
         React.createElement("svg", {
-          "aria-hidden": "true", width: 50, height: 22, viewBox: "0 0 50 22",
-          style: { display: "block", overflow: "visible" }
+          "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 14 14",
+          style: { display: "block", marginTop: -2 }
         },
-          React.createElement("path", { d: "M13 4.5 Q13 11 19.5 11 Q13 11 13 17.5 Q13 11 6.5 11 Q13 11 13 4.5 Z", fill: "var(--accent-hi)", style: { animation: "twBrandStar 2.6s ease-in-out infinite" } }),
-          React.createElement("path", { d: "M30 4 Q30 7.4 33.4 7.4 Q30 7.4 30 10.8 Q30 7.4 26.6 7.4 Q30 7.4 30 4 Z", fill: "var(--accent)", style: { animation: "twBrandStar 3.4s ease-in-out infinite", animationDelay: ".5s" } }),
-          React.createElement("path", { d: "M40 11 Q40 15 44 15 Q40 15 40 19 Q40 15 36 15 Q40 15 40 11 Z", fill: "var(--accent)", style: { animation: "twBrandStar 2.9s ease-in-out infinite", animationDelay: "1s" } }),
-          React.createElement("circle", { cx: 33, cy: 16.5, r: 1, fill: "var(--accent-hi)", style: { animation: "twBrandStar 2.2s ease-in-out infinite", animationDelay: "1.4s" } })
-        )
+          React.createElement("path", { d: "M7 0l1.7 5.3L14 7l-5.3 1.7L7 14 5.3 8.7 0 7l5.3-1.7z", fill: "var(--accent)", style: { animation: "twBrandStar 3.2s ease-in-out infinite" } })
+        ),
+        React.createElement("span", { className: "tw-brand-word" }, "Twilight")
       ),
       React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
       React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => switchTab('ephemeris') }, "Ephemeris"),
@@ -4139,10 +4109,16 @@ function TwilightApp() {
           marginLeft: "auto",
           marginRight: 2,
           background: "transparent", border: "none", cursor: "pointer",
-          fontSize: 15, opacity: settingsOpen ? 1 : 0.7, padding: "4px 6px",
+          display: "flex", alignItems: "center",
+          opacity: settingsOpen ? 1 : 0.7, padding: "6px",
           color: settingsOpen ? "var(--accent)" : "var(--ink-dim)"
         }
-      }, "⚙"),
+      }, React.createElement("svg", { "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" },
+        React.createElement("path", { d: "M1.5 4h13M1.5 8h13M1.5 12h13" }),
+        React.createElement("circle", { cx: 10.5, cy: 4, r: 1.8, fill: "var(--bg)" }),
+        React.createElement("circle", { cx: 5, cy: 8, r: 1.8, fill: "var(--bg)" }),
+        React.createElement("circle", { cx: 11.5, cy: 12, r: 1.8, fill: "var(--bg)" })
+      )),
       settingsOpen && React.createElement("div", {
         onClick: e => e.stopPropagation(),
         style: {
@@ -4164,7 +4140,7 @@ function TwilightApp() {
             onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setH24(!h24); } },
             style: {
               width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
-              background: h24 ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+              background: h24 ? "var(--accent)" : "rgba(190,180,160,.18)",
               transition: ".2s", display: "inline-block"
             }
           }, React.createElement("span", {
@@ -4184,7 +4160,7 @@ function TwilightApp() {
             onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"); } },
             style: {
               width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
-              background: bortleMode === "auto" ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+              background: bortleMode === "auto" ? "var(--accent)" : "rgba(190,180,160,.18)",
               transition: ".2s", display: "inline-block"
             }
           }, React.createElement("span", {
@@ -4217,13 +4193,13 @@ function TwilightApp() {
         React.createElement("label", {
           style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)" }
         },
-          React.createElement("span", null, "Week planner ", React.createElement("span", { style: { fontSize: 9, letterSpacing: 1, color: "var(--on-accent)", background: "linear-gradient(90deg,var(--accent),var(--accent-hi))", padding: "1px 5px", borderRadius: 8, fontWeight: 700 } }, "PRO")),
+          React.createElement("span", null, "Week planner ", React.createElement("span", { style: { fontSize: 9, letterSpacing: "0.1em", color: "var(--accent)", border: "1px solid var(--btn-border)", padding: "1px 5px", borderRadius: 4, fontWeight: 600 } }, "PRO")),
           iapMode
             ? (pro
                 ? React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--accent-hi)", flexShrink: 0 } }, "✓ Unlocked")
                 : React.createElement("button", {
                     onClick: buyPro, disabled: iapBusy,
-                    style: { fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: ".4px", padding: "6px 14px", borderRadius: 16, cursor: iapBusy ? "default" : "pointer", border: "none", background: "linear-gradient(90deg,var(--accent),var(--accent-hi))", color: "var(--on-accent)", fontWeight: 600, flexShrink: 0, opacity: iapBusy ? 0.6 : 1 }
+                    style: { fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: ".4px", padding: "6px 14px", borderRadius: 8, cursor: iapBusy ? "default" : "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", fontWeight: 600, flexShrink: 0, opacity: iapBusy ? 0.6 : 1 }
                   }, iapBusy ? "…" : "Unlock"))
             : React.createElement("span", {
                 onClick: () => prefStore.setPro(!pro),
@@ -4231,7 +4207,7 @@ function TwilightApp() {
                 onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setPro(!pro); } },
                 style: {
                   width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
-                  background: pro ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.25)",
+                  background: pro ? "var(--accent)" : "rgba(190,180,160,.18)",
                   transition: ".2s", display: "inline-block"
                 }
               }, React.createElement("span", {
@@ -4259,12 +4235,14 @@ function TwilightApp() {
           background: "transparent",
           border: "none",
           cursor: "pointer",
-          fontSize: 16,
-          opacity: 0.7,
-          padding: "4px 6px",
-          color: redMode ? "#ff4444" : "var(--ink-faint)"
+          display: "flex", alignItems: "center",
+          opacity: redMode ? 1 : 0.7,
+          padding: "6px",
+          color: redMode ? "var(--accent-hi)" : "var(--ink-dim)"
         }
-      }, redMode ? "🔴" : "🌙")
+      }, React.createElement("svg", { "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 16 16" },
+        React.createElement("path", { d: "M13.8 10.4A6.4 6.4 0 0 1 5.6 2.2 6.4 6.4 0 1 0 13.8 10.4Z", fill: redMode ? "currentColor" : "none", stroke: "currentColor", strokeWidth: 1.3, strokeLinejoin: "round" })
+      ))
     ),
     React.createElement("div", {
       style: { maxWidth: 1080, margin: "0 auto", padding: "8px clamp(14px,3.5vw,40px) 0", display: "flex", justifyContent: "flex-end" }
