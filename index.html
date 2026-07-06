@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-h61SVJ+DXSZaOUsVgVEuBA7jwzqj3Niy5Ygtm7SdQ48=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-PJLBz/Bh1sCJfs09oc8Iz4ToPNKKt7eC1itnq9V/u6Y=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -3109,17 +3109,13 @@ function TwilightEphemeris({ redMode } = {}) {
     dim = "var(--ink-dim)",
     gold = "var(--accent)";
   const panel = {
-    background: "var(--panel-glass)",
-    border: "1px solid var(--line)",
-    borderRadius: 14,
-    backdropFilter: "blur(6px)",
-    boxShadow: "var(--shadow-1)"
+    borderTop: "1px solid var(--line)"
   };
   const labelSt = {
-    font: "600 11px var(--font-ui)",
-    letterSpacing: ".12em",
+    font: "600 10.5px var(--font-ui)",
+    letterSpacing: ".07em",
     textTransform: "uppercase",
-    color: dim
+    color: "var(--ink-faint)"
   };
   const inputSt = {
     width: "100%",
@@ -3257,8 +3253,7 @@ function TwilightEphemeris({ redMode } = {}) {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      ...labelSt,
-      color: gold
+      ...labelSt
     }
   }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
     style: {
@@ -3341,7 +3336,7 @@ function TwilightEphemeris({ redMode } = {}) {
       height: 26,
       borderRadius: 20,
       padding: 3,
-      background: dst ? "linear-gradient(90deg,var(--accent),var(--accent-hi))" : "rgba(120,140,200,.2)",
+      background: dst ? "var(--accent)" : "rgba(190,180,160,.18)",
       transition: ".2s",
       flexShrink: 0
     }
@@ -3406,7 +3401,7 @@ function TwilightEphemeris({ redMode } = {}) {
     disabled: !valid,
     style: {
       ...btn,
-      background: "linear-gradient(90deg,var(--accent),var(--accent-hi))",
+      background: "var(--accent)",
       color: "var(--on-accent)",
       opacity: valid ? 1 : 0.4
     }
@@ -3442,7 +3437,8 @@ function TwilightEphemeris({ redMode } = {}) {
   }, /*#__PURE__*/React.createElement("h2", {
     style: {
       margin: 0,
-      font: "600 19px var(--font-display)",
+      font: "600 17px var(--font-ui)",
+      letterSpacing: "-0.01em",
       color: ink
     }
   }, "Solar altitude through the day"), /*#__PURE__*/React.createElement("span", {
@@ -3615,21 +3611,19 @@ function TwilightEphemeris({ redMode } = {}) {
   }, hover.phase))))), valid && /*#__PURE__*/React.createElement("div", {
     style: {
       ...panel,
-      padding: "16px 20px",
+      padding: "16px 0",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
       flexWrap: "wrap",
-      gap: 12,
-      borderColor: "rgba(122,120,214,.35)",
-      background: "linear-gradient(180deg,rgba(25,26,64,.8),rgba(12,12,34,.8))"
+      gap: 12
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       ...labelSt,
-      color: "#9d9bf0"
+      color: "var(--accent)"
     }
-  }, "\uD83C\uDF0C Astronomical dark window (tonight)"), /*#__PURE__*/React.createElement("div", {
+  }, "Astronomical dark window (tonight)"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 4,
       font: "500 17px var(--font-ui)",
@@ -3643,7 +3637,9 @@ function TwilightEphemeris({ redMode } = {}) {
     style: labelSt
   }, "Duration"), /*#__PURE__*/React.createElement("div", {
     style: {
-      font: "600 22px var(--font-display)",
+      font: "300 22px var(--font-ui)",
+      letterSpacing: "-0.02em",
+      fontVariantNumeric: "tabular-nums",
       color: gold
     }
   }, durStr(darkDur)))), valid && /*#__PURE__*/React.createElement("div", {
@@ -3660,9 +3656,8 @@ function TwilightEphemeris({ redMode } = {}) {
         gridTemplateColumns: "16px 1fr auto",
         gap: 12,
         alignItems: "center",
-        padding: "11px 14px",
-        borderBottom: i < phaseRows.length - 1 ? "1px solid rgba(120,140,200,.1)" : "none",
-        background: name === "Sunrise" || name === "Sunset" ? "rgba(255,212,121,.04)" : "transparent"
+        padding: "11px 0",
+        borderTop: i ? "1px solid rgba(255,255,255,.05)" : "none"
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -3674,7 +3669,7 @@ function TwilightEphemeris({ redMode } = {}) {
       }
     }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
-        font: "500 15px var(--font-display)",
+        font: "550 14px var(--font-ui)",
         color: ink
       }
     }, name), /*#__PURE__*/React.createElement("div", {
@@ -3698,10 +3693,10 @@ function TwilightEphemeris({ redMode } = {}) {
     }
   }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high."))))
   , /*#__PURE__*/React.createElement("section", {
-    style: { maxWidth: 1180, margin: "22px auto 0", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(120,140,200,.16)", borderRadius: 16, padding: "20px 24px 24px" }
+    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
     /*#__PURE__*/React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: gold, textTransform: "uppercase", marginBottom: 16 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase", marginBottom: 16 }
     }, "Upcoming sky events"),
     /*#__PURE__*/React.createElement("div", {
       style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }
@@ -3709,16 +3704,13 @@ function TwilightEphemeris({ redMode } = {}) {
       ...upcomingEvents.map((ev, i) =>
         /*#__PURE__*/React.createElement("div", {
           key: i,
-          style: { padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(120,140,200,.16)", background: "rgba(255,255,255,0.02)" }
+          style: { borderLeft: `2px solid ${ev.color}`, paddingLeft: 12 }
         },
-          /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 4 } },
-            /*#__PURE__*/React.createElement("span", { style: { fontSize: 16 } }, ev.symbol),
-            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: dim } },
-              new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
-            )
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
+            new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
           ),
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 600, color: ev.color } }, ev.type),
-          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: dim, marginTop: 2 } }, ev.note)
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: ev.color, marginTop: 2 } }, ev.type),
+          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, marginTop: 2 } }, ev.note)
         )
       )
     )
@@ -3775,7 +3767,7 @@ function StarFinder({ redMode } = {}) {
       : sunAlt > -12
         ? "Nautical twilight — ideal for star sights: stars are out and the sea horizon is still visible."
         : "Night — stars are out, though the sea horizon can be hard to make out for a sextant fix.";
-  const navHdr = { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 1.5, color: C.brass, textTransform: "uppercase" };
+  const navHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "var(--ink-faint)", textTransform: "uppercase" };
   // Recommended 3-star fix: bright stars at a workable altitude (15–70°),
   // greedily spread in azimuth for the strongest position-line cut.
   const fixStars = (() => {
@@ -3822,16 +3814,16 @@ function StarFinder({ redMode } = {}) {
     }))
   );
   const polarisBox = showPolaris && React.createElement("div", {
-    style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", padding: "10px 12px", marginBottom: 14, background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`, borderRadius: 10 }
+    style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 16 }
   },
     React.createElement("span", navHdr, "Polaris"),
     React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.ink } }, "altitude ", polaris.alt.toFixed(1), "°"),
     React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "≈ your latitude (", loc.lat.toFixed(1), "°)")
   );
   const fixCallout = fixStars.length >= 3 && React.createElement("div", {
-    style: { padding: "10px 12px", marginBottom: 14, background: "rgba(240,205,135,0.06)", border: "1px solid var(--btn-border)", borderRadius: 10 }
+    style: { marginBottom: 16 }
   },
-    React.createElement("div", { style: { ...navHdr, color: "var(--accent-hi)", marginBottom: 6 } }, "Recommended 3-star fix · ", fixQual),
+    React.createElement("div", { style: { ...navHdr, color: "var(--accent)", marginBottom: 6 } }, "Recommended 3-star fix · ", fixQual),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "5px 16px" } },
       ...fixStars.map(s => React.createElement("span", { key: s.name, style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.ink, whiteSpace: "nowrap" } },
         React.createElement("span", { style: { color: "var(--accent-hi)" } }, "◆ "), s.name,
@@ -3848,7 +3840,7 @@ function StarFinder({ redMode } = {}) {
       ...navStars.slice(0, 14).flatMap((s, i) => {
         const isFix = fixNames.has(s.name);
         return [
-          React.createElement("div", { key: "n" + i, style: { fontFamily: "var(--font-display)", fontSize: 15.5, color: isFix ? "var(--accent-hi)" : C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+          React.createElement("div", { key: "n" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500, color: isFix ? "var(--accent)" : C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
             isFix ? React.createElement("span", { style: { marginRight: 4 } }, "◆") : null,
             s.name,
             React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginLeft: 7 } }, "m", s.mag.toFixed(1))),
@@ -3861,11 +3853,10 @@ function StarFinder({ redMode } = {}) {
       navStars.length, " navigational stars above 8° · ◆ = suggested fix · Hc = altitude, Zn = true azimuth · J2000 positions, naked-eye accuracy.")
   );
   const starFinderPanel = React.createElement("section", {
-    className: "tw-panel",
-    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 } }, "Stars up now"),
-    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14 } }, navHint),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Stars up now"),
+    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16 } }, navHint),
     polarisBox,
     navStars.length === 0
       ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No navigational stars above the horizon right now.")
@@ -3884,11 +3875,11 @@ function StarFinder({ redMode } = {}) {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
     React.createElement("header", { style: { maxWidth: 1080, margin: "0 auto 18px" } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, letterSpacing: 5, color: C.brass, textTransform: "uppercase" } }, "Celestial Navigation"),
-      React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "clamp(26px,5.4vw,50px)", lineHeight: .98, margin: "8px 0 12px", letterSpacing: -1 } }, "Star Finder"),
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "Celestial Navigation"),
+      React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "clamp(26px,5.4vw,44px)", lineHeight: 1.02, margin: "6px 0 12px", letterSpacing: "-0.01em" } }, "Star Finder"),
       React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 } },
-        React.createElement("span", { style: { fontFamily: "var(--font-body)", fontSize: 15, color: C.ink } }, loc.name),
-        React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: ".5px", padding: "7px 14px", borderRadius: 20, cursor: "pointer", border: "1px solid var(--btn-border)", background: "var(--btn-fill)", color: "var(--accent-hi)" } }, "◎ Use my location"),
+        React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 15, color: C.ink } }, loc.name),
+        React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "var(--btn-fill)", color: "var(--accent-hi)" } }, "Use my location"),
         geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim } }, geoMsg)
       )
     ),
