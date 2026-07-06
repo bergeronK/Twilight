@@ -1,0 +1,12 @@
+{
+  "appId": "info.twilyte.app",
+  "appName": "Twilight",
+  "webDir": "www",
+  "backgroundColor": "#070a14",
+  "ios": {
+    "contentInset": "automatic"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -27,3 +27,9 @@ jobs:
 
       - name: Syntax-check service worker
         run: node --check sw.js && echo "✓ sw.js parses"
+
+      - name: Syntax-check native shell scripts
+        run: |
+          node --check native/sync-web.js && echo "✓ native/sync-web.js parses"
+          node -e "JSON.parse(require('fs').readFileSync('native/capacitor.config.json','utf8')); console.log('✓ capacitor.config.json is valid JSON')"
+          python3 -m py_compile native/generate-assets.py && echo "✓ native/generate-assets.py compiles"
