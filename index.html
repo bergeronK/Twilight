@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-H9+6oDLxN2KRhrdUocRfTkoRadNv68Yes34btYbjxs0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-h61SVJ+DXSZaOUsVgVEuBA7jwzqj3Niy5Ygtm7SdQ48=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -2467,18 +2467,14 @@ function RealtimeTwilight({ redMode } = {}) {
       style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 }
     }, "Planets above the horizon"),
     React.createElement("div", {
-      style: { display: "flex", flexWrap: "wrap", gap: 8 }
+      style: { display: "flex", flexWrap: "wrap", gap: "12px 32px" }
     },
       ...planets.map(p =>
         React.createElement("div", {
           key: p.name,
-          style: {
-            display: "flex", alignItems: "center", gap: 8,
-            border: `1px solid ${C.line}`,
-            borderRadius: 8, padding: "8px 14px"
-          }
+          style: { display: "flex", alignItems: "center", gap: 9 }
         },
-          React.createElement("span", { style: { fontSize: 16, color: p.color } }, p.symbol),
+          React.createElement("span", { style: { fontSize: 17, color: p.color } }, p.symbol),
           React.createElement("div", null,
             React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 550, color: C.ink } }, p.name),
             React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" } },
