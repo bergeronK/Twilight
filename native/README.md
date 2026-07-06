@@ -54,6 +54,19 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
    Play App Signing) → internal testing track → production.
 3. **Store listings:** the repo's `screenshot-narrow.png`/`screenshot-wide.png`
    are the right starting points; both stores need their own size variants.
-4. **Later (Pro monetization):** create matching IAP products in both
-   consoles, then swap `prefStore`'s `pro` default for a real entitlement
-   check (RevenueCat recommended to unify both stores).
+4. **Pro monetization (wired, awaiting keys):** the web app already contains
+   the full RevenueCat integration — boot-time entitlement sync, an
+   Unlock/Restore purchase UI in Settings, and the `@revenuecat/purchases-capacitor`
+   plugin is installed. It activates per-platform the moment a public SDK
+   key is set in `RC_KEYS` in `../index.html` (search for `RC_KEYS`). Until
+   then the app keeps today's free-preview behavior. To go live:
+   - App Store Connect: create the app (bundle id `info.twilyte.app`) and a
+     **non-consumable** IAP product (suggested id `tw_pro_lifetime`).
+   - RevenueCat (free tier): create a project + iOS app, connect App Store
+     Connect, add the product to an **entitlement named exactly `pro`**
+     inside the **current offering**, then copy the public Apple SDK key
+     (`appl_…`) into `RC_KEYS.ios`.
+   - Same flow later for Google Play (`goog_…` key into `RC_KEYS.android`).
+   The purchase flow buys the first package of the current offering, so no
+   product ids appear in code — pricing and product changes are RevenueCat
+   dashboard operations.
