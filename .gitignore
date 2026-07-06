@@ -1,0 +1,18 @@
+node_modules/
+.DS_Store
+
+# --- native/ (Capacitor shell): generated or machine-local files ---
+# www/ and the copied public/ dirs are staged from the repo root by
+# `npm run sync` (see native/sync-web.js); regenerate, don't commit.
+native/www/
+native/android/app/src/main/assets/public/
+native/android/app/src/main/assets/capacitor.config.json
+native/android/app/src/main/assets/capacitor.plugins.json
+native/ios/App/App/public/
+native/ios/App/App/capacitor.config.json
+native/ios/App/Pods/
+native/android/.gradle/
+native/android/app/build/
+native/android/build/
+native/android/local.properties
+__pycache__/
