@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-l3DhKgLtFRgXA5R6+gpNxiUXZLcFa9B3zfouHwa4FtI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-H9+6oDLxN2KRhrdUocRfTkoRadNv68Yes34btYbjxs0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -2148,16 +2148,17 @@ function RealtimeTwilight({ redMode } = {}) {
     style: {
       maxWidth: 1080,
       margin: "0 auto",
-      background: C.panel,
-      border: `1px solid ${C.line}`,
-      borderRadius: 16,
-      overflow: "hidden"
+      borderTop: `1px solid ${C.line}`,
+      padding: "20px 0"
     }
   }, React.createElement("div", {
     className: "rt-grid",
     style: {
       display: "grid",
-      gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)"
+      gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)",
+      borderRadius: 12,
+      overflow: "hidden",
+      border: `1px solid ${C.line}`
     }
   }, React.createElement("div", {
     className: "rt-sky",
@@ -2303,24 +2304,26 @@ function RealtimeTwilight({ redMode } = {}) {
     style: {
       padding: "22px 22px 24px",
       borderLeft: `1px solid ${C.line}`,
-      background: "linear-gradient(#0e1424,#0a0f1c)"
+      background: "var(--surface)"
     }
   }, React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 3,
-      color: C.brass,
+      fontSize: 10.5,
+      fontWeight: 600,
+      letterSpacing: "0.07em",
+      color: C.inkFaint,
       textTransform: "uppercase"
     }
-  }, "Right Now"), React.createElement("div", {
+  }, "Right now"), React.createElement("div", {
     style: {
-      fontFamily: "var(--font-display)",
-      fontWeight: 700,
-      fontSize: 34,
+      fontFamily: "var(--font-ui)",
+      fontWeight: 600,
+      fontSize: 27,
+      letterSpacing: "-0.015em",
       color: meta.color,
-      lineHeight: 1.05,
-      margin: "4px 0 2px"
+      lineHeight: 1.08,
+      margin: "6px 0 2px"
     }
   }, meta.name), React.createElement("div", {
     style: {
@@ -2331,18 +2334,14 @@ function RealtimeTwilight({ redMode } = {}) {
   }, live.phase === "day" ? "Sun above the horizon. Wait for dusk to begin sights." : live.phase === "civil" ? "Brightest bodies only; horizon razor-sharp. Window approaching." : live.phase === "naut" ? "Horizon and navigational stars both present — take your sights now." : live.phase === "astro" ? "Horizon fading into sky-glow; sky deep enough for faint objects." : "Full darkness. No marine horizon; ideal for deep-sky observing."),
   nextSunEv && React.createElement("div", {
     style: {
-      marginTop: 10,
-      padding: "8px 10px",
-      borderRadius: 8,
-      background: "rgba(255,255,255,0.03)",
-      border: `1px solid ${C.line}`
+      marginTop: 14
     }
   },
     React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 3 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 3 }
     }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
     React.createElement("div", {
-      style: { fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 600, lineHeight: 1 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
     }, (() => {
       const ms = nextSunEv.t - now;
       const h = Math.floor(ms / 3600000);
@@ -2372,26 +2371,30 @@ function RealtimeTwilight({ redMode } = {}) {
     accent: live.hv > 0.1 ? "#bcd0e6" : "#6a7488"
   })), React.createElement("div", {
     style: {
-      marginTop: 20,
-      padding: "16px 16px 18px",
-      borderRadius: 12,
-      border: `1px solid ${win && win.open ? C.brass : C.line}`,
-      background: win && win.open ? "var(--accent-soft)" : "rgba(255,255,255,.02)"
+      marginTop: 18,
+      padding: "14px 16px 16px",
+      borderRadius: 10,
+      borderLeft: `2px solid ${win && win.open ? C.brass : C.line}`,
+      background: win && win.open ? "var(--accent-soft)" : "transparent"
     }
   }, React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 2,
-      color: C.brass,
+      fontSize: 10.5,
+      fontWeight: 600,
+      letterSpacing: "0.07em",
+      color: win && win.open ? C.brass : C.inkFaint,
       textTransform: "uppercase"
     }
   }, win ? win.open ? "Window open now" : `Next sextant window · ${win.kind.toLowerCase()}` : "Sextant window"), win ? React.createElement(React.Fragment, null, React.createElement("div", {
     style: {
-      fontFamily: "var(--font-display)",
-      fontSize: 26,
-      fontWeight: 600,
-      margin: "5px 0 2px"
+      fontFamily: "var(--font-ui)",
+      fontSize: 25,
+      fontWeight: 300,
+      letterSpacing: "-0.02em",
+      color: C.ink,
+      fontVariantNumeric: "tabular-nums",
+      margin: "6px 0 2px"
     }
   }, fmtT(win.s, loc.tz), " ", React.createElement("span", {
     style: {
@@ -2458,28 +2461,27 @@ function RealtimeTwilight({ redMode } = {}) {
     )
   )))),
   planets.length > 0 && React.createElement("section", {
-    className: "tw-panel",
-    style: { maxWidth: 1080, margin: "16px auto 0", background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: "16px 22px" }
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
     React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 3, color: C.brass, textTransform: "uppercase", marginBottom: 12 }
+      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 }
     }, "Planets above the horizon"),
     React.createElement("div", {
-      style: { display: "flex", flexWrap: "wrap", gap: 10 }
+      style: { display: "flex", flexWrap: "wrap", gap: 8 }
     },
       ...planets.map(p =>
         React.createElement("div", {
           key: p.name,
           style: {
             display: "flex", alignItems: "center", gap: 8,
-            background: "rgba(255,255,255,0.03)", border: `1px solid ${C.line}`,
-            borderRadius: 10, padding: "8px 14px"
+            border: `1px solid ${C.line}`,
+            borderRadius: 8, padding: "8px 14px"
           }
         },
-          React.createElement("span", { style: { fontSize: 18, color: p.color } }, p.symbol),
+          React.createElement("span", { style: { fontSize: 16, color: p.color } }, p.symbol),
           React.createElement("div", null,
-            React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 600, color: p.color } }, p.name),
-            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10, color: C.inkDim } },
+            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 550, color: C.ink } }, p.name),
+            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" } },
               p.alt.toFixed(0), "° alt · ",
               (["N","NE","E","SE","S","SW","W","NW","N"])[Math.round(p.az / 45) % 8]
             )
@@ -2489,21 +2491,19 @@ function RealtimeTwilight({ redMode } = {}) {
     )
   ),
   React.createElement("section", {
-    className: "tw-panel",
     style: {
       maxWidth: 1080,
-      margin: "22px auto 0",
-      background: C.panel,
-      border: `1px solid ${C.line}`,
-      borderRadius: 16,
-      padding: "20px 22px 24px"
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "15px 0 20px"
     }
   }, React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 3,
-      color: C.brass,
+      fontSize: 10.5,
+      fontWeight: 600,
+      letterSpacing: "0.07em",
+      color: C.inkFaint,
       textTransform: "uppercase"
     }
   }, "Today's twilight schedule \xB7 ", loc.name), React.createElement("div", {
@@ -2527,10 +2527,12 @@ function RealtimeTwilight({ redMode } = {}) {
   })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement("section", {
     style: {
       maxWidth: 1080,
-      margin: "16px auto 0",
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "20px 0",
       display: "grid",
       gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-      gap: 14
+      gap: "18px 24px"
     }
   }, [{
     c: "var(--band-civil)",
@@ -2546,48 +2548,31 @@ function RealtimeTwilight({ redMode } = {}) {
     t: "Horizon lost; sky toward full dark. Deep-sky observing, not marine sights."
   }].map(p => React.createElement("div", {
     key: p.n,
-    className: "tw-panel",
     style: {
-      background: C.panel,
-      border: `1px solid ${C.line}`,
-      borderRadius: 12,
-      padding: "14px 16px",
-      position: "relative",
-      overflow: "hidden"
+      borderLeft: `2px solid ${p.c}`,
+      paddingLeft: 12
     }
   }, React.createElement("div", {
     style: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: 4,
-      background: p.c
-    }
-  }), React.createElement("div", {
-    style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 12,
-      color: C.brassHi,
-      letterSpacing: .5
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: C.ink
     }
   }, p.n), React.createElement("div", {
     style: {
-      fontSize: 13,
-      color: "#cdc6b2",
+      fontSize: 12.5,
+      color: C.inkDim,
       marginTop: 5,
-      lineHeight: 1.45
+      lineHeight: 1.5
     }
   }, p.t)))), React.createElement("section", {
     ref: factRef,
-    className: "tw-panel",
     style: {
       maxWidth: 1080,
-      margin: "16px auto 0",
-      background: `linear-gradient(160deg, #121a2e, ${C.panel})`,
-      border: `1px solid ${C.line}`,
-      borderRadius: 16,
-      padding: "24px 24px 26px",
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "22px 0 24px",
       scrollMarginTop: 16
     }
   }, React.createElement("div", {
@@ -2601,9 +2586,10 @@ function RealtimeTwilight({ redMode } = {}) {
   }, React.createElement("div", null, React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 3,
-      color: C.brass,
+      fontSize: 10.5,
+      fontWeight: 600,
+      letterSpacing: "0.07em",
+      color: C.inkFaint,
       textTransform: "uppercase"
     }
   }, "The Gloaming \xB7 Curiosities"), React.createElement("h2", {
@@ -2649,12 +2635,12 @@ function RealtimeTwilight({ redMode } = {}) {
       display: "inline-block",
       fontFamily: "var(--font-ui)",
       fontSize: 10,
-      letterSpacing: 1.5,
+      letterSpacing: "0.1em",
       textTransform: "uppercase",
-      color: "#0a1018",
-      background: C.brass,
-      padding: "3px 9px",
-      borderRadius: 20,
+      color: C.brass,
+      border: "1px solid var(--btn-border)",
+      padding: "2px 8px",
+      borderRadius: 4,
       fontWeight: 600
     }
   }, FACTS[factIdx].tag), React.createElement("h3", {
@@ -2749,9 +2735,10 @@ function EventCol({
   const rows = order.map(k => events.find(e => e.key === k && e.dir === dir)).filter(Boolean);
   return React.createElement("div", null, React.createElement("div", {
     style: {
-      fontFamily: "var(--font-display)",
-      fontSize: 18,
+      fontFamily: "var(--font-ui)",
+      fontSize: 13,
       fontWeight: 600,
+      color: "var(--ink)",
       marginBottom: 8
     }
   }, title), rows.length === 0 ? React.createElement("div", {
