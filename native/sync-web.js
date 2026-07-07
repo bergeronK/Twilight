@@ -22,6 +22,7 @@ const FILES = [
   'icon-512.png',
   'icon-512-maskable.png',
   'apple-touch-icon.png',
+  'fonts/inter-var.woff2',
   'fonts/cormorant.woff2',
   'fonts/cormorant-i.woff2',
   'fonts/spacegrotesk.woff2',
