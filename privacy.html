@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0e0d0b" />
+<title>Privacy Policy — Twilight</title>
+<meta name="description" content="Twilight's privacy policy: what data the app uses, what stays on your device, and the third-party services it calls." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://twilyte.info/privacy.html" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<style>
+@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-var.woff2) format('woff2');}
+@font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/cormorant.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+:root{
+  --bg:#0e0d0b; --ink:#eae7e0; --ink-dim:#a09a8f; --ink-faint:#7d766a;
+  --accent:#d2a04d; --accent-hi:#e5ba6e; --line:#211f1b;
+  --font-display:'Cormorant Garamond',Georgia,serif;
+  --font-body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg)}
+body{
+  font-family:var(--font-body); color:var(--ink); line-height:1.65;
+  background:radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%);
+  min-height:100vh;
+}
+main{max-width:720px;margin:0 auto;padding:clamp(28px,6vw,64px) clamp(18px,4vw,32px) 60px}
+a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+a:hover{color:var(--accent-hi)}
+.kicker{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint)}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(30px,5.5vw,44px);margin:8px 0 4px;letter-spacing:-.01em}
+.updated{font-size:13px;color:var(--ink-dim);margin-bottom:36px}
+h2{font-family:var(--font-body);font-weight:600;font-size:16px;letter-spacing:-.005em;margin:36px 0 10px;padding-top:16px;border-top:1px solid var(--line)}
+h2:first-of-type{border-top:none;padding-top:0}
+p,li{font-size:14.5px;color:var(--ink-dim)}
+p{margin:0 0 12px}
+ul{margin:0 0 12px;padding-left:20px}
+li{margin-bottom:6px}
+strong{color:var(--ink);font-weight:600}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--accent-hi);background:rgba(210,160,77,.08);padding:1px 5px;border-radius:4px}
+.back{display:inline-block;margin-top:44px;font-size:13px;color:var(--ink-faint);text-decoration:none;border-top:1px solid var(--line);padding-top:16px;width:100%}
+.back:hover{color:var(--accent)}
+table{width:100%;border-collapse:collapse;margin:8px 0 16px;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-dim)}
+th{color:var(--ink-faint);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+td:first-child,th:first-child{color:var(--ink);font-weight:500}
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">Twilight</div>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated July 8, 2026</div>
+
+  <p>Twilight doesn't track you. There's no account, no advertising, no analytics
+  software, and no profile built about you or your device. This page explains,
+  in full, everything the app does with data — because that list is short
+  enough to just say plainly.</p>
+
+  <h2>Location</h2>
+  <p>Twilight uses your device's location (with your permission, via your
+  browser's or operating system's location prompt) to calculate the Sun,
+  Moon, and star positions, twilight times, and light-pollution estimate for
+  where you are. Your coordinates are used as follows:</p>
+  <ul>
+    <li><strong>On your device:</strong> all astronomy calculations run
+    locally in the app — your position is never sent to a Twilight server,
+    because Twilight doesn't operate one.</li>
+    <li><strong>To Open-Meteo</strong> (<a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">open-meteo.com</a>),
+    a weather-forecast provider: your coordinates are sent to fetch the cloud
+    forecast used for the "Clear & Dark" observing score, and to search for
+    places by name. Open-Meteo does not require an account or API key and is
+    not used for any purpose beyond serving that request.</li>
+  </ul>
+  <p>You can deny location access entirely and still use Twilight by entering
+  a ZIP code, searching for a place by name, or typing coordinates directly.</p>
+
+  <h2>What's stored on your device</h2>
+  <p>Your preferences and your last-used location are saved locally in your
+  browser's or app's storage, so Twilight remembers them between visits.
+  None of this is transmitted anywhere — it never leaves your device except
+  as described above.</p>
+  <ul>
+    <li>Your saved and current location</li>
+    <li>Display preferences (12/24-hour time, red-light night mode, sky-brightness setting)</li>
+    <li>A short-lived cache (about an hour) of the weather forecast, to avoid
+    re-fetching it constantly</li>
+    <li>Whether you've dismissed onboarding messages</li>
+  </ul>
+  <p>You can clear all of this at any time by clearing your browser's site
+  data for twilyte.info, or by deleting the app.</p>
+
+  <h2>Anonymous visit counter</h2>
+  <p>Twilight shows a running visitor count on the Console tab. Loading the
+  page pings a small counting service; the app does not send your location,
+  device identifiers, or any other data to it beyond what any web request
+  inherently includes (like your IP address, which the app itself never sees
+  or stores). The counter exists to show a running total, not to build a
+  profile of any individual visitor.</p>
+
+  <h2>In-app purchase (Pro features, iOS &amp; Android app only)</h2>
+  <p>The native iOS and Android apps offer an optional one-time purchase to
+  unlock the multi-night observing planner. Purchases are processed entirely
+  by Apple's App Store or Google Play — Twilight never receives your payment
+  details. To verify and restore your purchase across devices, the app uses
+  <a href="https://www.revenuecat.com/" target="_blank" rel="noopener noreferrer">RevenueCat</a>,
+  which is assigned an anonymous, random identifier for your installation
+  (not your name, email, or Apple/Google account) along with the purchase
+  receipt Apple or Google already issued. See
+  <a href="https://www.revenuecat.com/privacy" target="_blank" rel="noopener noreferrer">RevenueCat's privacy policy</a>
+  for how they handle that data.</p>
+
+  <h2>What Twilight does <em>not</em> do</h2>
+  <ul>
+    <li>No account, sign-in, name, or email is ever collected</li>
+    <li>No advertising SDKs and no ad tracking</li>
+    <li>No analytics software (no Google Analytics, no crash reporters, no session recording)</li>
+    <li>No cookies — the app uses only local on-device storage described above</li>
+    <li>No data is sold, shared, or used for any purpose beyond making the app work</li>
+  </ul>
+
+  <h2>Third-party services this app calls</h2>
+  <table>
+    <tr><th>Service</th><th>Purpose</th><th>Data sent</th></tr>
+    <tr><td>Open-Meteo</td><td>Weather forecast &amp; place search</td><td>Coordinates or search text</td></tr>
+    <tr><td>GeoNames</td><td>Place-name database backing search results</td><td>None directly — accessed via Open-Meteo</td></tr>
+    <tr><td>Visitor counter (Cloudflare Worker)</td><td>Anonymous running visit total</td><td>None sent by the app beyond the request itself</td></tr>
+    <tr><td>RevenueCat (native app only)</td><td>Purchase verification &amp; restore</td><td>Anonymous install ID, purchase receipt</td></tr>
+  </table>
+
+  <h2>Children's privacy</h2>
+  <p>Twilight is a general-audience reference tool and does not knowingly
+  collect personal information from anyone, including children. Since the
+  app collects no personal information from any user, no age-specific
+  handling is needed.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If what Twilight collects or how it's used changes, this page will be
+  updated and the "last updated" date above will change accordingly.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy or the app can be sent via the
+  <a href="https://github.com/bergeronK/Twilight" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</p>
+
+  <a class="back" href="/">← Back to Twilight</a>
+</main>
+</body>
+</html>

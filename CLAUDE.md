@@ -126,10 +126,18 @@ native shell v1 (iOS+Android, geolocation, icons/splash), RevenueCat IAP
 wiring (inert without a key), full visual restyle ("field instrument" design
 system) across all three tabs.
 
-**Open PR, not yet merged (check `gh pr list` / GitHub UI for current
-state):** brand-asset refresh (install screenshots + og-image regenerated
-for the new look) + the blue page-background unification/cooling. Small,
-low-risk, mostly binary diffs.
+**Shipped since (all merged to `main`):** brand-asset refresh (install
+screenshots + og-image for the new look), page-background unification (all
+three tabs now share one navy-to-blue-black wash), `/privacy.html` (public
+privacy policy, linked from the footer, listed in `sitemap.xml`), and
+`docs/app-store-privacy-answers.md` (exact App Store Connect "App Privacy" /
+Play Console "Data safety" / age-rating / export-compliance answers, ready
+to copy in when the owner reaches those forms).
+
+**Open question, needs the owner's call:** `/privacy.html`'s Contact section
+currently points to the GitHub repo rather than a personal email — nobody's
+email was published without asking first. Swap it for a direct contact
+address if the owner wants one; it's a one-line change.
 
 **Blocked on the repo owner, not on engineering:**
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
@@ -137,8 +145,6 @@ low-risk, mostly binary diffs.
   account as of this writing but has not yet created the App Store Connect
   app record, the IAP product, or the RevenueCat project.
 - Pages deploy-source switch (see Deploy section above).
-- Privacy Policy URL for App Store Connect (unconfirmed whether twilyte.info
-  has one yet).
 - Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
   here until the owner has one available.
 
@@ -151,9 +157,6 @@ low-risk, mostly binary diffs.
   scoped-but-unstarted differentiators from earlier market research.
 - App Store screenshot regeneration at Apple's exact required device
   dimensions (differ from the PWA manifest sizes currently used).
-- App Store Connect prep docs (App Privacy questionnaire answers, age
-  rating, export compliance) — straightforward given the app's "no
-  tracking, anonymous visit count only" data story, just not yet written.
 
 ## Conventions established this session (follow unless told otherwise)
 
