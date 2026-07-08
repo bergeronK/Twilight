@@ -1,7 +1,8 @@
-const CACHE = 'twilight-v44';
+const CACHE = 'twilight-v45';
 const ASSETS = [
   '/',
   '/index.html',
+  '/privacy.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
