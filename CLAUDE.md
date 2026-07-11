@@ -156,7 +156,13 @@ address if the owner wants one; it's a one-line change.
 - AR sky view / celestial-nav "Navigator" sight-reduction pack — bigger,
   scoped-but-unstarted differentiators from earlier market research.
 - App Store screenshot regeneration at Apple's exact required device
-  dimensions (differ from the PWA manifest sizes currently used).
+  dimensions: **done for iPhone** (`store-assets/ios/`, 1260×2736,
+  regenerate via `node store-assets/generate.js`). **iPad not done** — see
+  `store-assets/README.md` for why (the Xcode project currently targets
+  Universal, which makes 13" iPad screenshots required too, but the layout
+  hasn't been verified at iPad's aspect ratio; a decision on iPhone-only vs.
+  Universal for v1 is needed before generating those).
+- Android store assets (Play feature graphic + screenshots) — not started.
 
 ## Conventions established this session (follow unless told otherwise)
 
