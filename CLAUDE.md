@@ -162,7 +162,15 @@ address if the owner wants one; it's a one-line change.
   Universal, which makes 13" iPad screenshots required too, but the layout
   hasn't been verified at iPad's aspect ratio; a decision on iPhone-only vs.
   Universal for v1 is needed before generating those).
-- Android store assets (Play feature graphic + screenshots) — not started.
+- Android store assets: **done** (`store-assets/android/`, feature graphic +
+  3 phone screenshots, regen via `node store-assets/generate-android.js`).
+  Android scaffolding under `native/android/` was audited this pass
+  (`AndroidManifest.xml` permissions, launcher icons, Gradle plugin wiring)
+  and found sound — no changes needed. **Cannot validate a real Gradle/APK
+  build from this sandbox**: no Android SDK installed, and `dl.google.com`
+  (the SDK repository) is blocked by the environment's network policy, same
+  as `api.open-meteo.com` — mirrors the "iOS needs a Mac" constraint. A real
+  build/signing/Play Console upload needs a machine with the Android SDK.
 
 ## Conventions established this session (follow unless told otherwise)
 

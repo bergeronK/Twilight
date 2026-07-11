@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;src:url(../fonts/inter-var.woff2) format('woff2');}
+  @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;src:url(../fonts/cormorant.woff2) format('woff2');}
+  @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;src:url(../fonts/cormorant-i.woff2) format('woff2');}
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 1024px; height: 500px; overflow: hidden; background: #0e0d0b; }
+  .stage {
+    position: relative;
+    width: 1024px; height: 500px;
+    background:
+      radial-gradient(900px 500px at 18% 8%, rgba(210,160,77,.10) 0%, rgba(210,160,77,0) 55%),
+      radial-gradient(1100px 700px at 85% 100%, #171410 0%, #0e0d0b 55%),
+      #0a0906;
+  }
+  .stars span {
+    position: absolute; width: 2px; height: 2px; border-radius: 50%;
+    background: #eae7e0;
+  }
+  .content {
+    position: absolute; left: 72px; top: 0; bottom: 0;
+    display: flex; flex-direction: column; justify-content: center;
+    max-width: 760px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 14px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 64px; font-weight: 600; letter-spacing: .01em;
+    color: #eae7e0;
+  }
+  .brand svg { display: block; }
+  .tagline {
+    margin: 18px 0 0;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: 30px; color: #d8d3c8;
+  }
+  .features {
+    margin: 16px 0 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 17px; color: #a09a8f;
+  }
+  .features b { color: #d2a04d; font-weight: 600; }
+  .brandmark {
+    position: absolute; left: 72px; bottom: 34px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: .18em;
+    color: #7d766a; text-transform: uppercase;
+  }
+  .rule {
+    position: absolute; left: 72px; right: 72px; bottom: 68px;
+    height: 1px; background: linear-gradient(90deg, rgba(210,160,77,.55), rgba(210,160,77,0) 70%);
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="stars" id="stars"></div>
+    <div class="content">
+      <div class="brand">
+        <svg width="46" height="46" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M7 0l1.7 5.3L14 7l-5.3 1.7L7 14 5.3 8.7 0 7l5.3-1.7z" fill="#d2a04d" />
+        </svg>
+        <span>Twilight</span>
+      </div>
+      <p class="tagline">Tonight&rsquo;s sky, wherever you are.</p>
+      <p class="features">Live <b>clear-and-dark</b> score &middot; twilight ephemeris &middot; celestial navigation</p>
+    </div>
+    <div class="rule"></div>
+    <div class="brandmark">TWILYTE.INFO</div>
+  </div>
+  <script>
+    // Deterministic pseudo-random starfield so repeated regenerations are pixel-stable.
+    (function () {
+      var stars = document.getElementById('stars');
+      var seed = 42;
+      function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed / 0x7fffffff); }
+      for (var i = 0; i < 110; i++) {
+        var s = document.createElement('span');
+        var x = rnd() * 1024, y = rnd() * 500;
+        var r = rnd();
+        var size = r > 0.92 ? 3 : r > 0.7 ? 2 : 1;
+        s.style.left = x.toFixed(1) + 'px';
+        s.style.top = y.toFixed(1) + 'px';
+        s.style.width = s.style.height = size + 'px';
+        s.style.opacity = (0.25 + rnd() * 0.6).toFixed(2);
+        stars.appendChild(s);
+      }
+    })();
+  </script>
+</body>
+</html>
