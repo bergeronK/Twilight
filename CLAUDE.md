@@ -153,8 +153,15 @@ address if the owner wants one; it's a one-line change.
 - Alerts (clear-and-dark-tonight push notifications) — needs a backend
   decision (Cloudflare Worker + Cron Triggers is the natural fit given the
   existing visitor-counter Worker).
-- AR sky view / celestial-nav "Navigator" sight-reduction pack — bigger,
-  scoped-but-unstarted differentiators from earlier market research.
+- AR sky view / celestial-nav "Navigator" sight-reduction pack — now has a
+  concrete scoping doc, `docs/navigator-spec.md`, grounded in the existing
+  `NAV_STARS`/`starHcZn`/`moonState` code. Splits into Feature A (Sight
+  Reduction Calculator — pure math, no sensors, buildable now) and Feature B
+  (AR aim assist — needs device sensors/camera, can't be validated in this
+  sandbox, real-device testing required). Recommends building A first.
+  Three open questions need the owner's call before implementation starts:
+  Pro-gated or free, stars-only vs. Sun/Moon for v1, and whether Feature B
+  is wanted at all for v1 — see the doc's "Open questions" section.
 - App Store screenshot regeneration at Apple's exact required device
   dimensions: **done for iPhone** (`store-assets/ios/`, 1260×2736,
   regenerate via `node store-assets/generate.js`). **iPad not done** — see
