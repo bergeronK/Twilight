@@ -154,8 +154,8 @@ Play Console "Data safety" / age-rating / export-compliance answers, ready
 to copy in when the owner reaches those forms).
 
 **Pushed to the dev branch, live on twilyte.info, not yet merged to `main`
-(no PR opened yet — none of this touches `index.html`'s core app, so it's
-low-risk to leave un-merged for a while, but `main` is currently behind):**
+(no PR opened yet — low-risk to leave un-merged for a while, but `main` is
+currently behind):**
 - Google Play store assets (`store-assets/android/` — feature graphic +
   3 phone screenshots) plus a from-scratch audit of the `native/android/`
   Capacitor scaffolding (found sound, no changes needed).
@@ -167,6 +167,14 @@ low-risk to leave un-merged for a while, but `main` is currently behind):**
   volume) and dark-sky/astro-tourism towns like Sedona/Flagstaff/Moab
   (topical relevance to a stargazing app specifically). Extend the list by
   editing `CITIES` in `scripts/generate-city-pages.js` and re-running it.
+- A general QA/polish pass (Playwright, all 3 tabs × 320/375/768/1440px
+  viewports) found and fixed one real bug in `index.html`: the sticky
+  header's wordmark-hiding breakpoint was `max-width:359px`, but the
+  header's actual natural width is 381px — so 360-383px viewports (360px
+  Android, 375px iPhone SE/6-8/X/11 Pro/12 mini) overflowed horizontally on
+  every tab. Widened the breakpoint to `max-width:384px`. Re-verified clean
+  across the full width sweep after the fix; no other overflow or console
+  errors found in this pass.
 
 **Open question, needs the owner's call:** `/privacy.html`'s Contact section
 currently points to the GitHub repo rather than a personal email — nobody's

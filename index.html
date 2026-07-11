@@ -97,8 +97,12 @@
     --shadow-2:0 2px 12px rgba(0,0,0,.22);
     --panel-top:rgba(255,255,255,.05);  /* hairline top highlight */
   }
-  /* Hide the wordmark on very narrow screens so the tab bar never crowds */
-  @media (max-width:359px){ .tw-brand-word{ display:none; } }
+  /* Hide the wordmark on narrow screens so the tab bar never crowds.
+     384px (not 359px) because the header's natural width is 381px — a
+     360-383px viewport (this bracket covers real devices: 360px Android,
+     375px iPhone SE/6-8/X/11 Pro/12 mini) overflowed horizontally on every
+     tab otherwise. */
+  @media (max-width:384px){ .tw-brand-word{ display:none; } }
   /* Free up room on small screens */
   @media (max-width:560px){ .tw-visitors{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
