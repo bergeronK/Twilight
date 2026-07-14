@@ -148,33 +148,35 @@ system) across all three tabs.
 **Shipped since (all merged to `main`):** brand-asset refresh (install
 screenshots + og-image for the new look), page-background unification (all
 three tabs now share one navy-to-blue-black wash), `/privacy.html` (public
-privacy policy, linked from the footer, listed in `sitemap.xml`), and
+privacy policy, linked from the footer, listed in `sitemap.xml`),
 `docs/app-store-privacy-answers.md` (exact App Store Connect "App Privacy" /
 Play Console "Data safety" / age-rating / export-compliance answers, ready
-to copy in when the owner reaches those forms).
+to copy in when the owner reaches those forms), Google Play store assets
+(`store-assets/android/`), a from-scratch audit of the `native/android/`
+Capacitor scaffolding (found sound), `twilight-times/` SEO city landing
+pages (30 curated cities + hub index, see Architecture section above), and
+a QA/polish pass that fixed a real header-overflow bug at 360-383px
+viewport widths (see git history on `index.html` for details).
 
 **Pushed to the dev branch, live on twilyte.info, not yet merged to `main`
-(no PR opened yet — low-risk to leave un-merged for a while, but `main` is
-currently behind):**
-- Google Play store assets (`store-assets/android/` — feature graphic +
-  3 phone screenshots) plus a from-scratch audit of the `native/android/`
-  Capacitor scaffolding (found sound, no changes needed).
-- `docs/navigator-spec.md` — the Navigator (celestial-nav sight-reduction)
-  scoping doc described below.
-- `twilight-times/` — SEO city landing pages (see Architecture section
-  above for how these work). 30 curated cities + a hub index page, linked
-  from `sitemap.xml`. Content strategy: a mix of major US metros (search
-  volume) and dark-sky/astro-tourism towns like Sedona/Flagstaff/Moab
-  (topical relevance to a stargazing app specifically). Extend the list by
-  editing `CITIES` in `scripts/generate-city-pages.js` and re-running it.
-- A general QA/polish pass (Playwright, all 3 tabs × 320/375/768/1440px
-  viewports) found and fixed one real bug in `index.html`: the sticky
-  header's wordmark-hiding breakpoint was `max-width:359px`, but the
-  header's actual natural width is 381px — so 360-383px viewports (360px
-  Android, 375px iPhone SE/6-8/X/11 Pro/12 mini) overflowed horizontally on
-  every tab. Widened the breakpoint to `max-width:384px`. Re-verified clean
-  across the full width sweep after the fix; no other overflow or console
-  errors found in this pass.
+(no PR opened yet):**
+- **Navigator v1** (Sight Reduction Calculator + Aim Assist MVP), in the
+  Stars tab. Free, covers stars/Sun/Moon sights, plus a compass-only "which
+  way to turn" aim assist. Built per `docs/navigator-spec.md` — see that
+  doc's top status note for exactly what shipped, what was deliberately
+  left out (tilt/altitude guidance, full camera AR, sight persistence), and
+  why. New math in `index.html`: `sunHcZn`, `dipCorr`, `refractionCorr`,
+  `SUN_SD`/`moonSD`/`moonHP`/`moonParallaxCorr`, `sightToHo`, `intercept`,
+  `solveFix`, `cutQuality`. `moonState()` now also returns `az` and `r`
+  (additive — verified no existing caller broke). Verified numerically
+  (not just visually): for a test sight with Hs set to exactly match the
+  app's own computed Hc, the displayed intercept matched a hand-computed
+  prediction of the correction alone, for all three body types — see git
+  history for the verification scripts. The aim-assist's "unsupported
+  browser" and "waiting for sensor" fallback states were tested directly;
+  actual compass/orientation behavior on a real device was not (no sensors
+  in this sandbox) — flagged as a known gap, same as the native-build
+  limitations elsewhere in this doc.
 
 **Open question, needs the owner's call:** `/privacy.html`'s Contact section
 currently points to the GitHub repo rather than a personal email — nobody's
@@ -194,15 +196,6 @@ address if the owner wants one; it's a one-line change.
 - Alerts (clear-and-dark-tonight push notifications) — needs a backend
   decision (Cloudflare Worker + Cron Triggers is the natural fit given the
   existing visitor-counter Worker).
-- AR sky view / celestial-nav "Navigator" sight-reduction pack — now has a
-  concrete scoping doc, `docs/navigator-spec.md`, grounded in the existing
-  `NAV_STARS`/`starHcZn`/`moonState` code. Splits into Feature A (Sight
-  Reduction Calculator — pure math, no sensors, buildable now) and Feature B
-  (AR aim assist — needs device sensors/camera, can't be validated in this
-  sandbox, real-device testing required). Recommends building A first.
-  Three open questions need the owner's call before implementation starts:
-  Pro-gated or free, stars-only vs. Sun/Moon for v1, and whether Feature B
-  is wanted at all for v1 — see the doc's "Open questions" section.
 - App Store screenshot regeneration at Apple's exact required device
   dimensions: **done for iPhone** (`store-assets/ios/`, 1260×2736,
   regenerate via `node store-assets/generate.js`). **iPad not done** — see

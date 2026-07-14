@@ -1,11 +1,45 @@
-# Navigator pack — scoping spec (not yet built)
+# Navigator pack — scoping spec
+
+**Status: v1 built and shipped** (both Feature A and the Feature B MVP,
+live in the Stars tab). Owner decisions: **free** (not Pro-gated), **stars +
+Sun + Moon** in scope, **Feature B (AR aim assist) included** as the
+no-camera compass-arrow MVP — the full camera overlay remains out of scope
+(needs real-device validation this sandbox can't do).
+
+Implementation notes for future work on this:
+- All math lives in `index.html` near `starHcZn`/`moonState`: `dipCorr`,
+  `refractionCorr`, `SUN_SD`, `moonSD`, `moonHP`, `moonParallaxCorr`,
+  `sightToHo`, `intercept`, `solveFix`, `cutQuality`, plus a new `sunHcZn`
+  (the existing `sunAltitude` only returned altitude, not azimuth — needed
+  for the Sun's intercept bearing).
+- `moonState()` now also returns `az` and `r` (geocentric distance in Earth
+  radii) — additive, no existing caller broke (all destructure `.alt`
+  specifically).
+- Verified numerically, not just visually: for a sight entered with
+  Hs = Hc exactly (height=0, IE=0), the intercept should equal the
+  corrections applied and nothing else. Confirmed this hand-computation
+  matches the app's displayed Ho/intercept to within display rounding for
+  all three body types (star: refraction only; Sun: refraction + SD;
+  Moon: refraction + SD + parallax, the largest single correction, ~54' in
+  the test case) — see git history for the exact verification script.
+- Sight log (`sights` state) is in-memory only for v1 — not persisted to
+  localStorage. A real observing session is short-lived enough that this
+  is a reasonable v1 cut; add persistence later if it turns out people want
+  to resume a fix across a reload.
+- Aim assist ships **turn (compass heading) guidance only** — deliberately
+  did not ship a tilt/altitude-matching calculation. The device `beta`
+  (front-back tilt) convention depends on how the phone is held in actual
+  use, which can't be verified without a real device, and shipping a
+  plausibly-backwards tilt number would be worse than not having one. The
+  target's altitude is shown as a plain number instead, for the user to
+  check by eye. Revisit if real-device feedback says this is worth doing.
 
 Turns the existing Star Finder tab from "here's where navigational stars are"
 into a working celestial-navigation tool: take a real sextant sight, get a
-fix. This is a planning document only — no code has been written against it.
-Grounded in what `index.html` already computes today (checked directly
-against the source, not assumed), so an implementer can start from here
-without re-deriving the astronomy.
+fix. The scoping/rationale below is grounded in what `index.html` already
+computed at the time this was written (checked directly against the source,
+not assumed) — kept as the design record even though v1 is now built (see
+the status note above for what changed since).
 
 ## What already exists to build on
 
@@ -159,18 +193,15 @@ real-device feedback on whether the simple version is actually good enough.
 3. Feature B full (camera AR overlay) — treat as a distinct, larger future
    effort; don't bundle into the same release as the MVP.
 
-## Open questions for the owner (before implementation starts)
+## Open questions for the owner — resolved
 
-- **Gating**: is Navigator a Pro-tier feature (like the week planner), or
-  free? Affects where it sits in the RevenueCat entitlement check.
-- **Scope for v1**: stars-only, or Sun/Moon too? Sun/Moon sights are
-  standard practice for real navigators but add the SD/parallax/limb-choice
-  UI complexity above — stars-only is a reasonable, still-genuinely-useful
-  v1 cut.
-- **Is Feature B (AR aim assist) wanted at all for v1**, or is the Sight
-  Reduction Calculator (Feature A) alone the differentiator worth shipping
-  first, with AR staying backlog until there's a signal it's worth the
-  native-permission and real-device-testing investment?
+- **Gating**: free. No RevenueCat entitlement check for Navigator.
+- **Scope for v1**: stars + Sun + Moon. Sun/Moon sights need the
+  semi-diameter/parallax/limb-choice UI described above — building it now
+  rather than deferring.
+- **Feature B (AR aim assist)**: wanted for v1, as the no-camera
+  compass-arrow MVP. The full camera-overlay version remains out of scope
+  (real-device testing needed, this sandbox can't validate it at all).
 
 ## Explicitly out of scope for this spec
 

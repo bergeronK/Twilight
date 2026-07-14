@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fBj56hXKg7N14nAucbo6sB7mTo2XDMJJQooKPHDB1ZY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gOZjGK5tRKLmm1sp1+Lv+QsZ9GnILOEPcZvW2mH3khY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -496,6 +496,24 @@ function sunAltitude(date, lat, lonE) {
   const cosZ = Math.sin(lat * D2R) * Math.sin(decl) + Math.cos(lat * D2R) * Math.cos(decl) * Math.cos(ha * D2R);
   return 90 - acos(cosZ);
 }
+/* Sun's altitude AND azimuth, for sight reduction — same declination/hour-angle
+   derivation as sunAltitude() (kept separate rather than refactored into a
+   shared helper, matching how starHcZn/moonState each self-contain their math). */
+function sunHcZn(date, lat, lonE) {
+  const yr = date.getUTCFullYear();
+  const start = Date.UTC(yr, 0, 1);
+  const days = yr % 4 === 0 && yr % 100 !== 0 || yr % 400 === 0 ? 366 : 365;
+  const doy = (date.getTime() - start) / 86400000;
+  const hUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+  const g = 2 * Math.PI / days * (doy + (hUTC - 12) / 24);
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const tst = hUTC * 60 + eq + 4 * lonE;
+  const haDeg = tst / 4 - 180, haRad = haDeg * D2R, latRad = lat * D2R;
+  const alt = 90 - acos(Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad));
+  const az = rev(R2D * Math.atan2(Math.sin(haRad), Math.cos(haRad) * Math.sin(latRad) - Math.tan(decl) * Math.cos(latRad)) + 180);
+  return { alt, az };
+}
 /* ---- Planetary visibility ---- */
 function planetAltAz(planetName, date, lat, lonE) {
   const d = jd(date) - 2451543.5;
@@ -573,9 +591,12 @@ function moonState(date, lat, lonE) {
   let ha = rev(rev(gmst(date) + lonE) - ra);
   if (ha > 180) ha -= 360;
   const alt = asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(ha));
+  const az = rev(atan2(sin(ha), cos(ha) * sin(lat) - Math.tan(dec * D2R) * cos(lat)) + 180);
   const elong = rev(Lm - Ls);
   return {
     alt,
+    az,
+    r, // geocentric distance in Earth radii — used for semi-diameter/parallax in sight reduction
     illum: (1 - cos(elong)) / 2,
     age: elong / 360 * 29.53
   };
@@ -1478,6 +1499,85 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 }
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+
+/* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
+   Standard hobbyist-precision formulas; see docs/navigator-spec.md. All
+   correction values are in arcminutes unless noted. */
+// Dip of the sea horizon from height of eye (m). 0 for an artificial horizon.
+const dipCorr = heightM => 1.76 * Math.sqrt(Math.max(0, heightM));
+// Bennett's atmospheric refraction formula; h = apparent altitude (deg).
+// Unreliable well below the horizon — callers should clamp/warn there.
+const refractionCorr = h => 1 / Math.tan((h + 7.31 / (h + 4.4)) * D2R);
+// Sun's semi-diameter varies only ±0.3' across the year — a constant is
+// fine at hobbyist precision.
+const SUN_SD = 15.98;
+// Moon's semi-diameter and horizontal parallax both derive from its
+// geocentric distance (r, in Earth radii, from moonState()). HP reduces by
+// cos(apparent altitude) — this is the largest single correction for Moon
+// sights, up to about a degree near the horizon.
+const moonSD = r => 936.79 / r; // arcmin; (Moon radius/Earth radius = 0.2725) * 3437.75 arcmin/rad
+const moonHP = r => 3438 / r;
+const moonParallaxCorr = (r, appAltDeg) => moonHP(r) * cos(appAltDeg);
+
+// Sextant altitude (Hs, degrees) -> observed altitude (Ho, degrees).
+// body: 'star' | 'sun' | 'moon'. limb: 'upper' | 'lower' (sun/moon only).
+// indexErrorMin: sextant index error in arcminutes, sign already resolved
+// (on-the-arc callers should pass it negated before calling).
+function sightToHo(opts) {
+  const { hs, indexErrorMin = 0, heightM = 0, body = 'star', limb = 'lower', moonR } = opts;
+  let h = hs + indexErrorMin / 60 - dipCorr(heightM) / 60;
+  h -= refractionCorr(h) / 60;
+  if (body === 'sun') {
+    h += (limb === 'upper' ? -1 : 1) * SUN_SD / 60;
+  } else if (body === 'moon') {
+    const sd = moonSD(moonR || 60.27);
+    const pa = moonParallaxCorr(moonR || 60.27, h);
+    h += (limb === 'upper' ? -1 : 1) * sd / 60 + pa / 60;
+  }
+  return h;
+}
+
+// Marcq St. Hilaire intercept: positive = toward the body, in nautical
+// miles (1' of arc = 1nm), along azimuth Zn.
+function intercept(ho, hc) { return (ho - hc) * 60; }
+
+// Solve a small-area least-squares fix from 2+ position lines, each defined
+// by an assumed position (lat0/lon0, shared), an intercept (nm, +toward)
+// and azimuth Zn (deg). Flat-plane approximation — standard for hobbyist
+// ranges (tens of miles), same as plotting by hand on a chart.
+function solveFix(lat0, lon0, lines) {
+  // Local flat-earth frame centered on the assumed position, x=east, y=north, in nm.
+  const cosLat = Math.max(0.01, cos(lat0));
+  // Each LOP: the observer lies at intercept*[sin Zn, cos Zn] from (0,0),
+  // on a line perpendicular to the azimuth. Solve least squares for (x,y).
+  let sxx = 0, sxy = 0, syy = 0, sxb = 0, syb = 0;
+  for (const l of lines) {
+    const nx = sin(l.zn), ny = cos(l.zn); // unit normal (direction to body)
+    const b = l.nm; // signed distance along normal from assumed position
+    sxx += nx * nx; sxy += nx * ny; syy += ny * ny;
+    sxb += nx * b; syb += ny * b;
+  }
+  const det = sxx * syy - sxy * sxy;
+  if (Math.abs(det) < 1e-9) return null; // all sights nearly parallel — no usable cut
+  const x = (sxb * syy - syb * sxy) / det;
+  const y = (sxx * syb - sxy * sxb) / det;
+  return {
+    lat: lat0 + y / 60,
+    lon: lon0 + x / 60 / cosLat,
+    nm: Math.sqrt(x * x + y * y) // distance of the fix from the assumed position, for sanity display
+  };
+}
+// Weakest-cut heuristic reused from the 3-star-fix recommender: the smallest
+// azimuth gap between any two lines. >=60 strong, >=35 fair, else weak.
+function cutQuality(azList) {
+  if (azList.length < 2) return '';
+  let minSep = 360;
+  for (let i = 0; i < azList.length; i++) for (let j = i + 1; j < azList.length; j++) {
+    let d = Math.abs(azList[i] - azList[j]) % 360; if (d > 180) d = 360 - d;
+    minSep = Math.min(minSep, d);
+  }
+  return minSep >= 60 ? 'strong cut' : minSep >= 35 ? 'fair cut' : 'weak cut · bearings close';
+}
 // "Clear AND Dark" scoring: fuse the cloud forecast (the only new, variable
 // input) with the darkness Twilight already models (twilight phase + moon).
 // scoreHours samples each forecast hour inside [startMs,endMs] that is dark
@@ -3760,6 +3860,53 @@ function StarFinder({ redMode } = {}) {
     }, () => setGeoMsg("Couldn't get your location — set it on the Console tab."), { enableHighAccuracy: false, timeout: 8000 });
   };
   const sunAlt = sunAltitude(new Date(now), loc.lat, loc.lon);
+
+  // ---- Navigator: sight reduction calculator ----
+  const sightIdRef = useRef(0);
+  const [sights, setSights] = useState([]);
+  const [sightBody, setSightBody] = useState('star');
+  const [sightStarName, setSightStarName] = useState(NAV_STARS[0][0]);
+  const [sightTime, setSightTime] = useState(() => {
+    const d = new Date(); d.setSeconds(0, 0);
+    const p2 = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  });
+  const [sightHsDeg, setSightHsDeg] = useState('');
+  const [sightHsMin, setSightHsMin] = useState('');
+  const [sightHeightM, setSightHeightM] = useState('2');
+  const [sightIeMag, setSightIeMag] = useState('0');
+  const [sightIeOnArc, setSightIeOnArc] = useState(true);
+  const [sightLimb, setSightLimb] = useState('lower');
+  const addSight = () => {
+    const hs = (parseFloat(sightHsDeg) || 0) + (parseFloat(sightHsMin) || 0) / 60;
+    const t = new Date(sightTime).getTime();
+    if (!hs || isNaN(t)) return;
+    sightIdRef.current += 1;
+    setSights(s => [...s, {
+      id: sightIdRef.current, body: sightBody,
+      starName: sightBody === 'star' ? sightStarName : null,
+      time: t, hs, heightM: parseFloat(sightHeightM) || 0,
+      ieMin: (sightIeOnArc ? -1 : 1) * (parseFloat(sightIeMag) || 0),
+      limb: sightLimb
+    }]);
+    setSightHsDeg(""); setSightHsMin("");
+  };
+  const removeSight = id => setSights(s => s.filter(x => x.id !== id));
+  const computedSights = useMemo(() => sights.map(s => {
+    const dt = new Date(s.time);
+    let hc, zn, moonR;
+    if (s.body === 'sun') { const p = sunHcZn(dt, loc.lat, loc.lon); hc = p.alt; zn = p.az; }
+    else if (s.body === 'moon') { const p = moonState(dt, loc.lat, loc.lon); hc = p.alt; zn = p.az; moonR = p.r; }
+    else { const star = NAV_STARS.find(n => n[0] === s.starName) || NAV_STARS[0]; const p = starHcZn(star[1] * 15, star[2], loc.lat, loc.lon, dt); hc = p.alt; zn = p.az; }
+    const ho = sightToHo({ hs: s.hs, indexErrorMin: s.ieMin, heightM: s.heightM, body: s.body, limb: s.limb, moonR });
+    return { ...s, hc, zn, ho, nm: intercept(ho, hc) };
+  }), [sights, loc.lat, loc.lon]);
+  const sightFix = useMemo(() => {
+    if (computedSights.length < 2) return null;
+    const f = solveFix(loc.lat, loc.lon, computedSights.map(s => ({ zn: s.zn, nm: s.nm })));
+    return f && { ...f, quality: cutQuality(computedSights.map(s => s.zn)) };
+  }, [computedSights, loc.lat, loc.lon]);
+
   // Celestial-navigation star finder: navigational stars currently up, with Hc/Zn.
   const navStars = useMemo(() => {
     const dt = new Date(now);
@@ -3768,6 +3915,45 @@ function StarFinder({ redMode } = {}) {
       return { name: s[0], mag: s[3], alt: p.alt, az: p.az };
     }).filter(s => s.alt > 8).sort((a, b) => a.mag - b.mag);
   }, [now, loc.lat, loc.lon]);
+
+  // ---- Navigator: AR aim assist (compass-only MVP; see docs/navigator-spec.md) ----
+  const [aimTargetName, setAimTargetName] = useState(null);
+  const [aimSensor, setAimSensor] = useState('idle'); // idle | requesting | granted | denied | unsupported
+  const [heading, setHeading] = useState(null);
+  const startAim = async name => {
+    setAimTargetName(name);
+    if (typeof DeviceOrientationEvent === 'undefined') { setAimSensor('unsupported'); return; }
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      setAimSensor('requesting');
+      try {
+        const res = await DeviceOrientationEvent.requestPermission();
+        setAimSensor(res === 'granted' ? 'granted' : 'denied');
+      } catch (e) { setAimSensor('denied'); }
+    } else setAimSensor('granted');
+  };
+  const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setHeading(null); };
+  useEffect(() => {
+    if (aimSensor !== 'granted') return;
+    const handler = e => {
+      let h = null;
+      if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+      else if (e.absolute && typeof e.alpha === 'number') h = (360 - e.alpha) % 360;
+      if (h !== null) setHeading(h);
+    };
+    window.addEventListener('deviceorientation', handler, true);
+    return () => window.removeEventListener('deviceorientation', handler, true);
+  }, [aimSensor]);
+  const aimTarget = useMemo(() => {
+    if (!aimTargetName) return null;
+    if (aimTargetName === 'Sun') { const p = sunHcZn(new Date(now), loc.lat, loc.lon); return { name: 'Sun', alt: p.alt, az: p.az }; }
+    if (aimTargetName === 'Moon') { const p = moonState(new Date(now), loc.lat, loc.lon); return { name: 'Moon', alt: p.alt, az: p.az }; }
+    const s = navStars.find(x => x.name === aimTargetName);
+    return s ? { name: s.name, alt: s.alt, az: s.az } : null;
+  }, [aimTargetName, now, loc.lat, loc.lon, navStars]);
+  const aimTurn = useMemo(() => {
+    if (!aimTarget || heading === null) return null;
+    return ((aimTarget.az - heading + 540) % 360) - 180; // signed, [-180,180]; + = turn right/clockwise
+  }, [aimTarget, heading]);
   const polaris = useMemo(() => starHcZn(2.530 * 15, 89.26, loc.lat, loc.lon, new Date(now)), [now, loc.lat, loc.lon]);
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
@@ -3878,6 +4064,153 @@ function StarFinder({ redMode } = {}) {
           )
         )
   );
+  // ---- Navigator: sight reduction calculator + aim assist UI ----
+  const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
+  const navLabelSt = { font: "600 10.5px var(--font-ui)", letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ink-faint)" };
+  const navInputSt = { width: "100%", minWidth: 0, marginTop: 6, padding: "9px 11px", color: C.ink, background: "var(--field-bg)", border: "1px solid var(--line)", borderRadius: 9, font: "15px var(--font-ui)", outline: "none" };
+  const segBtn = active => ({
+    fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 550, padding: "7px 14px", cursor: "pointer",
+    border: `1px solid ${active ? "rgba(210,160,77,.5)" : "var(--btn-border)"}`, borderRadius: 8,
+    background: active ? "var(--btn-fill-hi)" : "transparent", color: active ? "var(--accent-hi)" : "var(--btn-ink)"
+  });
+  const fmtDM = deg => { const d = Math.floor(Math.abs(deg)), m = (Math.abs(deg) - d) * 60; return `${deg < 0 ? "-" : ""}${d}° ${m.toFixed(1)}'`; };
+  const bodyLabel = s => s.body === 'sun' ? 'Sun' : s.body === 'moon' ? 'Moon' : s.starName;
+  const sightRows = computedSights.map(s => React.createElement("div", {
+    key: s.id,
+    style: { display: "flex", alignItems: "baseline", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.line}`, fontFamily: "var(--font-ui)", fontSize: 13.5 }
+  },
+    React.createElement("div", { style: { flex: "1 1 120px", minWidth: 0, color: C.ink, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, bodyLabel(s)),
+    React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Ho ", fmtDM(s.ho)),
+    React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Hc ", fmtDM(s.hc)),
+    React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Zn ", s.zn.toFixed(0), "°"),
+    React.createElement("div", { style: { color: s.nm >= 0 ? "var(--accent-hi)" : "#e7b3a3", whiteSpace: "nowrap", fontWeight: 500 } },
+      Math.abs(s.nm).toFixed(1), " nm ", s.nm >= 0 ? "toward" : "away"),
+    React.createElement("button", {
+      onClick: () => removeSight(s.id), "aria-label": "Remove sight",
+      style: { background: "transparent", border: "none", color: C.inkFaint, cursor: "pointer", fontSize: 15, padding: "0 2px", flexShrink: 0 }
+    }, "×")
+  ));
+  const fixPanel = sightFix && React.createElement("div", {
+    style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
+  },
+    React.createElement("div", { style: { ...navLabelSt, color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 18, color: C.ink, fontWeight: 600 } },
+      Math.abs(sightFix.lat).toFixed(4), "° ", sightFix.lat >= 0 ? "N" : "S", ", ",
+      Math.abs(sightFix.lon).toFixed(4), "° ", sightFix.lon >= 0 ? "E" : "W"),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkDim, marginTop: 4 } },
+      sightFix.nm.toFixed(1), " nm from your assumed position (", loc.name, ")")
+  );
+  const navigatorPanel = React.createElement("section", {
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px" }
+  },
+    React.createElement("div", { style: navSectionHdr }, "Navigator · Sight Reduction"),
+    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 18, maxWidth: 640 } },
+      "Enter a real sextant sight and Twilight corrects it (dip, refraction, semi-diameter, parallax) and computes the intercept against your assumed position — ",
+      loc.name, ". Add 2-3 sights spread across different bearings for a fix."),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
+      React.createElement("div", { style: { flex: "0 0 auto" } },
+        React.createElement("div", navLabelSt, "Body"),
+        React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+          ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
+        )
+      ),
+      sightBody === "star" && React.createElement("div", { style: { flex: "1 1 160px", minWidth: 140 } },
+        React.createElement("div", navLabelSt, "Star"),
+        React.createElement("select", {
+          value: sightStarName, onChange: e => setSightStarName(e.target.value), style: { ...navInputSt, cursor: "pointer" }
+        }, NAV_STARS.slice().sort((a, b) => a[0].localeCompare(b[0])).map(s => React.createElement("option", { key: s[0], value: s[0] }, s[0])))
+      ),
+      (sightBody === "sun" || sightBody === "moon") && React.createElement("div", { style: { flex: "0 0 auto" } },
+        React.createElement("div", navLabelSt, "Limb"),
+        React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+          ["lower", "upper"].map(l => React.createElement("button", { key: l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
+        )
+      ),
+      React.createElement("div", { style: { flex: "1 1 180px", minWidth: 160 } },
+        React.createElement("div", navLabelSt, "Sight time"),
+        React.createElement("input", { type: "datetime-local", value: sightTime, onChange: e => setSightTime(e.target.value), style: navInputSt })
+      )
+    ),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
+      React.createElement("div", { style: { flex: "0 0 90px" } },
+        React.createElement("div", navLabelSt, "Hs deg"),
+        React.createElement("input", { type: "number", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
+      ),
+      React.createElement("div", { style: { flex: "0 0 90px" } },
+        React.createElement("div", navLabelSt, "Hs min"),
+        React.createElement("input", { type: "number", step: "0.1", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
+      ),
+      React.createElement("div", { style: { flex: "0 0 120px" } },
+        React.createElement("div", navLabelSt, "Height of eye (m)"),
+        React.createElement("input", { type: "number", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
+      ),
+      React.createElement("div", { style: { flex: "0 0 100px" } },
+        React.createElement("div", navLabelSt, "Index error '"),
+        React.createElement("input", { type: "number", step: "0.1", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
+      ),
+      React.createElement("div", { style: { flex: "0 0 auto" } },
+        React.createElement("div", navLabelSt, "Index error is"),
+        React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+          React.createElement("button", { style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
+          React.createElement("button", { style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
+        )
+      )
+    ),
+    React.createElement("button", {
+      onClick: addSight,
+      style: { fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", marginBottom: 22 }
+    }, "Add sight"),
+    sightRows.length > 0 && React.createElement("div", { style: { marginBottom: 8 } }, sightRows),
+    sightRows.length === 1 && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginBottom: 20 } }, "Add one more sight, at a different bearing, for a fix."),
+    fixPanel
+  );
+  // ---- Navigator: AR aim assist (compass-only) ----
+  const moonNowAlt = moonState(new Date(now), loc.lat, loc.lon).alt;
+  const aimableBodies = [
+    ...(sunAlt > -6 ? [{ name: "Sun", alt: sunAlt }] : []),
+    ...(moonNowAlt > 0 ? [{ name: "Moon", alt: moonNowAlt }] : []),
+    ...navStars.slice(0, 20)
+  ];
+  const aimStatusMsg = aimSensor === "unsupported" ? "This device/browser doesn't expose a compass heading."
+    : aimSensor === "denied" ? "Compass permission was denied — enable motion & orientation access in your browser settings."
+    : aimSensor === "requesting" ? "Requesting compass access…"
+    : null;
+  const aimPanel = React.createElement("section", {
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 30px" }
+  },
+    React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
+    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16, maxWidth: 640 } },
+      "Pick a body and Twilight uses your device's compass to tell you which way to turn. (Tilt/altitude guidance isn't included yet — the target's altitude is shown as a number to check by eye.)"),
+    !aimTargetName
+      ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+          aimableBodies.length === 0
+            ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No bright bodies above the horizon right now.")
+            : aimableBodies.map(b => React.createElement("button", { key: b.name, style: segBtn(false), onClick: () => startAim(b.name) }, b.name))
+        )
+      : React.createElement("div", null,
+          React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" } },
+            React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 15, color: C.ink, fontWeight: 600 } }, "Aiming at ", aimTargetName),
+            React.createElement("button", { onClick: stopAim, style: { ...segBtn(false), padding: "5px 12px" } }, "Stop")
+          ),
+          aimStatusMsg
+            ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, aimStatusMsg)
+            : (heading === null
+                ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "Waiting for compass data…")
+                : React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
+                    React.createElement("div", null,
+                      React.createElement("div", navLabelSt, "Turn"),
+                      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 28, color: "var(--accent-hi)", fontWeight: 600 } },
+                        Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                    ),
+                    aimTarget && React.createElement("div", null,
+                      React.createElement("div", navLabelSt, "Target altitude"),
+                      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 20, color: C.ink } }, aimTarget.alt.toFixed(0), "°")
+                    ),
+                    Math.abs(aimTurn) < 5 && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On bearing")
+                  )
+              )
+        )
+  );
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
   const pageBg = PAGE_BG;
@@ -3893,7 +4226,9 @@ function StarFinder({ redMode } = {}) {
         geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim } }, geoMsg)
       )
     ),
-    starFinderPanel
+    starFinderPanel,
+    navigatorPanel,
+    aimPanel
   );
 }
 
