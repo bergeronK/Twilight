@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2aE45L30nDzezKteEXcXKtmjtjPRKcEtzMeLz48ymTE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-LNRaQMtsH06llnY9gigLIkONnQDzJQi0Or9rY+S0cLI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -4653,12 +4653,6 @@ function StarFinder({ redMode } = {}) {
     React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14, maxWidth: 640 } },
       "Pick a body, raise your phone and aim its back at the sky — Twilight reads the compass and tilt sensors and tells you which way to move to land on it."),
-    React.createElement("button", {
-      onClick: openSky,
-      style: { fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", marginBottom: 18 }
-    }, "Open Sky View"),
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: -10, marginBottom: 18 } },
-      "Point your phone at the sky and see what's there, labelled."),
     !aimTargetName
       ? React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
@@ -4707,6 +4701,27 @@ function StarFinder({ redMode } = {}) {
               )
         )
   );
+  // Sky View is the one thing on this tab you'd reach for standing outside in
+  // the dark, so it goes directly under the header rather than below the star
+  // table and the whole sight-reduction form. A filled, tappable card is
+  // consistent with the "box only if actionable" rule — the entire card is
+  // the control.
+  const skyLauncher = React.createElement("button", {
+    onClick: openSky,
+    style: {
+      display: "flex", alignItems: "center", gap: 14, width: "100%", maxWidth: 1080,
+      margin: "0 auto 20px", padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+      textAlign: "left", border: "1px solid rgba(210,160,77,.38)", background: "var(--btn-fill)"
+    }
+  },
+    React.createElement("span", { "aria-hidden": "true", style: { fontSize: 20, lineHeight: 1, color: "var(--accent-hi)" } }, "✦"),
+    React.createElement("span", { style: { flex: 1, minWidth: 0 } },
+      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: "var(--accent-hi)" } }, "Open Sky View"),
+      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-body)", fontSize: 12.5, color: C.inkDim, marginTop: 2, lineHeight: 1.4 } },
+        "Point your phone at the sky and see what's there, labelled.")
+    ),
+    React.createElement("span", { "aria-hidden": "true", style: { fontFamily: "var(--font-ui)", fontSize: 17, color: "var(--accent-hi)", flexShrink: 0 } }, "→")
+  );
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
   const pageBg = PAGE_BG;
@@ -4722,6 +4737,7 @@ function StarFinder({ redMode } = {}) {
         geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim } }, geoMsg)
       )
     ),
+    skyLauncher,
     starFinderPanel,
     navigatorPanel,
     aimPanel,
