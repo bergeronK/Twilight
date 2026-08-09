@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gOZjGK5tRKLmm1sp1+Lv+QsZ9GnILOEPcZvW2mH3khY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-WsSYd96WFI3rzXDaVVoAldnznVFbIsdLFZw9mPI+miM=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -739,9 +739,11 @@ function estimateBortle(lat0, lon0, data) {
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
   let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
+  let aimOffset = 0; // Aim Assist manual compass correction, degrees
   try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   try { const v = localStorage.getItem('tw_pro'); if (v !== null) pro = v === '1'; } catch (e) {}
+  try { aimOffset = parseFloat(localStorage.getItem('tw_aim_offset') || '0') || 0; } catch (e) {}
   try {
     const v = localStorage.getItem('tw_bortle_mode');
     // A stored mode wins. Otherwise, a pre-existing manual Bortle value from
@@ -761,6 +763,14 @@ const prefStore = (() => {
     setBortleMode: v => { bortleMode = v === 'manual' ? 'manual' : 'auto'; try { localStorage.setItem('tw_bortle_mode', bortleMode); } catch (e) {} emit(); },
     getPro: () => pro,
     setPro: v => { pro = !!v; try { localStorage.setItem('tw_pro', pro ? '1' : '0'); } catch (e) {} emit(); },
+    getAimOffset: () => aimOffset,
+    // Normalised to (-180, 180] so a stored offset can never accumulate past
+    // one turn no matter how many times the user nudges it in one direction.
+    setAimOffset: v => {
+      aimOffset = ((Number(v) || 0) % 360 + 540) % 360 - 180;
+      try { localStorage.setItem('tw_aim_offset', String(aimOffset)); } catch (e) {}
+      emit();
+    },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
@@ -768,6 +778,7 @@ function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefS
 function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
 function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortleMode); }
 function usePro() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getPro); }
+function useAimOffset() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getAimOffset); }
 /* ---- Pro entitlement via in-app purchase (native shell only) ----
    RevenueCat public SDK keys — safe to embed; they can only read offerings
    and this device's own purchases. While a key is empty, IAP is disabled on
@@ -1499,6 +1510,48 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 }
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
+
+/* ---- Navigator: device orientation -> where the phone's back is aimed ----
+   The W3C DeviceOrientation angles are an intrinsic Z-X'-Y'' (alpha, beta,
+   gamma) rotation taking the Earth frame (x=East, y=North, z=Up) to the device
+   frame (x=right across the screen, y=up the screen, z=out of the screen
+   toward the user). The rear camera looks along device -z, so the aiming
+   direction in Earth coordinates is minus the third column of
+   Rz(alpha)*Rx(beta)*Ry(gamma), worked out below.
+
+   Composing the whole matrix, rather than reading beta off as "tilt", is what
+   makes this hold up in the hand: beta only means what you'd expect while the
+   phone is upright and unrolled, whereas the matrix stays correct at any roll.
+   This is the same reason real sky apps carry a full orientation quaternion
+   instead of reasoning about individual Euler angles. */
+function orientationToAim(alpha, beta, gamma) {
+  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
+  const e = -(cA * sG + sA * sB * cG); // East
+  const n = -(sA * sG - cA * sB * cG); // North
+  const u = -(cB * cG);                // Up
+  return {
+    az: (atan2(e, n) + 360) % 360,
+    alt: asin(u),
+    // Aiming near-vertically (phone flat, so the camera looks at the ground or
+    // straight up) leaves azimuth poorly defined — atan2 of two near-zero
+    // numbers swings wildly. Below this, callers fall back to the heading of
+    // the top of the screen, which stays meaningful when the phone is flat.
+    stable: Math.sqrt(e * e + n * n) > 0.15
+  };
+}
+/* Compass heading of the top of the *displayed* page, for when the phone is
+   held flat and the camera axis says nothing useful. The sensor angles are
+   always reported against the device's natural orientation, so a phone turned
+   into landscape reports a device-top 90° away from the top the user sees —
+   hence the screenAngle term. (The aim vector above needs no such correction:
+   the camera is bolted to the body, so rotating the UI can't move it.) */
+function screenUpHeading(alpha, beta, gamma, screenAngle) {
+  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
+  const cT = cos(screenAngle || 0), sT = sin(screenAngle || 0);
+  const e = sT * (cA * cG - sA * sB * sG) - cT * (sA * cB);
+  const n = sT * (sA * cG + cA * sB * sG) + cT * (cA * cB);
+  return (atan2(e, n) + 360) % 360;
+}
 
 /* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
    Standard hobbyist-precision formulas; see docs/navigator-spec.md. All
@@ -3916,12 +3969,24 @@ function StarFinder({ redMode } = {}) {
     }).filter(s => s.alt > 8).sort((a, b) => a.mag - b.mag);
   }, [now, loc.lat, loc.lon]);
 
-  // ---- Navigator: AR aim assist (compass-only MVP; see docs/navigator-spec.md) ----
+  // ---- Navigator: AR aim assist (see docs/navigator-spec.md) ----
   const [aimTargetName, setAimTargetName] = useState(null);
   const [aimSensor, setAimSensor] = useState('idle'); // idle | requesting | granted | denied | unsupported
-  const [heading, setHeading] = useState(null);
+  const [orient, setOrient] = useState(null); // { alpha, beta, gamma, acc }
+  const [needsCal, setNeedsCal] = useState(false);
+  const [showCalHelp, setShowCalHelp] = useState(false);
+  const [screenAngle, setScreenAngle] = useState(0);
+  const aimOffset = useAimOffset();
+  // Aiming means holding the phone up and looking away from it, which is
+  // exactly when the display would otherwise sleep. Hold a wake lock for as
+  // long as a target is selected.
+  const wakeRef = useRef(null);
   const startAim = async name => {
     setAimTargetName(name);
+    // Sensors are gated on a secure context; on plain HTTP the permission
+    // call either throws or silently never fires an event. Say so plainly
+    // rather than leaving the user on "Waiting for compass data…".
+    if (typeof window !== 'undefined' && window.isSecureContext === false) { setAimSensor('insecure'); return; }
     if (typeof DeviceOrientationEvent === 'undefined') { setAimSensor('unsupported'); return; }
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
       setAimSensor('requesting');
@@ -3931,17 +3996,67 @@ function StarFinder({ redMode } = {}) {
       } catch (e) { setAimSensor('denied'); }
     } else setAimSensor('granted');
   };
-  const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setHeading(null); };
+  const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setOrient(null); setShowCalHelp(false); };
+  // Track how far the UI is rotated from the device's natural orientation, so
+  // the flat-phone compass fallback still points where the user is looking
+  // after they turn the phone sideways.
+  useEffect(() => {
+    const read = () => setScreenAngle(
+      (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+        : (typeof window.orientation === 'number' ? ((window.orientation % 360) + 360) % 360 : 0)
+    );
+    read();
+    const so = screen.orientation;
+    if (so && so.addEventListener) { so.addEventListener('change', read); return () => so.removeEventListener('change', read); }
+    window.addEventListener('orientationchange', read);
+    return () => window.removeEventListener('orientationchange', read);
+  }, []);
+  useEffect(() => {
+    if (!aimTargetName || !navigator.wakeLock) return;
+    let cancelled = false;
+    const acquire = () => navigator.wakeLock.request('screen')
+      .then(l => { if (cancelled) l.release(); else wakeRef.current = l; })
+      .catch(() => {}); // rejected when the tab is backgrounded or the battery saver says no — not worth surfacing
+    acquire();
+    // The lock is dropped whenever the page is hidden, so it has to be retaken
+    // on return or the screen starts sleeping again mid-session.
+    const onVis = () => { if (document.visibilityState === 'visible' && !cancelled) acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      if (wakeRef.current) { try { wakeRef.current.release(); } catch (e) {} wakeRef.current = null; }
+    };
+  }, [aimTargetName]);
   useEffect(() => {
     if (aimSensor !== 'granted') return;
     const handler = e => {
-      let h = null;
-      if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
-      else if (e.absolute && typeof e.alpha === 'number') h = (360 - e.alpha) % 360;
-      if (h !== null) setHeading(h);
+      // iOS reports a true-north compass heading directly; everywhere else we
+      // need an *absolute* event, since a relative alpha has no north
+      // reference and would point the user at nothing in particular.
+      let alpha = null, acc = null;
+      if (typeof e.webkitCompassHeading === 'number') {
+        alpha = (360 - e.webkitCompassHeading) % 360;
+        if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
+      } else if (e.absolute && typeof e.alpha === 'number') alpha = e.alpha;
+      if (alpha === null) return;
+      setOrient({
+        alpha,
+        beta: typeof e.beta === 'number' ? e.beta : 0,
+        gamma: typeof e.gamma === 'number' ? e.gamma : 0,
+        acc
+      });
     };
+    // Fired by browsers that can tell the magnetometer has drifted. Left
+    // un-cancelled on purpose: where a platform has its own calibration
+    // overlay, that beats ours.
+    const calHandler = () => setNeedsCal(true);
     window.addEventListener('deviceorientation', handler, true);
-    return () => window.removeEventListener('deviceorientation', handler, true);
+    window.addEventListener('compassneedscalibration', calHandler, true);
+    return () => {
+      window.removeEventListener('deviceorientation', handler, true);
+      window.removeEventListener('compassneedscalibration', calHandler, true);
+    };
   }, [aimSensor]);
   const aimTarget = useMemo(() => {
     if (!aimTargetName) return null;
@@ -3950,10 +4065,38 @@ function StarFinder({ redMode } = {}) {
     const s = navStars.find(x => x.name === aimTargetName);
     return s ? { name: s.name, alt: s.alt, az: s.az } : null;
   }, [aimTargetName, now, loc.lat, loc.lon, navStars]);
+  // Where the phone is actually aimed, before the manual correction.
+  const aimRaw = useMemo(
+    () => orient ? orientationToAim(orient.alpha, orient.beta, orient.gamma) : null,
+    [orient]
+  );
+  // Held flat, the camera looks at the ground and its azimuth is meaningless —
+  // fall back to the bearing the top of the screen points, i.e. compass mode.
+  const aimAz = aimRaw
+    ? (aimRaw.stable ? aimRaw.az : screenUpHeading(orient.alpha, orient.beta, orient.gamma, screenAngle))
+    : null;
+  const aimAzC = aimAz === null ? null : (aimAz + aimOffset + 720) % 360;
   const aimTurn = useMemo(() => {
-    if (!aimTarget || heading === null) return null;
-    return ((aimTarget.az - heading + 540) % 360) - 180; // signed, [-180,180]; + = turn right/clockwise
-  }, [aimTarget, heading]);
+    if (!aimTarget || aimAzC === null) return null;
+    return ((aimTarget.az - aimAzC + 540) % 360) - 180; // signed, [-180,180]; + = turn right/clockwise
+  }, [aimTarget, aimAzC]);
+  // Only meaningful once the phone is raised enough to be aiming at sky.
+  const aimTilt = (aimTarget && aimRaw && aimRaw.stable) ? aimTarget.alt - aimRaw.alt : null;
+  const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
+  // iOS is the only platform that tells us how good the heading is:
+  // webkitCompassAccuracy is +/- degrees, or negative when it's unusable.
+  const compassQuality = orient && typeof orient.acc === 'number'
+    ? (orient.acc < 0 ? 'bad' : orient.acc <= 10 ? 'good' : orient.acc <= 25 ? 'fair' : 'bad')
+    : null;
+  const calWanted = needsCal || compassQuality === 'bad' || showCalHelp;
+  // Stellarium's "screen calibration" trick: point at the body by eye, tap
+  // once, and the residual magnetometer error is cancelled for every body.
+  const alignHere = () => {
+    if (!aimTarget || aimAz === null) return;
+    prefStore.setAimOffset(aimTarget.az - aimAz);
+    setNeedsCal(false);
+    setShowCalHelp(false);
+  };
   const polaris = useMemo(() => starHcZn(2.530 * 15, 89.26, loc.lat, loc.lon, new Date(now)), [now, loc.lat, loc.lon]);
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
@@ -4171,21 +4314,68 @@ function StarFinder({ redMode } = {}) {
     ...(moonNowAlt > 0 ? [{ name: "Moon", alt: moonNowAlt }] : []),
     ...navStars.slice(0, 20)
   ];
-  const aimStatusMsg = aimSensor === "unsupported" ? "This device/browser doesn't expose a compass heading."
+  const aimStatusMsg = aimSensor === "insecure" ? "Aim Assist needs a secure (https) connection — browsers block motion sensors otherwise."
+    // Overwhelmingly the in-app browsers inside social apps, which withhold
+    // sensors; the same phone usually works fine in Safari or Chrome.
+    : aimSensor === "unsupported" ? "This browser doesn't expose a compass heading. If you opened Twilight from inside another app, try opening it in Safari or Chrome instead."
     : aimSensor === "denied" ? "Compass permission was denied — enable motion & orientation access in your browser settings."
     : aimSensor === "requesting" ? "Requesting compass access…"
     : null;
+  const bigNum = { fontFamily: "var(--font-ui)", fontSize: 28, color: "var(--accent-hi)", fontWeight: 600 };
+  const calNote = { fontFamily: "var(--font-body)", fontSize: 12.5, color: C.inkDim, lineHeight: 1.55, maxWidth: 560, marginTop: 10 };
+  // Calibration + manual correction. Phone magnetometers are routinely 10-20°
+  // off near metal (a magnetic case is the usual culprit), and that error is
+  // the whole error budget here — the astronomy underneath is exact. So the
+  // fix has to be reachable from the aiming screen, not buried in settings.
+  const calBlock = aimSensor === "granted" && orient && React.createElement("div", {
+    style: { borderTop: `1px solid ${C.line}`, marginTop: 20, paddingTop: 14 }
+  },
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" } },
+      React.createElement("button", {
+        onClick: alignHere,
+        title: "Point at " + aimTargetName + " by eye first, then tap",
+        style: { fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 600, padding: "7px 14px", borderRadius: 8, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)" }
+      }, "Align to ", aimTargetName),
+      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset - 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "Nudge compass 5 degrees left" }, "−5°"),
+      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset + 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "Nudge compass 5 degrees right" }, "+5°"),
+      aimOffset !== 0 && React.createElement("button", { onClick: () => prefStore.setAimOffset(0), style: { ...segBtn(false), padding: "6px 12px" } }, "Reset"),
+      React.createElement("button", { onClick: () => setShowCalHelp(v => !v), style: { ...segBtn(showCalHelp), padding: "6px 12px" } }, "Calibrate")
+    ),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: 9 } },
+      aimOffset !== 0
+        ? "Manual correction " + (aimOffset > 0 ? "+" : "−") + Math.abs(aimOffset).toFixed(0) + "° — saved for next time."
+        : compassQuality === "good" ? "Compass accuracy ±" + orient.acc.toFixed(0) + "°."
+        : compassQuality === "fair" ? "Compass accuracy ±" + orient.acc.toFixed(0) + "° — good enough for a bright star, not for a close pair."
+        : "Point at " + aimTargetName + " by eye, then tap Align to correct the compass."
+    ),
+    calWanted && React.createElement("div", { style: calNote },
+      compassQuality === "bad"
+        ? "Your compass is reporting itself unreliable. "
+        : "",
+      "Wave the phone in a figure-8, rotating your wrist, for a few seconds — that re-fits the magnetometer. Then step away from cars, railings and speakers, and take your phone out of any magnetic case; those throw the heading off by more than the sky ever moves. If it's still wrong, aim at ",
+      aimTargetName,
+      " by eye and tap Align."
+    )
+  );
   const aimPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 30px" }
   },
     React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16, maxWidth: 640 } },
-      "Pick a body and Twilight uses your device's compass to tell you which way to turn. (Tilt/altitude guidance isn't included yet — the target's altitude is shown as a number to check by eye.)"),
+      "Pick a body, raise your phone and aim its back at the sky — Twilight reads the compass and tilt sensors and tells you which way to move to land on it."),
     !aimTargetName
-      ? React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
-          aimableBodies.length === 0
-            ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No bright bodies above the horizon right now.")
-            : aimableBodies.map(b => React.createElement("button", { key: b.name, style: segBtn(false), onClick: () => startAim(b.name) }, b.name))
+      ? React.createElement("div", null,
+          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+            aimableBodies.length === 0
+              ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No bright bodies above the horizon right now.")
+              : aimableBodies.map(b => React.createElement("button", { key: b.name, style: segBtn(false), onClick: () => startAim(b.name) }, b.name))
+          ),
+          // iOS only grants motion access from a real tap, so the body buttons
+          // double as the permission gesture — worth saying, so the prompt
+          // isn't a surprise.
+          aimableBodies.length > 0 && typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" &&
+            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: 10 } },
+              "Your phone will ask permission to use motion sensors.")
         )
       : React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" } },
@@ -4194,19 +4384,29 @@ function StarFinder({ redMode } = {}) {
           ),
           aimStatusMsg
             ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, aimStatusMsg)
-            : (heading === null
+            : (!orient
                 ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "Waiting for compass data…")
-                : React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
-                    React.createElement("div", null,
-                      React.createElement("div", navLabelSt, "Turn"),
-                      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 28, color: "var(--accent-hi)", fontWeight: 600 } },
-                        Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                : React.createElement("div", null,
+                    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
+                      React.createElement("div", null,
+                        React.createElement("div", navLabelSt, "Turn"),
+                        React.createElement("div", { style: bigNum },
+                          Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                      ),
+                      aimTilt !== null && React.createElement("div", null,
+                        React.createElement("div", navLabelSt, "Tilt"),
+                        React.createElement("div", { style: bigNum },
+                          Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
+                      ),
+                      aimTarget && React.createElement("div", null,
+                        React.createElement("div", navLabelSt, "Target altitude"),
+                        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 20, color: C.ink } }, aimTarget.alt.toFixed(0), "°")
+                      ),
+                      onTarget && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On target")
                     ),
-                    aimTarget && React.createElement("div", null,
-                      React.createElement("div", navLabelSt, "Target altitude"),
-                      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 20, color: C.ink } }, aimTarget.alt.toFixed(0), "°")
-                    ),
-                    Math.abs(aimTurn) < 5 && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On bearing")
+                    aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
+                      "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                    calBlock
                   )
               )
         )

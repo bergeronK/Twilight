@@ -178,6 +178,17 @@ viewport widths (see git history on `index.html` for details).
   in this sandbox) — flagged as a known gap, same as the native-build
   limitations elsewhere in this doc.
 
+- **Navigator v1.1 — Aim Assist upgrades.** Tilt guidance via a full
+  orientation matrix (`orientationToAim`), landscape-aware flat-phone compass
+  fallback (`screenUpHeading`), figure-8 calibration prompting, ±5° nudges and
+  a persisted "Align to <body>" manual correction (`tw_aim_offset` in
+  `prefStore`), plus the mobile-web essentials: Screen Wake Lock while aiming,
+  `isSecureContext` check, and an in-app-browser hint on the unsupported path.
+  The orientation math is verified three ways (hand-reasoned postures, an
+  independently-built rotation matrix, and a roll-invariance sweep) — see
+  `docs/navigator-spec.md`. Camera passthrough AR is still deliberately not
+  built; that spec section explains what it would cost.
+
 **Open question, needs the owner's call:** `/privacy.html`'s Contact section
 currently points to the GitHub repo rather than a personal email — nobody's
 email was published without asking first. Swap it for a direct contact
