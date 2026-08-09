@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Twilight uses your location to compute tonight's sky, twilight times, and star positions for where you are. Your location never leaves your device except to fetch a weather forecast.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Twilight can show the live camera behind Sky View so you can line up stars against what you actually see. The camera is off by default, nothing is recorded, and no image ever leaves your device.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

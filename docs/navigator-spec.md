@@ -253,19 +253,63 @@ real-device feedback on whether the simple version is actually good enough.
   compass-arrow MVP. The full camera-overlay version remains out of scope
   (real-device testing needed, this sandbox can't validate it at all).
 
-**Still open — camera passthrough (Feature B full).** Raised again after v1.1.
-Mechanically it's small: `getUserMedia({video:{facingMode:'environment'}})`
-behind the existing `orientationToAim`, with the star marker positioned by
-projecting the target's az/alt into screen space. What makes it a real
-decision rather than an afternoon is everything around it: it needs
-`NSCameraUsageDescription` / `CAMERA` permission strings added to both native
-shells, it re-opens the App Store privacy answers in
-`docs/app-store-privacy-answers.md` (camera access is a disclosable category
-even when nothing leaves the device), and the projection is the first part of
-this feature that is genuinely wrong-on-a-desk-and-right-in-the-hand — unlike
-the aim vector, screen-space placement depends on FOV and screen orientation
-together and cannot be validated here. Worth doing only once someone can
-point a real phone at a real sky.
+**Shipped in v1.2 — Sky View.** Point the phone, see the bodies where they
+actually are, labelled. Full-screen canvas overlay (`SkyDome`), driven by the
+same sensor plumbing as Aim Assist.
+
+- `worldToScreenDir()` is the transpose of `orientationToAim`'s matrix
+  (world → device rather than device → world), then rotated by the screen
+  angle because the canvas lives in screen space while sensors report in the
+  device's natural frame. `skyProject()` is a plain pinhole projection at a
+  63° vertical FOV, close to a phone's rear camera.
+- Verified numerically before any pixels were looked at: the body the phone
+  is aimed at lands within 1e-12 px of the screen centre across 1,600 random
+  orientations × 4 screen angles; a body exactly FOV/2 above the aim lands
+  exactly on the top edge; right is right and up is up; bodies behind the
+  phone are culled rather than wrapped; and rotating the screen rotates the
+  picture by exactly 90° while preserving each body's distance from centre.
+- **Drag-to-look** whenever sensors aren't driving it. This is not only a
+  desktop/denied-permission fallback — it's what makes the whole view
+  testable in CI, since the manual path synthesises the same Euler angles a
+  phone aimed that way would report and renders through one code path.
+- Bodies below the horizon are drawn at 22% alpha rather than hidden, so
+  sweeping down past the skyline stays continuous without implying you could
+  go and look at something the Earth is in front of.
+- **Camera passthrough shipped, but opt-in and secondary.** At night a phone
+  camera sees essentially nothing, so the rendered sky is the product; the
+  camera is for daylight Sun/Moon work and lining up against a landmark.
+  Permission denial and absent `mediaDevices` both degrade to the rendered
+  sky with a note. `NSCameraUsageDescription` and Android `CAMERA` are
+  declared (both `required="false"`), so the native shells can honour it.
+- **Known limitation:** the catalog is still the 57 `NAV_STARS`, so the view
+  is sparser than a real planetarium app. Those 57 are all brighter than
+  mag 3 and are exactly the app's subject matter, so this is a reasonable cut
+  — but it is the obvious thing to revisit if Sky View becomes a headline
+  feature. A denser catalog is a payload decision, not a math one; the
+  projection already handles arbitrary body lists.
+- Sky View sits at z-index 300, above the tab bar (100) and its menu (200):
+  it's immersive and owns the screen until Back is tapped.
+
+**Still open — full AR registration.** Raised again after v1.1.
+The projection itself turned out to be verifiable on a desk (see v1.2 above),
+so the camera shipped. What is still genuinely unvalidated is *registration*:
+whether the rendered sky lines up with the camera image to within a few
+degrees on a real device. Two unknowns drive that, and neither can be
+measured here:
+
+- **Camera FOV.** `SKY_FOV` is a fixed 63°, which is typical but not
+  universal; a phone whose rear camera differs will show a consistent scale
+  error between the overlay and the image. The real fix is reading the actual
+  FOV from the `MediaStreamTrack` settings and using it when the camera is
+  on — worth doing, but pointless to tune blind.
+- **Magnetometer error**, which the Aim Assist calibration already addresses
+  and which the manual offset already corrects. Registration makes that error
+  visible in a way the numeric readout doesn't, so real-device use may show
+  the figure-8 prompt needs to be more insistent.
+
+Also still outstanding: camera access is a disclosable category in
+`docs/app-store-privacy-answers.md` even though nothing is recorded or
+transmitted — that file needs updating before submission.
 
 ## Explicitly out of scope for this spec
 

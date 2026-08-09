@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-WsSYd96WFI3rzXDaVVoAldnznVFbIsdLFZw9mPI+miM=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-d8Q9u29KKzAQr6B+ccrrT6LrOSAwJVeihfPj6BXrSz8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1538,6 +1538,30 @@ function orientationToAim(alpha, beta, gamma) {
     // the top of the screen, which stays meaningful when the phone is flat.
     stable: Math.sqrt(e * e + n * n) > 0.15
   };
+}
+/* Direction to a body (az/alt) expressed in *screen* axes: x right, y up the
+   displayed page, z out of the screen toward the viewer — so anything the
+   phone's back is facing has z < 0. This is the transpose of the matrix in
+   orientationToAim (world -> device instead of device -> world), then rotated
+   by the screen angle, since the canvas is in screen space while the sensors
+   report in the device's natural frame. Feed the result to skyProject. */
+function worldToScreenDir(az, alt, alpha, beta, gamma, screenAngle) {
+  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
+  const e = cos(alt) * sin(az), n = cos(alt) * cos(az), u = sin(alt);
+  // Device axes in world coordinates are the columns of Rz(a)*Rx(b)*Ry(g);
+  // dotting the body against each column projects it onto that axis.
+  const x = (cA * cG - sA * sB * sG) * e + (sA * cG + cA * sB * sG) * n + (-cB * sG) * u;
+  const y = (-sA * cB) * e + (cA * cB) * n + sB * u;
+  const z = (cA * sG + sA * sB * cG) * e + (sA * sG - cA * sB * cG) * n + (cB * cG) * u;
+  const cT = cos(screenAngle || 0), sT = sin(screenAngle || 0);
+  return { x: cT * x - sT * y, y: sT * x + cT * y, z };
+}
+/* Pinhole projection of a screen-frame direction onto the canvas. Returns null
+   when the body is behind the phone. `fov` is the vertical field of view. */
+function skyProject(d, w, h, fov) {
+  if (d.z > -0.02) return null; // at or behind the plane of the screen
+  const f = (h / 2) / Math.tan((fov / 2) * D2R), k = f / -d.z;
+  return { x: w / 2 + d.x * k, y: h / 2 - d.y * k };
 }
 /* Compass heading of the top of the *displayed* page, for when the phone is
    held flat and the camera axis says nothing useful. The sensor angles are
@@ -3892,6 +3916,245 @@ function TwilightEphemeris({ redMode } = {}) {
 /* ---- Visitor Counter ---- */
 const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
 
+/* ---- Navigator: Sky View ----
+   Full-screen live sky. Point the phone and the bodies land where they really
+   are. Sensors drive it when they're available; without them it falls back to
+   dragging, which is also what makes it testable on a desktop.
+
+   The camera passthrough is deliberately opt-in and secondary: at night a
+   phone camera sees essentially nothing, so the rendered sky is the product
+   and the camera is for daylight Sun/Moon work and lining up against a
+   landmark. */
+const SKY_FOV = 63; // vertical degrees; close to a phone's rear camera
+function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sensorMsg }) {
+  const canvasRef = useRef(null);
+  const videoRef = useRef(null);
+  const [cam, setCam] = useState(false);
+  const [camErr, setCamErr] = useState(null);
+  const [size, setSize] = useState({ w: 360, h: 640 });
+  // Drag-to-look, used whenever the sensors aren't driving the view.
+  const [manual, setManual] = useState({ az: 180, alt: 35 });
+  const dragRef = useRef(null);
+  const live = !!orient;
+
+  useEffect(() => {
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!cam) return;
+    let stream = null, cancelled = false;
+    const md = navigator.mediaDevices;
+    if (!md || !md.getUserMedia) { setCamErr('This browser has no camera access.'); setCam(false); return; }
+    md.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(s => {
+        if (cancelled) { s.getTracks().forEach(t => t.stop()); return; }
+        stream = s;
+        if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play().catch(() => {}); }
+      })
+      .catch(err => {
+        setCamErr(err && err.name === 'NotAllowedError' ? 'Camera permission denied.' : 'No camera available here.');
+        setCam(false);
+      });
+    return () => { cancelled = true; if (stream) stream.getTracks().forEach(t => t.stop()); };
+  }, [cam]);
+
+  // Where the view is pointed. With no sensors, synthesise the same Euler
+  // angles a phone aimed that way would report, so both paths render through
+  // one code path rather than two that can drift apart.
+  const view = live
+    ? { alpha: orient.alpha, beta: orient.beta, gamma: orient.gamma, sa: screenAngle }
+    : { alpha: (360 - manual.az) % 360, beta: 90 + manual.alt, gamma: 0, sa: 0 };
+
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const { w, h } = size;
+    // Assigning canvas.width reallocates the backing store, so only do it when
+    // the size actually changed — this effect reruns on every sensor event.
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    const dir = b => worldToScreenDir(b.az, b.alt, view.alpha, view.beta, view.gamma, view.sa);
+    const proj = d => skyProject(d, w, h, SKY_FOV);
+
+    if (!cam) {
+      // Sky gradient, darkest overhead — reads as depth without competing
+      // with the bodies for attention.
+      const up = proj(worldToScreenDir(0, 90, view.alpha, view.beta, view.gamma, view.sa));
+      const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
+      grad.addColorStop(0, '#05070f');
+      grad.addColorStop(1, '#0b1020');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, w, h);
+    }
+
+    // Horizon + cardinal marks: the anchor that tells you the view is real.
+    g.lineWidth = 1;
+    g.strokeStyle = cam ? 'rgba(210,160,77,.55)' : 'rgba(210,160,77,.35)';
+    g.beginPath();
+    let started = false;
+    for (let a = 0; a <= 360; a += 2) {
+      const p = proj(worldToScreenDir(a, 0, view.alpha, view.beta, view.gamma, view.sa));
+      if (!p) { started = false; continue; }
+      if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
+    }
+    g.stroke();
+    // Canvas font strings don't resolve CSS custom properties — name the
+    // family outright rather than reaching for --font-ui here.
+    g.font = '600 12px Inter, system-ui, sans-serif';
+    g.fillStyle = 'rgba(210,160,77,.8)';
+    g.textAlign = 'center';
+    for (let a = 0; a < 360; a += 45) {
+      const p = proj(worldToScreenDir(a, 0, view.alpha, view.beta, view.gamma, view.sa));
+      if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
+    }
+
+    // Bodies, faintest first so bright ones win any overlap.
+    const drawn = [];
+    bodies.slice().sort((a, b) => b.mag - a.mag).forEach(bd => {
+      const d = dir(bd), p = proj(d);
+      if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
+      const isTarget = bd.name === targetName;
+      let r, fill;
+      if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
+      else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
+      else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
+      else { r = Math.max(1.6, 5.2 - bd.mag * 1.15); fill = '#eef2ff'; }
+      // Below the horizon the Earth is in the way. Still drawn, so the view
+      // stays continuous as you sweep down past the skyline, but dimmed so
+      // it never reads as something you could actually go and look at.
+      g.globalAlpha = bd.alt < 0 ? 0.22 : 1;
+      if (bd.kind === 'sun' || bd.kind === 'moon') {
+        const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
+        glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = glow;
+        g.beginPath(); g.arc(p.x, p.y, r * 3, 0, 7); g.fill();
+      }
+      g.fillStyle = fill;
+      g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
+      if (isTarget) {
+        g.strokeStyle = '#e8b563'; g.lineWidth = 2;
+        g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
+      }
+      // Label only what's worth labelling, and only if it won't collide.
+      if (isTarget || bd.kind !== 'star' || bd.mag < 1.6) {
+        if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
+          g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
+          g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
+          // Flip the label to the other side rather than let it run off the
+          // edge — near the rim is exactly where you're about to turn toward.
+          const gap = isTarget ? r + 17 : r + 6; // clear the target ring
+          const flip = p.x + gap + g.measureText(bd.name).width > w - 6;
+          g.textAlign = flip ? 'right' : 'left';
+          g.fillText(bd.name, p.x + (flip ? -gap : gap), p.y + 4);
+          drawn.push({ x: p.x, y: p.y });
+        }
+      }
+      g.globalAlpha = 1;
+    });
+
+    // Centre reticle — the "you are pointing here" mark.
+    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 1;
+    g.beginPath(); g.arc(w / 2, h / 2, 16, 0, 7); g.stroke();
+    g.beginPath();
+    g.moveTo(w / 2 - 26, h / 2); g.lineTo(w / 2 - 20, h / 2);
+    g.moveTo(w / 2 + 20, h / 2); g.lineTo(w / 2 + 26, h / 2);
+    g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
+    g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
+    g.stroke();
+  }, [bodies, view.alpha, view.beta, view.gamma, view.sa, size, cam, targetName]);
+
+  // Off-screen target arrow: without it, a target behind you just isn't there
+  // and the view looks broken rather than merely pointed the wrong way.
+  const target = bodies.find(b => b.name === targetName);
+  let offscreen = null;
+  if (target) {
+    const d = worldToScreenDir(target.az, target.alt, view.alpha, view.beta, view.gamma, view.sa);
+    const p = skyProject(d, size.w, size.h, SKY_FOV);
+    if (!p || p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) {
+      offscreen = (atan2(d.x, d.y) + 360) % 360; // direction to swing, in screen plane
+    }
+  }
+
+  const onDown = e => {
+    if (live) return;
+    const t = e.touches ? e.touches[0] : e;
+    dragRef.current = { x: t.clientX, y: t.clientY, az: manual.az, alt: manual.alt };
+  };
+  const onMove = e => {
+    if (!dragRef.current) return;
+    const t = e.touches ? e.touches[0] : e;
+    const perPx = SKY_FOV / size.h;
+    setManual({
+      az: (dragRef.current.az - (t.clientX - dragRef.current.x) * perPx + 360) % 360,
+      alt: Math.max(-30, Math.min(89, dragRef.current.alt + (t.clientY - dragRef.current.y) * perPx))
+    });
+  };
+  const onUp = () => { dragRef.current = null; };
+
+  const chip = {
+    fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, padding: '8px 14px',
+    borderRadius: 9, cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)',
+    background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
+  };
+  return React.createElement('div', {
+    // Above the tab bar (100) and its menu (200): Sky View is immersive and
+    // owns the screen until its own Back button is tapped.
+    style: { position: 'fixed', inset: 0, zIndex: 300, background: '#05070f', overscrollBehavior: 'none', touchAction: 'none' },
+    onMouseDown: onDown, onMouseMove: onMove, onMouseUp: onUp, onMouseLeave: onUp,
+    onTouchStart: onDown, onTouchMove: onMove, onTouchEnd: onUp
+  },
+    cam && React.createElement('video', {
+      ref: videoRef, playsInline: true, muted: true, autoPlay: true,
+      style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
+    }),
+    React.createElement('canvas', { ref: canvasRef, style: { position: 'absolute', inset: 0 } }),
+    // Top bar
+    React.createElement('div', {
+      style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
+    },
+      React.createElement('button', { onClick: onClose, style: chip }, '← Back'),
+      React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      targetName && React.createElement('span', {
+        style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, color: '#e8b563', padding: '8px 4px' }
+      }, targetName)
+    ),
+    // Bottom status
+    React.createElement('div', {
+      style: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 14px max(14px, env(safe-area-inset-bottom))', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(238,242,255,.7)', textAlign: 'center', lineHeight: 1.5 }
+    },
+      camErr ? camErr + ' ' : '',
+      live ? 'Live — move your phone to look around.'
+        : (sensorMsg || 'No compass here — drag to look around.')
+    ),
+    offscreen !== null && React.createElement('div', {
+      style: {
+        position: 'absolute', left: '50%', top: '50%', width: 0, height: 0,
+        transform: 'rotate(' + offscreen.toFixed(1) + 'deg)', pointerEvents: 'none'
+      }
+    },
+      React.createElement('div', {
+        style: {
+          position: 'absolute', left: -9, top: -108, width: 18, height: 18,
+          borderLeft: '3px solid #e8b563', borderTop: '3px solid #e8b563',
+          transform: 'rotate(45deg)'
+        }
+      })
+    )
+  );
+}
+
 function StarFinder({ redMode } = {}) {
   useH24();
   const [loc, setLoc] = useState(() => {
@@ -3981,8 +4244,10 @@ function StarFinder({ redMode } = {}) {
   // exactly when the display would otherwise sleep. Hold a wake lock for as
   // long as a target is selected.
   const wakeRef = useRef(null);
-  const startAim = async name => {
-    setAimTargetName(name);
+  const [skyOpen, setSkyOpen] = useState(false);
+  // Shared by Aim Assist and Sky View. Must be reached synchronously from a
+  // tap: iOS only grants motion access during a real user gesture.
+  const ensureSensors = async () => {
     // Sensors are gated on a secure context; on plain HTTP the permission
     // call either throws or silently never fires an event. Say so plainly
     // rather than leaving the user on "Waiting for compass data…".
@@ -3996,6 +4261,8 @@ function StarFinder({ redMode } = {}) {
       } catch (e) { setAimSensor('denied'); }
     } else setAimSensor('granted');
   };
+  const startAim = name => { setAimTargetName(name); return ensureSensors(); };
+  const openSky = () => { setSkyOpen(true); return ensureSensors(); };
   const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setOrient(null); setShowCalHelp(false); };
   // Track how far the UI is rotated from the device's natural orientation, so
   // the flat-phone compass fallback still points where the user is looking
@@ -4012,7 +4279,7 @@ function StarFinder({ redMode } = {}) {
     return () => window.removeEventListener('orientationchange', read);
   }, []);
   useEffect(() => {
-    if (!aimTargetName || !navigator.wakeLock) return;
+    if ((!aimTargetName && !skyOpen) || !navigator.wakeLock) return;
     let cancelled = false;
     const acquire = () => navigator.wakeLock.request('screen')
       .then(l => { if (cancelled) l.release(); else wakeRef.current = l; })
@@ -4027,7 +4294,7 @@ function StarFinder({ redMode } = {}) {
       document.removeEventListener('visibilitychange', onVis);
       if (wakeRef.current) { try { wakeRef.current.release(); } catch (e) {} wakeRef.current = null; }
     };
-  }, [aimTargetName]);
+  }, [aimTargetName, skyOpen]);
   useEffect(() => {
     if (aimSensor !== 'granted') return;
     const handler = e => {
@@ -4083,6 +4350,22 @@ function StarFinder({ redMode } = {}) {
   // Only meaningful once the phone is raised enough to be aiming at sky.
   const aimTilt = (aimTarget && aimRaw && aimRaw.stable) ? aimTarget.alt - aimRaw.alt : null;
   const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
+  // Everything Sky View can draw. Kept a little below the horizon so the
+  // horizon line has something on both sides of it.
+  const skyBodies = useMemo(() => {
+    const d = new Date(now), out = [];
+    const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
+    const mo = moonState(d, loc.lat, loc.lon); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12 });
+    ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
+      const r = planetAltAz(p, d, loc.lat, loc.lon);
+      if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
+    });
+    NAV_STARS.forEach(st => {
+      const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, d);
+      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3] });
+    });
+    return out.filter(b => b.alt > -12);
+  }, [now, loc.lat, loc.lon]);
   // iOS is the only platform that tells us how good the heading is:
   // webkitCompassAccuracy is +/- degrees, or negative when it's unusable.
   const compassQuality = orient && typeof orient.acc === 'number'
@@ -4361,8 +4644,14 @@ function StarFinder({ redMode } = {}) {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 30px" }
   },
     React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
-    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16, maxWidth: 640 } },
+    React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14, maxWidth: 640 } },
       "Pick a body, raise your phone and aim its back at the sky — Twilight reads the compass and tilt sensors and tells you which way to move to land on it."),
+    React.createElement("button", {
+      onClick: openSky,
+      style: { fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", marginBottom: 18 }
+    }, "Open Sky View"),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: -10, marginBottom: 18 } },
+      "Point your phone at the sky and see what's there, labelled."),
     !aimTargetName
       ? React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
@@ -4428,7 +4717,15 @@ function StarFinder({ redMode } = {}) {
     ),
     starFinderPanel,
     navigatorPanel,
-    aimPanel
+    aimPanel,
+    skyOpen && React.createElement(SkyDome, {
+      bodies: skyBodies,
+      orient,
+      screenAngle,
+      targetName: aimTargetName,
+      onClose: () => setSkyOpen(false),
+      sensorMsg: aimStatusMsg
+    })
   );
 }
 
