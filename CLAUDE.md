@@ -178,6 +178,28 @@ viewport widths (see git history on `index.html` for details).
   in this sandbox) — flagged as a known gap, same as the native-build
   limitations elsewhere in this doc.
 
+- **Navigator v1.1 — Aim Assist upgrades.** Tilt guidance via a full
+  orientation matrix (`orientationToAim`), landscape-aware flat-phone compass
+  fallback (`screenUpHeading`), figure-8 calibration prompting, ±5° nudges and
+  a persisted "Align to <body>" manual correction (`tw_aim_offset` in
+  `prefStore`), plus the mobile-web essentials: Screen Wake Lock while aiming,
+  `isSecureContext` check, and an in-app-browser hint on the unsupported path.
+  The orientation math is verified three ways (hand-reasoned postures, an
+  independently-built rotation matrix, and a roll-invariance sweep) — see
+  `docs/navigator-spec.md`.
+- **Navigator v1.2 — Sky View.** Full-screen `SkyDome` overlay: point the
+  phone and the Sun, Moon, five planets and the 57 nav stars render where
+  they really are, labelled, with horizon and cardinal marks. New math:
+  `worldToScreenDir` + `skyProject` (verified to land the aim point within
+  1e-12 px of screen centre across 1,600 random orientations × 4 screen
+  angles). Drag-to-look fallback with no sensors — which is also what makes
+  it testable in CI. Optional camera passthrough, off by default;
+  `NSCameraUsageDescription` and Android `CAMERA` now declared. **Known
+  gaps:** the star catalog is still just the 57 nav stars, so the view is
+  sparse; and overlay-to-camera registration (FOV + magnetometer) is the one
+  part that genuinely needs a real device. `docs/app-store-privacy-answers.md`
+  needs a camera entry before submission.
+
 **Open question, needs the owner's call:** `/privacy.html`'s Contact section
 currently points to the GitHub repo rather than a personal email — nobody's
 email was published without asking first. Swap it for a direct contact

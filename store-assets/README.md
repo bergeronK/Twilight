@@ -7,12 +7,22 @@ images referenced by `manifest.json`.
 
 ## `ios/`
 
-Three screenshots at **1260 × 2736 px** — the 6.9" iPhone size, required by
+Four screenshots at **1260 × 2736 px** — the 6.9" iPhone size, required by
 App Store Connect for any app that runs on iPhone (per
 [Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)).
-One per tab (Console, Stars, Ephemeris), captured with a mocked forecast and
-a fixed evening clock so the app shows a fully-populated "tonight" state
-rather than empty/loading placeholders.
+One per tab (Console, Stars, Ephemeris) plus Sky View, captured with a mocked
+forecast and a fixed evening clock so the app shows a fully-populated
+"tonight" state rather than empty/loading placeholders.
+
+The Sky View shot (`openSkyView` in `generate.js`, shared with the Android
+generator) aims the view by reading a well-placed bright star out of the
+app's own star table, preferring a patch of sky with neighbours over a lone
+bright star, then dispatching one synthetic `DeviceOrientationEvent`.
+Headless Chromium has no magnetometer, so without that the view sits in its
+drag-to-look fallback and captions itself "No compass here" — which is not
+what any real phone shows. Everything in the frame is still the app's own
+rendering and its own computed positions; only the "which way is the phone
+pointed" input is supplied.
 
 Regenerate after any visual change to `index.html`:
 
@@ -45,8 +55,9 @@ Four assets for the Play Console store listing:
   it's a separate static file, not part of `index.html`, so it isn't subject
   to the 5-script/CSP-hash rules). Uses a seeded PRNG for the starfield so
   regenerating it produces a pixel-identical result.
-- `phone-01-console.png` / `phone-02-stars.png` / `phone-03-ephemeris.png` —
-  **1080 × 1920 px** (9:16), one per tab. Google Play has no fixed required
+- `phone-01-console.png` / `phone-02-stars.png` / `phone-03-ephemeris.png` /
+  `phone-04-skyview.png` — **1080 × 1920 px** (9:16), one per tab plus Sky
+  View. Google Play has no fixed required
   resolution for phone screenshots (just bounds: 320–3840px per side, max:min
   ratio ≤ 2:1) — 1080×1920 is simply the most common published size and
   renders cleanly from a 360×640 CSS viewport at 3x device scale factor.

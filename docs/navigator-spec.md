@@ -26,13 +26,63 @@ Implementation notes for future work on this:
   localStorage. A real observing session is short-lived enough that this
   is a reasonable v1 cut; add persistence later if it turns out people want
   to resume a fix across a reload.
-- Aim assist ships **turn (compass heading) guidance only** — deliberately
-  did not ship a tilt/altitude-matching calculation. The device `beta`
-  (front-back tilt) convention depends on how the phone is held in actual
-  use, which can't be verified without a real device, and shipping a
-  plausibly-backwards tilt number would be worse than not having one. The
-  target's altitude is shown as a plain number instead, for the user to
-  check by eye. Revisit if real-device feedback says this is worth doing.
+- Aim assist v1 shipped **turn guidance only**. Tilt, calibration and manual
+  correction were added in v1.1 — see below.
+
+## Aim assist v1.1 — tilt, calibration, manual correction
+
+The v1 note here used to say tilt was unshippable without a real device,
+because reading `beta` as "tilt" is only right when the phone is upright and
+unrolled. That framing was the problem, not the feature: composing the whole
+orientation matrix instead of reading one Euler angle removes the ambiguity,
+and the result is verifiable on a desk.
+
+- `orientationToAim(alpha, beta, gamma)` returns where the **rear camera** is
+  aimed, as `{az, alt, stable}`. The W3C angles are an intrinsic Z-X'-Y''
+  rotation from ENU to the device frame; the camera looks along device `-z`,
+  so the aim is minus the third column of `Rz(a)·Rx(b)·Ry(g)`.
+- Verified in three independent ways rather than by inspection: against
+  hand-reasoned postures (flat screen-up aims at the ground, upright facing
+  north aims north at the horizon, alpha +90 swings the aim west); against a
+  numerically-built rotation matrix, so a slip in the closed form can't hide;
+  and by a **roll-invariance sweep** — rotating about the camera axis across
+  four postures and 73 roll angles moves the aim by <1e-13°, which is the
+  property that makes the matrix worth having over reading `beta`.
+- `stable` is false when the aim is within ~8.6° of vertical, where azimuth is
+  atan2 of two near-zero numbers and swings wildly. There the UI drops to
+  bearing-only and says to raise the phone, rather than showing a number that
+  spins.
+- `screenUpHeading(alpha, beta, gamma, screenAngle)` is the flat-phone
+  fallback. Sensor angles are always reported against the device's *natural*
+  orientation, so a phone turned into landscape reports a device-top 90° from
+  the top the user sees — hence the `screenAngle` term, tracked from
+  `screen.orientation.angle`. The aim vector needs no such correction (the
+  camera is bolted to the body), which is why only the fallback takes it.
+  Verified against hand cases and confirmed to reduce exactly to the old
+  `(360 - alpha)` rule at `screenAngle = 0`.
+- **Calibration**, because the magnetometer is the entire error budget — the
+  astronomy underneath is exact, and phone compasses are routinely 10-20° off
+  near metal or in a magnetic case. Three mitigations, all reachable from the
+  aiming screen rather than buried in settings: a figure-8 prompt (shown
+  automatically when iOS's `webkitCompassAccuracy` reports the heading
+  unusable, or when a browser fires `compassneedscalibration`, or on demand);
+  ±5° nudges; and **Align to <body>** — point at the body by eye, tap once,
+  and the residual error is cancelled for every body. That last one is
+  Stellarium's "screen calibration" trick and is the reliable escape hatch
+  when figure-8 waving isn't enough.
+- The manual offset persists via `prefStore` (`tw_aim_offset`), normalised to
+  (-180, 180] so repeated nudges can't wind past a full turn.
+- **Mobile-web specifics** handled alongside: a Screen Wake Lock held while a
+  target is selected and re-acquired on `visibilitychange` (the lock is
+  dropped whenever the page hides, so without that the screen sleeps
+  mid-session); an explicit `isSecureContext` check, since sensors silently
+  fail on plain HTTP; and an "open in Safari or Chrome" hint on the
+  unsupported path, which in practice means the in-app browsers inside social
+  apps, where sensors are withheld. Permission is still requested from the
+  body-tap itself (a real user gesture, as iOS requires) with a heads-up line
+  so the prompt isn't a surprise.
+- Still not shipped: the camera passthrough overlay. That one genuinely does
+  need a real device — see Feature B below.
 
 Turns the existing Star Finder tab from "here's where navigational stars are"
 into a working celestial-navigation tool: take a real sextant sight, get a
@@ -202,6 +252,64 @@ real-device feedback on whether the simple version is actually good enough.
 - **Feature B (AR aim assist)**: wanted for v1, as the no-camera
   compass-arrow MVP. The full camera-overlay version remains out of scope
   (real-device testing needed, this sandbox can't validate it at all).
+
+**Shipped in v1.2 — Sky View.** Point the phone, see the bodies where they
+actually are, labelled. Full-screen canvas overlay (`SkyDome`), driven by the
+same sensor plumbing as Aim Assist.
+
+- `worldToScreenDir()` is the transpose of `orientationToAim`'s matrix
+  (world → device rather than device → world), then rotated by the screen
+  angle because the canvas lives in screen space while sensors report in the
+  device's natural frame. `skyProject()` is a plain pinhole projection at a
+  63° vertical FOV, close to a phone's rear camera.
+- Verified numerically before any pixels were looked at: the body the phone
+  is aimed at lands within 1e-12 px of the screen centre across 1,600 random
+  orientations × 4 screen angles; a body exactly FOV/2 above the aim lands
+  exactly on the top edge; right is right and up is up; bodies behind the
+  phone are culled rather than wrapped; and rotating the screen rotates the
+  picture by exactly 90° while preserving each body's distance from centre.
+- **Drag-to-look** whenever sensors aren't driving it. This is not only a
+  desktop/denied-permission fallback — it's what makes the whole view
+  testable in CI, since the manual path synthesises the same Euler angles a
+  phone aimed that way would report and renders through one code path.
+- Bodies below the horizon are drawn at 22% alpha rather than hidden, so
+  sweeping down past the skyline stays continuous without implying you could
+  go and look at something the Earth is in front of.
+- **Camera passthrough shipped, but opt-in and secondary.** At night a phone
+  camera sees essentially nothing, so the rendered sky is the product; the
+  camera is for daylight Sun/Moon work and lining up against a landmark.
+  Permission denial and absent `mediaDevices` both degrade to the rendered
+  sky with a note. `NSCameraUsageDescription` and Android `CAMERA` are
+  declared (both `required="false"`), so the native shells can honour it.
+- **Known limitation:** the catalog is still the 57 `NAV_STARS`, so the view
+  is sparser than a real planetarium app. Those 57 are all brighter than
+  mag 3 and are exactly the app's subject matter, so this is a reasonable cut
+  — but it is the obvious thing to revisit if Sky View becomes a headline
+  feature. A denser catalog is a payload decision, not a math one; the
+  projection already handles arbitrary body lists.
+- Sky View sits at z-index 300, above the tab bar (100) and its menu (200):
+  it's immersive and owns the screen until Back is tapped.
+
+**Still open — full AR registration.** Raised again after v1.1.
+The projection itself turned out to be verifiable on a desk (see v1.2 above),
+so the camera shipped. What is still genuinely unvalidated is *registration*:
+whether the rendered sky lines up with the camera image to within a few
+degrees on a real device. Two unknowns drive that, and neither can be
+measured here:
+
+- **Camera FOV.** `SKY_FOV` is a fixed 63°, which is typical but not
+  universal; a phone whose rear camera differs will show a consistent scale
+  error between the overlay and the image. The real fix is reading the actual
+  FOV from the `MediaStreamTrack` settings and using it when the camera is
+  on — worth doing, but pointless to tune blind.
+- **Magnetometer error**, which the Aim Assist calibration already addresses
+  and which the manual offset already corrects. Registration makes that error
+  visible in a way the numeric readout doesn't, so real-device use may show
+  the figure-8 prompt needs to be more insistent.
+
+Also still outstanding: camera access is a disclosable category in
+`docs/app-store-privacy-answers.md` even though nothing is recorded or
+transmitted — that file needs updating before submission.
 
 ## Explicitly out of scope for this spec
 

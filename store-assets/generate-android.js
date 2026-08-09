@@ -43,7 +43,7 @@ function mkForecast() {
 
 const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + 26.25 * 3600000);
 
-async function capture(browser, tab, outPath) {
+async function capture(browser, tab, outPath, after) {
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: DSR, isMobile: true, timezoneId: 'America/New_York' });
   await ctx.grantPermissions(['geolocation']);
   await ctx.setGeolocation({ latitude: 44.2601, longitude: -72.5806 }); // Stowe, VT
@@ -55,8 +55,14 @@ async function capture(browser, tab, outPath) {
   });
   await page.route('**/api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkForecast()) }));
   await page.clock.install({ time: tonight });
-  await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+  // Never swallow a navigation failure here — see the note in generate.js.
+  // A silently-captured error page overwrites a good committed asset.
+  const resp = await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  if (!resp || !resp.ok()) throw new Error(`${SERVER} returned ${resp ? resp.status() : 'no response'} — is the local server running?`);
   await page.waitForTimeout(2600);
+  const mounted = await page.evaluate(() => !/Starting Twilight/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
+  if (!mounted) throw new Error('app did not render — stale CSP hashes? run scripts/verify-build.js');
+  if (after) await after(page);
   await page.screenshot({ path: outPath });
   await ctx.close();
   console.log(outPath, 'captured');
@@ -81,6 +87,9 @@ async function captureFeatureGraphic(browser, outPath) {
   await capture(browser, 'console', path.join(OUT, 'phone-01-console.png'));
   await capture(browser, 'stars', path.join(OUT, 'phone-02-stars.png'));
   await capture(browser, 'ephemeris', path.join(OUT, 'phone-03-ephemeris.png'));
+  // Shares generate.js's Sky View helper so both stores show the same shot
+  // and there's only one place to fix when the view changes.
+  await capture(browser, 'stars', path.join(OUT, 'phone-04-skyview.png'), require('./generate.js').openSkyView);
   await browser.close();
   console.log('done');
 })().catch(e => { console.error(e); process.exit(1); });

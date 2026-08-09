@@ -45,4 +45,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- Sky View's optional camera passthrough. Off by default and never
+         recorded; required="false" so the app still installs on the (rare)
+         device without a rear camera, where the toggle simply reports that
+         no camera is available. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

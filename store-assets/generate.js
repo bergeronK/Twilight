@@ -50,7 +50,7 @@ function mkForecast() {
 // the real current hour) lines up with what the app's clock shows.
 const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + 26.25 * 3600000);
 
-async function capture(browser, tab, outPath) {
+async function capture(browser, tab, outPath, after) {
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: DSR, isMobile: true, timezoneId: 'America/New_York' });
   await ctx.grantPermissions(['geolocation']);
   await ctx.setGeolocation({ latitude: 44.2601, longitude: -72.5806 }); // Stowe, VT — moderately dark sky, shows the star field well
@@ -62,14 +62,74 @@ async function capture(browser, tab, outPath) {
   });
   await page.route('**/api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkForecast()) }));
   await page.clock.install({ time: tonight });
-  await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+  // Do NOT swallow navigation failures. These images get committed, and a
+  // silently-captured "This site can't be reached" page overwrites a good
+  // asset with a broken one that looks fine until someone opens it.
+  const resp = await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+  if (!resp || !resp.ok()) throw new Error(`${SERVER} returned ${resp ? resp.status() : 'no response'} — is the local server running?`);
   await page.waitForTimeout(2600);
+  // Belt and braces: confirm the app actually mounted, so a CSP break or a
+  // JS error can't be captured as a blank/placeholder screenshot either.
+  const mounted = await page.evaluate(() => !/Starting Twilight/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
+  if (!mounted) throw new Error('app did not render — stale CSP hashes? run scripts/verify-build.js');
+  if (after) await after(page);
   await page.screenshot({ path: outPath });
   await ctx.close();
   console.log(outPath, 'captured');
 }
 
-(async () => {
+/* Opens Sky View aimed at the brightest star that's well placed right now.
+   Headless Chromium has no magnetometer, so we feed one synthetic
+   DeviceOrientationEvent to put the view in the live state every real iPhone
+   is in. That's the app's genuine on-device behaviour, not a mock-up: the
+   rendering, the positions and the labels are all the app's own, and the
+   aim direction is read out of the app's own star table rather than
+   invented here.
+
+   Aiming a few degrees below the star leaves it in the upper half of the
+   frame with its neighbours visible, instead of dead centre behind the
+   reticle. */
+async function openSkyView(page) {
+  const target = await page.evaluate(() => {
+    // Star table rows read "Arcturusm0.0\n29°\n270° W" (the name and the
+    // magnitude chip are adjacent inline spans, hence no space).
+    const stars = [...document.body.innerText.matchAll(/([A-Z][a-z]+)m(-?\d+\.\d+)\s*\n\s*(-?\d+)°\s*\n\s*(\d+)°/g)]
+      .map(x => ({ name: x[1], mag: +x[2], alt: +x[3], az: +x[4] }));
+    const R = Math.PI / 180;
+    const sep = (a, b) => Math.acos(Math.max(-1, Math.min(1,
+      Math.sin(a.alt * R) * Math.sin(b.alt * R) +
+      Math.cos(a.alt * R) * Math.cos(b.alt * R) * Math.cos((a.az - b.az) * R)))) / R;
+    // Below 25° the horizon crowds the frame; above 70° azimuth gets twitchy
+    // near the zenith and the horizon leaves the shot entirely.
+    const cands = stars.filter(s => s.alt > 25 && s.alt < 70);
+    if (!cands.length) return null;
+    // Prefer a populated patch of sky over a lone bright star — a store shot
+    // wants to show that the view is full of labelled things.
+    cands.forEach(c => { c.near = stars.filter(s => s !== c && sep(c, s) < 22).length; });
+    cands.sort((a, b) => (b.near - a.near) || (a.mag - b.mag));
+    return cands[0];
+  });
+  if (!target) throw new Error('no well-placed star found in the star table');
+  const btn = page.getByRole('button', { name: 'Open Sky View' });
+  await btn.scrollIntoViewIfNeeded();
+  await btn.click();
+  await page.waitForTimeout(900);
+  await page.evaluate(([az, alt]) => {
+    const e = new Event('deviceorientation');
+    Object.assign(e, { alpha: (360 - az) % 360, beta: 90 + alt, gamma: 0, absolute: true });
+    window.dispatchEvent(e);
+  }, [target.az, target.alt - 12]);
+  await page.waitForTimeout(800);
+  if (!await page.evaluate(() => /Live —/.test(document.body.innerText)))
+    throw new Error('Sky View did not enter live mode');
+  console.log(`  sky view aimed near ${target.name} (alt ${target.alt}°, az ${target.az}°)`);
+}
+
+// generate-android.js reuses openSkyView, so only run the iOS set when this
+// file is the entry point rather than a require().
+module.exports = { openSkyView };
+
+if (require.main === module) (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   // Sandbox-local Chromium if present (this repo's dev environment); falls
   // back to Playwright's own managed browser install everywhere else.
@@ -79,6 +139,7 @@ async function capture(browser, tab, outPath) {
   await capture(browser, 'console', path.join(OUT, 'iphone-6.9-01-console.png'));
   await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-02-stars.png'));
   await capture(browser, 'ephemeris', path.join(OUT, 'iphone-6.9-03-ephemeris.png'));
+  await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-04-skyview.png'), openSkyView);
   await browser.close();
   console.log('done');
 })().catch(e => { console.error(e); process.exit(1); });
