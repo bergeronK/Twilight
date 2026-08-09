@@ -26,6 +26,13 @@ const OUT = path.join(__dirname, 'ios');
 // 420x912 CSS viewport at 3x device scale factor renders at exactly that
 // pixel size.
 const W = 420, H = 912, DSR = 3;
+const IPHONE = { w: W, h: H, dsr: DSR, mobile: true };
+// 13" iPad: 2064 x 2752 px portrait, required because the Xcode project
+// targets Universal (TARGETED_DEVICE_FAMILY = "1,2"). A 1032x1376 CSS
+// viewport at 2x renders exactly that. isMobile is false here — iPadOS
+// Safari reports a desktop-class viewport, and forcing mobile emulation
+// would screenshot a layout no real iPad shows.
+const IPAD = { w: 1032, h: 1376, dsr: 2, mobile: false };
 
 // Synthetic Open-Meteo response: clear for the next 48h (so tonight's card
 // and the week planner's first rows agree), then a varied pattern so the
@@ -50,8 +57,9 @@ function mkForecast() {
 // the real current hour) lines up with what the app's clock shows.
 const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + 26.25 * 3600000);
 
-async function capture(browser, tab, outPath, after) {
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: DSR, isMobile: true, timezoneId: 'America/New_York' });
+async function capture(browser, tab, outPath, after, device) {
+  const d = device || IPHONE;
+  const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dsr, isMobile: d.mobile, timezoneId: 'America/New_York' });
   await ctx.grantPermissions(['geolocation']);
   await ctx.setGeolocation({ latitude: 44.2601, longitude: -72.5806 }); // Stowe, VT — moderately dark sky, shows the star field well
   const page = await ctx.newPage();
@@ -140,6 +148,10 @@ if (require.main === module) (async () => {
   await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-02-stars.png'));
   await capture(browser, 'ephemeris', path.join(OUT, 'iphone-6.9-03-ephemeris.png'));
   await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-04-skyview.png'), openSkyView);
+  await capture(browser, 'console', path.join(OUT, 'ipad-13-01-console.png'), null, IPAD);
+  await capture(browser, 'stars', path.join(OUT, 'ipad-13-02-stars.png'), null, IPAD);
+  await capture(browser, 'ephemeris', path.join(OUT, 'ipad-13-03-ephemeris.png'), null, IPAD);
+  await capture(browser, 'stars', path.join(OUT, 'ipad-13-04-skyview.png'), openSkyView, IPAD);
   await browser.close();
   console.log('done');
 })().catch(e => { console.error(e); process.exit(1); });
