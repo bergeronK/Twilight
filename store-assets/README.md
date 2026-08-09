@@ -31,19 +31,21 @@ python3 -m http.server 8137 &      # from the repo root
 node store-assets/generate.js
 ```
 
-**iPad screenshots are not included.** The Xcode project currently targets
-`TARGETED_DEVICE_FAMILY = "1,2"` (Universal — iPhone + iPad), which means
-Apple will also require 13" iPad screenshots (2064 × 2752 px) at actual
-submission time. The app's layout hasn't been specifically reviewed at
-iPad's aspect ratio yet, so before generating those:
+### iPad
 
-1. Check how the Console/Ephemeris/Stars layouts actually look at a
-   13"-iPad viewport (~1032×1376 CSS px) — the max-width containers should
-   mostly cope, but this hasn't been verified.
-2. Decide whether Twilight should ship as Universal (broader reach, more
-   surface to QA and screenshot) or iPhone-only for v1 (set
-   `TARGETED_DEVICE_FAMILY = "1"` in `native/ios/App/App.xcodeproj/project.pbxproj`
-   to drop the iPad requirement entirely and simplify submission).
+Four more at **2064 × 2752 px** — the 13" iPad size, required because the
+Xcode project targets `TARGETED_DEVICE_FAMILY = "1,2"` (Universal). A
+1032 × 1376 CSS viewport at 2x renders exactly that.
+
+`isMobile` is **false** for these. iPadOS Safari reports a desktop-class
+viewport, so emulating a mobile one would screenshot a layout no real iPad
+ever shows.
+
+The layout was reviewed at 13" portrait, 13" landscape and 11" portrait
+before these were generated: no overflow on any tab, the `max-width: 1080`
+containers centre with margins in landscape, and the Stars tab's star table
+and sight-reduction form both use the extra width sensibly. No iPad-specific
+CSS was needed.
 
 ## `android/`
 

@@ -200,10 +200,15 @@ viewport widths (see git history on `index.html` for details).
   part that genuinely needs a real device. `docs/app-store-privacy-answers.md`
   needs a camera entry before submission.
 
-**Open question, needs the owner's call:** `/privacy.html`'s Contact section
-currently points to the GitHub repo rather than a personal email — nobody's
-email was published without asking first. Swap it for a direct contact
-address if the owner wants one; it's a one-line change.
+**Owner decisions made (don't re-ask):**
+- **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
+  layout QA are done; see the backlog entry below.
+- **`/privacy.html` Contact stays the GitHub repo link** — deliberately no
+  personal email published.
+- **GitHub Pages deploy source: switch to `main`.** The owner is doing this
+  in Settings → Pages. Once done, production is merge-gated, so dev-branch
+  pushes no longer go live on their own — open and merge a PR to ship.
+  Confirm the current state before assuming either way.
 
 **Blocked on the repo owner, not on engineering:**
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
@@ -218,13 +223,12 @@ address if the owner wants one; it's a one-line change.
 - Alerts (clear-and-dark-tonight push notifications) — needs a backend
   decision (Cloudflare Worker + Cron Triggers is the natural fit given the
   existing visitor-counter Worker).
-- App Store screenshot regeneration at Apple's exact required device
-  dimensions: **done for iPhone** (`store-assets/ios/`, 1260×2736,
-  regenerate via `node store-assets/generate.js`). **iPad not done** — see
-  `store-assets/README.md` for why (the Xcode project currently targets
-  Universal, which makes 13" iPad screenshots required too, but the layout
-  hasn't been verified at iPad's aspect ratio; a decision on iPhone-only vs.
-  Universal for v1 is needed before generating those).
+- App Store screenshots: **done for both iPhone and iPad**
+  (`store-assets/ios/`, 1260×2736 and 2064×2752, regenerate via
+  `node store-assets/generate.js`). Owner chose **Universal** (iPhone +
+  iPad), so `TARGETED_DEVICE_FAMILY` stays `"1,2"`. iPad layout was reviewed
+  at 13" portrait/landscape and 11" portrait — no overflow, no iPad-specific
+  CSS needed. Each set includes a Sky View shot.
 - Android store assets: **done** (`store-assets/android/`, feature graphic +
   3 phone screenshots, regen via `node store-assets/generate-android.js`).
   Android scaffolding under `native/android/` was audited this pass
