@@ -45,6 +45,32 @@ Used for Tracking / App Functionality — some reviewers expect purchase
 verification IDs listed under both Purchases and Identifiers. Either
 approach is consistent with what the code actually does.
 
+### 3. Camera — *not* a data-collection declaration
+
+Sky View can show the live rear-camera feed behind the star overlay
+(`getUserMedia`, off by default). Nothing is recorded, stored, or
+transmitted — the frames are painted to the screen and discarded.
+
+Apple's App Privacy questionnaire asks what data you **collect**, so this is
+**not** declared there: under **User Content → Photos or Videos**, answer
+**No**. A live preview that is never persisted or sent anywhere is not
+collection. Declaring it anyway would be inaccurate in the other direction
+and invites questions you'd then have to un-answer.
+
+What camera use *does* require:
+- **`NSCameraUsageDescription` in `Info.plist`** — already added. Apple
+  rejects builds that can reach a camera prompt without one, and reviewers
+  read the string. Current text: *"Twilight can show the live camera behind
+  Sky View so you can line up stars against what you actually see. The camera
+  is off by default, nothing is recorded, and no image ever leaves your
+  device."*
+- **A reviewer note** (App Store Connect → App Review Information → Notes)
+  saying where the camera is used and that it's optional, e.g.: *"Camera is
+  optional and off by default. Stars tab → Open Sky View → Camera. It shows a
+  live viewfinder behind the star overlay; no photo or video is captured,
+  stored, or transmitted."* Without this, a reviewer who never taps that
+  button may not find the feature and may ask why the permission exists.
+
 **Every other category** (Contact Info, Health & Fitness, Financial Info,
 Sensitive Info, Contacts, User Content, Browsing History, Search History,
 Usage Data, Diagnostics, Other Data) → **not collected**.
@@ -78,6 +104,20 @@ Path: Play Console → your app → App content → Data safety.
 - **Data is encrypted in transit:** Yes (HTTPS)
 - **Users can request deletion:** Not applicable — no account exists to
   delete; RevenueCat's own data-deletion process applies if a user asks
+
+### Camera — *not* a data-collection declaration
+
+Same reasoning as Apple above: Sky View's optional viewfinder never records
+or transmits a frame, so under **Photos and videos → Photos / Videos**,
+answer **No**. Play's Data safety form is about collection and sharing, not
+about which permissions the manifest declares.
+
+The manifest declares `android.permission.CAMERA` with
+`<uses-feature android:name="android.hardware.camera" android:required="false" />`,
+which keeps the app installable on devices without a rear camera. Play may
+surface a **permissions declaration** prompt for CAMERA — the answer is that
+it powers an optional live viewfinder behind the star overlay, off by
+default, with nothing captured or stored.
 
 **Everything else** → not collected.
 
@@ -115,3 +155,9 @@ document/CCATS filing.
   for Alerts), it needs its own row here and in `/privacy.html` before that
   version ships — check `connect-src` in the CSP meta tag in `index.html`,
   which is the definitive list of every host the app is allowed to talk to.
+- Add the camera reviewer note (text above) to App Review Information. It
+  costs nothing and heads off the most likely "why does this need a camera?"
+  round-trip.
+- Check `/privacy.html` mentions the camera. The store questionnaires and the
+  public policy should not disagree with each other, and the policy is the
+  one a user actually reads.

@@ -77,6 +77,22 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   <p>You can deny location access entirely and still use Twilight by entering
   a ZIP code, searching for a place by name, or typing coordinates directly.</p>
 
+  <h2>Motion sensors and camera</h2>
+  <p>Two features in the Stars tab can use hardware beyond location. Both are
+  optional, both ask before they start, and neither sends anything anywhere.</p>
+  <ul>
+    <li><strong>Compass and motion sensors</strong> power Aim Assist and Sky
+    View, which work out which way your phone is pointed so Twilight can show
+    you where a star is. The readings are used as they arrive and are not
+    stored or transmitted. The one thing that is saved is a manual compass
+    correction, if you set one — a single number, kept on your device.</li>
+    <li><strong>The camera</strong> is off by default. If you switch it on in
+    Sky View, the live view from your rear camera is drawn behind the star
+    overlay so you can line the two up. Nothing is photographed, recorded,
+    saved, or uploaded — the image is displayed and discarded, frame by
+    frame. Turning the camera off, or leaving Sky View, stops it.</li>
+  </ul>
+
   <h2>What's stored on your device</h2>
   <p>Your preferences and your last-used location are saved locally in your
   browser's or app's storage, so Twilight remembers them between visits.
@@ -85,6 +101,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   <ul>
     <li>Your saved and current location</li>
     <li>Display preferences (12/24-hour time, red-light night mode, sky-brightness setting)</li>
+    <li>Your Aim Assist compass correction, if you've set one</li>
     <li>A short-lived cache (about an hour) of the weather forecast, to avoid
     re-fetching it constantly</li>
     <li>Whether you've dismissed onboarding messages</li>
