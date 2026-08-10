@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-LNRaQMtsH06llnY9gigLIkONnQDzJQi0Or9rY+S0cLI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gDwAa80Z7+4ws0BlVA7p+fDlRXfEtGNI1VzC+OMBm7o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -740,10 +740,12 @@ function estimateBortle(lat0, lon0, data) {
 const prefStore = (() => {
   let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
   let aimOffset = 0; // Aim Assist manual compass correction, degrees
+  let skyFov = 63;   // Sky View vertical field of view, degrees
   try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   try { const v = localStorage.getItem('tw_pro'); if (v !== null) pro = v === '1'; } catch (e) {}
   try { aimOffset = parseFloat(localStorage.getItem('tw_aim_offset') || '0') || 0; } catch (e) {}
+  try { const v = parseFloat(localStorage.getItem('tw_sky_fov')); if (v >= 30 && v <= 100) skyFov = v; } catch (e) {}
   try {
     const v = localStorage.getItem('tw_bortle_mode');
     // A stored mode wins. Otherwise, a pre-existing manual Bortle value from
@@ -771,6 +773,16 @@ const prefStore = (() => {
       try { localStorage.setItem('tw_aim_offset', String(aimOffset)); } catch (e) {}
       emit();
     },
+    getSkyFov: () => skyFov,
+    // Camera field of view is not exposed by any web API — not in
+    // MediaTrackSettings, capabilities, or supported constraints — so the
+    // only way to register the overlay against a real lens is to let the
+    // user match it by eye once and remember the answer.
+    setSkyFov: v => {
+      skyFov = Math.max(30, Math.min(100, Number(v) || 63));
+      try { localStorage.setItem('tw_sky_fov', String(skyFov)); } catch (e) {}
+      emit();
+    },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
@@ -779,6 +791,7 @@ function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, pr
 function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortleMode); }
 function usePro() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getPro); }
 function useAimOffset() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getAimOffset); }
+function useSkyFov() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getSkyFov); }
 /* ---- Pro entitlement via in-app purchase (native shell only) ----
    RevenueCat public SDK keys — safe to embed; they can only read offerings
    and this device's own purchases. While a key is empty, IAP is disabled on
@@ -3925,7 +3938,9 @@ const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
    phone camera sees essentially nothing, so the rendered sky is the product
    and the camera is for daylight Sun/Moon work and lining up against a
    landmark. */
-const SKY_FOV = 63; // vertical degrees; close to a phone's rear camera
+// Default vertical field of view, close to a typical phone's rear camera.
+// Adjustable per-device because no web API reports the real lens FOV.
+const SKY_FOV_DEFAULT = 63;
 function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sensorMsg }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
@@ -3935,6 +3950,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
   // Drag-to-look, used whenever the sensors aren't driving the view.
   const [manual, setManual] = useState({ az: 180, alt: 35 });
   const dragRef = useRef(null);
+  const fov = useSkyFov();
   const live = !!orient;
 
   useEffect(() => {
@@ -3985,7 +4001,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.clearRect(0, 0, w, h);
 
     const dir = b => worldToScreenDir(b.az, b.alt, view.alpha, view.beta, view.gamma, view.sa);
-    const proj = d => skyProject(d, w, h, SKY_FOV);
+    const proj = d => skyProject(d, w, h, fov);
 
     if (!cam) {
       // Sky gradient, darkest overhead — reads as depth without competing
@@ -4080,7 +4096,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
     g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
     g.stroke();
-  }, [bodies, view.alpha, view.beta, view.gamma, view.sa, size, cam, targetName]);
+  }, [bodies, view.alpha, view.beta, view.gamma, view.sa, size, cam, targetName, fov]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
@@ -4088,27 +4104,54 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
   let offscreen = null;
   if (target) {
     const d = worldToScreenDir(target.az, target.alt, view.alpha, view.beta, view.gamma, view.sa);
-    const p = skyProject(d, size.w, size.h, SKY_FOV);
+    const p = skyProject(d, size.w, size.h, fov);
     if (!p || p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) {
       offscreen = (atan2(d.x, d.y) + 360) % 360; // direction to swing, in screen plane
     }
   }
 
+  // Tap a body to identify it — the point of pointing your phone at the sky
+  // is asking "what is that?", and until now the only way to name something
+  // was to have already chosen it in Aim Assist. Dragging must not count as a
+  // tap, hence the movement threshold.
+  const tapPick = (cx, cy) => {
+    if (!onPick) return;
+    let best = null, bestD = 44;
+    bodies.forEach(bd => {
+      const p = skyProject(worldToScreenDir(bd.az, bd.alt, view.alpha, view.beta, view.gamma, view.sa), size.w, size.h, fov);
+      if (!p) return;
+      const d = Math.hypot(p.x - cx, p.y - cy);
+      // Prefer the brighter of two candidates at similar distance, so a faint
+      // star doesn't steal the tap from the planet right next to it.
+      if (d < bestD || (best && d < bestD + 12 && bd.mag < best.mag)) { best = bd; bestD = Math.min(d, bestD); }
+    });
+    onPick(best ? best.name : null);
+  };
   const onDown = e => {
-    if (live) return;
     const t = e.touches ? e.touches[0] : e;
-    dragRef.current = { x: t.clientX, y: t.clientY, az: manual.az, alt: manual.alt };
+    dragRef.current = { x: t.clientX, y: t.clientY, az: manual.az, alt: manual.alt, moved: 0 };
   };
   const onMove = e => {
-    if (!dragRef.current) return;
+    const d = dragRef.current;
+    if (!d) return;
     const t = e.touches ? e.touches[0] : e;
-    const perPx = SKY_FOV / size.h;
+    d.moved = Math.max(d.moved, Math.hypot(t.clientX - d.x, t.clientY - d.y));
+    if (live) return; // sensors are steering; drag only looks around in fallback mode
+    const perPx = fov / size.h;
     setManual({
-      az: (dragRef.current.az - (t.clientX - dragRef.current.x) * perPx + 360) % 360,
-      alt: Math.max(-30, Math.min(89, dragRef.current.alt + (t.clientY - dragRef.current.y) * perPx))
+      az: (d.az - (t.clientX - d.x) * perPx + 360) % 360,
+      alt: Math.max(-30, Math.min(89, d.alt + (t.clientY - d.y) * perPx))
     });
   };
-  const onUp = () => { dragRef.current = null; };
+  const onUp = e => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || d.moved > 8) return;
+    const t = (e && e.changedTouches) ? e.changedTouches[0] : e;
+    if (!t || typeof t.clientX !== 'number') return;
+    const r = e.currentTarget.getBoundingClientRect();
+    tapPick(t.clientX - r.left, t.clientY - r.top);
+  };
 
   const chip = {
     fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, padding: '8px 14px',
@@ -4119,8 +4162,11 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     // Above the tab bar (100) and its menu (200): Sky View is immersive and
     // owns the screen until its own Back button is tapped.
     style: { position: 'fixed', inset: 0, zIndex: 300, background: '#05070f', overscrollBehavior: 'none', touchAction: 'none' },
-    onMouseDown: onDown, onMouseMove: onMove, onMouseUp: onUp, onMouseLeave: onUp,
-    onTouchStart: onDown, onTouchMove: onMove, onTouchEnd: onUp
+    onMouseDown: onDown, onMouseMove: onMove, onMouseUp: onUp,
+    // Leaving the element cancels the gesture rather than counting as a tap.
+    onMouseLeave: () => { dragRef.current = null; },
+    onTouchStart: onDown, onTouchMove: onMove, onTouchEnd: onUp,
+    onTouchCancel: () => { dragRef.current = null; }
   },
     cam && React.createElement('video', {
       ref: videoRef, playsInline: true, muted: true, autoPlay: true,
@@ -4141,9 +4187,23 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     React.createElement('div', {
       style: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 14px max(14px, env(safe-area-inset-bottom))', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(238,242,255,.7)', textAlign: 'center', lineHeight: 1.5 }
     },
+      // With the camera on, the overlay has to be matched to the lens by eye:
+      // no browser API reports a camera's field of view, so this is the only
+      // way to make the stars line up with what the camera sees.
+      cam && React.createElement('div', {
+        style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }
+      },
+        React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)' } }, 'Match to camera'),
+        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov - 3), style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Narrower field of view' }, '−'),
+        React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', minWidth: 38, color: '#eef2ff' } }, fov.toFixed(0) + '°'),
+        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov + 3), style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Wider field of view' }, '+'),
+        fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), style: { ...chip, padding: '6px 12px' } }, 'Reset')
+      ),
       camErr ? camErr + ' ' : '',
-      live ? 'Live — move your phone to look around.'
-        : (sensorMsg || 'No compass here — drag to look around.')
+      target
+        ? target.name + ' · ' + Math.round(target.alt) + '° alt · ' + Math.round(target.az) + '° ' + compass16(target.az)
+        : (live ? 'Live — move your phone to look around. Tap anything to identify it.'
+                : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
     offscreen !== null && React.createElement('div', {
       style: {
@@ -4746,6 +4806,9 @@ function StarFinder({ redMode } = {}) {
       orient,
       screenAngle,
       targetName: aimTargetName,
+      // Picking in Sky View sets the Aim Assist target too, so closing the
+      // overlay leaves you pointed at whatever you just tapped.
+      onPick: name => setAimTargetName(name),
       onClose: () => setSkyOpen(false),
       sensorMsg: aimStatusMsg
     })
