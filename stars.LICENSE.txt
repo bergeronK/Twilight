@@ -1,0 +1,17 @@
+stars.bin — background star catalogue for Twilight's Sky View
+
+Derived from the HYG database (https://github.com/astronexus/HYG-Database),
+compiled by David Nash from the Hipparcos, Yale Bright Star and Gliese
+catalogues.
+
+Because it is a filtered subset of a CC BY-SA database, this data file is
+itself licensed:
+
+    Creative Commons Attribution-ShareAlike 4.0 International
+    https://creativecommons.org/licenses/by-sa/4.0/
+
+This licence applies to stars.bin only. Twilight's own source is unaffected.
+
+Contents: stars to visual magnitude 5.0, excluding the 57
+navigational stars already carried in index.html. Regenerate with
+scripts/generate-star-catalog.js.
