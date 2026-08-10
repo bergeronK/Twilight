@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Myy+lAbpBMPFCERo6iMbxQ1xhWvSYXG1fDzTZuA5aZk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-p8q+qq5vkQ5tniyfJzMuQnlMKqkovyLpr+OopYPXiYU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1499,6 +1499,10 @@ const C = {
    warm for panels and cards) so the page's negative space reads as night
    sky while content surfaces keep their candle-lit warmth. Used across
    Console, Ephemeris, and Stars so all three tabs share one backdrop. */
+// Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
+// so a bug report says which build it came from — a stale service worker
+// looks exactly like a fix that didn't work.
+const BUILD = "v53";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -4357,6 +4361,10 @@ function StarFinder({ redMode } = {}) {
   const [needsCal, setNeedsCal] = useState(false);
   const [showCalHelp, setShowCalHelp] = useState(false);
   const [screenAngle, setScreenAngle] = useState(0);
+  // Sensor diagnostics — the only way to debug a device I can't hold.
+  const sensorStatsRef = useRef({ rel: 0, abs: 0, usable: 0, last: null });
+  const [showDiag, setShowDiag] = useState(false);
+  const [sensorStats, setSensorStats] = useState(null);
   const aimOffset = useAimOffset();
   // Aiming means holding the phone up and looking away from it, which is
   // exactly when the display would otherwise sleep. Hold a wake lock for as
@@ -4391,6 +4399,15 @@ function StarFinder({ redMode } = {}) {
   const startAim = name => { setAimTargetName(name); return ensureSensors(); };
   const openSky = () => { setSkyOpen(true); return ensureSensors(); };
   const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setOrient(null); setShowCalHelp(false); };
+  // Poll the tally into state only while the panel is open — sampling at 60Hz
+  // to render a debug readout would be worse than the bug it diagnoses.
+  useEffect(() => {
+    if (!showDiag) return;
+    const tick = () => setSensorStats({ ...sensorStatsRef.current });
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [showDiag]);
   // Track how far the UI is rotated from the device's natural orientation, so
   // the flat-phone compass fallback still points where the user is looking
   // after they turn the phone sideways.
@@ -4436,6 +4453,22 @@ function StarFinder({ redMode } = {}) {
     // this did originally) means Android never yields a heading at all.
     let sawAbsolute = false;
     const handler = e => {
+      // Tally first, before any filtering: when nothing works, the useful
+      // question is whether events arrive at all and what they contain.
+      const st = sensorStatsRef.current;
+      if (e.type === 'deviceorientationabsolute') st.abs++; else st.rel++;
+      // Browsers fire orientation events with null angles when the sensors
+      // aren't actually delivering (no permission, no hardware, or just not
+      // started yet). "Events arriving" and "events carrying data" are
+      // different failures with different fixes, so count them separately.
+      if (typeof e.alpha === 'number' || typeof e.webkitCompassHeading === 'number') st.usable++;
+      st.last = {
+        type: e.type, absolute: e.absolute,
+        alpha: typeof e.alpha === 'number' ? Math.round(e.alpha * 10) / 10 : null,
+        beta: typeof e.beta === 'number' ? Math.round(e.beta * 10) / 10 : null,
+        gamma: typeof e.gamma === 'number' ? Math.round(e.gamma * 10) / 10 : null,
+        wk: typeof e.webkitCompassHeading === 'number' ? Math.round(e.webkitCompassHeading) : null
+      };
       const absEvent = e.type === 'deviceorientationabsolute' || e.absolute === true;
       let alpha = null, acc = null, abs = absEvent;
       if (typeof e.webkitCompassHeading === 'number') {
@@ -4800,6 +4833,44 @@ function StarFinder({ redMode } = {}) {
       " by eye and tap Align."
     )
   );
+  // Sensor diagnostics. Browsers disagree about which orientation event
+  // carries a heading, and a device that reports nothing looks identical to
+  // one whose events are being discarded — this tells them apart, and gives a
+  // user something concrete to send when reporting "it doesn't work".
+  const diagRow = (k, v) => React.createElement("div", { key: k, style: { display: "flex", gap: 10, justifyContent: "space-between" } },
+    React.createElement("span", { style: { color: C.inkFaint } }, k),
+    React.createElement("span", { style: { color: C.ink, fontVariantNumeric: "tabular-nums", textAlign: "right" } }, v)
+  );
+  const dl = sensorStats && sensorStats.last;
+  const diagBlock = React.createElement("div", { style: { marginTop: 16 } },
+    React.createElement("button", {
+      onClick: () => setShowDiag(v => !v),
+      style: { ...segBtn(showDiag), padding: "5px 11px", fontSize: 11.5 }
+    }, showDiag ? "Hide sensor details" : "Sensor details"),
+    showDiag && React.createElement("div", {
+      style: { fontFamily: "var(--font-ui)", fontSize: 11.5, lineHeight: 1.75, marginTop: 10, maxWidth: 380 }
+    },
+      diagRow("Build", BUILD),
+      diagRow("Secure context", typeof window !== "undefined" && window.isSecureContext === false ? "no" : "yes"),
+      diagRow("DeviceOrientationEvent", typeof DeviceOrientationEvent === "undefined" ? "missing"
+        : (typeof DeviceOrientationEvent.requestPermission === "function" ? "yes (asks permission)" : "yes")),
+      diagRow("deviceorientationabsolute", "ondeviceorientationabsolute" in window ? "supported" : "not supported"),
+      diagRow("Events: relative", sensorStats ? String(sensorStats.rel) : "0"),
+      diagRow("Events: absolute", sensorStats ? String(sensorStats.abs) : "0"),
+      diagRow("Events with angles", sensorStats ? String(sensorStats.usable) : "0"),
+      diagRow("Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")),
+      dl && diagRow("Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")),
+      dl && diagRow("alpha / beta / gamma",
+        (dl.alpha === null ? "—" : dl.alpha) + " / " + (dl.beta === null ? "—" : dl.beta) + " / " + (dl.gamma === null ? "—" : dl.gamma)),
+      dl && dl.wk !== null && diagRow("webkitCompassHeading", String(dl.wk)),
+      React.createElement("div", { style: { color: C.inkFaint, marginTop: 8, lineHeight: 1.5 } },
+        !sensorStats || sensorStats.rel + sensorStats.abs === 0
+          ? "No orientation events are arriving at all — the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
+          : sensorStats.usable === 0
+            ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
+            : "Sensors are working. Move the phone and these numbers should change.")
+    )
+  );
   const aimPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 30px" }
   },
@@ -4851,7 +4922,11 @@ function StarFinder({ redMode } = {}) {
                       "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
                     calBlock
                   )
-              )
+              ),
+          // Always reachable while aiming — including when nothing works,
+          // which is exactly when it's needed. Gating this on `orient` would
+          // hide it in the only case it exists for.
+          diagBlock
         )
   );
   // Sky View is the one thing on this tab you'd reach for standing outside in
