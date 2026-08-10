@@ -217,6 +217,21 @@ viewport widths (see git history on `index.html` for details).
   identifiable by tap. Regenerate: download the HYG CSV, then
   `node scripts/generate-star-catalog.js <csv>`.
 
+- **Navigator v1.5 — Android heading fix (from a real-device report).** Aim
+  Assist and Sky View never produced a heading on Android. Plain
+  `deviceorientation` on Android Chrome is **relative** (`absolute: false`,
+  arbitrary yaw origin); true north arrives on a **separate
+  `deviceorientationabsolute` event**, which the code never listened for.
+  Now listens to both, prefers absolute once seen, and *uses* a relative
+  heading rather than discarding it — tilt is valid regardless, and the
+  manual "Align" offset converts an arbitrary yaw origin into a correct
+  bearing. **Testing lesson:** every synthetic test dispatched
+  `{absolute:true}` on `deviceorientation`, the one combination Android never
+  sends; the regression test now names all three platform contracts (iOS
+  `webkitCompassHeading`, Android `deviceorientationabsolute`, spec
+  `absolute:true`). Treat sensor code as unverified until a real device
+  confirms it, no matter how green the synthetic tests are.
+
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
