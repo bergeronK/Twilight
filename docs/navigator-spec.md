@@ -290,7 +290,13 @@ same sensor plumbing as Aim Assist.
 - Sky View sits at z-index 300, above the tab bar (100) and its menu (200):
   it's immersive and owns the screen until Back is tapped.
 
-## v1.5 — the Android heading bug (real-device report)
+## v1.5 — the Android heading bug (real-device report, **confirmed fixed**)
+
+**Status: verified working on a real Android device.** This is the first part
+of Navigator confirmed against actual hardware rather than synthetic events.
+Still unverified on a device: the turn/tilt direction signs and roll
+behaviour (see the field-test list at the end of this section).
+
 
 Aim Assist and Sky View never produced a heading on Android. Reported from an
 actual device; the sandbox could not have caught it, because the fix depends
@@ -325,6 +331,33 @@ the event shapes they synthesise. Every test here dispatched
 `{absolute: true}` on `deviceorientation`, which is the one combination
 Android never sends. The regression test now covers all three platform
 contracts by name.
+
+### Still to confirm on a real device
+
+The heading now works; these are the remaining things no synthetic test can
+settle, in priority order. Each is a sign convention that is either right or
+exactly backwards — there is no partial failure mode.
+
+1. **Turn direction.** Face ~90° away from the target. "Turn 90° right" must
+   mean the user's right.
+2. **Tilt direction.** Aim well below a high body. It must say "tilt **up**".
+   This is the one the v1 spec called unverifiable.
+3. **Roll.** Aim at a star, then rotate the phone about the sighting axis.
+   The star must not move. Verified to 1e-13° in maths (`orientationToAim`
+   roll sweep), never in a hand.
+4. **Landscape.** Turning the phone sideways while aiming must not make the
+   view jump — this exercises `screenUpHeading`'s screen-angle term.
+5. **Sky View registration.** Point at the Moon with the camera on; the drawn
+   Moon should sit on the real one after **Align** and **Match to camera**.
+
+### Sensor diagnostics
+
+"Sensor details" in Aim Assist is a permanent feature, not debug scaffolding.
+It reports build number, secure context, event support, relative/absolute
+event counts, how many carried angles, the heading source and the last raw
+angles. It is what turned "doesn't work on Android" into a specific,
+fixable cause, and it distinguishes the three failure modes (no events /
+events without angles / working) that otherwise look identical to a user.
 
 ## Sky View v1.3 — tap to identify, FOV calibration, placement
 

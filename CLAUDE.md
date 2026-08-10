@@ -231,6 +231,14 @@ viewport widths (see git history on `index.html` for details).
   `webkitCompassHeading`, Android `deviceorientationabsolute`, spec
   `absolute:true`). Treat sensor code as unverified until a real device
   confirms it, no matter how green the synthetic tests are.
+  **Confirmed working on a real Android device** — the first part of
+  Navigator verified against actual hardware. Aim Assist also gained a
+  permanent **"Sensor details"** panel (build number, event counts,
+  events-carrying-angles, heading source, raw angles) which is what made the
+  cause findable remotely; keep it. **Still unverified on hardware:** the
+  turn/tilt direction signs, roll behaviour, landscape, and Sky View camera
+  registration — the field-test list is at the end of the v1.5 section in
+  `docs/navigator-spec.md`.
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
