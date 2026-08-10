@@ -194,11 +194,19 @@ viewport widths (see git history on `index.html` for details).
   1e-12 px of screen centre across 1,600 random orientations × 4 screen
   angles). Drag-to-look fallback with no sensors — which is also what makes
   it testable in CI. Optional camera passthrough, off by default;
-  `NSCameraUsageDescription` and Android `CAMERA` now declared. **Known
-  gaps:** the star catalog is still just the 57 nav stars, so the view is
-  sparse; and overlay-to-camera registration (FOV + magnetometer) is the one
-  part that genuinely needs a real device. `docs/app-store-privacy-answers.md`
-  needs a camera entry before submission.
+  `NSCameraUsageDescription` and Android `CAMERA` now declared.
+- **Navigator v1.3 — Sky View polish.** Launcher promoted to the top of the
+  Stars tab (was buried below the sight-reduction form). Tap any body to
+  identify it — sets the Aim Assist target too. **Match to camera** FOV
+  control (±3°, `tw_sky_fov`, default 63°): no web API reports a camera's
+  field of view — verified directly, `getSettings`/`getCapabilities`/
+  `getSupportedConstraints` have nothing FOV-related — so it must be matched
+  by eye. With the heading offset, both registration axes are now
+  user-correctable, which removes "needs a real device" from that gap.
+  **Remaining known gap:** the star catalog is still just the 57 nav stars,
+  so the view is sparser than a planetarium app. Adding a denser catalog is
+  a licensing/payload decision (see below), not a math one — the projection
+  already takes arbitrary body lists.
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
@@ -223,6 +231,19 @@ viewport widths (see git history on `index.html` for details).
 - Alerts (clear-and-dark-tonight push notifications) — needs a backend
   decision (Cloudflare Worker + Cron Triggers is the natural fit given the
   existing visitor-counter Worker).
+- **Denser star catalog for Sky View — needs an owner licensing call, not
+  engineering.** The 57 nav stars leave the view sparse. Reachable sources
+  were checked from this sandbox: the HYG database
+  (`astronexus/HYG-Database`, reachable) is **CC BY-SA 4.0**, so shipping it
+  means attribution plus share-alike obligations on the derived data file;
+  the commonly-mirrored Yale Bright Star Catalog JSON
+  (`brettonw/YaleBrightStarCatalog`, reachable) declares **no license at
+  all**, which is worse despite the underlying catalog being public science
+  data; CDS/VizieR is blocked by the network policy. Don't embed either
+  without the owner deciding. Mechanically it's easy: filtering to mag ≤ 5
+  is ~1,600 stars, and the natural shape is a `stars.bin` fetched at runtime
+  exactly like `bortle-cities.bin` (add to `sw.js` ASSETS and
+  `native/sync-web.js`), keeping `index.html` and its 5-script CSP untouched.
 - App Store screenshots: **done for both iPhone and iPad**
   (`store-assets/ios/`, 1260×2736 and 2064×2752, regenerate via
   `node store-assets/generate.js`). Owner chose **Universal** (iPhone +

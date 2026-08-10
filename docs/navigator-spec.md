@@ -290,6 +290,23 @@ same sensor plumbing as Aim Assist.
 - Sky View sits at z-index 300, above the tab bar (100) and its menu (200):
   it's immersive and owns the screen until Back is tapped.
 
+## Sky View v1.3 — tap to identify, FOV calibration, placement
+
+- **Tap anything to identify it.** Pointing a phone at the sky is the
+  question "what is that?", and until now the only way to name something was
+  to have already chosen it in Aim Assist. A tap hit-tests every body within
+  44px and picks the brightest of any near-tie, so a faint star can't steal
+  the tap from the planet beside it. Dragging is excluded by an 8px movement
+  threshold, and mouse-leave / touch-cancel abandon the gesture rather than
+  registering as a tap. The pick sets the Aim Assist target too, so closing
+  the overlay leaves you pointed at whatever you tapped.
+- **Match to camera** (±3°, persisted) — see the FOV note above for why this
+  has to be manual.
+- **The launcher moved to the top of the Stars tab.** It was previously only
+  in the Aim Assist section at the very bottom, below the star table and the
+  whole sight-reduction form. Now it's a tappable card directly under the
+  header, above the fold on a 390×844 phone.
+
 **Still open — full AR registration.** Raised again after v1.1.
 The projection itself turned out to be verifiable on a desk (see v1.2 above),
 so the camera shipped. What is still genuinely unvalidated is *registration*:
@@ -297,11 +314,21 @@ whether the rendered sky lines up with the camera image to within a few
 degrees on a real device. Two unknowns drive that, and neither can be
 measured here:
 
-- **Camera FOV.** `SKY_FOV` is a fixed 63°, which is typical but not
-  universal; a phone whose rear camera differs will show a consistent scale
-  error between the overlay and the image. The real fix is reading the actual
-  FOV from the `MediaStreamTrack` settings and using it when the camera is
-  on — worth doing, but pointless to tune blind.
+- **Camera FOV — resolved in v1.3, but not the way this doc first claimed.**
+  An earlier revision said the fix was "read the actual FOV from the
+  `MediaStreamTrack` settings". That is not possible: **no web API exposes a
+  camera's field of view.** Verified directly against Chromium —
+  `getSettings()`, `getCapabilities()` and
+  `getSupportedConstraints()` contain nothing FOV-, focal-length- or
+  intrinsics-related (settings expose only deviceId/exposure/focus/group;
+  capabilities add aspectRatio/width/height/frameRate/facingMode/resizeMode).
+  Since the value cannot be read, the only correct fix is to let the user
+  match it by eye once: Sky View shows a **Match to camera** control (±3°)
+  whenever the camera is on, persisted as `tw_sky_fov`, defaulting to
+  `SKY_FOV_DEFAULT` = 63°. That turns registration from something needing a
+  developer with a device into something any user can correct in five
+  seconds — and, with the existing heading offset, both registration axes are
+  now user-correctable.
 - **Magnetometer error**, which the Aim Assist calibration already addresses
   and which the manual offset already corrects. Registration makes that error
   visible in a way the numeric readout doesn't, so real-device use may show
