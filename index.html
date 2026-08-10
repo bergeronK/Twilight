@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gDwAa80Z7+4ws0BlVA7p+fDlRXfEtGNI1VzC+OMBm7o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-PQses9a81w0jcNCzuV2Kg8Oa4OO9Wj5GbylmzTmNiqo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -719,6 +719,45 @@ function loadBortleCities() {
       });
   }
   return bortleCitiesPromise;
+}
+/* ---- Background star catalogue for Sky View (stars.bin) ----
+   The 57 NAV_STARS are the app's working set; this is everything else down to
+   magnitude 5, so the view looks like the sky rather than a scatter of a few
+   dots. Fetched on first use rather than inlined, exactly like
+   bortle-cities.bin — it keeps index.html (and its 5-script CSP) untouched.
+   Data derived from the HYG database, CC BY-SA 4.0; see stars.LICENSE.txt.
+   Format is documented in scripts/generate-star-catalog.js. */
+let starCatalogPromise = null;
+function loadStarCatalog() {
+  if (!starCatalogPromise) {
+    starCatalogPromise = fetch('stars.bin')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.arrayBuffer(); })
+      .then(buf => {
+        const dv = new DataView(buf);
+        const n = dv.getUint32(0, true);
+        const raOff = 4, decOff = raOff + n * 2, magOff = decOff + n * 2;
+        const lenOff = magOff + n;
+        let p = lenOff + n;
+        const td = new TextDecoder();
+        const out = new Array(n);
+        for (let i = 0; i < n; i++) {
+          const len = dv.getUint8(lenOff + i);
+          let name = '';
+          if (len) { name = td.decode(new Uint8Array(buf, p, len)); p += len; }
+          out[i] = {
+            ra: dv.getUint16(raOff + i * 2, true) * 360 / 65536,
+            dec: dv.getInt16(decOff + i * 2, true) * 90 / 32767,
+            mag: dv.getInt8(magOff + i) / 10,
+            name
+          };
+        }
+        return out;
+      })
+      // Sky View is fully usable on the nav stars alone, so a missing or
+      // corrupt catalogue degrades to the old behaviour rather than failing.
+      .catch(() => []);
+  }
+  return starCatalogPromise;
 }
 const BORTLE_THRESH = [0.3, 0.9, 1.5, 2.2, 2.9, 3.5, 4.0, 4.2]; // log10(score+1) cut points for classes 1..9
 function estimateBortle(lat0, lon0, data) {
@@ -4037,19 +4076,28 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
 
     // Bodies, faintest first so bright ones win any overlap.
     const drawn = [];
-    bodies.slice().sort((a, b) => b.mag - a.mag).forEach(bd => {
+    // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
+    // ones without a per-frame sort of ~1600 entries.
+    bodies.forEach(bd => {
       const d = dir(bd), p = proj(d);
       if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
       const isTarget = bd.name === targetName;
-      let r, fill;
+      let r, fill, dim = 1;
       if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
       else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
       else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
-      else { r = Math.max(1.6, 5.2 - bd.mag * 1.15); fill = '#eef2ff'; }
+      else {
+        // Magnitude -> radius/opacity. With a full catalogue the faint end
+        // has to actually recede, or 1500 stars all render as identical dots
+        // and the constellations stop being readable.
+        r = Math.max(0.7, 4.6 - bd.mag * 0.72);
+        fill = '#eef2ff';
+        dim = Math.max(0.34, Math.min(1, 1.06 - bd.mag * 0.1));
+      }
       // Below the horizon the Earth is in the way. Still drawn, so the view
       // stays continuous as you sweep down past the skyline, but dimmed so
       // it never reads as something you could actually go and look at.
-      g.globalAlpha = bd.alt < 0 ? 0.22 : 1;
+      g.globalAlpha = bd.alt < 0 ? dim * 0.22 : dim;
       if (bd.kind === 'sun' || bd.kind === 'moon') {
         const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
         glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
@@ -4063,11 +4111,10 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
         g.strokeStyle = '#e8b563'; g.lineWidth = 2;
         g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
       }
-      // Label everything. The catalog is only the 57 navigational stars, so
-      // even a wide frame holds a handful — an unlabelled dot defeats the
-      // entire point of the view, and the collision check below is what
-      // keeps a crowded patch readable.
-      {
+      // Label the working set (Sun/Moon/planets/nav stars) plus any catalogue
+      // star bright enough to be worth naming unprompted. Labelling all ~1600
+      // would bury the view in text; everything else is identifiable by tap.
+      if (isTarget || bd.kind !== 'star' || bd.nav || (bd.name && bd.mag <= 2.6)) {
         if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
           g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
           g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
@@ -4118,6 +4165,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     if (!onPick) return;
     let best = null, bestD = 44;
     bodies.forEach(bd => {
+      if (!bd.name) return; // catalogue stars without a proper name can't be named
       const p = skyProject(worldToScreenDir(bd.az, bd.alt, view.alpha, view.beta, view.gamma, view.sa), size.w, size.h, fov);
       if (!p) return;
       const d = Math.hypot(p.x - cx, p.y - cy);
@@ -4312,6 +4360,15 @@ function StarFinder({ redMode } = {}) {
   // long as a target is selected.
   const wakeRef = useRef(null);
   const [skyOpen, setSkyOpen] = useState(false);
+  // Fetched the first time Sky View is opened — no reason to spend the
+  // request on visitors who only use the star table.
+  const [starCatalog, setStarCatalog] = useState(null);
+  useEffect(() => {
+    if (!skyOpen || starCatalog) return;
+    let live = true;
+    loadStarCatalog().then(c => { if (live) setStarCatalog(c); });
+    return () => { live = false; };
+  }, [skyOpen, starCatalog]);
   // Shared by Aim Assist and Sky View. Must be reached synchronously from a
   // tap: iOS only grants motion access during a real user gesture.
   const ensureSensors = async () => {
@@ -4427,12 +4484,21 @@ function StarFinder({ redMode } = {}) {
       const r = planetAltAz(p, d, loc.lat, loc.lon);
       if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
     });
+    // nav: true marks the app's working set — always labelled, and the only
+    // stars the sight-reduction and aim tools know about.
     NAV_STARS.forEach(st => {
       const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, d);
-      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3] });
+      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3], nav: true });
     });
-    return out.filter(b => b.alt > -12);
-  }, [now, loc.lat, loc.lon]);
+    (starCatalog || []).forEach(st => {
+      const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, d);
+      out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag });
+    });
+    // Sorted faintest-first once here rather than per frame, so the draw loop
+    // gets correct overlap (bright on top) without re-sorting ~1600 entries
+    // on every sensor event.
+    return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
+  }, [now, loc.lat, loc.lon, starCatalog]);
   // iOS is the only platform that tells us how good the heading is:
   // webkitCompassAccuracy is +/- degrees, or negative when it's unusable.
   const compassQuality = orient && typeof orient.acc === 'number'
@@ -5204,7 +5270,9 @@ function TwilightApp() {
       React.createElement("span", null,
         "Sun & moon: NOAA / Schlyter models · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
-        " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · No tracking — only an anonymous visit count. ",
+        " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
+        React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
+        " (CC BY-SA 4.0) · No tracking — only an anonymous visit count. ",
         React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy")
       )
     )

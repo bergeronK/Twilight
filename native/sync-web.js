@@ -18,6 +18,7 @@ const FILES = [
   'index.html',
   'manifest.json',
   'bortle-cities.bin',
+  'stars.bin',
   'icon-192.png',
   'icon-512.png',
   'icon-512-maskable.png',
