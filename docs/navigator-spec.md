@@ -290,6 +290,42 @@ same sensor plumbing as Aim Assist.
 - Sky View sits at z-index 300, above the tab bar (100) and its menu (200):
   it's immersive and owns the screen until Back is tapped.
 
+## v1.5 — the Android heading bug (real-device report)
+
+Aim Assist and Sky View never produced a heading on Android. Reported from an
+actual device; the sandbox could not have caught it, because the fix depends
+on an event this environment never fires.
+
+**Cause.** There are three different platform contracts and the code only
+implemented two:
+
+| Platform | Where a true-north heading comes from |
+|---|---|
+| iOS Safari | `deviceorientation` carrying `webkitCompassHeading` (already true north) |
+| **Android Chrome** | **a separate `deviceorientationabsolute` event** — plain `deviceorientation` is *relative*, its alpha taken from the game rotation vector with an arbitrary yaw origin |
+| Others | `deviceorientation` with `absolute === true` |
+
+The handler listened only to `deviceorientation` and required `e.absolute`,
+which on Android is `false`. So alpha was never accepted, `orient` stayed
+null, and the UI sat on "Waiting for compass data…" / "No compass here".
+
+**Fix.** Listen to `deviceorientationabsolute` as well, and accept a relative
+alpha rather than discarding it. Absolute wins once seen — both streams fire
+on Android and the relative one would otherwise fight it.
+
+**Relative headings are now usable, not rejected.** Tilt from a relative
+event is fully valid, and the existing manual offset turns an arbitrary yaw
+origin into a correct bearing the moment the user aligns on a known body. The
+UI says so explicitly instead of being silently wrong: *"This phone isn't
+reporting a true-north heading… point at X by eye and tap Align — that sets
+north and it sticks."*
+
+**Lesson for future sensor work:** synthetic-event tests are only as good as
+the event shapes they synthesise. Every test here dispatched
+`{absolute: true}` on `deviceorientation`, which is the one combination
+Android never sends. The regression test now covers all three platform
+contracts by name.
+
 ## Sky View v1.3 — tap to identify, FOV calibration, placement
 
 - **Tap anything to identify it.** Pointing a phone at the sky is the
