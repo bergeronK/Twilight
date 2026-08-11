@@ -178,6 +178,31 @@ buildable and testable entirely in a browser (including this sandbox).
    fix as lat/lon plus a "cut quality" readout (reusing the strong/fair/weak
    cut language already used for the 3-star recommender).
 
+**Edge cases — shipped in v1.6, not in v1.** These were specified below and
+then not implemented, which left a real hole: a sight of a body that was
+below the horizon still produced a confident intercept and was averaged into
+the fix. A single bad line moved the answer somewhere plausible-looking with
+nothing on screen to say so. Now:
+
+- **Body below the horizon** (`Hc < -0.5°`) — named outright ("Canopus was
+  80° below the horizon at that time, so it could not have been sighted;
+  check the date, time and time zone"), because a wrong date or a 12-hour
+  slip is the most common blunder and is invisible in the output otherwise.
+- **Near the zenith** (`Hc > 88°`) — azimuth is poorly defined, so the sight
+  cannot give a usable position line.
+- **Both are excluded from the fix**, not merely flagged, and the fix panel
+  says "Using 2 of 3 sights" when it drops any. Flagging alone would still
+  have let a garbage line steer the result.
+- **Low sights** (`Ho < 5°`) — warned as weak; refraction is large and
+  uncertain there. `sightToHo` also clamps the altitude fed to Bennett's
+  formula at `-0.5°`, since its tangent argument goes to zero below the
+  horizon and the correction runs away.
+- **Implausible intercept** (`|intercept| > 60 nm`) — flagged as a probable
+  blunder. Wrong body, wrong hour and transposed digits all surface this way
+  far more often than a genuinely poor position does.
+
+Original specification:
+
 **Edge cases to design for up front:** sights very near the horizon (large,
 fast-changing refraction — Bennett's formula gets unreliable below ~0°,
 should warn/clamp); sights very near zenith (azimuth becomes poorly defined,

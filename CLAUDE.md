@@ -240,6 +240,17 @@ viewport widths (see git history on `index.html` for details).
   registration — the field-test list is at the end of the v1.5 section in
   `docs/navigator-spec.md`.
 
+- **Navigator v1.6 — sight-reduction edge cases.** The guards
+  `docs/navigator-spec.md` specified for Feature A were never implemented in
+  v1. A sight of a body below the horizon produced a confident intercept
+  (measured: Canopus at Hc −79° gave 5,981 nm) and was silently averaged into
+  the fix. Now: below-horizon and near-zenith sights are named *and excluded*
+  from the fix (panel says "Using 2 of 3 sights"), low sights are warned as
+  weak, `sightToHo` clamps Bennett's refraction argument at −0.5°, and an
+  intercept over 60 nm is flagged as a probable blunder. Worth remembering
+  that a shipped feature can match its spec's *happy path* completely and
+  still have skipped the spec's edge-case section.
+
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
