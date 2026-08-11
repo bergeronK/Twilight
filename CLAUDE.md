@@ -39,6 +39,16 @@ Three tabs, one `index.html`, no build step:
     controls (inputs, buttons, toggles). Read-only content is flat, separated
     by hairlines only. If you're tempted to put a box around informational
     text, don't.
+  - **Voice rule** (owner decision, applied in the copy pass): warmer but
+    still precise — full sentences rather than telegraphic fragments, plain
+    words wherever a plain word exists, every number and claim unchanged.
+    The app serves two audiences at once, and the rule that resolves it is:
+    **the Navigator's vocabulary must not leak outward.** A sextant user
+    needs `Hs`, `index error`, `on the arc`, so those field names stay — but
+    each is glossed in plain language nearby, and terms like *limiting
+    magnitude*, *Bortle*, *cut* and *marine horizon* do not belong on the
+    Console, which is where a casual stargazer lands first. Reference
+    sentence for the intended register: *"Dark skies and the Moon is down."*
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.

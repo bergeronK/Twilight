@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Rjmv8XLbEcDPWq0x0fj3LI7/rnUU0Tsb86i3AM17S7A=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-AiQ4IS4xtw9iccrQ2XNy0MX+Ms/h0MGe0tUHt1zT7io=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -691,6 +691,13 @@ const BORTLE = {
   7: { nelm: 4.9, label: "7 · Suburban / urban transition" },
   8: { nelm: 4.4, label: "8 · City sky" },
   9: { nelm: 4.0, label: "9 · Inner-city sky" }
+};
+/* Short form of the labels above, for places with no room for the full
+   phrase. Kept adjacent so the two can't drift apart. The number means
+   nothing to most people; the word does, so the word leads. */
+const BORTLE_WORD = {
+  1: "Excellent dark sky", 2: "Truly dark", 3: "Rural", 4: "Rural/suburban", 5: "Suburban",
+  6: "Bright suburban", 7: "Suburban/urban", 8: "City", 9: "Inner-city"
 };
 /* ---- Auto Bortle estimate from a bundled city/population dataset (SimpleMaps
    World Cities, CC BY 4.0; see scripts/build-bortle-data.js). Approximates
@@ -1502,7 +1509,7 @@ const C = {
 // Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
 // so a bug report says which build it came from — a stale service worker
 // looks exactly like a fix that didn't work.
-const BUILD = "v54";
+const BUILD = "v55";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -1734,7 +1741,7 @@ function cutQuality(azList) {
     let d = Math.abs(azList[i] - azList[j]) % 360; if (d > 180) d = 360 - d;
     minSep = Math.min(minSep, d);
   }
-  return minSep >= 60 ? 'strong cut' : minSep >= 35 ? 'fair cut' : 'weak cut · bearings close';
+  return minSep >= 60 ? 'well spread' : minSep >= 35 ? 'fair spread' : 'poorly spread · bearings too close';
 }
 // "Clear AND Dark" scoring: fuse the cloud forecast (the only new, variable
 // input) with the darkness Twilight already models (twilight phase + moon).
@@ -2400,7 +2407,7 @@ function RealtimeTwilight({ redMode } = {}) {
     },
       [
         { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: wxScore ? wxScore.factor : "forecast unavailable", hero: true },
-        { k: "Limiting magnitude", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `Bortle ${bortle} sky` : "naked-eye depth" },
+        { k: "Faintest star visible", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `${BORTLE_WORD[bortle] || "Class " + bortle} (Bortle ${bortle})` : "with your eyes alone" },
         { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
         { k: "Planets up", v: String(planets.length), h: "above horizon" }
       ].map(s => React.createElement("div", { key: s.k },
@@ -2518,7 +2525,7 @@ function RealtimeTwilight({ redMode } = {}) {
       letterSpacing: 1,
       color: live.hv > 0.1 ? "#bcd0e6" : "#5a6478"
     }
-  }, live.hv > 0.55 ? "HORIZON: SHARP" : live.hv > 0.1 ? "HORIZON: FAINT — USABLE" : "HORIZON: LOST"), React.createElement("div", {
+  }, live.hv > 0.55 ? "HORIZON: SHARP" : live.hv > 0.1 ? "HORIZON: FAINT, STILL USABLE" : "HORIZON: OUT OF SIGHT"), React.createElement("div", {
     style: {
       position: "absolute",
       left: 14,
@@ -2599,7 +2606,7 @@ function RealtimeTwilight({ redMode } = {}) {
       fontSize: 13.5,
       minHeight: 34
     }
-  }, live.phase === "day" ? "Sun above the horizon. Wait for dusk to begin sights." : live.phase === "civil" ? "Brightest bodies only; horizon razor-sharp. Window approaching." : live.phase === "naut" ? "Horizon and navigational stars both present — take your sights now." : live.phase === "astro" ? "Horizon fading into sky-glow; sky deep enough for faint objects." : "Full darkness. No marine horizon; ideal for deep-sky observing."),
+  }, live.phase === "day" ? "The sun is still up. Wait for dusk before taking sights." : live.phase === "civil" ? "Only the brightest planets and stars are out yet, but the horizon is razor-sharp. The sextant window is coming." : live.phase === "naut" ? "The horizon and the navigation stars are both visible — this is the moment to take your sights." : live.phase === "astro" ? "The horizon is fading into the sky-glow, and the sky is dark enough for faint objects." : "Full darkness — the best hours of the night for faint objects. The sea horizon has gone, so sextant sights aren't possible now."),
   nextSunEv && React.createElement("div", {
     style: {
       marginTop: 14
@@ -2627,14 +2634,14 @@ function RealtimeTwilight({ redMode } = {}) {
       marginTop: 18
     }
   }, React.createElement(RO, {
-    label: "Sun alt.",
+    label: "Sun height",
     value: `${live.alt >= 0 ? "+" : ""}${live.alt.toFixed(1)}°`
   }), React.createElement(RO, {
-    label: "Limiting mag",
+    label: "Faintest star",
     value: `${live.mag <= -9 ? "—" : (live.mag >= 0 ? "+" : "") + live.mag.toFixed(1)}`,
     accent: live.mag >= 3 ? C.brassHi : C.ink
   }), React.createElement(RO, {
-    label: "Horizon",
+    label: "Horizon visible",
     value: `${(live.hv * 100).toFixed(0)}%`,
     accent: live.hv > 0.1 ? "#bcd0e6" : "#6a7488"
   })), React.createElement("div", {
@@ -2801,15 +2808,15 @@ function RealtimeTwilight({ redMode } = {}) {
   }, [{
     c: "var(--band-civil)",
     n: "Civil 0° to −6° (Golden Hour)",
-    t: "Horizon sharp. Warm golden light ideal for photography. Brightest bodies only. First/last bright-planet sights."
+    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
   }, {
     c: "var(--band-naut)",
     n: "Nautical −6° to −12°",
-    t: "Horizon faint but usable + nav stars to mag 3. The sextant window."
+    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
   }, {
     c: "var(--band-astro)",
     n: "Astronomical −12° to −18°",
-    t: "Horizon lost; sky toward full dark. Deep-sky observing, not marine sights."
+    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
   }].map(p => React.createElement("div", {
     key: p.n,
     style: {
@@ -4611,7 +4618,7 @@ function StarFinder({ redMode } = {}) {
       ? "Civil twilight — the brightest stars and planets are emerging."
       : sunAlt > -12
         ? "Nautical twilight — ideal for star sights: stars are out and the sea horizon is still visible."
-        : "Night — stars are out, though the sea horizon can be hard to make out for a sextant fix.";
+        : "Night — the stars are out. The sea horizon is hard to make out now, so a sextant fix is difficult until dawn.";
   const navHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "var(--ink-faint)", textTransform: "uppercase" };
   // Recommended 3-star fix: bright stars at a workable altitude (15–70°),
   // greedily spread in azimuth for the strongest position-line cut.
@@ -4636,7 +4643,7 @@ function StarFinder({ redMode } = {}) {
   const fixNames = new Set(fixStars.map(s => s.name));
   let fixMinSep = 360;
   for (let i = 0; i < fixStars.length; i++) for (let j = i + 1; j < fixStars.length; j++) { let d = Math.abs(fixStars[i].az - fixStars[j].az) % 360; if (d > 180) d = 360 - d; fixMinSep = Math.min(fixMinSep, d); }
-  const fixQual = fixStars.length < 3 ? "" : fixMinSep >= 60 ? "strong cut" : fixMinSep >= 35 ? "fair cut" : "weak cut · bearings close";
+  const fixQual = fixStars.length < 3 ? "" : fixMinSep >= 60 ? "well spread" : fixMinSep >= 35 ? "fair spread" : "poorly spread · bearings too close";
   // Polar sky dial: azimuth around the rim, altitude as radius (horizon at edge, zenith centre).
   const D2Rl = Math.PI / 180, DR = 86;
   const dialStars = navStars.map(s => {
@@ -4695,7 +4702,7 @@ function StarFinder({ redMode } = {}) {
       })
     ),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 14, lineHeight: 1.5 } },
-      navStars.length, " navigational stars above 8° · ◆ = suggested fix · Hc = altitude, Zn = true azimuth · J2000 positions, naked-eye accuracy.")
+      navStars.length, " of the 57 navigational stars are more than 8° above your horizon. ◆ marks the three that would give the best fix. Altitude is how high a star sits above the horizon; azimuth is the compass bearing you'd face to see it.")
   );
   const starFinderPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
@@ -4766,8 +4773,8 @@ function StarFinder({ redMode } = {}) {
   },
     React.createElement("div", { style: navSectionHdr }, "Navigator · Sight Reduction"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 18, maxWidth: 640 } },
-      "Enter a real sextant sight and Twilight corrects it (dip, refraction, semi-diameter, parallax) and computes the intercept against your assumed position — ",
-      loc.name, ". Add 2-3 sights spread across different bearings for a fix."),
+      "Enter a reading from a real sextant. Twilight applies the standard corrections — for your height above the water, for the way the atmosphere bends light, and for the size and nearness of the Sun or Moon — then compares the result with where the body should have been from your assumed position, ",
+      loc.name, ". Two or three sights of bodies in different directions will give you a fix."),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", navLabelSt, "Body"),
@@ -4816,6 +4823,26 @@ function StarFinder({ redMode } = {}) {
           React.createElement("button", { style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
         )
       )
+    ),
+    // The field names are the ones every sextant manual uses, so they stay.
+    // What was missing was anywhere to find out what they mean.
+    React.createElement("div", {
+      style: { fontFamily: "var(--font-body)", fontSize: 12.5, color: C.inkDim, lineHeight: 1.6, maxWidth: 620, marginBottom: 18 }
+    },
+      React.createElement("strong", { style: { color: C.ink, fontWeight: 600 } }, "Hs"),
+      " is the angle you read straight off the sextant. ",
+      React.createElement("strong", { style: { color: C.ink, fontWeight: 600 } }, "Height of eye"),
+      " is how far your eye is above the water — the higher you stand, the further away the horizon sits. ",
+      React.createElement("strong", { style: { color: C.ink, fontWeight: 600 } }, "Index error"),
+      " is your own instrument's zero-point error: ",
+      React.createElement("em", null, "on the arc"),
+      " means it reads high and the error is subtracted.",
+      (sightBody === "sun" || sightBody === "moon") ? " " : null,
+      (sightBody === "sun" || sightBody === "moon")
+        ? React.createElement("span", null,
+            React.createElement("strong", { style: { color: C.ink, fontWeight: 600 } }, "Limb"),
+            " is which edge of the disc you brought down to the horizon — usually the lower one.")
+        : null
     ),
     React.createElement("button", {
       onClick: addSight,
@@ -5301,8 +5328,8 @@ function TwilightApp() {
             }, Object.keys(BORTLE).map(k => React.createElement("option", { key: k, value: k }, BORTLE[k].label))),
         React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } },
           bortleMode === "auto"
-            ? "Estimated from nearby city lights — caps the limiting magnitude for light pollution. Turn off to set it yourself."
-            : (bortle ? `Caps the limiting magnitude at ${BORTLE[bortle].nelm} for light pollution.` : "Set your local light pollution for a realistic limiting magnitude.")
+            ? "Estimated from the city lights around you. It sets how faint a star you could realistically see. Turn this off to choose it yourself."
+            : (bortle ? `Under this sky, the faintest star you could see is about magnitude ${BORTLE[bortle].nelm}.` : "Set how light-polluted your sky is, so the star counts are realistic.")
         ),
         React.createElement("div", { style: { height: 1, background: "var(--line)", margin: "12px 0" } }),
         React.createElement("label", {
