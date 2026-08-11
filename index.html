@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-p8q+qq5vkQ5tniyfJzMuQnlMKqkovyLpr+OopYPXiYU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Rjmv8XLbEcDPWq0x0fj3LI7/rnUU0Tsb86i3AM17S7A=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1502,7 +1502,7 @@ const C = {
 // Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
 // so a bug report says which build it came from — a stale service worker
 // looks exactly like a fix that didn't work.
-const BUILD = "v53";
+const BUILD = "v54";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -1659,7 +1659,11 @@ const moonParallaxCorr = (r, appAltDeg) => moonHP(r) * cos(appAltDeg);
 function sightToHo(opts) {
   const { hs, indexErrorMin = 0, heightM = 0, body = 'star', limb = 'lower', moonR } = opts;
   let h = hs + indexErrorMin / 60 - dipCorr(heightM) / 60;
-  h -= refractionCorr(h) / 60;
+  // Bennett's formula runs away below the horizon (its tangent argument goes
+  // to zero), so clamp the altitude it sees. A sight that low is flagged to
+  // the user separately — this only stops a nonsense number propagating into
+  // the intercept and the fix.
+  h -= refractionCorr(Math.max(h, -0.5)) / 60;
   if (body === 'sun') {
     h += (limb === 'upper' ? -1 : 1) * SUN_SD / 60;
   } else if (body === 'moon') {
@@ -1672,6 +1676,27 @@ function sightToHo(opts) {
 
 // Marcq St. Hilaire intercept: positive = toward the body, in nautical
 // miles (1' of arc = 1nm), along azimuth Zn.
+/* Sanity checks on a reduced sight. A wrong date, a mistyped hour or the
+   wrong body all produce an answer that looks perfectly plausible — a number
+   of miles along a bearing — so the failure has to be named rather than left
+   for the user to notice. Each returns a plain sentence, not a code. */
+function sightWarnings(s, label) {
+  const w = [];
+  if (s.hc < -0.5) {
+    w.push(label + ' was ' + Math.abs(s.hc).toFixed(0) + '° below the horizon at that time, so it could not have been sighted. Check the date, time and time zone.');
+  } else if (s.hc > 88) {
+    w.push('Above 88° the azimuth is poorly defined, so this sight cannot give a usable position line.');
+  }
+  if (s.ho < 5 && s.hc >= -0.5) {
+    w.push('Below about 5° refraction is large and uncertain — treat this sight as weak.');
+  }
+  // A blunder (wrong body, hour out, transposed digits) shows up as a wildly
+  // large intercept far more often than a genuinely poor position does.
+  if (Math.abs(s.nm) > 60) {
+    w.push('Intercept is ' + Math.abs(s.nm).toFixed(0) + ' nm — unusually large. Check Hs, the sight time and the body before trusting it.');
+  }
+  return w;
+}
 function intercept(ho, hc) { return (ho - hc) * 60; }
 
 // Solve a small-area least-squares fix from 2+ position lines, each defined
@@ -4337,12 +4362,19 @@ function StarFinder({ redMode } = {}) {
     else if (s.body === 'moon') { const p = moonState(dt, loc.lat, loc.lon); hc = p.alt; zn = p.az; moonR = p.r; }
     else { const star = NAV_STARS.find(n => n[0] === s.starName) || NAV_STARS[0]; const p = starHcZn(star[1] * 15, star[2], loc.lat, loc.lon, dt); hc = p.alt; zn = p.az; }
     const ho = sightToHo({ hs: s.hs, indexErrorMin: s.ieMin, heightM: s.heightM, body: s.body, limb: s.limb, moonR });
-    return { ...s, hc, zn, ho, nm: intercept(ho, hc) };
+    const out = { ...s, hc, zn, ho, nm: intercept(ho, hc) };
+    const label = s.body === 'sun' ? 'The Sun' : s.body === 'moon' ? 'The Moon' : s.starName;
+    out.warnings = sightWarnings(out, label);
+    return out;
   }), [sights, loc.lat, loc.lon]);
   const sightFix = useMemo(() => {
-    if (computedSights.length < 2) return null;
-    const f = solveFix(loc.lat, loc.lon, computedSights.map(s => ({ zn: s.zn, nm: s.nm })));
-    return f && { ...f, quality: cutQuality(computedSights.map(s => s.zn)) };
+    // Sights of a body that was below the horizon, or so near the zenith that
+    // its azimuth is meaningless, are excluded rather than averaged in — one
+    // impossible line drags the whole fix somewhere plausible-looking.
+    const usable = computedSights.filter(s => s.hc >= -0.5 && s.hc <= 88);
+    if (usable.length < 2) return null;
+    const f = solveFix(loc.lat, loc.lon, usable.map(s => ({ zn: s.zn, nm: s.nm })));
+    return f && { ...f, quality: cutQuality(usable.map(s => s.zn)), used: usable.length, total: computedSights.length };
   }, [computedSights, loc.lat, loc.lon]);
 
   // Celestial-navigation star finder: navigational stars currently up, with Hc/Zn.
@@ -4694,18 +4726,27 @@ function StarFinder({ redMode } = {}) {
   const bodyLabel = s => s.body === 'sun' ? 'Sun' : s.body === 'moon' ? 'Moon' : s.starName;
   const sightRows = computedSights.map(s => React.createElement("div", {
     key: s.id,
-    style: { display: "flex", alignItems: "baseline", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.line}`, fontFamily: "var(--font-ui)", fontSize: 13.5 }
+    style: { padding: "10px 0", borderBottom: `1px solid ${C.line}` }
   },
+    React.createElement("div", {
+      style: { display: "flex", alignItems: "baseline", gap: 12, fontFamily: "var(--font-ui)", fontSize: 13.5 }
+    },
     React.createElement("div", { style: { flex: "1 1 120px", minWidth: 0, color: C.ink, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, bodyLabel(s)),
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Ho ", fmtDM(s.ho)),
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Hc ", fmtDM(s.hc)),
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Zn ", s.zn.toFixed(0), "°"),
     React.createElement("div", { style: { color: s.nm >= 0 ? "var(--accent-hi)" : "#e7b3a3", whiteSpace: "nowrap", fontWeight: 500 } },
       Math.abs(s.nm).toFixed(1), " nm ", s.nm >= 0 ? "toward" : "away"),
-    React.createElement("button", {
-      onClick: () => removeSight(s.id), "aria-label": "Remove sight",
-      style: { background: "transparent", border: "none", color: C.inkFaint, cursor: "pointer", fontSize: 15, padding: "0 2px", flexShrink: 0 }
-    }, "×")
+      React.createElement("button", {
+        onClick: () => removeSight(s.id), "aria-label": "Remove sight",
+        style: { background: "transparent", border: "none", color: C.inkFaint, cursor: "pointer", fontSize: 15, padding: "0 2px", flexShrink: 0 }
+      }, "×")
+    ),
+    // Flat text under the row, per the "no box unless actionable" rule — a
+    // warning is something to read, not something to click.
+    s.warnings.length > 0 && React.createElement("div", {
+      style: { fontFamily: "var(--font-body)", fontSize: 12.5, color: "#e7b3a3", lineHeight: 1.5, marginTop: 6, maxWidth: 620 }
+    }, s.warnings.map((t, i) => React.createElement("div", { key: i }, t)))
   ));
   const fixPanel = sightFix && React.createElement("div", {
     style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
@@ -4715,7 +4756,10 @@ function StarFinder({ redMode } = {}) {
       Math.abs(sightFix.lat).toFixed(4), "° ", sightFix.lat >= 0 ? "N" : "S", ", ",
       Math.abs(sightFix.lon).toFixed(4), "° ", sightFix.lon >= 0 ? "E" : "W"),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkDim, marginTop: 4 } },
-      sightFix.nm.toFixed(1), " nm from your assumed position (", loc.name, ")")
+      sightFix.nm.toFixed(1), " nm from your assumed position (", loc.name, ")"),
+    sightFix.used < sightFix.total && React.createElement("div", {
+      style: { fontFamily: "var(--font-body)", fontSize: 12, color: "#e7b3a3", marginTop: 6, lineHeight: 1.5 }
+    }, "Using ", sightFix.used, " of ", sightFix.total, " sights — the rest were of a body below the horizon or too near the zenith to give a position line.")
   );
   const navigatorPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px" }
