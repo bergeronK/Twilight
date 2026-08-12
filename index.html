@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-AiQ4IS4xtw9iccrQ2XNy0MX+Ms/h0MGe0tUHt1zT7io=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ClDstCc9maTAps2pSqKMet/XoX3xPYDpQtnKBAIHjR8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1509,7 +1509,7 @@ const C = {
 // Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
 // so a bug report says which build it came from — a stale service worker
 // looks exactly like a fix that didn't work.
-const BUILD = "v55";
+const BUILD = "v56";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -2728,22 +2728,34 @@ function RealtimeTwilight({ redMode } = {}) {
     React.createElement("span", { style: { color: C.inkDim } },
       moonName(live.m.age), " \xB7 ", Math.round(live.m.illum * 100), "% lit \xB7 ",
       live.m.alt > 0
-        ? React.createElement(React.Fragment, null, "up now (", live.m.alt.toFixed(0), "\xB0)",
+        ? React.createElement(React.Fragment, null, live.m.alt.toFixed(0), "\xB0 up in the ", compass16(live.m.az),
             live.moonPen > 0.3 ? React.createElement("span", { style: { color: "#c97a5a" } }, " \u2014 washing out faint stars") : "")
         : moonNext
           ? React.createElement(React.Fragment, null, moonNext.dir === "up" ? "rises" : "sets", " ", fmtT(moonNext.t, loc.tz))
           : "below horizon"
     )
   )))),
-  planets.length > 0 && React.createElement("section", {
+  (planets.length > 0 || live.m.alt > 0) && React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
     React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 }
-    }, "Planets above the horizon"),
+    }, "Above the horizon now"),
     React.createElement("div", {
       style: { display: "flex", flexWrap: "wrap", gap: "12px 32px" }
     },
+      live.m.alt > 0 && React.createElement("div", {
+        key: "moon",
+        style: { display: "flex", alignItems: "center", gap: 9 }
+      },
+        React.createElement("span", { style: { fontSize: 17, color: "#dfe3ea" } }, "\u263D"),
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 550, color: C.ink } }, "Moon"),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" } },
+            live.m.alt.toFixed(0), "\u00B0 alt \u00B7 ", compass16(live.m.az), " \u00B7 ", Math.round(live.m.illum * 100), "% lit"
+          )
+        )
+      ),
       ...planets.map(p =>
         React.createElement("div", {
           key: p.name,
