@@ -66,22 +66,27 @@ test('aiming at a body puts it at the centre of the screen', () => {
 
 /*
  * The two call sites that 05a3a16 had to reconcile, evaluated as the source
- * actually ships them rather than restated here. Aim Assist adds the manual
- * correction to the heading it reports; Sky View subtracts it from the view
+ * actually ships them rather than restated here. Aim Assist adds the heading
+ * correction to the bearing it reports; Sky View subtracts it from the view
  * alpha it renders with (az = 360 - alpha, so the signs are opposite by
- * construction). If either stops applying the correction — the v1.3 bug —
- * the two disagree by exactly the offset and the test below fails.
+ * construction). If either stops applying it — the v1.3 bug — the two
+ * disagree by exactly the correction and the test below fails.
+ *
+ * `headingCorr` is declination plus the manual nudge, computed once in
+ * StarFinder and passed into SkyDome. SkyDome reads it directly rather than
+ * keeping a local copy, so there is no second name that could drift back to
+ * reading the store on its own.
  */
 const skyViewAlpha = new Function(
-  'live', 'orient', 'aimOffset', 'manual', 'screenAngle',
+  'live', 'orient', 'headingCorr', 'manual', 'screenAngle',
   declSource('view') + '\nreturn view;'
 );
 const aimAssistHeading = new Function(
-  'aimAz', 'aimOffset',
+  'aimAz', 'headingCorr',
   declSource('aimAzC') + '\nreturn aimAzC;'
 );
 
-test('Sky View and Aim Assist agree once a manual correction is applied', () => {
+test('Sky View and Aim Assist agree once a heading correction is applied', () => {
   const rand = rng(51515);
   const W = 400, H = 800, FOV = 63;
   let worst = 0;
@@ -90,22 +95,23 @@ test('Sky View and Aim Assist agree once a manual correction is applied', () => 
     const alpha = rand() * 360;
     const beta = rand() * 360 - 180;
     const gamma = rand() * 180 - 90;
-    const aimOffset = rand() * 360 - 180; // the persisted "Align to <body>" nudge
+    // Declination plus the persisted "Align to <body>" nudge, as one value.
+    const headingCorr = rand() * 360 - 180;
     const screenAngle = SCREEN_ANGLES[i % SCREEN_ANGLES.length];
 
     const aim = orientationToAim(alpha, beta, gamma);
     if (!aim.stable) continue;
 
     // What Aim Assist tells the user they are pointing at.
-    const heading = aimAssistHeading(aim.az, aimOffset);
-    // What Sky View renders with, for the same phone and the same offset.
-    const view = skyViewAlpha(true, { alpha, beta, gamma }, aimOffset, null, screenAngle);
+    const heading = aimAssistHeading(aim.az, headingCorr);
+    // What Sky View renders with, for the same phone and the same correction.
+    const view = skyViewAlpha(true, { alpha, beta, gamma }, headingCorr, null, screenAngle);
 
     // A body at exactly that heading is what Aim Assist calls "on target",
     // so Sky View must draw it at the centre of the screen.
     const d = worldToScreenDir(heading, aim.alt, view.alpha, view.beta, view.gamma, view.sa);
     const p = skyProject(d, W, H, FOV);
-    assert.ok(p, `on-target body must be in front of the camera (offset ${aimOffset})`);
+    assert.ok(p, `on-target body must be in front of the camera (corr ${headingCorr})`);
     const off = Math.hypot(p.x - W / 2, p.y - H / 2);
     worst = Math.max(worst, off);
     n++;

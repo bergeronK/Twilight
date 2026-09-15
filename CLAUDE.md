@@ -84,19 +84,45 @@ Three tabs, one `index.html`, no build step:
   low-traffic content pages, not core app shell, so normal network-first
   navigation is sufficient.
 
+## Magnetic declination
+
+Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
+and it differs by platform: iOS `webkitCompassHeading` is true north (the OS
+applies declination itself), Android `deviceorientationabsolute` yaw is
+MAGNETIC north and nothing corrects it. Uncorrected that is a fixed error of
+the local declination — near zero in the eastern US, 15-20° in Alaska, the
+Pacific Northwest and the Southern Ocean.
+
+`magneticDeclination(lat, lon, date)` evaluates the **World Magnetic Model
+2025** to degree 12 and returns `{ deg, stale }`, east positive. The
+coefficients are NOAA's, bundled as a 1.1 KB string (`WMM_COF`) and parsed on
+first use. **The model expires: WMM2025 is valid 2025.0–2030.0.** Past that
+`stale` goes true, the date is clamped, and the diagnostics panel says so —
+regenerate with `node scripts/generate-wmm.js path/to/WMM2025.COF` from the
+new epoch's download. `declination.test.js` fails once the bundled model no
+longer covers today, so this cannot pass unnoticed.
+
+**One correction value, two consumers.** `headingCorr` (declination + the
+manual "Align" nudge) is computed once in `StarFinder` and passed into
+`SkyDome` as a prop. Do not read the nudge from the store inside `SkyDome`
+again — Aim Assist and Sky View showing different headings is exactly the
+v1.3 bug, and the prop exists so there is no second name that can drift.
+Declination is added only when the heading is absolute *and* not iOS: a
+relative heading has an arbitrary yaw origin with no north in it, so there is
+nothing for declination to correct there.
+
 ## Build workflow (do this every time you edit `index.html`)
 
 ```
+node scripts/update-csp-hashes.js   # rewrites script-src from the current scripts
 node scripts/verify-build.js        # will fail if hashes are stale
 ```
 
-If it fails (or you touched any inline `<script>` content), recompute hashes.
-There's no committed script for this — the working pattern used all session is:
-read the 5 `<script>` blocks, SHA-256 each with `crypto.createHash('sha256')`,
-base64-encode, and rewrite the `script-src` line in the CSP `<meta>` tag. A
-throwaway Node script doing exactly that (find `<script>...</script>` regex,
-hash, replace) is the fastest path — write one if it doesn't exist in your
-scratchpad.
+Run the first whenever you touch any inline `<script>` content, then the
+second to confirm. Both extract scripts identically (bare `<script>` blocks,
+so the `ld+json` data block stays excluded) — if they ever disagreed about
+what counts as an executable script, the guard would pass on a set of hashes
+the browser rejects, which is the one outcome both exist to prevent.
 
 Also bump `CACHE` in `sw.js` (and mirror any new/changed asset filename into
 its `ASSETS` array and into `native/sync-web.js`'s file list) whenever a
@@ -154,6 +180,14 @@ things a syntax check cannot see:
 - **`sight-reduction.test.js`** — Hs→Ho corrections and, importantly, the
   v1.6 guards: below-horizon, near-zenith, weak-low and blunder-sized
   intercepts.
+- **`declination.test.js`** — the WMM evaluation against NOAA's own published
+  test vectors. The reference table is extracted from NOAA's file by script,
+  never typed: a first pass at it got four of six values wrong by hand, and a
+  wrong reference value is worse than no test.
+- **`heading-reference.test.js`** — which north each platform reports and what
+  gets added to correct it. Drives the real event handler with synthetic iOS /
+  Android-absolute / spec-absolute / relative events, per the v1.5 lesson that
+  a sensor regression test has to name all three platform contracts.
 
 **`extract.js` is the thing to understand before adding tests.** There is no
 module to import — `index.html` is one file with no build step and ends by
