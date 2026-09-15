@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-c4tIrW60frJ0rG3YKQPMoZ9RuAPErjObq/3ZiTp6WPY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ESj8+P1MOME7D90EnvyrLLJwf2Wmfk9WorB/nOFrzkg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -41,10 +41,6 @@
   @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-var.woff2) format('woff2');}
   @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/cormorant.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;font-display:swap;src:url(fonts/cormorant-i.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400 600;font-display:swap;src:url(fonts/spacegrotesk.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:300;font-display:swap;src:url(fonts/spectral-300.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/spectral-400.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/spectral-500.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   /* ---- Twilight design tokens: single source of truth for the whole app ---- */
   :root{
     /* surfaces — warm near-black: a candle-lit instrument, not a blue dashboard */
@@ -116,13 +112,19 @@
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
   @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
   /* ---- accessibility ---- */
+  /* Visible to screen readers, not to the eye. Used for guidance that would
+     be redundant on screen but is the whole interface without one. */
+  .sr-only{
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+  }
   :where(button,a,input,select,[tabindex]):focus-visible{
     outline:2px solid var(--accent-hi);
     outline-offset:2px;
     border-radius:6px;
   }
   .noscript{
-    font-family:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;
+    font-family:ui-sans-serif,system-ui,sans-serif;
     color:var(--ink); background:var(--surface);
     max-width:520px; margin:18vh auto 0; padding:24px 26px;
     border:1px solid var(--line); border-radius:var(--radius); line-height:1.55;
@@ -1752,6 +1754,76 @@ function magneticDeclination(lat, lon, date) {
   return { deg: atan2(Y, Xg), stale: stale };
 }
 
+/* ---- Console: derived copy and countdown formatting ----
+   Lifted out of RealtimeTwilight so the thresholds and the wording can be
+   tested. These decide what the Console says about tonight, which is the
+   first thing most visitors read, and the branch order matters: twilight
+   phase outranks the Moon, because a bright Moon during nautical twilight is
+   still nautical twilight. */
+function tonightGlance(live) {
+  const moonUp = live.m.alt > 0;
+  const illumPct = Math.round(live.m.illum * 100);
+  const ph = live.phase;
+  if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
+  if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
+  if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible \u2014 the sextant window is open.", tone: "var(--band-naut)" };
+  if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
+  if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
+  return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
+}
+/* Two granularities on purpose, not a duplication to merge: the sextant
+   window is a planning number where seconds are noise, while the next-event
+   countdown is something you watch tick. */
+const cdText = ms => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+};
+const cdHMS = ms => {
+  const t = Math.max(0, ms);
+  const h = Math.floor(t / 3600000);
+  const m = Math.floor((t % 3600000) / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
+};
+
+/* Spoken guidance for Aim Assist.
+
+   Aiming a phone at the sky in the dark is the one screen an eyes-free user
+   most needs spoken, and the one where the naive approach is worst: Turn and
+   Tilt are recomputed on every orientation event, dozens of times a second,
+   so an aria-live region bound straight to them would produce a continuous
+   unusable stream. So this announces a coarsened instruction at most once
+   every AIM_ANNOUNCE_MS, quantised to 5 degrees, and immediately when the
+   on-target state flips — the one transition worth interrupting for. */
+const AIM_ANNOUNCE_MS = 2500;
+const AIM_ANNOUNCE_STEP = 5;
+function aimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  if (aimTurn === null) return '';
+  if (onTarget) return 'On target' + (targetName ? ', ' + targetName : '');
+  const step = d => Math.round(Math.abs(d) / AIM_ANNOUNCE_STEP) * AIM_ANNOUNCE_STEP;
+  const parts = [];
+  const turn = step(aimTurn);
+  if (turn >= AIM_ANNOUNCE_STEP) parts.push('turn ' + turn + ' degrees ' + (aimTurn >= 0 ? 'right' : 'left'));
+  if (aimTilt !== null) {
+    const tilt = step(aimTilt);
+    if (tilt >= AIM_ANNOUNCE_STEP) parts.push('tilt ' + tilt + ' degrees ' + (aimTilt >= 0 ? 'up' : 'down'));
+  }
+  return parts.length ? parts.join(', ') : 'Almost there, hold steady';
+}
+function useAimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  const [msg, setMsg] = useState('');
+  const last = useRef({ at: 0, onTarget: null });
+  useEffect(() => {
+    if (aimTurn === null) { if (msg) setMsg(''); return; }
+    const now = Date.now();
+    const flipped = last.current.onTarget !== onTarget;
+    if (!flipped && now - last.current.at < AIM_ANNOUNCE_MS) return;
+    last.current = { at: now, onTarget };
+    setMsg(aimAnnouncement(aimTurn, aimTilt, onTarget, targetName));
+  }, [aimTurn, aimTilt, onTarget, targetName, msg]);
+  return msg;
+}
+
 /* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
    Standard hobbyist-precision formulas; see docs/navigator-spec.md. All
    correction values are in arcminutes unless noted. */
@@ -1999,6 +2071,58 @@ function weekPlannerEl(nights, loc, h24, pro) {
     )
   );
 }
+/* The twilight-band legend: three fixed bands, no state, no props, and the
+   only thing it reads from the app is the design tokens. It sat inline in
+   RealtimeTwilight purely because that is where it was written, and ~45 lines
+   of static markup in the middle of the Console's render made the parts that
+   do change harder to find. Being a plain function of nothing also means a
+   test can call it directly and walk the tree it returns. */
+function TwilightBands() {
+  return React.createElement("section", {
+    style: {
+      maxWidth: 1080,
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "20px 0",
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+      gap: "18px 24px"
+    }
+  }, [{
+    c: "var(--band-civil)",
+    n: "Civil 0° to −6° (Golden Hour)",
+    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
+  }, {
+    c: "var(--band-naut)",
+    n: "Nautical −6° to −12°",
+    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
+  }, {
+    c: "var(--band-astro)",
+    n: "Astronomical −12° to −18°",
+    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
+  }].map(p => React.createElement("div", {
+    key: p.n,
+    style: {
+      borderLeft: `2px solid ${p.c}`,
+      paddingLeft: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      fontFamily: "var(--font-ui)",
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: C.ink
+    }
+  }, p.n), React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: C.inkDim,
+      marginTop: 5,
+      lineHeight: 1.5
+    }
+  }, p.t))));
+}
+
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -2267,23 +2391,8 @@ function RealtimeTwilight({ redMode } = {}) {
   const meta = PHASE_META[live.phase];
   const horizonY = 64;
   const countdown = win ? win.open ? win.e - now : win.s - now : 0;
-  const cdText = ms => {
-    const m = Math.max(0, Math.round(ms / 60000));
-    return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
-  };
   const sunY = Math.max(6, Math.min(96, horizonY - live.alt * 1.15));
-  /* ---- "Tonight at a glance" verdict, derived entirely from live data ---- */
-  const glance = (() => {
-    const moonUp = live.m.alt > 0;
-    const illumPct = Math.round(live.m.illum * 100);
-    const ph = live.phase;
-    if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
-    if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
-    if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible — the sextant window is open.", tone: "var(--band-naut)" };
-    if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
-    if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
-    return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
-  })();
+  const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
     left: Math.random() * 100,
@@ -2505,7 +2614,12 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto" }
   },
-    React.createElement("div", { style: { padding: "22px 0 2px" } },
+    React.createElement("div", {
+      // Changes on its own as twilight advances, rarely enough that
+      // announcing it is useful rather than noisy.
+      role: "status", "aria-live": "polite", "aria-atomic": "true",
+      style: { padding: "22px 0 2px" }
+    },
       React.createElement("div", {
         style: { fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "clamp(26px,4.6vw,34px)", fontWeight: 400, color: C.ink, lineHeight: 1.05 }
       }, glance.head),
@@ -2729,13 +2843,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
     React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
-    }, (() => {
-      const ms = nextSunEv.t - now;
-      const h = Math.floor(ms / 3600000);
-      const m = Math.floor((ms % 3600000) / 60000);
-      const s = Math.floor((ms % 60000) / 1000);
-      return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
-    })())
+    }, cdHMS(nextSunEv.t - now))
   ),
   React.createElement("div", {
     className: "rt-readouts",
@@ -2919,49 +3027,7 @@ function RealtimeTwilight({ redMode } = {}) {
     dir: "down",
     events: day.sunEv,
     tz: loc.tz
-  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement("section", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto",
-      borderTop: `1px solid ${C.line}`,
-      padding: "20px 0",
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-      gap: "18px 24px"
-    }
-  }, [{
-    c: "var(--band-civil)",
-    n: "Civil 0° to −6° (Golden Hour)",
-    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
-  }, {
-    c: "var(--band-naut)",
-    n: "Nautical −6° to −12°",
-    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
-  }, {
-    c: "var(--band-astro)",
-    n: "Astronomical −12° to −18°",
-    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
-  }].map(p => React.createElement("div", {
-    key: p.n,
-    style: {
-      borderLeft: `2px solid ${p.c}`,
-      paddingLeft: 12
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 12.5,
-      fontWeight: 600,
-      color: C.ink
-    }
-  }, p.n), React.createElement("div", {
-    style: {
-      fontSize: 12.5,
-      color: C.inkDim,
-      marginTop: 5,
-      lineHeight: 1.5
-    }
-  }, p.t)))), React.createElement("section", {
+  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement(TwilightBands, null), React.createElement("section", {
     ref: factRef,
     style: {
       maxWidth: 1080,
@@ -4725,6 +4791,7 @@ function StarFinder({ redMode } = {}) {
   // Only meaningful once the phone is raised enough to be aiming at sky.
   const aimTilt = (aimTarget && aimRaw && aimRaw.stable) ? aimTarget.alt - aimRaw.alt : null;
   const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
+  const aimSpoken = useAimAnnouncement(aimTurn, aimTilt, onTarget, aimTargetName);
   // Everything Sky View can draw. Kept a little below the horizon so the
   // horizon line has something on both sides of it.
   const skyBodies = useMemo(() => {
@@ -5133,13 +5200,17 @@ function StarFinder({ redMode } = {}) {
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
                       React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Turn"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Turn " + Math.abs(aimTurn).toFixed(0) + " degrees " + (aimTurn >= 0 ? "right" : "left")
+                        }, Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
                       ),
                       aimTilt !== null && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Tilt"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Tilt " + Math.abs(aimTilt).toFixed(0) + " degrees " + (aimTilt >= 0 ? "up" : "down")
+                        }, Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
                       ),
                       aimTarget && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Target altitude"),
@@ -5149,6 +5220,12 @@ function StarFinder({ redMode } = {}) {
                     ),
                     aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
                       "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                    // Throttled and quantised in useAimAnnouncement; the raw
+                    // numbers above deliberately stay outside this region.
+                    React.createElement("div", {
+                      className: "sr-only", role: "status",
+                      "aria-live": "polite", "aria-atomic": "true"
+                    }, aimSpoken),
                     calBlock
                   )
               ),
