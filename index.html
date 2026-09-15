@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-mgXfA/88ek09A+2CKys6QfgIF3Qx7BREG2L5VrWa8FI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-c4tIrW60frJ0rG3YKQPMoZ9RuAPErjObq/3ZiTp6WPY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1638,6 +1638,118 @@ function screenUpHeading(alpha, beta, gamma, screenAngle) {
   const e = sT * (cA * cG - sA * sB * sG) - cT * (sA * cB);
   const n = sT * (sA * cG + cA * sB * sG) + cT * (cA * cB);
   return (atan2(e, n) + 360) % 360;
+}
+
+/* ---- Magnetic declination (World Magnetic Model 2025) ----
+   Every azimuth this app computes is referenced to TRUE north. A phone's
+   compass is not, and which one you get depends on the platform:
+
+     iOS Safari     — webkitCompassHeading is true north; the OS has already
+                      applied declination, so adding it again would double it.
+     Android Chrome — deviceorientationabsolute yaw comes from the rotation
+                      vector, which is referenced to MAGNETIC north. Nothing
+                      in the platform corrects it.
+
+   Left uncorrected that is a fixed error equal to the local declination:
+   near zero across much of the eastern US, but 15-20 deg in Alaska, the
+   Pacific Northwest and the Southern Ocean — the difference between Sky View
+   pointing at Sirius and pointing at nothing. Aim Assist's manual "Align"
+   nudge could paper over it, but only if the user noticed, and only for as
+   long as they stayed put.
+
+   WMM2025 is valid 2025.0-2030.0; magneticDeclination() clamps outside that
+   window and reports it, so an expired model degrades visibly rather than
+   silently. Regenerate with scripts/generate-wmm.js when the next epoch
+   ships. */
+const WMM_EPOCH_YEARS = 5;
+const WMM_COF = "2025 -293518 0 120 0 -14108 45454 97 -215 -25566 0 -116 0 29511 -31336 -52 -277 16493 -8151 -80 -121 13610 0 -13 0 -24041 -566 -42 40 12438 2375 4 -3 4536 -5495 -156 -41 8950 0 -16 0 7995 2786 -24 -11 557 -1339 -60 41 -2811 2120 56 16 121 -3756 -70 -44 -2332 0 6 0 3689 454 14 -5 1872 2202 0 22 -1387 -1229 6 4 -1420 430 22 17 209 1061 9 19 644 0 -2 0 638 -184 -4 3 769 168 9 -16 -1157 488 12 -4 -409 -598 -9 9 149 109 3 7 -607 727 9 9 795 0 0 0 -770 -489 -1 6 -88 -144 -1 5 593 -10 5 -8 158 234 -1 0 25 -74 -8 -10 -111 -251 -8 6 142 -23 8 -2 232 0 -1 0 108 71 2 -2 -175 -126 0 5 20 114 5 -4 -217 -97 -1 4 169 127 3 -5 150 7 2 -6 -168 -52 0 3 9 39 2 2 46 0 0 0 78 -248 -1 -3 30 122 1 3 -2 83 3 -3 -25 -33 -3 3 -131 -52 0 2 24 72 3 -1 86 -6 -1 -2 -87 8 1 4 -129 100 -1 1 -13 0 1 0 -64 33 0 0 2 0 1 0 20 24 1 -2 -10 53 0 1 -6 -91 -3 -1 -9 4 0 1 15 -42 -1 0 9 -38 -1 -1 -27 9 0 2 -39 -91 0 0 29 0 0 0 -15 0 0 0 -25 29 0 1 24 -6 0 0 -6 2 0 1 -1 5 -1 0 -6 -3 0 0 -1 -12 0 1 11 -17 -1 0 -10 -29 -1 0 -2 -18 -1 0 26 -23 -1 0 -20 0 0 0 -2 -13 0 0 3 7 0 0 12 10 0 -1 -13 -14 0 1 6 0 0 0 6 6 1 0 5 -1 0 0 -1 8 0 0 -4 1 0 0 -2 -10 -1 0 -13 1 0 0 -7 2 -1 -1";
+// Parsed on first use, not at load: most sessions never open Aim Assist.
+let wmmCache = null;
+function wmmModel() {
+  if (wmmCache) return wmmCache;
+  const t = WMM_COF.split(' ');
+  const epoch = parseFloat(t[0]);
+  const g = [], h = [], gd = [], hd = [];
+  let i = 1;
+  for (let n = 1; n <= 12; n++) {
+    g[n] = []; h[n] = []; gd[n] = []; hd[n] = [];
+    for (let m = 0; m <= n; m++) {
+      g[n][m] = +t[i++] / 10; h[n][m] = +t[i++] / 10;
+      gd[n][m] = +t[i++] / 10; hd[n][m] = +t[i++] / 10;
+    }
+  }
+  wmmCache = { epoch, g, h, gd, hd };
+  return wmmCache;
+}
+/* Declination (magnetic variation) in degrees, east positive, at sea level.
+   True bearing = magnetic bearing + declination.
+
+   Standard spherical-harmonic evaluation of the main field: Schmidt
+   semi-normalised associated Legendre functions to degree 12, summed in the
+   geocentric frame and rotated back to geodetic. Height is taken as 0 — at
+   any altitude a person observes from, the difference is far below the
+   compass's own error. Returns { deg, stale } so callers can surface an
+   out-of-date model. */
+function magneticDeclination(lat, lon, date) {
+  const M = wmmModel();
+  const d = date || new Date();
+  const year = d.getUTCFullYear() + (d.getUTCMonth() * 30.4 + d.getUTCDate()) / 365.25;
+  const lo = M.epoch, hi = M.epoch + WMM_EPOCH_YEARS;
+  const stale = year < lo || year > hi;
+  const dt = Math.min(hi, Math.max(lo, year)) - M.epoch;
+
+  // Geodetic -> geocentric spherical (WGS84).
+  const phi = lat * D2R, lam = lon * D2R;
+  const sp = Math.sin(phi), cp = Math.cos(phi);
+  const A = 6378.137, F = 1 / 298.257223563, E2 = F * (2 - F);
+  const Rc = A / Math.sqrt(1 - E2 * sp * sp);
+  const p = Rc * cp, z = Rc * (1 - E2) * sp;
+  const r = Math.sqrt(p * p + z * z);
+  const phiG = Math.asin(z / r);
+  const ct = Math.sin(phiG), st = Math.cos(phiG); // cos/sin of colatitude
+
+  // Schmidt semi-normalised P(n,m) and dP/dtheta. The n === 1 sectoral seed
+  // carries no sqrt((2n-1)/(2n)) factor: P(1,1) is sin(theta) exactly, and
+  // folding the general factor in there instead rescales the entire field —
+  // it produced a plausible-looking 1.04 deg where NOAA says 1.28.
+  const P = [[1]], dP = [[0]];
+  for (let n = 1; n <= 12; n++) {
+    P[n] = []; dP[n] = [];
+    for (let m = 0; m <= n; m++) {
+      if (n === m) {
+        const k = n === 1 ? 1 : Math.sqrt((2 * n - 1) / (2 * n));
+        P[n][n] = k * st * P[n - 1][n - 1];
+        dP[n][n] = k * (st * dP[n - 1][n - 1] + ct * P[n - 1][n - 1]);
+      } else {
+        const a = Math.sqrt(n * n - m * m);
+        const b = Math.sqrt((n - 1) * (n - 1) - m * m);
+        const p2 = n - 2 >= m ? P[n - 2][m] : 0;
+        const d2 = n - 2 >= m ? dP[n - 2][m] : 0;
+        P[n][m] = ((2 * n - 1) * ct * P[n - 1][m] - b * p2) / a;
+        dP[n][m] = ((2 * n - 1) * (ct * dP[n - 1][m] - st * P[n - 1][m]) - b * d2) / a;
+      }
+    }
+  }
+
+  const RE = 6371.2; // geomagnetic reference radius, km
+  let X = 0, Y = 0, Z = 0;
+  for (let n = 1; n <= 12; n++) {
+    const f = Math.pow(RE / r, n + 2);
+    for (let m = 0; m <= n; m++) {
+      const gn = M.g[n][m] + dt * M.gd[n][m];
+      const hn = M.h[n][m] + dt * M.hd[n][m];
+      const cm = Math.cos(m * lam), sm = Math.sin(m * lam);
+      X += f * (gn * cm + hn * sm) * dP[n][m];
+      Y += f * m * (gn * sm - hn * cm) * P[n][m];
+      Z -= f * (n + 1) * (gn * cm + hn * sm) * P[n][m];
+    }
+  }
+  if (st > 1e-10) Y /= st;
+
+  // Rotate the geocentric components back into the geodetic frame.
+  const dd = phiG - phi;
+  const Xg = X * Math.cos(dd) - Z * Math.sin(dd);
+  return { deg: atan2(Y, Xg), stale: stale };
 }
 
 /* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
@@ -4028,7 +4140,7 @@ const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading }) {
+function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading, headingCorr }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
@@ -4038,7 +4150,6 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
   const [manual, setManual] = useState({ az: 180, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
-  const aimOffset = useAimOffset();
   const live = !!orient;
 
   useEffect(() => {
@@ -4074,10 +4185,13 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
   // Assist: it is the same phone, the same heading and the same error, so a
   // correction that moves the turn arrow but leaves the drawn sky where it
   // was makes the two tools contradict each other. Since az = 360 - alpha,
-  // adding aimOffset to the heading means subtracting it from alpha. The
+  // adding headingCorr to the heading means subtracting it from alpha. It is
+  // passed in, never read from the store here: it has to be the exact value
+  // Aim Assist is using, declination included, or the drawn sky and the turn
+  // arrow contradict each other — which is what the v1.3 bug was. The
   // drag-to-look branch is not sensor-derived and needs no correction.
   const view = live
-    ? { alpha: (orient.alpha - aimOffset + 720) % 360, beta: orient.beta, gamma: orient.gamma, sa: screenAngle }
+    ? { alpha: (orient.alpha - (headingCorr || 0) + 720) % 360, beta: orient.beta, gamma: orient.gamma, sa: screenAngle }
     : { alpha: (360 - manual.az) % 360, beta: 90 + manual.alt, gamma: 0, sa: 0 };
 
   useEffect(() => {
@@ -4511,7 +4625,7 @@ function StarFinder({ redMode } = {}) {
     // Listening only to `deviceorientation` and requiring e.absolute (what
     // this did originally) means Android never yields a heading at all.
     let sawAbsolute = false;
-    const handler = e => {
+    const orientHandler = e => {
       // Tally first, before any filtering: when nothing works, the useful
       // question is whether events arrive at all and what they contain.
       const st = sensorStatsRef.current;
@@ -4529,10 +4643,12 @@ function StarFinder({ redMode } = {}) {
         wk: typeof e.webkitCompassHeading === 'number' ? Math.round(e.webkitCompassHeading) : null
       };
       const absEvent = e.type === 'deviceorientationabsolute' || e.absolute === true;
-      let alpha = null, acc = null, abs = absEvent;
+      let alpha = null, acc = null, abs = absEvent, trueRef = false;
       if (typeof e.webkitCompassHeading === 'number') {
         alpha = (360 - e.webkitCompassHeading) % 360;
         abs = true;
+        // iOS has already applied declination; correcting again would double it.
+        trueRef = true;
         if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
       } else if (typeof e.alpha === 'number') {
         alpha = e.alpha;
@@ -4550,19 +4666,24 @@ function StarFinder({ redMode } = {}) {
         // Relative headings are still worth using: tilt is fully valid, and
         // the manual offset turns an arbitrary yaw origin into a correct
         // bearing the moment the user aligns on a known body.
-        abs
+        abs,
+        // Whether this heading needs declination applied. Only an absolute,
+        // non-iOS source does: a relative heading has an arbitrary yaw origin
+        // with no north in it at all, so declination would be meaningless
+        // there — that case is what the manual "Align" nudge is for.
+        magnetic: abs && !trueRef
       });
     };
     // Fired by browsers that can tell the magnetometer has drifted. Left
     // un-cancelled on purpose: where a platform has its own calibration
     // overlay, that beats ours.
     const calHandler = () => setNeedsCal(true);
-    window.addEventListener('deviceorientationabsolute', handler, true);
-    window.addEventListener('deviceorientation', handler, true);
+    window.addEventListener('deviceorientationabsolute', orientHandler, true);
+    window.addEventListener('deviceorientation', orientHandler, true);
     window.addEventListener('compassneedscalibration', calHandler, true);
     return () => {
-      window.removeEventListener('deviceorientationabsolute', handler, true);
-      window.removeEventListener('deviceorientation', handler, true);
+      window.removeEventListener('deviceorientationabsolute', orientHandler, true);
+      window.removeEventListener('deviceorientation', orientHandler, true);
       window.removeEventListener('compassneedscalibration', calHandler, true);
     };
   }, [aimSensor]);
@@ -4583,7 +4704,20 @@ function StarFinder({ redMode } = {}) {
   const aimAz = aimRaw
     ? (aimRaw.stable ? aimRaw.az : screenUpHeading(orient.alpha, orient.beta, orient.gamma, screenAngle))
     : null;
-  const aimAzC = aimAz === null ? null : (aimAz + aimOffset + 720) % 360;
+  // Local declination, recomputed only when the place changes — it varies by
+  // well under a degree over any distance a user moves in a session, and the
+  // harmonic sum is not worth running on every sensor frame.
+  const decl = useMemo(
+    () => magneticDeclination(loc.lat, loc.lon, new Date()),
+    [loc.lat, loc.lon]
+  );
+  /* One heading correction, read by both consumers. Aim Assist and Sky View
+     have to apply exactly the same value or they contradict each other (the
+     bug fixed in 05a3a16), so it is computed once here rather than derived
+     twice. Declination converts a magnetic heading to true; the manual nudge
+     is whatever the user has dialled in on top of that. */
+  const headingCorr = (orient && orient.magnetic ? decl.deg : 0) + aimOffset;
+  const aimAzC = aimAz === null ? null : (aimAz + headingCorr + 720) % 360;
   const aimTurn = useMemo(() => {
     if (!aimTarget || aimAzC === null) return null;
     return ((aimTarget.az - aimAzC + 540) % 360) - 180; // signed, [-180,180]; + = turn right/clockwise
@@ -4950,6 +5084,10 @@ function StarFinder({ redMode } = {}) {
       diagRow("Events: absolute", sensorStats ? String(sensorStats.abs) : "0"),
       diagRow("Events with angles", sensorStats ? String(sensorStats.usable) : "0"),
       diagRow("Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")),
+      diagRow("Heading reference", !orient ? "—" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")),
+      diagRow("Declination", decl.deg.toFixed(1) + "° " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " · model out of date" : "")),
+      diagRow("Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "°"),
+      diagRow("Total applied", (headingCorr > 0 ? "+" : "") + headingCorr.toFixed(1) + "°"),
       dl && diagRow("Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")),
       dl && diagRow("alpha / beta / gamma",
         (dl.alpha === null ? "—" : dl.alpha) + " / " + (dl.beta === null ? "—" : dl.beta) + " / " + (dl.gamma === null ? "—" : dl.gamma)),
@@ -5069,6 +5207,7 @@ function StarFinder({ redMode } = {}) {
       // overlay leaves you pointed at whatever you just tapped.
       onPick: name => setAimTargetName(name),
       relativeHeading: !!(orient && orient.abs === false),
+      headingCorr,
       onClose: () => setSkyOpen(false),
       sensorMsg: aimStatusMsg
     })
