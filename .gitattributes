@@ -1,0 +1,22 @@
+# Keep the repo's stored line endings authoritative on every platform.
+#
+# index.html's CSP carries SHA-256 hashes of its five inline scripts. A
+# checkout that rewrites LF to CRLF changes what those scripts hash to, so
+# scripts/verify-build.js reports all five hashes as stale on an otherwise
+# untouched clone. The tempting fix — recompute the hashes — would commit
+# hashes derived from CRLF content and silently break the CSP for everyone
+# else. Normalizing on checkout removes the trap.
+
+* text=auto eol=lf
+
+# Windows batch files need CRLF to run. Stored CRLF already; leave verbatim.
+*.bat -text
+
+# Binary assets — never inspected, never converted.
+*.png  binary
+*.jpg  binary
+*.webp binary
+*.ico  binary
+*.woff2 binary
+*.bin  binary
+*.jar  binary
