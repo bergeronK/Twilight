@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-c4tIrW60frJ0rG3YKQPMoZ9RuAPErjObq/3ZiTp6WPY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-cj7+pq9WRjGI8Q2+J+k+5W+GJfjpgW4nuRQTQ2LzU90=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -112,6 +112,12 @@
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
   @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
   /* ---- accessibility ---- */
+  /* Visible to screen readers, not to the eye. Used for guidance that would
+     be redundant on screen but is the whole interface without one. */
+  .sr-only{
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+  }
   :where(button,a,input,select,[tabindex]):focus-visible{
     outline:2px solid var(--accent-hi);
     outline-offset:2px;
@@ -1748,6 +1754,44 @@ function magneticDeclination(lat, lon, date) {
   return { deg: atan2(Y, Xg), stale: stale };
 }
 
+/* Spoken guidance for Aim Assist.
+
+   Aiming a phone at the sky in the dark is the one screen an eyes-free user
+   most needs spoken, and the one where the naive approach is worst: Turn and
+   Tilt are recomputed on every orientation event, dozens of times a second,
+   so an aria-live region bound straight to them would produce a continuous
+   unusable stream. So this announces a coarsened instruction at most once
+   every AIM_ANNOUNCE_MS, quantised to 5 degrees, and immediately when the
+   on-target state flips — the one transition worth interrupting for. */
+const AIM_ANNOUNCE_MS = 2500;
+const AIM_ANNOUNCE_STEP = 5;
+function aimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  if (aimTurn === null) return '';
+  if (onTarget) return 'On target' + (targetName ? ', ' + targetName : '');
+  const step = d => Math.round(Math.abs(d) / AIM_ANNOUNCE_STEP) * AIM_ANNOUNCE_STEP;
+  const parts = [];
+  const turn = step(aimTurn);
+  if (turn >= AIM_ANNOUNCE_STEP) parts.push('turn ' + turn + ' degrees ' + (aimTurn >= 0 ? 'right' : 'left'));
+  if (aimTilt !== null) {
+    const tilt = step(aimTilt);
+    if (tilt >= AIM_ANNOUNCE_STEP) parts.push('tilt ' + tilt + ' degrees ' + (aimTilt >= 0 ? 'up' : 'down'));
+  }
+  return parts.length ? parts.join(', ') : 'Almost there, hold steady';
+}
+function useAimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  const [msg, setMsg] = useState('');
+  const last = useRef({ at: 0, onTarget: null });
+  useEffect(() => {
+    if (aimTurn === null) { if (msg) setMsg(''); return; }
+    const now = Date.now();
+    const flipped = last.current.onTarget !== onTarget;
+    if (!flipped && now - last.current.at < AIM_ANNOUNCE_MS) return;
+    last.current = { at: now, onTarget };
+    setMsg(aimAnnouncement(aimTurn, aimTilt, onTarget, targetName));
+  }, [aimTurn, aimTilt, onTarget, targetName, msg]);
+  return msg;
+}
+
 /* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
    Standard hobbyist-precision formulas; see docs/navigator-spec.md. All
    correction values are in arcminutes unless noted. */
@@ -2501,7 +2545,12 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto" }
   },
-    React.createElement("div", { style: { padding: "22px 0 2px" } },
+    React.createElement("div", {
+      // Changes on its own as twilight advances, rarely enough that
+      // announcing it is useful rather than noisy.
+      role: "status", "aria-live": "polite", "aria-atomic": "true",
+      style: { padding: "22px 0 2px" }
+    },
       React.createElement("div", {
         style: { fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "clamp(26px,4.6vw,34px)", fontWeight: 400, color: C.ink, lineHeight: 1.05 }
       }, glance.head),
@@ -4721,6 +4770,7 @@ function StarFinder({ redMode } = {}) {
   // Only meaningful once the phone is raised enough to be aiming at sky.
   const aimTilt = (aimTarget && aimRaw && aimRaw.stable) ? aimTarget.alt - aimRaw.alt : null;
   const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
+  const aimSpoken = useAimAnnouncement(aimTurn, aimTilt, onTarget, aimTargetName);
   // Everything Sky View can draw. Kept a little below the horizon so the
   // horizon line has something on both sides of it.
   const skyBodies = useMemo(() => {
@@ -5129,13 +5179,17 @@ function StarFinder({ redMode } = {}) {
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
                       React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Turn"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Turn " + Math.abs(aimTurn).toFixed(0) + " degrees " + (aimTurn >= 0 ? "right" : "left")
+                        }, Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
                       ),
                       aimTilt !== null && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Tilt"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Tilt " + Math.abs(aimTilt).toFixed(0) + " degrees " + (aimTilt >= 0 ? "up" : "down")
+                        }, Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
                       ),
                       aimTarget && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Target altitude"),
@@ -5145,6 +5199,12 @@ function StarFinder({ redMode } = {}) {
                     ),
                     aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
                       "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                    // Throttled and quantised in useAimAnnouncement; the raw
+                    // numbers above deliberately stay outside this region.
+                    React.createElement("div", {
+                      className: "sr-only", role: "status",
+                      "aria-live": "polite", "aria-atomic": "true"
+                    }, aimSpoken),
                     calBlock
                   )
               ),
