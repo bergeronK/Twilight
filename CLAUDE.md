@@ -188,6 +188,20 @@ things a syntax check cannot see:
   gets added to correct it. Drives the real event handler with synthetic iOS /
   Android-absolute / spec-absolute / relative events, per the v1.5 lesson that
   a sensor regression test has to name all three platform contracts.
+- **`announcement.test.js`** — the spoken form of Aim Assist's guidance. Its
+  failure mode is invisible to a sighted developer: the panel looks identical
+  whether the announcement says "turn 20 degrees right" or "left".
+- **`console-copy.test.js`** — `tonightGlance()`'s branch order and
+  thresholds, plus the two countdown formatters. Every branch returns a
+  sentence that reads fine even when it is the wrong one for the sky outside.
+- **`components.test.js`** — smoke tests for extracted presentational
+  components. **This is how to verify a component extraction here.** There is
+  no render harness and CI has no browser, but a React function component is
+  just a function returning `createElement` output, so calling it with a
+  stubbed React executes every line and a lost closure variable surfaces as a
+  ReferenceError. Only works on hook-free components — which is a reason to
+  prefer extracting hook-free markup, and why the remaining large components
+  are still large.
 
 **`extract.js` is the thing to understand before adding tests.** There is no
 module to import — `index.html` is one file with no build step and ends by
