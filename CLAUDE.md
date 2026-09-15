@@ -133,6 +133,48 @@ generic "Deployment failed, try again later" (platform-side flake, not a
 content problem) — re-running the full workflow (not just the failed job)
 has fixed it every time.
 
+## Math tests — `scripts/test/`
+
+```
+node --test scripts/test/*.test.js     # unquoted: the shell expands the glob
+```
+
+Runs in CI on every push and PR, alongside the build guard. Covers the three
+things a syntax check cannot see:
+
+- **`solar-parity.test.js`** — asserts `index.html` and
+  `twilight-times/twilight-calc.js` produce *identical* twilight times across
+  12 locations × 8 dates, including the polar no-event cases. This is the
+  lockstep the Architecture section asks you to maintain by hand; it is now
+  enforced rather than remembered.
+- **`orientation.test.js`** — the Sky View / Aim Assist invariants: a body
+  Aim Assist calls "on target" must project to the centre of the screen, a
+  body behind the phone must never be drawn, and projection must be
+  roll-invariant. Includes the specific regression from 05a3a16.
+- **`sight-reduction.test.js`** — Hs→Ho corrections and, importantly, the
+  v1.6 guards: below-horizon, near-zenith, weak-low and blunder-sized
+  intercepts.
+
+**`extract.js` is the thing to understand before adding tests.** There is no
+module to import — `index.html` is one file with no build step and ends by
+mounting React into `document`. So `extract()` pulls named declarations out
+of the app's `<script>` block by name and evaluates them in isolation, and
+`declSource()` returns a declaration's raw text so a test can wrap an
+expression that lives *inside* a component and exercise the shipped code.
+That second one is what makes the Sky View test real: the 05a3a16 bug was not
+inside any pure function, it was two call sites disagreeing about whether the
+manual heading correction had been applied, and a test that restates that
+composition cannot see it. The extractor throws on a missing or ambiguous
+name, so a rename fails loudly instead of silently testing nothing.
+
+**Verify a new test by breaking the code it covers.** Every test here was
+checked against a deliberate mutation. Two of them passed a first draft that
+looked thorough and caught nothing — the Sky View test because it fed one
+consistent heading to both sides, and the refraction-clamp test because its
+sample points all happened to miss the pole (Bennett's formula reaches ~337°
+of bogus correction near h = -4.36, not at the -4.4 singularity). A green
+test is not evidence until you have seen it go red.
+
 ## Testing without a real browser session
 
 No local dev server is preconfigured. Working pattern: `python3 -m http.server
