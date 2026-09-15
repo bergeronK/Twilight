@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-K9isL/q+7+DFCocmFlp7jchE/UuiAoeGZPJ2AG8yNFU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ESj8+P1MOME7D90EnvyrLLJwf2Wmfk9WorB/nOFrzkg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -2071,6 +2071,58 @@ function weekPlannerEl(nights, loc, h24, pro) {
     )
   );
 }
+/* The twilight-band legend: three fixed bands, no state, no props, and the
+   only thing it reads from the app is the design tokens. It sat inline in
+   RealtimeTwilight purely because that is where it was written, and ~45 lines
+   of static markup in the middle of the Console's render made the parts that
+   do change harder to find. Being a plain function of nothing also means a
+   test can call it directly and walk the tree it returns. */
+function TwilightBands() {
+  return React.createElement("section", {
+    style: {
+      maxWidth: 1080,
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "20px 0",
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+      gap: "18px 24px"
+    }
+  }, [{
+    c: "var(--band-civil)",
+    n: "Civil 0° to −6° (Golden Hour)",
+    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
+  }, {
+    c: "var(--band-naut)",
+    n: "Nautical −6° to −12°",
+    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
+  }, {
+    c: "var(--band-astro)",
+    n: "Astronomical −12° to −18°",
+    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
+  }].map(p => React.createElement("div", {
+    key: p.n,
+    style: {
+      borderLeft: `2px solid ${p.c}`,
+      paddingLeft: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      fontFamily: "var(--font-ui)",
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: C.ink
+    }
+  }, p.n), React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: C.inkDim,
+      marginTop: 5,
+      lineHeight: 1.5
+    }
+  }, p.t))));
+}
+
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -2975,49 +3027,7 @@ function RealtimeTwilight({ redMode } = {}) {
     dir: "down",
     events: day.sunEv,
     tz: loc.tz
-  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement("section", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto",
-      borderTop: `1px solid ${C.line}`,
-      padding: "20px 0",
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-      gap: "18px 24px"
-    }
-  }, [{
-    c: "var(--band-civil)",
-    n: "Civil 0° to −6° (Golden Hour)",
-    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
-  }, {
-    c: "var(--band-naut)",
-    n: "Nautical −6° to −12°",
-    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
-  }, {
-    c: "var(--band-astro)",
-    n: "Astronomical −12° to −18°",
-    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
-  }].map(p => React.createElement("div", {
-    key: p.n,
-    style: {
-      borderLeft: `2px solid ${p.c}`,
-      paddingLeft: 12
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 12.5,
-      fontWeight: 600,
-      color: C.ink
-    }
-  }, p.n), React.createElement("div", {
-    style: {
-      fontSize: 12.5,
-      color: C.inkDim,
-      marginTop: 5,
-      lineHeight: 1.5
-    }
-  }, p.t)))), React.createElement("section", {
+  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement(TwilightBands, null), React.createElement("section", {
     ref: factRef,
     style: {
       maxWidth: 1080,
