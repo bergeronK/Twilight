@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-60eb+dHhQjM7HiFHqWnv/22ESMqhz0LgiGoXcthPiT0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-mTKAx+MqT2ZI6s139DOr1c1KpqKEA0ckhetmMXdJARI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -4397,7 +4397,7 @@ const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading }) {
+function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading, diag }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
@@ -4662,6 +4662,12 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
     borderRadius: 9, cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)',
     background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
   };
+  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' };
+  /* Controls sit on top of the sky, and a press that starts on one must not
+     also count as a tap on the sky beneath it — that would identify whatever
+     is under the button, or clear the target when nothing is. Stopping the
+     press at the control means the overlay never records it as a tap. */
+  const keepTap = { onMouseDown: e => e.stopPropagation(), onTouchStart: e => e.stopPropagation() };
   return React.createElement('div', {
     ref: wrapRef,
     // Above the tab bar (100) and its menu (200): Sky View is immersive and
@@ -4680,13 +4686,45 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
     React.createElement('canvas', { ref: canvasRef, style: { position: 'absolute', inset: 0 } }),
     // Top bar
     React.createElement('div', {
+      ...keepTap,
       style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
     },
       React.createElement('button', { onClick: onClose, style: chip }, '← Back'),
       React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      diag && React.createElement('button', {
+        onClick: diag.onToggle, 'aria-expanded': diag.open,
+        style: { ...chip, ...(diag.open ? chipOn : {}) }
+      }, 'Sensors'),
       targetName && React.createElement('span', {
         style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, color: '#e8b563', padding: '8px 4px' }
       }, targetName)
+    ),
+    // Sensor readout. Capped in height so the centre reticle stays visible —
+    // the reading is only meaningful while a body is held in the middle.
+    diag && diag.open && React.createElement('div', {
+      ...keepTap,
+      style: {
+        position: 'absolute', left: 12, right: 12,
+        top: 'calc(max(12px, env(safe-area-inset-top)) + 52px)',
+        maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
+        padding: '10px 12px', borderRadius: 10,
+        background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
+        backdropFilter: 'blur(8px)', color: '#eef2ff',
+        fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
+      }
+    },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+        React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
+          targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
+        React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel)
+      ),
+      diag.entries.map(([k, v]) => React.createElement('div', {
+        key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+      },
+        React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
+        React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
+      )),
+      React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
     ),
     // Bottom status
     React.createElement('div', {
@@ -4696,6 +4734,7 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
       // no browser API reports a camera's field of view, so this is the only
       // way to make the stars line up with what the camera sees.
       cam && React.createElement('div', {
+        ...keepTap,
         style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }
       },
         React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)' } }, 'Match to camera'),
@@ -5377,46 +5416,88 @@ function StarFinder({ redMode } = {}) {
     React.createElement("span", { style: { color: C.ink, fontVariantNumeric: "tabular-nums", textAlign: "right" } }, v)
   );
   const dl = sensorStats && sensorStats.last;
+  /* The readout, built once and shown in two places: under Aim Assist, and
+     over Sky View. Sky View is where a registration problem is visible, so it
+     has to be readable there without closing the view — by the time you had
+     closed it to read the numbers, they would describe wherever the phone was
+     pointing then. Orientation rows come first; plumbing rows last. */
+  const turnWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "right" : "left");
+  const tiltWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "up" : "down");
+  const diagEntries = [
+    ["Fusion", !orient ? "\u2014"
+      // "Gyro + compass" is the good case; "compass only" means this device
+      // sent no smooth relative stream, so the view carries magnetometer noise.
+      : orient.frame === 'abs' ? "compass only"
+      : orient.abs ? "gyro + compass" : "gyro only (no north yet)"],
+    ["Aimed at", !aimNow ? "\u2014"
+      : "az " + aimNow.az.toFixed(0) + "\u00b0 \u00b7 alt " + aimNow.alt.toFixed(0) + "\u00b0" + (aimNow.stable ? "" : " (flat)")],
+    aimTarget && ["Target", aimTarget.name + " \u00b7 az " + aimTarget.az.toFixed(0) + "\u00b0 \u00b7 alt " + aimTarget.alt.toFixed(0) + "\u00b0"],
+    // The measurement that matters. Hold the phone so the real body is in the
+    // centre of the camera view: whatever this still says is the app's error.
+    aimTarget && aimTurn !== null && ["App says move",
+      "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
+    ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014" : orient.yaw.toFixed(1) + "\u00b0"],
+    ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
+    // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
+    ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
+    ["Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "\u00b0"],
+    ["Total applied", (headingCorr > 0 ? "+" : "") + headingCorr.toFixed(1) + "\u00b0"],
+    ["Screen angle", screenAngle + "\u00b0"],
+    ["Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")],
+    ["Events: relative", sensorStats ? String(sensorStats.rel) : "0"],
+    ["Events: absolute", sensorStats ? String(sensorStats.abs) : "0"],
+    ["Events with angles", sensorStats ? String(sensorStats.usable) : "0"],
+    dl && ["Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")],
+    dl && ["alpha / beta / gamma",
+      (dl.alpha === null ? "\u2014" : dl.alpha) + " / " + (dl.beta === null ? "\u2014" : dl.beta) + " / " + (dl.gamma === null ? "\u2014" : dl.gamma)],
+    dl && dl.wk !== null && ["webkitCompassHeading", String(dl.wk)],
+    ["deviceorientationabsolute", "ondeviceorientationabsolute" in window ? "supported" : "not supported"],
+    ["DeviceOrientationEvent", typeof DeviceOrientationEvent === "undefined" ? "missing"
+      : (typeof DeviceOrientationEvent.requestPermission === "function" ? "yes (asks permission)" : "yes")],
+    ["Secure context", typeof window !== "undefined" && window.isSecureContext === false ? "no" : "yes"],
+    ["Location", loc.lat.toFixed(2) + ", " + loc.lon.toFixed(2)],
+    ["Build", BUILD]
+  ].filter(Boolean);
+  const diagSummary = !sensorStats || sensorStats.rel + sensorStats.abs === 0
+    ? "No orientation events are arriving at all \u2014 the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
+    : sensorStats.usable === 0
+      ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
+      : "Sensors are working. Move the phone and these numbers should change.";
+  // Copy as plain text, so a report can be pasted rather than retyped from a
+  // screenshot.
+  const [diagCopied, setDiagCopied] = useState(null);
+  const copyDiag = () => {
+    const text = diagEntries.map(([k, v]) => k + ": " + v).join("\n");
+    const done = ok => { setDiagCopied(ok ? "Copied" : "Copy failed"); setTimeout(() => setDiagCopied(null), 1600); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+      else done(false);
+    } catch (e) { done(false); }
+  };
+  const diag = {
+    open: showDiag,
+    onToggle: () => setShowDiag(v => !v),
+    entries: diagEntries,
+    summary: diagSummary,
+    onCopy: copyDiag,
+    copyLabel: diagCopied || "Copy"
+  };
   const diagBlock = React.createElement("div", { style: { marginTop: 16 } },
-    React.createElement("button", {
-      onClick: () => setShowDiag(v => !v),
-      style: { ...segBtn(showDiag), padding: "5px 11px", fontSize: 11.5 }
-    }, showDiag ? "Hide sensor details" : "Sensor details"),
+    React.createElement("div", { style: { display: "flex", gap: 8 } },
+      React.createElement("button", {
+        onClick: diag.onToggle,
+        style: { ...segBtn(showDiag), padding: "5px 11px", fontSize: 11.5 }
+      }, showDiag ? "Hide sensor details" : "Sensor details"),
+      showDiag && React.createElement("button", {
+        onClick: copyDiag,
+        style: { ...segBtn(false), padding: "5px 11px", fontSize: 11.5 }
+      }, diag.copyLabel)
+    ),
     showDiag && React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 11.5, lineHeight: 1.75, marginTop: 10, maxWidth: 380 }
     },
-      diagRow("Build", BUILD),
-      diagRow("Secure context", typeof window !== "undefined" && window.isSecureContext === false ? "no" : "yes"),
-      diagRow("DeviceOrientationEvent", typeof DeviceOrientationEvent === "undefined" ? "missing"
-        : (typeof DeviceOrientationEvent.requestPermission === "function" ? "yes (asks permission)" : "yes")),
-      diagRow("deviceorientationabsolute", "ondeviceorientationabsolute" in window ? "supported" : "not supported"),
-      diagRow("Events: relative", sensorStats ? String(sensorStats.rel) : "0"),
-      diagRow("Events: absolute", sensorStats ? String(sensorStats.abs) : "0"),
-      diagRow("Events with angles", sensorStats ? String(sensorStats.usable) : "0"),
-      diagRow("Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")),
-      // Which streams the fusion is actually combining. "Gyro + compass" is
-      // the good case; "compass only" means this device sent no smooth
-      // relative stream, so the view carries the magnetometer's noise.
-      diagRow("Fusion", !orient ? "\u2014"
-        : orient.frame === 'abs' ? "compass only"
-        : orient.abs ? "gyro + compass" : "gyro only (no north yet)"),
-      diagRow("North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014" : orient.yaw.toFixed(1) + "\u00b0"),
-      diagRow("Aimed at", !aimNow ? "\u2014"
-        : "az " + aimNow.az.toFixed(0) + "\u00b0 \u00b7 alt " + aimNow.alt.toFixed(0) + "\u00b0" + (aimNow.stable ? "" : " (flat)")),
-      diagRow("Heading reference", !orient ? "—" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")),
-      diagRow("Declination", decl.deg.toFixed(1) + "° " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " · model out of date" : "")),
-      diagRow("Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "°"),
-      diagRow("Total applied", (headingCorr > 0 ? "+" : "") + headingCorr.toFixed(1) + "°"),
-      dl && diagRow("Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")),
-      dl && diagRow("alpha / beta / gamma",
-        (dl.alpha === null ? "—" : dl.alpha) + " / " + (dl.beta === null ? "—" : dl.beta) + " / " + (dl.gamma === null ? "—" : dl.gamma)),
-      dl && dl.wk !== null && diagRow("webkitCompassHeading", String(dl.wk)),
-      React.createElement("div", { style: { color: C.inkFaint, marginTop: 8, lineHeight: 1.5 } },
-        !sensorStats || sensorStats.rel + sensorStats.abs === 0
-          ? "No orientation events are arriving at all — the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
-          : sensorStats.usable === 0
-            ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
-            : "Sensors are working. Move the phone and these numbers should change.")
+      diagEntries.map(([k, v]) => diagRow(k, v)),
+      React.createElement("div", { style: { color: C.inkFaint, marginTop: 8, lineHeight: 1.5 } }, diagSummary)
     )
   );
   const aimPanel = React.createElement("section", {
@@ -5536,6 +5617,7 @@ function StarFinder({ redMode } = {}) {
       onPick: name => setAimTargetName(name),
       relativeHeading: !!(orient && orient.abs === false),
       viewQ,
+      diag,
       onClose: () => setSkyOpen(false),
       sensorMsg: aimStatusMsg
     })
