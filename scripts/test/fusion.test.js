@@ -160,13 +160,23 @@ test('iOS: while upright, an unreliable top heading does not disturb an estimate
   assert.ok(angErr(s.yaw, yaw) < 1e-9, `the estimate drifted from ${yaw} to ${s.yaw} on garbage headings`);
 });
 
-test('iOS: a session that starts already looking up is right from the first reading', () => {
-  // Past vertical the top of the phone points away from the camera. If the
-  // first heading were compared against the camera axis here, north would
-  // start 180 degrees out.
+test('iOS: a session that starts already looking up guesses nothing', () => {
+  // Face-down, which axis the heading belongs to is exactly what cannot be
+  // known — so nothing is guessed, and the view says it is finding north.
   const truth = O.quatFromEuler(20, 140, 0);
-  const s = run([{ kind: 'heading', q: relOf(truth, 33), heading: topHeading(truth), trueNorth: true }]);
-  assert.ok(aimErr(s, truth).az < 1e-9, `first reading past vertical is off by ${aimErr(s, truth).az} deg`);
+  let s = run([{ kind: 'heading', q: relOf(truth, 33), heading: 123, trueNorth: true }]);
+  assert.strictEqual(O.fusedView(s).abs, false, 'no north should be claimed face-down');
+  assert.strictEqual(s.northKind, 'heading');
+  // Lowering the phone establishes it.
+  const flat = O.quatFromEuler(20, 30, 0);
+  s = run(repeat(5, { kind: 'heading', q: relOf(flat, 33), heading: topHeading(flat), trueNorth: true }), s);
+  const v = O.fusedView(s);
+  assert.strictEqual(v.abs, true);
+  assert.strictEqual(v.trusted, true);
+  assert.ok(aimErr(s, flat).az < 1e-9);
+  // And raising it again keeps it, whatever the heading says up there.
+  s = run(repeat(60, { kind: 'heading', q: relOf(truth, 33), heading: 271, trueNorth: true }), s);
+  assert.ok(aimErr(s, truth).az < 1e-9, 'face-down headings must not move a confirmed north');
 });
 
 test('iOS: the north estimate keeps following the compass', () => {
@@ -268,4 +278,111 @@ test('tuning constants are in sensible ranges', () => {
     'north should be filtered harder than attitude — that is the point');
   assert.ok(O.ORIENT_MIN_MS > 0 && O.ORIENT_MIN_MS <= 33);
   assert.ok(O.NORTH_MIN_HORIZ > 0 && O.NORTH_MIN_HORIZ < 1);
+});
+
+// ---------------------------------------------------------------- the tilt-up bug (reported on iPhone)
+
+/* Sweep a phone smoothly from low to the zenith and back, facing north, with
+   noisy headings, and report the worst bearing error on screen. `headingOf`
+   decides what iOS reports — the point being that the answer must be right
+   whichever it is. */
+function sweep(headingOf, seed = 3) {
+  const rand = rng(seed);
+  let s = O.FUSION_INIT, worst = 0;
+  const betas = [];
+  for (let b = 40; b <= 175; b += 0.5) betas.push(b);
+  for (let b = 175; b >= 40; b -= 0.5) betas.push(b);
+  for (const b of betas) {
+    const truth = O.quatFromEuler(0, b, 0);
+    const h = (headingOf(truth, b, rand) + (rand() - 0.5) * 6 + 360) % 360;
+    s = O.fuseOrientation(s, { kind: 'heading', q: relOf(truth, -40), heading: h, trueNorth: true });
+    const v = O.fusedView(s);
+    if (!v.abs) continue;
+    const t = O.aimOf(truth);
+    if (t.stable) worst = Math.max(worst, angErr(O.aimOf(v.q).az, t.az));
+  }
+  return worst;
+}
+const camHeading = q => O.aimOf(q).az;
+
+test('iPhone: raising the phone to the sky does not throw north round', () => {
+  // The reported bug: pointing up, the view jumped and lost its bearing, and
+  // came back on lowering. Reproduced when the heading follows the camera
+  // once the screen faces down — trusting it there turned north by 180.
+  const worst = sweep((q, b) => (b > 90 ? camHeading(q) : topHeading(q)));
+  assert.ok(worst < 4, `raising and lowering the phone put the view ${worst.toFixed(1)} deg out`);
+});
+
+test('iPhone: the same holds if the heading follows the top of the phone', () => {
+  assert.ok(sweep(q => topHeading(q)) < 4);
+});
+
+test('iPhone: the same holds if the heading is garbage while facing down', () => {
+  assert.ok(sweep((q, b, rand) => (b > 90 ? rand() * 360 : topHeading(q))) < 4);
+});
+
+test('iPhone: an unusable heading (negative accuracy) is ignored', () => {
+  const truth = O.quatFromEuler(10, 30, 0);
+  let s = run(repeat(10, { kind: 'heading', q: relOf(truth, 0), heading: topHeading(truth), trueNorth: true }));
+  const yaw = s.yaw;
+  s = run(repeat(200, { kind: 'heading', q: relOf(truth, 0), heading: 77, trueNorth: true, acc: -1 }), s);
+  assert.ok(angErr(s.yaw, yaw) < 1e-9, 'a heading iOS marks invalid must not move north');
+});
+
+// ---------------------------------------------------------------- the jump gate
+
+test('a heading 180 degrees out never makes north spin', () => {
+  // Blending across a near-180 gap has no well-defined direction: with noise,
+  // "the short way round" flips each sample. The gate refuses to blend it.
+  const truth = O.quatFromEuler(0, 110, 0);
+  const rand = rng(11);
+  let s = run([{ kind: 'rel', q: truth }, { kind: 'abs', q: truth, magnetic: true }]);
+  let worst = 0;
+  for (let i = 0; i < 30; i++) {       // fewer than NORTH_JUMP_SAMPLES
+    const flipped = O.quatMul(O.yawQ(180 + (rand() - 0.5) * 20), truth);
+    s = O.fuseOrientation(s, { kind: 'abs', q: flipped, magnetic: true });
+    worst = Math.max(worst, angErr(s.yaw, 0));
+  }
+  assert.ok(worst < 1e-9, `north moved ${worst} deg on a brief 180-degree disagreement`);
+});
+
+test('an inconsistent run of wild samples is never adopted', () => {
+  const truth = O.quatFromEuler(0, 110, 0);
+  const rand = rng(12);
+  let s = run([{ kind: 'rel', q: truth }, { kind: 'abs', q: truth, magnetic: true }]);
+  for (let i = 0; i < 500; i++) {
+    const wild = O.quatMul(O.yawQ(90 + rand() * 180), truth);   // all over the place
+    s = O.fuseOrientation(s, { kind: 'abs', q: wild, magnetic: true });
+  }
+  assert.ok(angErr(s.yaw, 0) < 1e-9, `north drifted to ${s.yaw} on samples that never agreed`);
+});
+
+test('a large change that persists is adopted, after a delay, in one step', () => {
+  const truth = O.quatFromEuler(0, 110, 0);
+  let s = run([{ kind: 'rel', q: truth }, { kind: 'abs', q: truth, magnetic: true }]);
+  const moved = O.quatMul(O.yawQ(-100), truth);   // compass now says 100 deg further round
+  for (let i = 0; i < O.NORTH_JUMP_SAMPLES - 2; i++) {
+    s = O.fuseOrientation(s, { kind: 'abs', q: moved, magnetic: true });
+    assert.ok(angErr(s.yaw, 0) < 1e-9, 'not yet — it has to persist first');
+  }
+  s = run(repeat(4, { kind: 'abs', q: moved, magnetic: true }), s);
+  assert.ok(angErr(s.yaw, 260) < 1e-6, `a persistent change should be taken whole, got ${s.yaw}`);
+});
+
+test('a trusted reading replaces an untrusted first guess at once', () => {
+  // Upright with no estimate, the camera axis is only a guess. The first
+  // face-up reading must win outright, even if the guess was far off.
+  const upright = O.quatFromEuler(0, 90, 0);
+  let s = run([{ kind: 'heading', q: relOf(upright, 0), heading: 170, trueNorth: true }]);
+  assert.strictEqual(O.fusedView(s).trusted, false);
+  const flat = O.quatFromEuler(0, 20, 0);
+  s = O.fuseOrientation(s, { kind: 'heading', q: relOf(flat, 0), heading: topHeading(flat), trueNorth: true });
+  assert.strictEqual(O.fusedView(s).trusted, true);
+  assert.ok(aimErr(s, flat).az < 1e-9);
+});
+
+test('north-gate tuning is sensible', () => {
+  assert.ok(O.NORTH_FACE_UP > 0 && O.NORTH_FACE_UP < 0.5);
+  assert.ok(O.NORTH_JUMP_DEG >= 30 && O.NORTH_JUMP_DEG <= 90);
+  assert.ok(O.NORTH_JUMP_SAMPLES >= 20 && O.NORTH_JUMP_SAMPLES <= 120);
 });

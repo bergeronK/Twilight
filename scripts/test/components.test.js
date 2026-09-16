@@ -242,7 +242,7 @@ test('the readout builds before any sensor has spoken', () => {
 
 test('the readout reports a fused view and the error against a target', () => {
   const m = asMap(rows({
-    orient: { q: [0, 0, 0, 1], abs: true, magnetic: true, frame: 'rel', yaw: 33.25, haveRel: true },
+    orient: { q: [0, 0, 0, 1], abs: true, magnetic: true, frame: 'rel', yaw: 33.25, haveRel: true, trusted: true, northKind: 'abs' },
     aimNow: { az: 118.6, alt: 31.2, stable: true },
     aimTarget: { name: 'Moon', az: 120.4, alt: 29.9 },
     aimTurn: -12.3, aimTilt: 4.4, aimOffset: 5, headingCorr: -7.4, screenAngle: 90,
@@ -250,7 +250,8 @@ test('the readout reports a fused view and the error against a target', () => {
     dl: { type: 'deviceorientation', absolute: false, alpha: 10.5, beta: 101.2, gamma: -3.1, wk: null }
   }));
   assert.strictEqual(m['Fusion'], 'gyro + compass');
-  assert.strictEqual(m['North offset'], '33.3°');
+  assert.strictEqual(m['North offset'], '33.3° (confirmed)');
+  assert.strictEqual(m['North source'], 'absolute orientation');
   assert.match(m['Aimed at'], /az 119° · alt 31°/);
   assert.match(m['Target'], /Moon · az 120° · alt 30°/);
   assert.strictEqual(m['App says move'], 'turn 12° left · tilt 4° up');
@@ -263,6 +264,9 @@ test('the readout reports a fused view and the error against a target', () => {
 
 test('the readout distinguishes the fusion modes', () => {
   assert.strictEqual(asMap(rows({ orient: { abs: true, magnetic: true, frame: 'abs', yaw: null } }))['Fusion'], 'compass only');
+  const guess = asMap(rows({ orient: { abs: true, magnetic: false, frame: 'rel', yaw: 12, trusted: false, northKind: 'heading' } }));
+  assert.strictEqual(guess['North offset'], '12.0° (first guess)');
+  assert.match(guess['North source'], /screen facing up/);
   const rel = asMap(rows({ orient: { abs: false, magnetic: false, frame: 'rel', yaw: null } }));
   assert.strictEqual(rel['Fusion'], 'gyro only (no north yet)');
   assert.strictEqual(rel['Heading reference'], 'arbitrary (relative)');
@@ -278,4 +282,24 @@ test('a flat phone with a target has no tilt in the error row', () => {
   assert.strictEqual(m['App says move'], 'turn 30° right');
   assert.match(m['Aimed at'], /\(flat\)/);
   assert.strictEqual(m['Heading reference'], 'true north');
+});
+
+test('Sky View puts a north warning above everything else', () => {
+  const msg = 'Finding north — lower the phone flat for a moment.';
+  const tree = renderSkyDome({ diag: diagProp(false), northMsg: msg });
+  const text = textOf(tree);
+  assert.ok(text.includes(msg), 'the north message should be shown');
+  assert.ok(text.indexOf(msg) < text.indexOf('Moon ·'), 'and before the target line');
+});
+
+test('Sky View shows no north warning when north is settled', () => {
+  const text = textOf(renderSkyDome({ diag: diagProp(false), northMsg: null }));
+  assert.ok(!text.includes('first guess') && !text.includes('Finding north') && !text.includes('no true-north'));
+});
+
+test('Sky View does not show a north warning in drag-to-look mode', () => {
+  // With no sensors there is no north to find; the drag hint is what matters.
+  const text = textOf(renderSkyDome({ viewQ: null, targetName: null, northMsg: 'Finding north — x', diag: diagProp(false) }));
+  assert.ok(!text.includes('Finding north'));
+  assert.ok(text.includes('drag to look around'));
 });
