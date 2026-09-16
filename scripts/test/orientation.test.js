@@ -1,234 +1,308 @@
 'use strict';
 /*
- * Sky View / Aim Assist orientation math.
+ * Sky View / Aim Assist orientation geometry.
  *
- * These invariants were each verified once during development by a throwaway
- * script and then described in a commit message. That is how the v1.3 note in
- * CLAUDE.md came to claim both registration axes were user-correctable while
- * the heading offset never reached the renderer — the claim was true of the
- * intent and untested against the code. Committing the sweeps means a later
- * change to the matrices has to keep them true.
+ * Two kinds of test live here, and it matters which is which.
  *
- * The central invariant (from 05a3a16): a body that Aim Assist reports as
- * "on target" must project to the centre of the screen. Aim Assist and Sky
- * View read the same sensors about the same phone, so if they disagree, one
- * of them is lying to the user.
+ * SELF-CONSISTENCY — aim at a body and it lands at screen centre; a body
+ * behind the phone is never drawn; projection is roll-invariant. These hold
+ * by construction, because the projection and the aim are derived from the
+ * same rotation. They catch a broken refactor. They cannot catch a wrong
+ * convention: mirror or transpose the whole thing and every one still passes.
+ * An earlier version of this suite consisted only of tests like these, and
+ * the feature was reported "way off all around" on a real phone while all of
+ * them were green.
+ *
+ * CORRESPONDENCE — does the rotation mean what the W3C spec says it means?
+ * The spec's matrix is written out longhand below, independently of the
+ * app's quaternion code, and the two are compared; and a handful of physical
+ * postures are checked with the expected answer described in words, so a
+ * reviewer can verify each one with a phone in hand. These pin the app to the
+ * spec. They still cannot pin it to what a particular browser actually sends
+ * — only a device reading can do that — but they are the tests that fail if
+ * the convention is wrong.
  */
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { extract, declSource } = require('./extract.js');
-
-const {
-  D2R, sin, cos, asin, atan2,
-  orientationToAim, worldToScreenDir, skyProject, screenUpHeading
-} = extract([
-  'D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2',
-  'orientationToAim', 'worldToScreenDir', 'skyProject', 'screenUpHeading'
-]);
-
-// Deterministic PRNG so a failure is reproducible from the seed alone.
-function rng(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
+const { declSource } = require('./extract.js');
+const O = require('./orient-lib.js');
+const { angErr, rng } = O;
 
 const SCREEN_ANGLES = [0, 90, 180, 270];
 
-test('aiming at a body puts it at the centre of the screen', () => {
-  // The invariant 05a3a16 restored. Before that fix the same sweep put the
-  // aimed body up to 376.8 px off centre on a 400 px-wide screen.
-  const rand = rng(20250915);
-  const W = 400, H = 800, FOV = 63;
+/* The W3C DeviceOrientation rotation, R = Rz(alpha) Rx(beta) Ry(gamma),
+   written out by hand and sharing no code with the app. Columns are the
+   device's x, y and z axes expressed in Earth East/North/Up. */
+function specMatrix(a, b, g) {
+  const r = Math.PI / 180;
+  const cA = Math.cos(a * r), sA = Math.sin(a * r);
+  const cB = Math.cos(b * r), sB = Math.sin(b * r);
+  const cG = Math.cos(g * r), sG = Math.sin(g * r);
+  return [
+    [cA * cG - sA * sB * sG, -sA * cB, cA * sG + sA * sB * cG],
+    [sA * cG + cA * sB * sG, cA * cB, sA * sG - cA * sB * cG],
+    [-cB * sG, sB, cB * cG]
+  ];
+}
+const col = (M, j) => [M[0][j], M[1][j], M[2][j]];
+
+// ---------------------------------------------------------------- correspondence
+
+test('the quaternion is the rotation the W3C spec defines', () => {
+  const rand = rng(424242);
   let worst = 0;
-  let n = 0;
+  for (let i = 0; i < 5000; i++) {
+    const a = rand() * 360, b = rand() * 360 - 180, g = rand() * 180 - 90;
+    const M = specMatrix(a, b, g);
+    const q = O.quatFromEuler(a, b, g);
+    const axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    axes.forEach((v, j) => {
+      const got = O.quatRotate(q, v), want = col(M, j);
+      for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(got[k] - want[k]));
+    });
+  }
+  assert.ok(worst < 1e-12, `quaternion disagrees with the spec matrix by ${worst}`);
+});
+
+test('the camera looks along the device\'s -z axis, as the spec places it', () => {
+  // z points out of the screen toward the user, so the rear camera faces -z.
+  const rand = rng(99);
+  for (let i = 0; i < 500; i++) {
+    const a = rand() * 360, b = rand() * 360 - 180, g = rand() * 180 - 90;
+    const camera = col(specMatrix(a, b, g), 2).map(x => -x);
+    const aim = O.aimOf(O.quatFromEuler(a, b, g));
+    assert.ok(Math.abs(aim.alt - Math.asin(camera[2]) * 180 / Math.PI) < 1e-9);
+    if (aim.stable) {
+      const az = (Math.atan2(camera[0], camera[1]) * 180 / Math.PI + 360) % 360;
+      assert.ok(angErr(aim.az, az) < 1e-9, `azimuth ${aim.az} vs spec ${az}`);
+    }
+  }
+});
+
+test('flat on a table, top pointing north: the camera looks at the table', () => {
+  const aim = O.aimOf(O.quatFromEuler(0, 0, 0));
+  assert.ok(aim.alt < -89.9, `expected straight down, got alt ${aim.alt}`);
+  assert.strictEqual(aim.stable, false, 'straight down has no meaningful azimuth');
+});
+
+test('flat, turned so the top points west, is alpha = 90', () => {
+  // The spec's own example: alpha increases counter-clockwise seen from
+  // above, so a quarter turn anticlockwise from north points the top west.
+  const top = O.quatRotate(O.quatFromEuler(90, 0, 0), [0, 1, 0]);
+  assert.ok(angErr(O.vecAz(top), 270) < 1e-9, `top should point west (270), got ${O.vecAz(top)}`);
+  const east = O.quatRotate(O.quatFromEuler(270, 0, 0), [0, 1, 0]);
+  assert.ok(angErr(O.vecAz(east), 90) < 1e-9, `alpha 270 should point the top east, got ${O.vecAz(east)}`);
+});
+
+test('held upright facing a direction, the camera looks at that horizon', () => {
+  // Stand facing north holding the phone up in front of you, screen toward
+  // your face: beta = 90, and the rear camera looks north along the horizon.
+  // Turning to face east lowers alpha by 90 (alpha runs counter-clockwise).
+  for (const [facing, alpha] of [[0, 0], [90, 270], [180, 180], [270, 90]]) {
+    const aim = O.aimOf(O.quatFromEuler(alpha, 90, 0));
+    assert.ok(Math.abs(aim.alt) < 1e-9, `upright should aim level, got alt ${aim.alt}`);
+    assert.ok(angErr(aim.az, facing) < 1e-9, `facing ${facing}: camera az ${aim.az}`);
+  }
+});
+
+test('tipping the top of the phone toward you raises the camera', () => {
+  // Facing north, to look up at the sky you tip the top of the phone back
+  // toward yourself: beta goes past 90. At beta = 135 the camera points north,
+  // 45 degrees up — while the top of the phone points SOUTH. That reversal is
+  // exactly why a compass heading taken from the top of the device cannot be
+  // used as the camera's heading.
+  const q = O.quatFromEuler(0, 135, 0);
+  const aim = O.aimOf(q);
+  assert.ok(angErr(aim.az, 0) < 1e-9, `camera should face north, got ${aim.az}`);
+  assert.ok(Math.abs(aim.alt - 45) < 1e-9, `camera should be 45 deg up, got ${aim.alt}`);
+  const top = O.quatRotate(q, [0, 1, 0]);
+  assert.ok(angErr(O.vecAz(top), 180) < 1e-9, `top should point south, got ${O.vecAz(top)}`);
+});
+
+test('rolling the phone onto its side swings the camera sideways', () => {
+  // Flat, top north, then gamma = 90: the phone rolls about its long axis
+  // until the screen faces east, so the camera faces west.
+  const aim = O.aimOf(O.quatFromEuler(0, 0, 90));
+  assert.ok(Math.abs(aim.alt) < 1e-9, `expected level, got ${aim.alt}`);
+  assert.ok(angErr(aim.az, 270) < 1e-9, `expected west, got ${aim.az}`);
+});
+
+test('the screen\'s right-hand side is where a body to the right is drawn', () => {
+  // Upright facing north, a body a little east of north must appear right of
+  // centre, and one a little above the horizon above centre. A mirrored
+  // convention would pass every self-consistency test and fail this.
+  const basis = O.viewBasis(O.quatFromEuler(0, 90, 0), 0);
+  const right = O.skyProject(O.toScreen(basis, 10, 0), 400, 800, 63);
+  assert.ok(right.x > 200, `a body east of north should draw right of centre, x=${right.x}`);
+  assert.ok(Math.abs(right.y - 400) < 1e-6, 'and level with the centre');
+  const up = O.skyProject(O.toScreen(basis, 0, 10), 400, 800, 63);
+  assert.ok(up.y < 400, `a body above the horizon should draw above centre, y=${up.y}`);
+});
+
+test('landscape rotates the drawing with the screen', () => {
+  // Turned into landscape (screen angle 90), "right on the screen" is what
+  // was "up the device" — so a body above the horizon moves to the side.
+  const q = O.quatFromEuler(0, 90, 0);
+  const portrait = O.toScreen(O.viewBasis(q, 0), 0, 10);
+  const landscape = O.toScreen(O.viewBasis(q, 90), 0, 10);
+  assert.ok(portrait.y > 0 && Math.abs(portrait.x) < 1e-9, 'portrait: straight up the screen');
+  assert.ok(Math.abs(landscape.y) < 1e-9 && Math.abs(landscape.x) > 0.1, 'landscape: sideways');
+  assert.ok(Math.abs(landscape.z - portrait.z) < 1e-12, 'screen rotation never changes depth');
+});
+
+// ---------------------------------------------------------------- self-consistency
+
+test('aiming at a body puts it at the centre of the screen', () => {
+  const rand = rng(20250915);
+  let worst = 0, n = 0;
   for (let i = 0; i < 4000; i++) {
-    const alpha = rand() * 360;
-    const beta = rand() * 360 - 180;
-    const gamma = rand() * 180 - 90;
-    const aim = orientationToAim(alpha, beta, gamma);
-    if (!aim.stable) continue; // near-vertical: azimuth undefined by design
+    const q = O.quatFromEuler(rand() * 360, rand() * 360 - 180, rand() * 180 - 90);
+    const aim = O.aimOf(q);
+    if (!aim.stable) continue;
     for (const sa of SCREEN_ANGLES) {
-      const d = worldToScreenDir(aim.az, aim.alt, alpha, beta, gamma, sa);
-      const p = skyProject(d, W, H, FOV);
-      assert.ok(p, `body being aimed at should be in front of the camera (a=${alpha} b=${beta} g=${gamma})`);
-      const off = Math.hypot(p.x - W / 2, p.y - H / 2);
-      worst = Math.max(worst, off);
+      const p = O.skyProject(O.toScreen(O.viewBasis(q, sa), aim.az, aim.alt), 400, 800, 63);
+      assert.ok(p, 'the body being aimed at must be in front of the camera');
+      worst = Math.max(worst, Math.hypot(p.x - 200, p.y - 400));
       n++;
     }
   }
-  assert.ok(n > 1000, `expected a meaningful number of stable samples, got ${n}`);
-  assert.ok(worst < 1e-6, `aimed body landed ${worst} px off centre (want < 1e-6)`);
-});
-
-/*
- * The two call sites that 05a3a16 had to reconcile, evaluated as the source
- * actually ships them rather than restated here. Aim Assist adds the heading
- * correction to the bearing it reports; Sky View subtracts it from the view
- * alpha it renders with (az = 360 - alpha, so the signs are opposite by
- * construction). If either stops applying it — the v1.3 bug — the two
- * disagree by exactly the correction and the test below fails.
- *
- * `headingCorr` is declination plus the manual nudge, computed once in
- * StarFinder and passed into SkyDome. SkyDome reads it directly rather than
- * keeping a local copy, so there is no second name that could drift back to
- * reading the store on its own.
- */
-const skyViewAlpha = new Function(
-  'live', 'orient', 'headingCorr', 'manual', 'screenAngle',
-  declSource('view') + '\nreturn view;'
-);
-const aimAssistHeading = new Function(
-  'aimAz', 'headingCorr',
-  declSource('aimAzC') + '\nreturn aimAzC;'
-);
-
-test('Sky View and Aim Assist agree once a heading correction is applied', () => {
-  const rand = rng(51515);
-  const W = 400, H = 800, FOV = 63;
-  let worst = 0;
-  let n = 0;
-  for (let i = 0; i < 3000; i++) {
-    const alpha = rand() * 360;
-    const beta = rand() * 360 - 180;
-    const gamma = rand() * 180 - 90;
-    // Declination plus the persisted "Align to <body>" nudge, as one value.
-    const headingCorr = rand() * 360 - 180;
-    const screenAngle = SCREEN_ANGLES[i % SCREEN_ANGLES.length];
-
-    const aim = orientationToAim(alpha, beta, gamma);
-    if (!aim.stable) continue;
-
-    // What Aim Assist tells the user they are pointing at.
-    const heading = aimAssistHeading(aim.az, headingCorr);
-    // What Sky View renders with, for the same phone and the same correction.
-    const view = skyViewAlpha(true, { alpha, beta, gamma }, headingCorr, null, screenAngle);
-
-    // A body at exactly that heading is what Aim Assist calls "on target",
-    // so Sky View must draw it at the centre of the screen.
-    const d = worldToScreenDir(heading, aim.alt, view.alpha, view.beta, view.gamma, view.sa);
-    const p = skyProject(d, W, H, FOV);
-    assert.ok(p, `on-target body must be in front of the camera (corr ${headingCorr})`);
-    const off = Math.hypot(p.x - W / 2, p.y - H / 2);
-    worst = Math.max(worst, off);
-    n++;
-  }
-  assert.ok(n > 800, `expected a meaningful number of stable samples, got ${n}`);
-  assert.ok(
-    worst < 1e-6,
-    `Sky View drew the on-target body ${worst.toFixed(1)} px off centre — ` +
-    'the manual heading correction is not reaching both call sites (see 05a3a16)'
-  );
-});
-
-test('a zero correction leaves the rendered view untouched', () => {
-  // Guards the test above from passing vacuously if `view` stopped depending
-  // on orient.alpha altogether.
-  const v = skyViewAlpha(true, { alpha: 123.5, beta: 80, gamma: 10 }, 0, null, 90);
-  assert.ok(Math.abs(v.alpha - 123.5) < 1e-9, `expected alpha 123.5 with no offset, got ${v.alpha}`);
-  assert.strictEqual(v.beta, 80);
-  assert.strictEqual(v.gamma, 10);
-  assert.strictEqual(v.sa, 90);
-});
-
-test('the drag-to-look fallback ignores the sensor correction', () => {
-  // With no sensors there is no sensor error to correct, so the offset must
-  // not leak into the synthesised angles.
-  const a = skyViewAlpha(false, null, 0, { az: 200, alt: 30 }, 0);
-  const b = skyViewAlpha(false, null, 45, { az: 200, alt: 30 }, 0);
-  assert.deepStrictEqual(a, b, 'manual correction must not affect the drag-to-look view');
-  assert.ok(Math.abs(a.alpha - 160) < 1e-9, `az 200 should give alpha 160, got ${a.alpha}`);
+  assert.ok(n > 1000, `expected plenty of stable samples, got ${n}`);
+  assert.ok(worst < 1e-6, `aimed body landed ${worst} px off centre`);
 });
 
 test('a body behind the phone never projects onto the canvas', () => {
   const rand = rng(77777);
   for (let i = 0; i < 2000; i++) {
-    const alpha = rand() * 360;
-    const beta = rand() * 360 - 180;
-    const gamma = rand() * 180 - 90;
-    const aim = orientationToAim(alpha, beta, gamma);
+    const q = O.quatFromEuler(rand() * 360, rand() * 360 - 180, rand() * 180 - 90);
+    const aim = O.aimOf(q);
     if (!aim.stable) continue;
-    // The point directly opposite where the camera looks.
-    const backAz = (aim.az + 180) % 360;
-    const backAlt = -aim.alt;
-    const d = worldToScreenDir(backAz, backAlt, alpha, beta, gamma, 0);
-    assert.strictEqual(skyProject(d, 400, 800, 63), null, 'body behind the phone must not be drawn');
+    const d = O.toScreen(O.viewBasis(q, 0), (aim.az + 180) % 360, -aim.alt);
+    assert.strictEqual(O.skyProject(d, 400, 800, 63), null);
   }
 });
 
-test('projection is invariant to roll', () => {
-  // Rolling the phone about the camera axis moves where a body appears on
-  // screen, but not how far off-axis it is. This is what makes the full
-  // matrix worth carrying instead of reading beta off as "tilt".
+test('projection is invariant to roll about the camera axis', () => {
+  // Rolling moves where a body appears but not how far from centre.
   const rand = rng(31337);
-  const W = 400, H = 800, FOV = 63;
-  for (let i = 0; i < 500; i++) {
-    const alpha = rand() * 360;
-    const beta = rand() * 360 - 180;
-    const az = rand() * 360;
-    const alt = rand() * 80 - 10;
-    const radii = [];
-    for (const gamma of [-60, -20, 0, 20, 60]) {
-      const aim = orientationToAim(alpha, beta, gamma);
-      if (!aim.stable) { radii.length = 0; break; }
-      const d = worldToScreenDir(az, alt, alpha, beta, gamma, 0);
-      const p = skyProject(d, W, H, FOV);
-      if (!p) { radii.length = 0; break; }
-      // Angular separation between the aim direction and the body is the
-      // roll-invariant quantity; check the projected radius tracks it.
-      const sep = Math.acos(Math.max(-1, Math.min(1,
-        cos(alt) * cos(aim.alt) * cos(az - aim.az) + sin(alt) * sin(aim.alt)
-      ))) / D2R;
-      radii.push({ r: Math.hypot(p.x - W / 2, p.y - H / 2), sep });
-    }
-    if (!radii.length) continue;
-    for (const s of radii) {
-      const f = (H / 2) / Math.tan((FOV / 2) * D2R);
-      const expected = f * Math.tan(s.sep * D2R);
-      assert.ok(
-        Math.abs(s.r - expected) < 1e-6 * Math.max(1, expected),
-        `projected radius ${s.r} does not match separation ${s.sep}° (expected ${expected})`
-      );
-    }
+  const f = 400 / Math.tan(31.5 * Math.PI / 180);
+  for (let i = 0; i < 300; i++) {
+    const base = O.quatFromEuler(rand() * 360, 60 + rand() * 90, 0);
+    const aim = O.aimOf(base);
+    const camAxis = O.quatRotate(base, [0, 0, -1]);
+    const az = aim.az + (rand() * 30 - 15), alt = Math.max(-80, Math.min(80, aim.alt + (rand() * 30 - 15)));
+    const radii = [-60, -20, 0, 20, 60].map(roll => {
+      const q = O.quatMul(O.quatAxis(camAxis[0], camAxis[1], camAxis[2], roll), base);
+      const p = O.skyProject(O.toScreen(O.viewBasis(q, 0), az, alt), 400, 800, 63);
+      return p ? Math.hypot(p.x - 200, p.y - 400) : null;
+    });
+    if (radii.some(r => r === null)) continue;
+    for (const r of radii) assert.ok(Math.abs(r - radii[2]) < 1e-6 * Math.max(1, radii[2]),
+      `roll changed the distance from centre: ${radii}`);
+    const e = Math.cos(alt * Math.PI / 180) * Math.sin(az * Math.PI / 180);
+    const n = Math.cos(alt * Math.PI / 180) * Math.cos(az * Math.PI / 180);
+    const u = Math.sin(alt * Math.PI / 180);
+    const sep = Math.acos(Math.max(-1, Math.min(1, e * camAxis[0] + n * camAxis[1] + u * camAxis[2])));
+    assert.ok(Math.abs(radii[2] - f * Math.tan(sep)) < 1e-6 * Math.max(1, radii[2]));
   }
-});
-
-test('orientationToAim reports the directions a person would expect', () => {
-  // Hand-reasoned postures, as a guard on the matrix's sign conventions —
-  // a sweep can be self-consistent and still have east and west swapped.
-  const upright = (az) => orientationToAim((360 - az) % 360, 90, 0);
-  for (const az of [0, 90, 180, 270]) {
-    const a = upright(az);
-    assert.ok(Math.abs(a.alt) < 1e-6, `phone upright should aim at the horizon, got alt ${a.alt}`);
-    const d = Math.abs(((a.az - az + 540) % 360) - 180);
-    assert.ok(d < 1e-6, `phone upright facing ${az}° reported az ${a.az}`);
-  }
-  // Phone flat on its back, screen up: camera looks straight down.
-  assert.ok(orientationToAim(0, 0, 0).alt < -89.9, 'flat on its back should aim at the ground');
-  // Phone flat, screen down: camera looks straight up.
-  assert.ok(orientationToAim(0, 180, 0).alt > 89.9, 'flat screen-down should aim at the zenith');
 });
 
 test('near-vertical aim is reported as unstable', () => {
-  // Azimuth is meaningless when the camera points at the ground or zenith;
-  // callers depend on `stable` to fall back to the screen-up heading.
-  assert.strictEqual(orientationToAim(0, 0, 0).stable, false, 'straight down should be unstable');
-  assert.strictEqual(orientationToAim(0, 180, 0).stable, false, 'straight up should be unstable');
-  assert.strictEqual(orientationToAim(0, 90, 0).stable, true, 'horizontal should be stable');
+  assert.strictEqual(O.aimOf(O.quatFromEuler(0, 0, 0)).stable, false);
+  assert.strictEqual(O.aimOf(O.quatFromEuler(0, 180, 0)).stable, false);
+  assert.strictEqual(O.aimOf(O.quatFromEuler(0, 90, 0)).stable, true);
 });
 
-test('screenUpHeading follows the displayed top, not the device top', () => {
-  // A phone held flat and rotated into landscape reports a device-top 90°
-  // away from the top the user sees; the screenAngle term corrects that.
-  const flatNorth = 0;
-  const portrait = screenUpHeading(flatNorth, 0, 0, 0);
-  const landscape = screenUpHeading(flatNorth, 0, 0, 90);
-  const delta = ((landscape - portrait) + 360) % 360;
-  assert.ok(
-    Math.abs(delta - 90) < 1e-6,
-    `rotating the UI 90° should move the screen-up heading 90°, moved ${delta}`
-  );
+test('screen-up follows the displayed top, not the device top', () => {
+  const q = O.quatFromEuler(0, 0, 0);
+  const d = ((O.screenUpAz(q, 90) - O.screenUpAz(q, 0)) + 360) % 360;
+  assert.ok(Math.abs(d - 90) < 1e-9, `rotating the UI 90 deg should move screen-up 90 deg, moved ${d}`);
+});
+
+test('the heading correction adds to every azimuth and leaves altitude alone', () => {
+  const rand = rng(8080);
+  for (let i = 0; i < 500; i++) {
+    const q = O.quatFromEuler(rand() * 360, 30 + rand() * 120, rand() * 60 - 30);
+    const c = rand() * 360 - 180;
+    const before = O.aimOf(q), after = O.aimOf(O.correctView(q, c));
+    if (!before.stable) continue;
+    assert.ok(angErr(after.az, before.az + c) < 1e-9, `az ${before.az} + ${c} gave ${after.az}`);
+    assert.ok(Math.abs(after.alt - before.alt) < 1e-9, 'correction must not change altitude');
+  }
+});
+
+// ---------------------------------------------------------------- the shipped wiring
+
+/*
+ * The expressions StarFinder and SkyDome actually ship, evaluated from
+ * source. Aim Assist reads aimAzC; Sky View draws with `view`/`basis`. The
+ * v1.3 bug was these two disagreeing, so they are tested together.
+ */
+const useMemo = f => f();
+const starFinderView = new Function(
+  'useMemo', 'correctView', 'aimOf', 'screenUpAz', 'orient', 'headingCorr', 'screenAngle',
+  declSource('viewQ') + '\n' + declSource('aimNow') + '\n' + declSource('aimAzC') +
+  '\nreturn { viewQ, aimNow, aimAzC };'
+);
+const skyDomeView = new Function(
+  'useMemo', 'quatFromEuler', 'viewBasis', 'live', 'viewQ', 'screenAngle', 'manual',
+  declSource('view') + '\n' + declSource('basis') + '\nreturn { view, basis };'
+);
+const shipped = (orient, headingCorr, screenAngle) =>
+  starFinderView(useMemo, O.correctView, O.aimOf, O.screenUpAz, orient, headingCorr, screenAngle);
+const dome = (live, viewQ, screenAngle, manual) =>
+  skyDomeView(useMemo, O.quatFromEuler, O.viewBasis, live, viewQ, screenAngle, manual);
+
+test('Sky View draws Aim Assist\'s target at the centre, correction included', () => {
+  const rand = rng(51515);
+  let worst = 0, n = 0;
+  for (let i = 0; i < 3000; i++) {
+    const q = O.quatFromEuler(rand() * 360, rand() * 360 - 180, rand() * 180 - 90);
+    const corr = rand() * 360 - 180;
+    const sa = SCREEN_ANGLES[i % 4];
+    const sf = shipped({ q }, corr, sa);
+    if (!sf.aimNow || !sf.aimNow.stable) continue;
+    const { basis } = dome(true, sf.viewQ, sa, { az: 0, alt: 0 });
+    const p = O.skyProject(O.toScreen(basis, sf.aimAzC, sf.aimNow.alt), 400, 800, 63);
+    assert.ok(p, 'on-target body must be in front of the camera');
+    worst = Math.max(worst, Math.hypot(p.x - 200, p.y - 400));
+    n++;
+  }
+  assert.ok(n > 800, `expected plenty of stable samples, got ${n}`);
+  assert.ok(worst < 1e-6, `Sky View drew the on-target body ${worst} px off centre`);
+});
+
+test('the correction reaches Aim Assist\'s bearing', () => {
+  const q = O.quatFromEuler(0, 90, 0);   // upright, facing north
+  assert.ok(angErr(shipped({ q }, 0, 0).aimAzC, 0) < 1e-9);
+  assert.ok(angErr(shipped({ q }, 15, 0).aimAzC, 15) < 1e-9, 'a +15 correction should read 15');
+  assert.ok(angErr(shipped({ q }, -12.5, 0).aimAzC, 347.5) < 1e-9, 'a westerly correction should read 347.5');
+});
+
+test('held flat, Aim Assist falls back to the bearing of the screen top', () => {
+  const q = O.quatFromEuler(270, 0, 0);  // flat, top pointing east
+  const sf = shipped({ q }, 0, 0);
+  assert.strictEqual(sf.aimNow.stable, false);
+  assert.ok(angErr(sf.aimAzC, 90) < 1e-9, `expected east, got ${sf.aimAzC}`);
+});
+
+test('no sensor means no bearing', () => {
+  const sf = shipped(null, 10, 0);
+  assert.strictEqual(sf.viewQ, null);
+  assert.strictEqual(sf.aimAzC, null);
+});
+
+test('drag-to-look points the view where it says', () => {
+  const { view } = dome(false, null, 90, { az: 200, alt: 30 });
+  const aim = O.aimOf(view.q);
+  assert.ok(angErr(aim.az, 200) < 1e-9, `expected az 200, got ${aim.az}`);
+  assert.ok(Math.abs(aim.alt - 30) < 1e-9, `expected alt 30, got ${aim.alt}`);
+  assert.strictEqual(view.sa, 0, 'drag-to-look ignores the physical screen angle');
+});
+
+test('the live view uses the corrected rotation untouched', () => {
+  const q = O.correctView(O.quatFromEuler(30, 100, 5), 12);
+  const { view } = dome(true, q, 180, { az: 0, alt: 0 });
+  assert.strictEqual(view.q, q, 'Sky View must draw with the very object Aim Assist read');
+  assert.strictEqual(view.sa, 180);
 });
