@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-mTKAx+MqT2ZI6s139DOr1c1KpqKEA0ckhetmMXdJARI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-sry0/fK8W83ZOxVVPDQEZiBWWitjIOuhyJAV6qqRuac=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1882,6 +1882,16 @@ const ORIENT_MIN_MS = 16;     // ~60 published updates a second, at most
 // A heading axis must be at least this horizontal to say anything about
 // north. cos 60 deg — steeper than that and noise dominates its azimuth.
 const NORTH_MIN_HORIZ = 0.5;
+// How far up the screen must face before an iOS heading is believed: the
+// screen normal's upward component, so 0.25 is about 75 deg from flat.
+const NORTH_FACE_UP = 0.25;
+// A north sample further than this from the estimate is not blended in.
+// Near 180 deg of disagreement, "the shorter way round" flips direction with
+// every bit of noise, and blending makes the estimate spin.
+const NORTH_JUMP_DEG = 60;
+// ...unless the new value persists, consistently, for this many samples
+// (~0.75 s at 60 Hz) — a genuine change, such as a compass recalibrating.
+const NORTH_JUMP_SAMPLES = 45;
 
 /* Exponential smoothing for an angle that wraps: 359 and 1 must average to 0,
    not 180. Used here only for the yaw offset. */
@@ -1890,40 +1900,77 @@ function smoothAngle(prev, next, k) {
   const d = ((next - prev) % 360 + 540) % 360 - 180; // shortest signed path
   return ((prev + k * d) % 360 + 360) % 360;
 }
+const angGap = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+
+/* Fold one north sample into the estimate. Small disagreements are blended.
+   Large ones are held back until they have persisted and agreed with each
+   other, then adopted outright — never blended, since blending across a gap
+   near 180 deg has no well-defined direction and the view spins. */
+function updateNorth(s, y, trusted) {
+  const yN = ((y % 360) + 360) % 360;
+  if (s.yaw === null) return { yaw: yN, trusted, pending: 0, pendingYaw: null };
+  if (angGap(yN, s.yaw) <= NORTH_JUMP_DEG) {
+    return {
+      yaw: smoothAngle(s.yaw, yN, NORTH_SMOOTH),
+      trusted: s.trusted || trusted, pending: 0, pendingYaw: null
+    };
+  }
+  // A trusted sample overrides an untrusted first guess straight away.
+  if (trusted && !s.trusted) return { yaw: yN, trusted: true, pending: 0, pendingYaw: null };
+  if (s.pendingYaw !== null && angGap(yN, s.pendingYaw) <= NORTH_JUMP_DEG) {
+    const pending = s.pending + 1;
+    const pendingYaw = smoothAngle(s.pendingYaw, yN, 0.2);
+    if (pending >= NORTH_JUMP_SAMPLES) return { yaw: pendingYaw, trusted: s.trusted || trusted, pending: 0, pendingYaw: null };
+    return { yaw: s.yaw, trusted: s.trusted, pending, pendingYaw };
+  }
+  return { yaw: s.yaw, trusted: s.trusted, pending: 1, pendingYaw: yN };
+}
 
 /* The yaw psi with yawQ(psi) * rel ≈ abs, read off how the two rotations
    carry a horizontal reference vector. Azimuths fall by psi under yawQ(psi),
    so psi = az(rel) - az(abs). The reference used is whichever device axis is
-   more horizontal, so the answer stays well conditioned in any pose. */
+   more horizontal, so the answer stays well conditioned in any pose. Both
+   inputs are full rotations, so there is no ambiguity about which axis a
+   heading belongs to. */
 function yawBetween(abs, rel) {
-  const pickAxis = q => {
-    const top = quatRotate(q, [0, 1, 0]);
-    return vecHoriz(top) >= NORTH_MIN_HORIZ ? [0, 1, 0] : [0, 0, -1];
-  };
-  const axis = pickAxis(rel);
+  const top = quatRotate(rel, [0, 1, 0]);
+  const axis = vecHoriz(top) >= NORTH_MIN_HORIZ ? [0, 1, 0] : [0, 0, -1];
   return vecAz(quatRotate(rel, axis)) - vecAz(quatRotate(abs, axis));
 }
 
-/* iOS gives a heading, not a full rotation, and does not say which device
-   axis it belongs to. CoreLocation defines heading as the bearing of the top
-   of the device, and on that reading, substituting it for alpha — what this
-   app used to do — is exactly 180 degrees wrong as soon as the phone tips
-   back past vertical to look at the sky: the top then points away from the
-   stars, not toward them.
+/* iOS supplies a heading, not a rotation, and does not say which device axis
+   it belongs to. With the screen facing up, every sensible definition agrees:
+   it is the bearing of the top of the phone. Once the phone tips back past
+   vertical to look at the sky, they stop agreeing — the top of the phone now
+   points away from the stars, and on a real iPhone the reported heading
+   behaves as if it follows the camera instead. Trusting it there turned north
+   180 degrees round whenever the phone was raised to the sky, and back again
+   when lowered.
 
-   So the heading is compared with the top of the device only while the top
-   is clearly horizontal enough to have a bearing. Otherwise the last estimate
-   is held — the offset changes slowly, and a phone is almost always raised
-   from flat, so an estimate exists by the time it is upright. Until one does,
-   the camera axis is the best available guess. */
-function yawFromHeading(rel, heading, haveEstimate) {
+   So a heading is used only while the screen faces up and the top is clearly
+   horizontal. Otherwise the estimate is held: the gyro keeps the view right,
+   and the relative stream drifts slowly enough that holding costs nothing
+   noticeable between glances down.
+
+   Returns { yaw, trusted } or null. With no estimate at all and the phone
+   upright, the camera axis is used as an untrusted first guess, replaced the
+   moment the phone faces up. Face-down with no estimate, nothing is guessed. */
+function yawFromHeading(rel, heading) {
   const top = quatRotate(rel, [0, 1, 0]);
-  if (vecHoriz(top) >= NORTH_MIN_HORIZ) return vecAz(top) - heading;
-  if (!haveEstimate) return vecAz(quatRotate(rel, [0, 0, -1])) - heading;
+  const face = quatRotate(rel, [0, 0, 1]);
+  if (face[2] >= NORTH_FACE_UP && vecHoriz(top) >= NORTH_MIN_HORIZ) {
+    return { yaw: vecAz(top) - heading, trusted: true };
+  }
+  if (Math.abs(face[2]) < NORTH_FACE_UP) {
+    return { yaw: vecAz(quatRotate(rel, [0, 0, -1])) - heading, trusted: false, guessOnly: true };
+  }
   return null;
 }
 
-const FUSION_INIT = { att: null, frame: null, yaw: null, lastAbs: null, haveRel: false, magnetic: false };
+const FUSION_INIT = {
+  att: null, frame: null, yaw: null, trusted: false, pending: 0, pendingYaw: null,
+  lastAbs: null, haveRel: false, magnetic: false, northKind: null
+};
 
 function fuseOrientation(s, sample) {
   const q = quatNorm(sample.q);
@@ -1935,16 +1982,22 @@ function fuseOrientation(s, sample) {
     out.att = switching || !s.att ? q : quatSlerp(s.att, q, ORIENT_SMOOTH);
     // Coming from an absolute-only stream: take north from the last absolute
     // sample straight away, so the switch costs nothing on screen.
-    if (switching && s.lastAbs && out.yaw === null) out.yaw = smoothAngle(null, yawBetween(s.lastAbs, q), 1);
+    if (switching && s.lastAbs && s.yaw === null) {
+      Object.assign(out, updateNorth(s, yawBetween(s.lastAbs, q), true));
+    }
     if (sample.kind === 'heading') {
+      out.northKind = 'heading';
       out.magnetic = !sample.trueNorth;
-      const y = yawFromHeading(q, sample.heading, s.yaw !== null);
-      if (y !== null) out.yaw = smoothAngle(s.yaw, y, s.yaw === null ? 1 : NORTH_SMOOTH);
+      // iOS marks an unusable heading with a negative accuracy.
+      const usable = Number.isFinite(sample.heading) && !(typeof sample.acc === 'number' && sample.acc < 0);
+      const h = usable ? yawFromHeading(q, sample.heading) : null;
+      if (h && !(h.guessOnly && out.yaw !== null)) Object.assign(out, updateNorth(out, h.yaw, h.trusted));
     }
     out.fresh = switching || !s.att;
     return out;
   }
   // 'abs'
+  out.northKind = 'abs';
   out.lastAbs = q;
   out.magnetic = !!sample.magnetic;
   if (!s.haveRel) {
@@ -1952,25 +2005,24 @@ function fuseOrientation(s, sample) {
     const switching = s.frame !== 'abs';
     out.frame = 'abs';
     out.att = switching || !s.att ? q : quatSlerp(s.att, q, ORIENT_SMOOTH);
+    out.trusted = true;
     out.fresh = switching || !s.att;
     return out;
   }
-  if (s.att) {
-    const y = yawBetween(q, s.att);
-    out.yaw = smoothAngle(s.yaw, y, s.yaw === null ? 1 : NORTH_SMOOTH);
-  }
+  if (s.att) Object.assign(out, updateNorth(s, yawBetween(q, s.att), true));
   out.fresh = false;
   return out;
 }
 
-/* What the fused state means: the best current rotation, and whether it is
-   referenced to north at all. Relative with no north estimate is still worth
-   showing — tilt is fully valid, and the manual Align nudge supplies north. */
+/* What the fused state means: the best current rotation, whether it is
+   referenced to north at all, and whether that north has been confirmed.
+   Relative with no north estimate is still worth showing — tilt is fully
+   valid, and the manual Align nudge supplies north. */
 function fusedView(s) {
   if (!s.att) return null;
-  if (s.frame === 'abs') return { q: s.att, abs: true, magnetic: s.magnetic };
-  if (s.yaw === null) return { q: s.att, abs: false, magnetic: false };
-  return { q: quatMul(yawQ(s.yaw), s.att), abs: true, magnetic: s.magnetic };
+  if (s.frame === 'abs') return { q: s.att, abs: true, magnetic: s.magnetic, trusted: true };
+  if (s.yaw === null) return { q: s.att, abs: false, magnetic: false, trusted: false };
+  return { q: quatMul(yawQ(s.yaw), s.att), abs: true, magnetic: s.magnetic, trusted: s.trusted };
 }
 
 /* Apply the heading correction — declination plus the manual nudge — as one
@@ -4397,7 +4449,7 @@ const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading, diag }) {
+function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
@@ -4744,12 +4796,13 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
         fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), style: { ...chip, padding: '6px 12px' } }, 'Reset')
       ),
       camErr ? camErr + ' ' : '',
+      // A north warning takes precedence: until north is settled, what is
+      // drawn cannot be trusted, and that matters more than the target line.
+      live && northMsg && React.createElement('div', { style: { color: '#e8b563', marginBottom: 4 } }, northMsg),
       target
         ? target.name + ' · ' + Math.round(target.alt) + '° alt · ' + Math.round(target.az) + '° ' + compass16(target.az)
         : (live
-            ? (relativeHeading
-                ? 'Live, but this phone gives no true-north reference — use Align in Aim Assist to set north. Tap anything to identify it.'
-                : 'Live — move your phone to look around. Tap anything to identify it.')
+            ? 'Live — move your phone to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
     offscreen !== null && React.createElement('div', {
@@ -4988,8 +5041,8 @@ function StarFinder({ redMode } = {}) {
         // iOS: alpha is relative; the heading carries north. Treated as true
         // north, as iOS applies declination itself — a device reading can
         // overturn that, and Sensor details shows what was assumed.
-        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: true };
         if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
+        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: true, acc };
       } else if (e.type === 'deviceorientationabsolute' || e.absolute === true) {
         // Android's absolute stream is magnetometer-referenced: magnetic north.
         sample = { kind: 'abs', q, magnetic: true };
@@ -5005,7 +5058,7 @@ function StarFinder({ redMode } = {}) {
       // every event regardless, so a skipped publish loses nothing. A change
       // in what the view is referenced to always publishes at once: that is
       // the reading the user is waiting for.
-      const changed = !before || before.abs !== fused.abs || before.magnetic !== fused.magnetic;
+      const changed = !before || before.abs !== fused.abs || before.magnetic !== fused.magnetic || before.trusted !== fused.trusted;
       const nowMs = Date.now();
       if (!next.fresh && !changed && nowMs - lastEmitRef.current < ORIENT_MIN_MS) return;
       lastEmitRef.current = nowMs;
@@ -5018,8 +5071,11 @@ function StarFinder({ redMode } = {}) {
         // Whether declination applies. Only a magnetometer-referenced north
         // does; iOS's is already true, and a relative view has none at all.
         magnetic: fused.magnetic,
+        // Whether north has been confirmed rather than guessed. On iOS it is
+        // only confirmed with the screen facing up.
+        trusted: fused.trusted,
         // For Sensor details.
-        frame: next.frame, yaw: next.yaw, haveRel: next.haveRel
+        frame: next.frame, yaw: next.yaw, haveRel: next.haveRel, northKind: next.northKind
       });
     };
     // Fired by browsers that can tell the magnetometer has drifted. Left
@@ -5058,6 +5114,12 @@ function StarFinder({ redMode } = {}) {
   // The corrected rotation. Applied to the quaternion once, here, and passed
   // to Sky View as it is — so the turn arrow and the drawn sky are not merely
   // kept in agreement, they are computed from the same object.
+  // What to tell someone looking at Sky View about north, if anything.
+  const northMsg = !orient ? null
+    : orient.abs && !orient.trusted ? "North is a first guess \u2014 lower the phone flat for a moment to confirm it."
+    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 lower the phone flat for a moment."
+    : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
+    : null;
   const viewQ = useMemo(
     () => orient ? correctView(orient.q, headingCorr) : null,
     [orient, headingCorr]
@@ -5436,7 +5498,10 @@ function StarFinder({ redMode } = {}) {
     // centre of the camera view: whatever this still says is the app's error.
     aimTarget && aimTurn !== null && ["App says move",
       "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
-    ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014" : orient.yaw.toFixed(1) + "\u00b0"],
+    ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
+      : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
+    ["North source", !orient || !orient.northKind ? "\u2014"
+      : orient.northKind === 'heading' ? "compass heading (used only with the screen facing up)" : "absolute orientation"],
     ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
     // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
     ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
@@ -5615,7 +5680,7 @@ function StarFinder({ redMode } = {}) {
       // Picking in Sky View sets the Aim Assist target too, so closing the
       // overlay leaves you pointed at whatever you just tapped.
       onPick: name => setAimTargetName(name),
-      relativeHeading: !!(orient && orient.abs === false),
+      northMsg,
       viewQ,
       diag,
       onClose: () => setSkyOpen(false),

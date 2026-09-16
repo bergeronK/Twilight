@@ -237,3 +237,40 @@ test('end to end: an iOS view is left alone by declination', () => {
   const corrected = O.aimOf(O.correctView(o.q, headingCorrection(o, seattle, 0))).az;
   assert.ok(angErr(corrected, 0) < 1e-9, `iOS true north must not be shifted, got ${corrected}`);
 });
+
+test('iOS: a heading marked invalid by the phone does not move north', () => {
+  // iOS reports a negative webkitCompassAccuracy when the heading cannot be
+  // trusted. That flag has to survive the trip from the event to the fusion.
+  const L = makeListener();
+  const flat = O.quatFromEuler(30, 20, 0);
+  const good = O.vecAz(O.quatRotate(flat, [0, 1, 0]));
+  for (let i = 0; i < 10; i++) {
+    L.tick(20);
+    L.fire(ev('deviceorientation', false, 30, 20, 0, { webkitCompassHeading: good, webkitCompassAccuracy: 5 }));
+  }
+  const yaw = L.fusionRef.current.yaw;
+  for (let i = 0; i < 200; i++) {
+    L.tick(20);
+    L.fire(ev('deviceorientation', false, 30, 20, 0, { webkitCompassHeading: (good + 40) % 360, webkitCompassAccuracy: -1 }));
+  }
+  assert.ok(angErr(L.fusionRef.current.yaw, yaw) < 1e-9,
+    `invalid headings moved north from ${yaw} to ${L.fusionRef.current.yaw}`);
+  assert.strictEqual(L.last().acc, -1, 'the accuracy is still published for the calibration hint');
+});
+
+test('iOS: pointing at the sky does not move a north learned while flat', () => {
+  // The reported bug, through the real handler: raise the phone past
+  // vertical with a heading that follows the camera, as the iPhone's appears
+  // to, and the view must keep its bearing.
+  const L = makeListener();
+  const fire = (beta, heading) => { L.tick(20); L.fire(ev('deviceorientation', false, 0, beta, 0, { webkitCompassHeading: heading, webkitCompassAccuracy: 5 })); };
+  for (let i = 0; i < 20; i++) fire(30, 0);   // screen up, facing north
+  // Raise it to the zenith with a heading that follows the camera (still 0)...
+  for (let b = 30; b <= 170; b += 2) fire(b, 0);
+  // ...and again with one that follows the top of the phone, which points
+  // south (180) once past vertical. Either way the camera faces north.
+  for (let b = 100; b <= 170; b += 2) fire(b, 180);
+  const o = L.last();
+  assert.ok(o.trusted, 'north should still be the confirmed one');
+  assert.ok(angErr(O.aimOf(o.q).az, 0) < 1e-6, `camera bearing drifted to ${O.aimOf(o.q).az}`);
+});
