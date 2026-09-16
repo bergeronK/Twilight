@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ESj8+P1MOME7D90EnvyrLLJwf2Wmfk9WorB/nOFrzkg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-yAOXdK8RjWEx2kPIChlUTivHunwDGOyB9X00p+hekEc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1785,6 +1785,46 @@ const cdHMS = ms => {
   const s = Math.floor((t % 60000) / 1000);
   return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
 };
+
+/* ---- Orientation smoothing ----
+   Device orientation events arrive as fast as the sensors run — dozens a
+   second — and the raw angles carry magnetometer noise of a degree or two.
+   Feeding them straight to React made the drawn sky visibly swim while the
+   phone was held still, and re-rendered the whole Stars tab on every event,
+   during precisely the activity where the screen is up and the battery is
+   the constraint.
+
+   Both fixes are here: an exponential filter on the angles, and a floor on
+   how often a new value is published. */
+const ORIENT_SMOOTH = 0.25;   // weight of each new sample
+const ORIENT_MIN_MS = 16;     // ~60 published updates a second, at most
+
+/* Exponential smoothing for a quantity that wraps. Averaging 359 and 1
+   arithmetically gives 180 — a heading crossing north would swing the view
+   right round the compass — so this always eases along the shorter arc. */
+function smoothAngle(prev, next, k) {
+  if (prev === null || !Number.isFinite(prev)) return next;
+  const d = ((next - prev) % 360 + 540) % 360 - 180; // shortest signed path
+  return ((prev + k * d) % 360 + 360) % 360;
+}
+// beta is reported in [-180,180); smoothAngle works in [0,360).
+const wrap180 = a => ((a + 540) % 360) - 180;
+
+/* One smoothing step over a whole orientation. `prev` is the previous
+   smoothed value, or null to start fresh.
+
+   Starting fresh matters at a reference change: Android delivers a relative
+   yaw first and true north a moment later, so easing between them would slew
+   the sky across the screen rather than snapping once to the right place. */
+function smoothOrientation(prev, next, k) {
+  if (!prev) return { alpha: next.alpha, beta: next.beta, gamma: next.gamma };
+  return {
+    alpha: smoothAngle(prev.alpha, next.alpha, k),
+    beta: wrap180(smoothAngle(((prev.beta % 360) + 360) % 360, ((next.beta % 360) + 360) % 360, k)),
+    // gamma is [-90,90] and does not wrap, so a plain weighted mean is right.
+    gamma: prev.gamma + k * (next.gamma - prev.gamma)
+  };
+}
 
 /* Spoken guidance for Aim Assist.
 
@@ -4212,17 +4252,53 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
   const [size, setSize] = useState({ w: 360, h: 640 });
+  // The overlay whose box the canvas fills, and therefore the box the
+  // projection has to be computed for.
+  const wrapRef = useRef(null);
   // Drag-to-look, used whenever the sensors aren't driving the view.
   const [manual, setManual] = useState({ az: 180, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
   const live = !!orient;
 
+  /* Measure the element the canvas actually fills, rather than asking the
+     window how big it thinks it is.
+
+     window.innerHeight is not the height of this overlay. On mobile the two
+     part company whenever the browser's toolbars collapse or expand, and on
+     iOS the resize event does not reliably fire when they do. The projection
+     treats h/2 as the optical centre of the camera image, so any disagreement
+     between the height it projects for and the height it paints into moves
+     every body up or down the screen by half the difference — a constant
+     offset that looks exactly like a miscalibrated compass.
+
+     A ResizeObserver on the container cannot disagree with the container.
+     The window and visualViewport listeners are belt-and-braces for browsers
+     without one. */
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const el = wrapRef.current;
+    const measure = () => {
+      const r = el && el.getBoundingClientRect();
+      const w = Math.round(r && r.width ? r.width : window.innerWidth);
+      const h = Math.round(r && r.height ? r.height : window.innerHeight);
+      if (w > 0 && h > 0) setSize(s => (s.w === w && s.h === h ? s : { w, h }));
+    };
+    measure();
+    let ro = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    const vv = window.visualViewport;
+    if (vv) { vv.addEventListener('resize', measure); vv.addEventListener('scroll', measure); }
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      if (vv) { vv.removeEventListener('resize', measure); vv.removeEventListener('scroll', measure); }
+    };
   }, []);
 
   useEffect(() => {
@@ -4443,6 +4519,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
   };
   return React.createElement('div', {
+    ref: wrapRef,
     // Above the tab bar (100) and its menu (200): Sky View is immersive and
     // owns the screen until its own Back button is tapped.
     style: { position: 'fixed', inset: 0, zIndex: 300, background: '#05070f', overscrollBehavior: 'none', touchAction: 'none' },
@@ -4602,6 +4679,11 @@ function StarFinder({ redMode } = {}) {
   const [screenAngle, setScreenAngle] = useState(0);
   // Sensor diagnostics — the only way to debug a device I can't hold.
   const sensorStatsRef = useRef({ rel: 0, abs: 0, usable: 0, last: null });
+  // Last smoothed orientation, and when one was last published. Refs, not
+  // state: they change on every sensor event and must not themselves cause
+  // a render — the publish throttle exists precisely to stop that.
+  const smoothRef = useRef(null);
+  const lastEmitRef = useRef(0);
   const [showDiag, setShowDiag] = useState(false);
   const [sensorStats, setSensorStats] = useState(null);
   const aimOffset = useAimOffset();
@@ -4724,10 +4806,27 @@ function StarFinder({ redMode } = {}) {
       // fire on Android and the relative one would fight it.
       if (abs) sawAbsolute = true;
       else if (sawAbsolute) return;
-      setOrient({
+      const magnetic = abs && !trueRef;
+      // Restart the filter whenever the frame of reference changes, so the
+      // switch is a jump rather than a slew across the sky.
+      const prev = smoothRef.current;
+      const fresh = !prev || prev.abs !== abs || prev.magnetic !== magnetic;
+      const sm = smoothOrientation(fresh ? null : prev, {
         alpha,
         beta: typeof e.beta === 'number' ? e.beta : 0,
-        gamma: typeof e.gamma === 'number' ? e.gamma : 0,
+        gamma: typeof e.gamma === 'number' ? e.gamma : 0
+      }, ORIENT_SMOOTH);
+      smoothRef.current = { alpha: sm.alpha, beta: sm.beta, gamma: sm.gamma, abs, magnetic };
+      // Publish at most ORIENT_MIN_MS apart. The filter above keeps advancing
+      // on every event either way, so a skipped publish loses no data — the
+      // next one carries it.
+      const nowMs = Date.now();
+      if (!fresh && nowMs - lastEmitRef.current < ORIENT_MIN_MS) return;
+      lastEmitRef.current = nowMs;
+      setOrient({
+        alpha: sm.alpha,
+        beta: sm.beta,
+        gamma: sm.gamma,
         acc,
         // Relative headings are still worth using: tilt is fully valid, and
         // the manual offset turns an arbitrary yaw origin into a correct
@@ -4737,7 +4836,7 @@ function StarFinder({ redMode } = {}) {
         // non-iOS source does: a relative heading has an arbitrary yaw origin
         // with no north in it at all, so declination would be meaningless
         // there — that case is what the manual "Align" nudge is for.
-        magnetic: abs && !trueRef
+        magnetic
       });
     };
     // Fired by browsers that can tell the magnetometer has drifted. Left

@@ -18,6 +18,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
+const helpers = extract([
+  'ORIENT_SMOOTH', 'ORIENT_MIN_MS', 'smoothAngle', 'wrap180', 'smoothOrientation'
+]);
+
 const { magneticDeclination } = extract([
   'D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2',
   'WMM_EPOCH_YEARS', 'WMM_COF', 'wmmCache', 'wmmModel', 'magneticDeclination'
@@ -29,11 +33,25 @@ const { magneticDeclination } = extract([
 function makeListener() {
   const seen = [];
   const stats = { rel: 0, abs: 0, usable: 0, last: null };
+  // smoothRef/lastEmitRef carry the orientation filter's state between
+  // events. lastEmitRef starts far in the past so the publish throttle never
+  // suppresses an event a test just fired.
+  const smoothRef = { current: null };
+  const lastEmitRef = { current: -1e9 };
+  const deps = {
+    setOrient: o => seen.push(o),
+    sensorStatsRef: { current: stats },
+    smoothRef, lastEmitRef,
+    ORIENT_SMOOTH: helpers.ORIENT_SMOOTH,
+    ORIENT_MIN_MS: helpers.ORIENT_MIN_MS,
+    smoothOrientation: helpers.smoothOrientation
+  };
+  const names = Object.keys(deps);
   const fn = new Function(
-    'setOrient', 'sensorStatsRef',
+    ...names,
     declSource('sawAbsolute') + '\n' + declSource('orientHandler') + '\nreturn orientHandler;'
-  )(o => seen.push(o), { current: stats });
-  return { fire: e => fn(e), seen, stats, last: () => seen[seen.length - 1] };
+  )(...names.map(n => deps[n]));
+  return { fire: e => fn(e), seen, stats, smoothRef, last: () => seen[seen.length - 1] };
 }
 
 /* The shipped correction expression. */
@@ -137,4 +155,67 @@ test('the correction is what turns a magnetic bearing into a true one', () => {
   const nyc = magneticDeclination(40.7128, -74.0060, new Date());
   const nycTrue = (0 + headingCorrection({ magnetic: true }, nyc, 0) + 360) % 360;
   assert.ok(nycTrue > 340 && nycTrue < 355, `New York should read ~347 deg true, got ${nycTrue.toFixed(1)}`);
+});
+
+test('the filter restarts when the frame of reference changes', () => {
+  // Android sends a relative yaw first and true north a moment later. Easing
+  // between two origins that mean different things slews the sky across the
+  // screen; the switch has to be a jump.
+  const L = makeListener();
+  L.fire({ type: 'deviceorientation', absolute: false, alpha: 10, beta: 80, gamma: 0 });
+  assert.ok(Math.abs(L.last().alpha - 10) < 1e-9, 'first sample should be adopted outright');
+
+  L.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 200, beta: 80, gamma: 0 });
+  assert.ok(
+    Math.abs(L.last().alpha - 200) < 1e-9,
+    `switching to an absolute source should snap to 200, got ${L.last().alpha}`
+  );
+  assert.strictEqual(L.last().magnetic, true);
+});
+
+test('successive samples from one source are smoothed, not adopted', () => {
+  const L = makeListener();
+  L.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 0, beta: 80, gamma: 0 });
+  L.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 100, beta: 80, gamma: 0 });
+  // Read the filter, not the published value: a second sample arriving this
+  // fast is inside the publish throttle, so it advances the filter without
+  // producing a render. That is the behaviour, not a gap in it.
+  const a = L.smoothRef.current.alpha;
+  assert.ok(a > 0 && a < 100, `second sample should land between the two, got ${a}`);
+  assert.ok(Math.abs(a - 100 * helpers.ORIENT_SMOOTH) < 1e-9,
+    `expected ${100 * helpers.ORIENT_SMOOTH}, got ${a}`);
+});
+
+test('the publish throttle drops updates without losing them', () => {
+  // A skipped publish must still advance the filter, or fast sensors would
+  // leave the view permanently behind.
+  const L = makeListener();
+  L.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 0, beta: 80, gamma: 0 });
+  const published = L.seen.length;
+  L.lastEmitAt = Date.now();
+
+  // Simulate a burst arriving inside the throttle window.
+  const L2 = makeListener();
+  L2.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 0, beta: 80, gamma: 0 });
+  for (let i = 0; i < 20; i++) {
+    L2.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 90, beta: 80, gamma: 0 });
+  }
+  assert.ok(L2.seen.length <= 21, 'should never publish more often than it is fired');
+  // Whatever was published, the filter state must reflect every sample.
+  assert.ok(
+    L2.smoothRef.current.alpha > 80,
+    `filter should have converged toward 90 across the burst, sat at ${L2.smoothRef.current.alpha}`
+  );
+  assert.ok(published >= 1, 'the first sample of a fresh source always publishes');
+});
+
+test('a fresh sample always publishes, whatever the throttle says', () => {
+  // The first reading after the reference changes is the one the user is
+  // waiting for; holding it back for 16ms of throttle would be the wrong
+  // trade even though it is small.
+  const L = makeListener();
+  L.fire({ type: 'deviceorientation', absolute: false, alpha: 10, beta: 80, gamma: 0 });
+  const n = L.seen.length;
+  L.fire({ type: 'deviceorientationabsolute', absolute: true, alpha: 200, beta: 80, gamma: 0 });
+  assert.strictEqual(L.seen.length, n + 1, 'the reference change must publish immediately');
 });
