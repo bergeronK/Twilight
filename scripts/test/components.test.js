@@ -14,9 +14,11 @@
  * exactly that, which is why these are worth having even though they assert
  * very little about appearance.
  *
- * Only hook-free components can be tested this way — anything calling
- * useState or useMemo needs a real React runtime. That is also a reason to
- * prefer extracting hook-free markup in the first place.
+ * Components that use hooks can still be rendered once by handing them
+ * stand-in hooks: state returns its initial value, effects never run, memos
+ * compute immediately. That exercises the render body — which is where a
+ * missing variable would throw — but not anything an effect does, and not a
+ * second render. It is a smoke test, not a render harness.
  */
 
 const { test } = require('node:test');
@@ -109,4 +111,98 @@ test('every band row carries a key', () => {
   walk(TwilightBands(), n => { if (n.props && n.props.key) rows.push(n.props.key); });
   assert.strictEqual(rows.length, 3, `expected 3 keyed band rows, got ${rows.length}`);
   assert.strictEqual(new Set(rows).size, 3, 'band keys must be unique');
+});
+
+// ---------------------------------------------------------------- Sky View
+
+const O = require('./orient-lib.js');
+const hooks = {
+  useState: v => [typeof v === 'function' ? v() : v, () => {}],
+  useRef: v => ({ current: v === undefined ? null : v }),
+  useEffect: () => {},
+  useMemo: f => f()
+};
+function renderSkyDome(props) {
+  const SkyDome = build('SkyDome', {
+    React, ...hooks,
+    useSkyFov: () => 63,
+    prefStore: { setSkyFov: () => {} },
+    SKY_FOV_DEFAULT: 63,
+    compass16: az => 'N',
+    quatFromEuler: O.quatFromEuler, viewBasis: O.viewBasis,
+    toScreen: O.toScreen, skyProject: O.skyProject, atan2: O.atan2
+  });
+  return SkyDome(Object.assign({
+    bodies: [{ name: 'Moon', az: 120, alt: 30, kind: 'moon', mag: -12 }],
+    viewQ: O.quatFromEuler(240, 120, 0),
+    screenAngle: 0, targetName: 'Moon',
+    onPick: () => {}, onClose: () => {}, sensorMsg: null, relativeHeading: false
+  }, props));
+}
+const diagProp = open => ({
+  open, onToggle: () => {}, onCopy: () => {}, copyLabel: 'Copy',
+  entries: [['Fusion', 'gyro + compass'], ['Aimed at', 'az 120° · alt 30°'], ['App says move', 'turn 0° right · tilt 0° up']],
+  summary: 'Sensors are working.'
+});
+const find = (tree, pred) => { let hit = null; walk(tree, n => { if (!hit && pred(n)) hit = n; }); return hit; };
+
+test('Sky View renders with the sensor panel closed and offers a Sensors button', () => {
+  const tree = renderSkyDome({ diag: diagProp(false) });
+  const btn = find(tree, n => n.type === 'button' && textOf(n).trim() === 'Sensors');
+  assert.ok(btn, 'Sky View should have a Sensors button');
+  assert.strictEqual(btn.props['aria-expanded'], false);
+  assert.ok(!textOf(tree).includes('gyro + compass'), 'the readout should be hidden while closed');
+});
+
+test('Sky View shows every readout row when the panel is open', () => {
+  const tree = renderSkyDome({ diag: diagProp(true) });
+  const text = textOf(tree);
+  for (const k of ['Fusion', 'gyro + compass', 'Aimed at', 'App says move', 'Sensors are working.']) {
+    assert.ok(text.includes(k), `open panel is missing "${k}"`);
+  }
+  assert.ok(find(tree, n => n.type === 'button' && textOf(n).trim() === 'Copy'), 'the panel needs a Copy button');
+  assert.ok(text.includes('Centre Moon on screen'), 'with a target, the panel should say what to do');
+});
+
+test('without a target the panel says how to get one', () => {
+  const tree = renderSkyDome({ diag: diagProp(true), targetName: null });
+  assert.ok(textOf(tree).includes('Pick a target in Aim Assist'));
+});
+
+test('Sky View still renders with no diagnostics passed at all', () => {
+  const tree = renderSkyDome({ diag: undefined });
+  assert.ok(!find(tree, n => n.type === 'button' && textOf(n).trim() === 'Sensors'),
+    'no diag prop, no Sensors button');
+});
+
+test('Sky View renders in drag-to-look mode with no sensors', () => {
+  const tree = renderSkyDome({ viewQ: null, diag: diagProp(true) });
+  assert.ok(tree && tree.type === 'div');
+});
+
+test('a press on any Sky View button never reaches the sky beneath', () => {
+  // The overlay treats a press-and-release as "identify what is here", and
+  // clears the target when nothing is. So every button needs some ancestor,
+  // below the overlay itself, that stops the press — or tapping Camera or
+  // Sensors silently drops the Aim Assist target.
+  const tree = renderSkyDome({ diag: diagProp(true) });
+  const guarded = n => {
+    if (typeof n.props.onTouchStart !== 'function' || typeof n.props.onMouseDown !== 'function') return false;
+    let t = false, m = false;
+    n.props.onTouchStart({ stopPropagation: () => { t = true; } });
+    n.props.onMouseDown({ stopPropagation: () => { m = true; } });
+    return t && m;
+  };
+  const buttons = [];
+  (function visit(node, chain) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'button') buttons.push({ node, chain });
+    (node.children || []).forEach(c => visit(c, node === tree ? chain : chain.concat(node)));
+  })(tree, []);
+  assert.ok(buttons.length >= 4, `expected Back, Camera, Sensors and Copy, found ${buttons.length}`);
+  for (const { node, chain } of buttons) {
+    assert.ok(chain.some(guarded), `"${textOf(node).trim()}" can leak a tap to the sky`);
+  }
+  // And the overlay itself must still be the one handling taps on the sky.
+  assert.strictEqual(typeof tree.props.onTouchStart, 'function');
 });
