@@ -206,3 +206,76 @@ test('a press on any Sky View button never reaches the sky beneath', () => {
   // And the overlay itself must still be the one handling taps on the sky.
   assert.strictEqual(typeof tree.props.onTouchStart, 'function');
 });
+
+// ---------------------------------------------------------------- the readout rows
+
+/* diagEntries is computed on every render of the Stars tab, open or not, so
+   an error in it would blank the whole tab. Evaluated from the shipped source
+   across the states a phone can be in. */
+const entriesFor = new Function(
+  'orient', 'aimNow', 'aimTarget', 'aimTurn', 'aimTilt', 'decl', 'aimOffset', 'headingCorr',
+  'screenAngle', 'sensorStats', 'dl', 'window', 'DeviceOrientationEvent', 'loc', 'BUILD',
+  declSource('turnWord') + '\n' + declSource('tiltWord') + '\n' + declSource('diagEntries') + '\nreturn diagEntries;'
+);
+const base = {
+  orient: null, aimNow: null, aimTarget: null, aimTurn: null, aimTilt: null,
+  decl: { deg: -12.4, stale: false }, aimOffset: 0, headingCorr: 0, screenAngle: 0,
+  sensorStats: null, dl: null, window: {}, DeviceOrientationEvent: undefined,
+  loc: { lat: 40.71, lon: -74.01 }, BUILD: 'test'
+};
+const rows = over => {
+  const a = Object.assign({}, base, over);
+  return entriesFor(a.orient, a.aimNow, a.aimTarget, a.aimTurn, a.aimTilt, a.decl, a.aimOffset,
+    a.headingCorr, a.screenAngle, a.sensorStats, a.dl, a.window, a.DeviceOrientationEvent, a.loc, a.BUILD);
+};
+const asMap = r => Object.fromEntries(r);
+
+test('the readout builds before any sensor has spoken', () => {
+  const r = rows({});
+  assert.ok(r.every(e => Array.isArray(e) && e.length === 2), 'every row is a [label, value] pair');
+  const m = asMap(r);
+  assert.strictEqual(m['Fusion'], '—');
+  assert.ok(!('App says move' in m), 'no target, no error row');
+  assert.ok(r.every(([, v]) => typeof v === 'string' && !v.includes('undefined') && !v.includes('NaN')),
+    `a row rendered undefined or NaN: ${JSON.stringify(r)}`);
+});
+
+test('the readout reports a fused view and the error against a target', () => {
+  const m = asMap(rows({
+    orient: { q: [0, 0, 0, 1], abs: true, magnetic: true, frame: 'rel', yaw: 33.25, haveRel: true },
+    aimNow: { az: 118.6, alt: 31.2, stable: true },
+    aimTarget: { name: 'Moon', az: 120.4, alt: 29.9 },
+    aimTurn: -12.3, aimTilt: 4.4, aimOffset: 5, headingCorr: -7.4, screenAngle: 90,
+    sensorStats: { rel: 40, abs: 38, usable: 78, last: null },
+    dl: { type: 'deviceorientation', absolute: false, alpha: 10.5, beta: 101.2, gamma: -3.1, wk: null }
+  }));
+  assert.strictEqual(m['Fusion'], 'gyro + compass');
+  assert.strictEqual(m['North offset'], '33.3°');
+  assert.match(m['Aimed at'], /az 119° · alt 31°/);
+  assert.match(m['Target'], /Moon · az 120° · alt 30°/);
+  assert.strictEqual(m['App says move'], 'turn 12° left · tilt 4° up');
+  assert.strictEqual(m['Heading reference'], 'magnetic (declination applied)');
+  assert.strictEqual(m['Declination'], '12.4° W');
+  assert.strictEqual(m['Total applied'], '-7.4°');
+  assert.strictEqual(m['Screen angle'], '90°');
+  assert.ok(!('webkitCompassHeading' in m), 'no compass heading row when the event had none');
+});
+
+test('the readout distinguishes the fusion modes', () => {
+  assert.strictEqual(asMap(rows({ orient: { abs: true, magnetic: true, frame: 'abs', yaw: null } }))['Fusion'], 'compass only');
+  const rel = asMap(rows({ orient: { abs: false, magnetic: false, frame: 'rel', yaw: null } }));
+  assert.strictEqual(rel['Fusion'], 'gyro only (no north yet)');
+  assert.strictEqual(rel['Heading reference'], 'arbitrary (relative)');
+  assert.strictEqual(rel['North offset'], '—');
+});
+
+test('a flat phone with a target has no tilt in the error row', () => {
+  const m = asMap(rows({
+    orient: { abs: true, magnetic: false, frame: 'rel', yaw: 0 },
+    aimNow: { az: 10, alt: -80, stable: false },
+    aimTarget: { name: 'Vega', az: 40, alt: 60 }, aimTurn: 30, aimTilt: null
+  }));
+  assert.strictEqual(m['App says move'], 'turn 30° right');
+  assert.match(m['Aimed at'], /\(flat\)/);
+  assert.strictEqual(m['Heading reference'], 'true north');
+});

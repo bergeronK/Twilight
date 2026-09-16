@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-A2ZiNab5KXI0iLK4koGeGgijDuU7AqTNZEW6/vv1VEo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-mTKAx+MqT2ZI6s139DOr1c1KpqKEA0ckhetmMXdJARI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -5438,7 +5438,8 @@ function StarFinder({ redMode } = {}) {
       "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
     ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014" : orient.yaw.toFixed(1) + "\u00b0"],
     ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
-    ["Declination", decl.deg.toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
+    // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
+    ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
     ["Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "\u00b0"],
     ["Total applied", (headingCorr > 0 ? "+" : "") + headingCorr.toFixed(1) + "\u00b0"],
     ["Screen angle", screenAngle + "\u00b0"],
