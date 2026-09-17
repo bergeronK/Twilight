@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-sry0/fK8W83ZOxVVPDQEZiBWWitjIOuhyJAV6qqRuac=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-9Vy2RxyG3QENDXVR5PKsLiSAA7jW9WwGtxkVkClQf5s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1511,7 +1511,7 @@ const C = {
 // Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
 // so a bug report says which build it came from — a stale service worker
 // looks exactly like a fix that didn't work.
-const BUILD = "v56";
+const BUILD = "v66";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -1892,6 +1892,8 @@ const NORTH_JUMP_DEG = 60;
 // ...unless the new value persists, consistently, for this many samples
 // (~0.75 s at 60 Hz) — a genuine change, such as a compass recalibrating.
 const NORTH_JUMP_SAMPLES = 45;
+// Trusted readings averaged before north counts as confirmed (~1/4 s at 60 Hz).
+const NORTH_CONFIRM_SAMPLES = 15;
 
 /* Exponential smoothing for an angle that wraps: 359 and 1 must average to 0,
    not 180. Used here only for the yaw offset. */
@@ -1902,28 +1904,41 @@ function smoothAngle(prev, next, k) {
 }
 const angGap = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
 
-/* Fold one north sample into the estimate. Small disagreements are blended.
-   Large ones are held back until they have persisted and agreed with each
-   other, then adopted outright — never blended, since blending across a gap
-   near 180 deg has no well-defined direction and the view spins. */
-function updateNorth(s, y, trusted) {
+/* Fold one north sample into the estimate.
+
+   Before north is confirmed: the first trusted reading replaces whatever was
+   there (a first guess is worth nothing next to it), and the next few are
+   averaged in, so "confirmed" means the mean of NORTH_CONFIRM_SAMPLES real
+   readings rather than one. An earlier version marked north confirmed on the
+   first trusted reading while blending that reading in at a few percent —
+   so a brief moment with the screen up could leave most of a bad guess in
+   place, labelled as trustworthy. A field reading showed an error of that
+   size.
+
+   After that: small disagreements are blended slowly. Large ones are held
+   back until they have persisted and agreed with each other, then adopted
+   outright — never blended, since blending across a gap near 180 deg has no
+   well-defined direction and the view spins. */
+function updateNorth(s, y, fromTrusted) {
   const yN = ((y % 360) + 360) % 360;
-  if (s.yaw === null) return { yaw: yN, trusted, pending: 0, pendingYaw: null };
+  const n = s.trustCount || 0;
+  const out = (yaw, trustCount, pending, pendingYaw) =>
+    ({ yaw, trustCount, trusted: trustCount >= NORTH_CONFIRM_SAMPLES, pending, pendingYaw });
+  if (s.yaw === null) return out(yN, fromTrusted ? 1 : 0, 0, null);
+  if (!fromTrusted && n > 0) return out(s.yaw, n, s.pending, s.pendingYaw); // a guess never moves a real estimate
+  if (fromTrusted && n === 0) return out(yN, 1, 0, null);                   // a real reading replaces a guess
   if (angGap(yN, s.yaw) <= NORTH_JUMP_DEG) {
-    return {
-      yaw: smoothAngle(s.yaw, yN, NORTH_SMOOTH),
-      trusted: s.trusted || trusted, pending: 0, pendingYaw: null
-    };
+    // Running mean of the first readings, then a slow filter.
+    const k = fromTrusted && n < NORTH_CONFIRM_SAMPLES ? 1 / (n + 1) : NORTH_SMOOTH;
+    return out(smoothAngle(s.yaw, yN, k), fromTrusted ? n + 1 : n, 0, null);
   }
-  // A trusted sample overrides an untrusted first guess straight away.
-  if (trusted && !s.trusted) return { yaw: yN, trusted: true, pending: 0, pendingYaw: null };
   if (s.pendingYaw !== null && angGap(yN, s.pendingYaw) <= NORTH_JUMP_DEG) {
     const pending = s.pending + 1;
     const pendingYaw = smoothAngle(s.pendingYaw, yN, 0.2);
-    if (pending >= NORTH_JUMP_SAMPLES) return { yaw: pendingYaw, trusted: s.trusted || trusted, pending: 0, pendingYaw: null };
-    return { yaw: s.yaw, trusted: s.trusted, pending, pendingYaw };
+    if (pending >= NORTH_JUMP_SAMPLES) return out(pendingYaw, n, 0, null);
+    return out(s.yaw, n, pending, pendingYaw);
   }
-  return { yaw: s.yaw, trusted: s.trusted, pending: 1, pendingYaw: yN };
+  return out(s.yaw, n, 1, yN);
 }
 
 /* The yaw psi with yawQ(psi) * rel ≈ abs, read off how the two rotations
@@ -1942,10 +1957,11 @@ function yawBetween(abs, rel) {
    it belongs to. With the screen facing up, every sensible definition agrees:
    it is the bearing of the top of the phone. Once the phone tips back past
    vertical to look at the sky, they stop agreeing — the top of the phone now
-   points away from the stars, and on a real iPhone the reported heading
-   behaves as if it follows the camera instead. Trusting it there turned north
-   180 degrees round whenever the phone was raised to the sky, and back again
-   when lowered.
+   points away from the stars. On a real iPhone the reported heading then
+   referred to the camera in one session and to the top of the phone in
+   another (two field readings, 180 degrees apart in meaning). Trusting it
+   there turned north round whenever the phone was raised to the sky, and
+   back again when lowered.
 
    So a heading is used only while the screen faces up and the top is clearly
    horizontal. Otherwise the estimate is held: the gyro keeps the view right,
@@ -1968,7 +1984,7 @@ function yawFromHeading(rel, heading) {
 }
 
 const FUSION_INIT = {
-  att: null, frame: null, yaw: null, trusted: false, pending: 0, pendingYaw: null,
+  att: null, frame: null, yaw: null, trusted: false, trustCount: 0, pending: 0, pendingYaw: null,
   lastAbs: null, haveRel: false, magnetic: false, northKind: null
 };
 
@@ -5038,11 +5054,14 @@ function StarFinder({ redMode } = {}) {
       );
       let sample, acc = null;
       if (typeof e.webkitCompassHeading === 'number') {
-        // iOS: alpha is relative; the heading carries north. Treated as true
-        // north, as iOS applies declination itself — a device reading can
-        // overturn that, and Sensor details shows what was assumed.
+        // iOS: alpha is relative; the heading carries north — MAGNETIC north.
+        // This was once assumed to be true north. Two field readings on an
+        // iPhone at 42.1 N, 72.5 W (declination 13.4 W), one with the real
+        // Polaris centred, put the reported heading 13.4 deg from the true
+        // bearing of the device axis it referred to, in the magnetic
+        // direction, in both cases. So declination is applied, as on Android.
         if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
-        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: true, acc };
+        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: false, acc };
       } else if (e.type === 'deviceorientationabsolute' || e.absolute === true) {
         // Android's absolute stream is magnetometer-referenced: magnetic north.
         sample = { kind: 'abs', q, magnetic: true };
@@ -5503,6 +5522,9 @@ function StarFinder({ redMode } = {}) {
     ["North source", !orient || !orient.northKind ? "\u2014"
       : orient.northKind === 'heading' ? "compass heading (used only with the screen facing up)" : "absolute orientation"],
     ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
+    // iOS's own estimate of its compass error; negative means unusable.
+    ["Compass accuracy", !orient || typeof orient.acc !== 'number' ? "\u2014"
+      : orient.acc < 0 ? "unavailable" : "\u00b1" + orient.acc.toFixed(0) + "\u00b0"],
     // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
     ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
     ["Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "\u00b0"],

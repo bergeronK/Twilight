@@ -259,6 +259,7 @@ test('the readout reports a fused view and the error against a target', () => {
   assert.strictEqual(m['Declination'], '12.4° W');
   assert.strictEqual(m['Total applied'], '-7.4°');
   assert.strictEqual(m['Screen angle'], '90°');
+  assert.strictEqual(m['Compass accuracy'], '—', 'no accuracy reported, none shown');
   assert.ok(!('webkitCompassHeading' in m), 'no compass heading row when the event had none');
 });
 
@@ -302,4 +303,10 @@ test('Sky View does not show a north warning in drag-to-look mode', () => {
   const text = textOf(renderSkyDome({ viewQ: null, targetName: null, northMsg: 'Finding north — x', diag: diagProp(false) }));
   assert.ok(!text.includes('Finding north'));
   assert.ok(text.includes('drag to look around'));
+});
+
+test('the readout shows the phone\'s own compass accuracy', () => {
+  const base2 = { abs: true, magnetic: true, frame: 'rel', yaw: 10, trusted: true, northKind: 'heading' };
+  assert.strictEqual(asMap(rows({ orient: Object.assign({ acc: 8 }, base2) }))['Compass accuracy'], '±8°');
+  assert.strictEqual(asMap(rows({ orient: Object.assign({ acc: -1 }, base2) }))['Compass accuracy'], 'unavailable');
 });

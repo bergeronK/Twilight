@@ -169,7 +169,7 @@ test('iOS: a session that starts already looking up guesses nothing', () => {
   assert.strictEqual(s.northKind, 'heading');
   // Lowering the phone establishes it.
   const flat = O.quatFromEuler(20, 30, 0);
-  s = run(repeat(5, { kind: 'heading', q: relOf(flat, 33), heading: topHeading(flat), trueNorth: true }), s);
+  s = run(repeat(O.NORTH_CONFIRM_SAMPLES, { kind: 'heading', q: relOf(flat, 33), heading: topHeading(flat), trueNorth: true }), s);
   const v = O.fusedView(s);
   assert.strictEqual(v.abs, true);
   assert.strictEqual(v.trusted, true);
@@ -192,8 +192,9 @@ test('iOS: the north estimate keeps following the compass', () => {
 
 test('the north estimate settles smoothly rather than snapping', () => {
   const truth = O.quatFromEuler(0, 120, 0);
-  let s = run([{ kind: 'rel', q: truth }, { kind: 'abs', q: truth, magnetic: true }]);
+  let s = run([{ kind: 'rel', q: truth }].concat(repeat(O.NORTH_CONFIRM_SAMPLES, { kind: 'abs', q: truth, magnetic: true })));
   assert.ok(angErr(s.yaw, 0) < 1e-9);
+  assert.strictEqual(s.trusted, true, 'north should be confirmed before testing how it moves');
   // The compass now puts the camera 20 deg further round (a recalibration,
   // say). yawQ(psi) lowers azimuths by psi, so the offset that maps the
   // relative frame onto this one is -20, i.e. 340.
@@ -371,18 +372,53 @@ test('a large change that persists is adopted, after a delay, in one step', () =
 
 test('a trusted reading replaces an untrusted first guess at once', () => {
   // Upright with no estimate, the camera axis is only a guess. The first
-  // face-up reading must win outright, even if the guess was far off.
+  // face-up reading must replace it outright — even when the guess was close
+  // enough that it would otherwise have been blended.
   const upright = O.quatFromEuler(0, 90, 0);
-  let s = run([{ kind: 'heading', q: relOf(upright, 0), heading: 170, trueNorth: true }]);
-  assert.strictEqual(O.fusedView(s).trusted, false);
   const flat = O.quatFromEuler(0, 20, 0);
-  s = O.fuseOrientation(s, { kind: 'heading', q: relOf(flat, 0), heading: topHeading(flat), trueNorth: true });
+  for (const guessOff of [170, 40, 10]) {
+    let s = run([{ kind: 'heading', q: relOf(upright, 0), heading: guessOff, trueNorth: true }]);
+    assert.strictEqual(O.fusedView(s).trusted, false);
+    s = O.fuseOrientation(s, { kind: 'heading', q: relOf(flat, 0), heading: topHeading(flat), trueNorth: true });
+    assert.ok(aimErr(s, flat).az < 1e-9, `a guess ${guessOff} deg out survived the first real reading`);
+  }
+});
+
+test('north is confirmed only after several real readings, and is their mean', () => {
+  // The field bug: north marked confirmed after one face-up reading while
+  // mostly still a guess. Now it takes NORTH_CONFIRM_SAMPLES readings, and the
+  // estimate is their average rather than the first one alone.
+  const flat = O.quatFromEuler(0, 20, 0);
+  const rand = rng(21);
+  let s = O.FUSION_INIT;
+  const noise = [];
+  for (let i = 0; i < O.NORTH_CONFIRM_SAMPLES; i++) {
+    assert.strictEqual(!!O.fusedView(s) && O.fusedView(s).trusted, false, `confirmed after only ${i} readings`);
+    const e = (rand() - 0.5) * 10;
+    noise.push(e);
+    s = O.fuseOrientation(s, { kind: 'heading', q: flat, heading: topHeading(flat) + e, trueNorth: true });
+  }
   assert.strictEqual(O.fusedView(s).trusted, true);
-  assert.ok(aimErr(s, flat).az < 1e-9);
+  const mean = noise.reduce((a, b) => a + b, 0) / noise.length;
+  // yaw = az(rel) - heading, so the estimate carries minus the mean noise.
+  assert.ok(angErr(s.yaw, -mean) < 1e-6, `expected the mean of the readings (${-mean}), got ${s.yaw}`);
+  assert.ok(Math.abs(mean) < Math.max(...noise.map(Math.abs)), 'averaging should beat the worst single reading');
 });
 
 test('north-gate tuning is sensible', () => {
   assert.ok(O.NORTH_FACE_UP > 0 && O.NORTH_FACE_UP < 0.5);
   assert.ok(O.NORTH_JUMP_DEG >= 30 && O.NORTH_JUMP_DEG <= 90);
   assert.ok(O.NORTH_JUMP_SAMPLES >= 20 && O.NORTH_JUMP_SAMPLES <= 120);
+});
+
+test('an untrusted sample never moves an estimate built from real readings', () => {
+  // Guesses are only made when there is no estimate, so this cannot arise
+  // through fuseOrientation today — the guard is here so it cannot arise
+  // tomorrow either.
+  let s = Object.assign({}, O.FUSION_INIT, O.updateNorth(O.FUSION_INIT, 40, true));
+  for (let i = 0; i < 20; i++) s = Object.assign({}, s, O.updateNorth(s, 40, true));
+  const before = s.yaw;
+  for (let i = 0; i < 50; i++) s = Object.assign({}, s, O.updateNorth(s, 70, false));
+  assert.ok(angErr(s.yaw, before) < 1e-9, `a guess moved north from ${before} to ${s.yaw}`);
+  assert.strictEqual(s.trusted, true);
 });

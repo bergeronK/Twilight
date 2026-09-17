@@ -53,7 +53,8 @@ Three tabs, one `index.html`, no build step:
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
 - **Service worker** (`sw.js`): network-first navigations, stale-while-revalidate
-  assets. `CACHE` version string must be bumped on every asset-affecting change.
+  assets. `CACHE` version string must be bumped on every asset-affecting change,
+  **together with `BUILD` in `index.html`** — the build guard fails if they differ.
   Skips registration entirely when `window.Capacitor` is present (native shell
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
@@ -108,14 +109,18 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   A device with no relative stream falls back to the absolute one directly.
   **This inverts the pre-quaternion handler**, which discarded Android's
   relative stream once the absolute one appeared.
-- **iOS heading axis.** CoreLocation defines heading as the bearing of the
-  *top* of the device, which reverses as the phone tips past vertical — the
-  old `alpha := 360 − heading` substitution was 180° wrong there, i.e. exactly
-  when looking at the sky. The heading is compared against the top axis only
-  while it is ≥ `NORTH_MIN_HORIZ` horizontal; otherwise the estimate is held,
-  with the camera axis as a first guess if there is no estimate yet. **Which
-  axis iOS actually reports when upright is an assumption, not verified on
-  hardware.**
+- **iOS heading: magnetic, and ambiguous face-down — both from field
+  readings.** Two Sensors-panel readings on an iPhone (2026-09-16, 42.1 N
+  72.5 W, one with the real Polaris centred) are pinned in
+  `field-readings.test.js`. They showed (a) `webkitCompassHeading` is
+  **magnetic**, off true by exactly the local declination — the long-held
+  "iOS is true north" assumption was wrong and cost 13.4° there; and (b) with
+  the screen facing down it named the **camera** in one session and the
+  **top of the phone** in the other, 180° apart. So a heading is used only
+  with the screen facing up (`NORTH_FACE_UP`) and the top clearly horizontal;
+  otherwise the estimate is held. North counts as confirmed only after
+  `NORTH_CONFIRM_SAMPLES` face-up readings, averaged — marking it confirmed on
+  the first one left most of a bad guess in place in the field.
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
@@ -123,7 +128,9 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   *self-consistency* tests (hold by construction — they cannot see a mirrored
   or transposed convention) from *correspondence* tests (the W3C matrix
   written out independently, plus physical postures described in words). The
-  latter pin the app to the spec, not to what a given browser sends. A
+  latter pin the app to the spec, not to what a given browser sends —
+  `field-readings.test.js` is the one suite with ground truth from a real
+  phone; if it fails, believe the phone. A
   pre-quaternion suite that was entirely self-consistency passed while the
   feature was "way off all around" on a real phone. **Only a device reading
   settles convention questions** — Sensor details shows fusion mode, north
@@ -131,10 +138,10 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
 
 ## Magnetic declination
 
-Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
-and it differs by platform: iOS `webkitCompassHeading` is true north (the OS
-applies declination itself), Android `deviceorientationabsolute` yaw is
-MAGNETIC north and nothing corrects it. Uncorrected that is a fixed error of
+Every azimuth the app computes is TRUE-referenced. Phone compasses are not:
+Android `deviceorientationabsolute` yaw and iOS `webkitCompassHeading` are
+both MAGNETIC, and neither platform corrects them. (iOS was long assumed to
+be true north; field readings disproved it — see the pipeline section.) Uncorrected that is a fixed error of
 the local declination — near zero in the eastern US, 15-20° in Alaska, the
 Pacific Northwest and the Southern Ocean.
 
@@ -151,9 +158,9 @@ longer covers today, so this cannot pass unnoticed.
 "Align" nudge) is applied to the quaternion as a single world-yaw rotation
 (`correctView`), producing `viewQ` — see the pipeline section above. Do not
 reintroduce a separate correction inside `SkyDome`.
-Declination is added only when the heading is absolute *and* not iOS: a
-relative heading has an arbitrary yaw origin with no north in it, so there is
-nothing for declination to correct there.
+Declination is added whenever the view is north-referenced; a relative
+heading has an arbitrary yaw origin with no north in it, so there is nothing
+for declination to correct there.
 
 ## Build workflow (do this every time you edit `index.html`)
 

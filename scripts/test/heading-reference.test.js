@@ -76,14 +76,16 @@ const aimAz = o => O.aimOf(o.q).az;
 
 // ---------------------------------------------------------------- the three contracts
 
-test('iOS: the compass heading supplies north, and is not double-corrected', () => {
+test('iOS: the compass heading supplies north, and it is magnetic', () => {
   const L = makeListener();
   // Upright, relative alpha arbitrary; the camera actually faces 40.
   L.fire(ev('deviceorientation', false, 12, 90, 0, { webkitCompassHeading: 40, webkitCompassAccuracy: 8 }));
   const o = L.last();
   assert.ok(o, 'an iOS event should produce a view');
   assert.strictEqual(o.abs, true, 'a compass heading means north is known');
-  assert.strictEqual(o.magnetic, false, 'iOS applies declination itself — adding it again doubles it');
+  // Field readings on an iPhone showed the heading off from true by exactly
+  // the local declination — so it takes the same correction as Android.
+  assert.strictEqual(o.magnetic, true, 'iOS webkitCompassHeading is magnetic');
   assert.strictEqual(o.acc, 8, 'compass accuracy passes through for the calibration hint');
   assert.ok(angErr(aimAz(o), 40) < 1e-9, `camera should read 40, got ${aimAz(o)}`);
 });
@@ -229,13 +231,13 @@ test('end to end: an Android view in Seattle is turned from magnetic to true', (
   assert.ok(corrected > 10 && corrected < 20, `expected ~15 deg true, got ${corrected.toFixed(1)}`);
 });
 
-test('end to end: an iOS view is left alone by declination', () => {
+test('end to end: an iOS view is corrected for declination too', () => {
   const L = makeListener();
   L.fire(ev('deviceorientation', false, 0, 90, 0, { webkitCompassHeading: 0 }));
   const o = L.last();
   const seattle = magneticDeclination(47.6062, -122.3321, new Date());
   const corrected = O.aimOf(O.correctView(o.q, headingCorrection(o, seattle, 0))).az;
-  assert.ok(angErr(corrected, 0) < 1e-9, `iOS true north must not be shifted, got ${corrected}`);
+  assert.ok(angErr(corrected, seattle.deg) < 1e-9, `a magnetic-north iPhone reading in Seattle should read ${seattle.deg.toFixed(1)}, got ${corrected}`);
 });
 
 test('iOS: a heading marked invalid by the phone does not move north', () => {
