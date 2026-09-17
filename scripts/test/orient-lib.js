@@ -12,7 +12,7 @@ module.exports = extract([
   'quatRotate', 'quatSlerp', 'vecAz', 'vecHoriz',
   'viewBasis', 'toScreen', 'aimOf', 'screenUpAz', 'skyProject',
   'ORIENT_SMOOTH', 'NORTH_SMOOTH', 'ORIENT_MIN_MS', 'NORTH_MIN_HORIZ',
-  'NORTH_FACE_UP', 'NORTH_JUMP_DEG', 'NORTH_JUMP_SAMPLES', 'angGap', 'updateNorth',
+  'NORTH_FACE_UP', 'NORTH_JUMP_DEG', 'NORTH_JUMP_SAMPLES', 'NORTH_CONFIRM_SAMPLES', 'angGap', 'updateNorth',
   'smoothAngle', 'yawBetween', 'yawFromHeading',
   'FUSION_INIT', 'fuseOrientation', 'fusedView', 'correctView'
 ]);
