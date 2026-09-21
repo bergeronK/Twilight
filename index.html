@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-sry0/fK8W83ZOxVVPDQEZiBWWitjIOuhyJAV6qqRuac=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-EfK3f8joOW60jKTlMZZRGiqN4jwk3GjMCJZxfCptbPQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -4436,6 +4436,10 @@ function TwilightEphemeris({ redMode } = {}) {
 /* ---- Root tab app ---- */
 /* ---- Visitor Counter ---- */
 const COUNTER_WORKER_URL = 'https://twilight-counter.ken-b39.workers.dev/';
+// How long one browser keeps counting as the same visitor. A reload, a tab
+// left open overnight, or coming back after dinner is the same person; a
+// visit tomorrow is a new one. 24h is the usual "daily unique" convention.
+const COUNTER_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /* ---- Navigator: Sky View ----
    Full-screen live sky. Point the phone and the bodies land where they really
@@ -5769,9 +5773,36 @@ function TwilightApp() {
 
   React.useEffect(() => {
     if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
+    // Asking the counter for the total is not a free read: the endpoint
+    // increments the first time it sees a visitor, so every ping is a
+    // potential +1. The Worker does dedupe, but it can only recognise a
+    // returning visitor by the request itself — and a phone's IP changes
+    // whenever the network does, so an hour away on cellular arrives looking
+    // like a brand-new person. This browser is the one place that actually
+    // knows it has been here before, so the window is enforced here, and the
+    // Worker's own check stays as a backstop for cleared storage.
+    let last = 0, cached = null;
+    try {
+      last = parseInt(localStorage.getItem('tw_counted_at') || '0', 10) || 0;
+      const c = parseInt(localStorage.getItem('tw_count'), 10);
+      if (Number.isFinite(c)) cached = c;
+    } catch (e) {}
+    // Show the last known total immediately — within the window that is the
+    // only total we have, and it also stops the number popping in late.
+    if (cached !== null) setVisitorCount(cached);
+    if (Date.now() - last < COUNTER_WINDOW_MS) return;
     fetch(COUNTER_WORKER_URL)
       .then(r => r.json())
-      .then(d => { if (typeof d.count === 'number') setVisitorCount(d.count); })
+      .then(d => {
+        if (typeof d.count !== 'number') return;
+        setVisitorCount(d.count);
+        // Only recorded on success: a failed ping must not start the window,
+        // or a counter outage would quietly drop a day of visits.
+        try {
+          localStorage.setItem('tw_count', String(d.count));
+          localStorage.setItem('tw_counted_at', String(Date.now()));
+        } catch (e) {}
+      })
       .catch(() => {});
   }, []);
 

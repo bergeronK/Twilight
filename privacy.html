@@ -52,7 +52,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
 <main>
   <div class="kicker">Twilight</div>
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated July 8, 2026</div>
+  <div class="updated">Last updated September 14, 2026</div>
 
   <p>Twilight doesn't track you. There's no account, no advertising, no analytics
   software, and no profile built about you or your device. This page explains,
@@ -105,13 +105,17 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <li>A short-lived cache (about an hour) of the weather forecast, to avoid
     re-fetching it constantly</li>
     <li>Whether you've dismissed onboarding messages</li>
+    <li>When this browser was last counted by the visit counter, and the last
+    total it showed, so that coming back later isn't counted as a new visitor</li>
   </ul>
   <p>You can clear all of this at any time by clearing your browser's site
   data for twilyte.info, or by deleting the app.</p>
 
   <h2>Anonymous visit counter</h2>
   <p>Twilight shows a running visitor count on the Console tab. Loading the
-  page pings a small counting service; the app does not send your location,
+  page pings a small counting service at most once a day; reloading the page,
+  or leaving and coming back later the same day, doesn't ping it again. The
+  app does not send your location,
   device identifiers, or any other data to it beyond what any web request
   inherently includes (like your IP address, which the app itself never sees
   or stores). The counter exists to show a running total, not to build a
