@@ -25,11 +25,7 @@ const FILES = [
   'apple-touch-icon.png',
   'fonts/inter-var.woff2',
   'fonts/cormorant.woff2',
-  'fonts/cormorant-i.woff2',
-  'fonts/spacegrotesk.woff2',
-  'fonts/spectral-300.woff2',
-  'fonts/spectral-400.woff2',
-  'fonts/spectral-500.woff2'
+  'fonts/cormorant-i.woff2'
 ];
 // sw.js is deliberately NOT staged: index.html skips service-worker
 // registration under Capacitor (assets are bundled, so there is nothing

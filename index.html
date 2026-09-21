@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zBhI+g8Q7XlJk17ohhumTCzJnKQ0J0vhFL6hCpUBpfQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-EfK3f8joOW60jKTlMZZRGiqN4jwk3GjMCJZxfCptbPQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -41,10 +41,6 @@
   @font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter-var.woff2) format('woff2');}
   @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/cormorant.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;font-display:swap;src:url(fonts/cormorant-i.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Space Grotesk';font-style:normal;font-weight:400 600;font-display:swap;src:url(fonts/spacegrotesk.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:300;font-display:swap;src:url(fonts/spectral-300.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/spectral-400.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
-  @font-face{font-family:'Spectral';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/spectral-500.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
   /* ---- Twilight design tokens: single source of truth for the whole app ---- */
   :root{
     /* surfaces — warm near-black: a candle-lit instrument, not a blue dashboard */
@@ -116,13 +112,19 @@
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
   @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
   /* ---- accessibility ---- */
+  /* Visible to screen readers, not to the eye. Used for guidance that would
+     be redundant on screen but is the whole interface without one. */
+  .sr-only{
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
+  }
   :where(button,a,input,select,[tabindex]):focus-visible{
     outline:2px solid var(--accent-hi);
     outline-offset:2px;
     border-radius:6px;
   }
   .noscript{
-    font-family:'Space Grotesk',ui-sans-serif,system-ui,sans-serif;
+    font-family:ui-sans-serif,system-ui,sans-serif;
     color:var(--ink); background:var(--surface);
     max-width:520px; margin:18vh auto 0; padding:24px 26px;
     border:1px solid var(--line); border-radius:var(--radius); line-height:1.55;
@@ -1574,51 +1576,129 @@ function starHcZn(raDeg, dec, lat, lonE, date) {
 const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 const compass16 = az => COMPASS16[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
 
-/* ---- Navigator: device orientation -> where the phone's back is aimed ----
+/* ---- Navigator: device orientation as a quaternion ----
    The W3C DeviceOrientation angles are an intrinsic Z-X'-Y'' (alpha, beta,
-   gamma) rotation taking the Earth frame (x=East, y=North, z=Up) to the device
-   frame (x=right across the screen, y=up the screen, z=out of the screen
-   toward the user). The rear camera looks along device -z, so the aiming
-   direction in Earth coordinates is minus the third column of
-   Rz(alpha)*Rx(beta)*Ry(gamma), worked out below.
+   gamma) rotation. The rotation they describe takes device coordinates
+   (x = right across the screen, y = up the screen, z = out of the screen
+   toward the user) to Earth coordinates (x = East, y = North, z = Up):
+   R = Rz(alpha) * Rx(beta) * Ry(gamma). The rear camera looks along device -z.
 
-   Composing the whole matrix, rather than reading beta off as "tilt", is what
-   makes this hold up in the hand: beta only means what you'd expect while the
-   phone is upright and unrolled, whereas the matrix stays correct at any roll.
-   This is the same reason real sky apps carry a full orientation quaternion
-   instead of reasoning about individual Euler angles. */
-function orientationToAim(alpha, beta, gamma) {
-  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
-  const e = -(cA * sG + sA * sB * cG); // East
-  const n = -(sA * sG - cA * sB * cG); // North
-  const u = -(cB * cG);                // Up
+   The rotation is carried as a unit quaternion rather than as the three
+   angles, because the angles are a poor description of it in exactly the
+   poses this feature uses. At beta = 90 — phone upright — only alpha + gamma
+   is determined, and the browser may split that sum differently from event
+   to event. Worse, gamma is limited to [-90, 90), so when the phone rolls
+   past 90 the browser must switch to the other way of writing the same
+   rotation, (a, b, g) -> (a + 180, 180 - b, g - 180): two readings a fraction
+   of a degree apart then differ by 180 in two angles, and anything that
+   filters or combines the angles one at a time passes through poses the
+   phone was never in. The rotation itself is well defined throughout. So
+   angles become a quaternion the moment they arrive and are never smoothed,
+   combined or reasoned about as angles again. This is how dedicated sky apps
+   are built.
+
+   Quaternions are [x, y, z, w], the Generic Sensor API's order. */
+function quatMul(a, b) {
+  const ax = a[0], ay = a[1], az = a[2], aw = a[3];
+  const bx = b[0], by = b[1], bz = b[2], bw = b[3];
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz
+  ];
+}
+const quatConj = q => [-q[0], -q[1], -q[2], q[3]];
+function quatNorm(q) {
+  const n = Math.hypot(q[0], q[1], q[2], q[3]) || 1;
+  return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
+}
+// Rotation by `deg` about a unit axis.
+function quatAxis(x, y, z, deg) {
+  const h = deg * D2R / 2, s = Math.sin(h);
+  return [x * s, y * s, z * s, Math.cos(h)];
+}
+// Rotation about Earth's up axis. Left-multiplying by yawQ(psi) lowers every
+// azimuth by psi — the same effect as adding psi to alpha.
+const yawQ = deg => quatAxis(0, 0, 1, deg);
+function quatFromEuler(alpha, beta, gamma) {
+  return quatMul(quatMul(quatAxis(0, 0, 1, alpha), quatAxis(1, 0, 0, beta)), quatAxis(0, 1, 0, gamma));
+}
+// v' = q v q*, for a unit quaternion.
+function quatRotate(q, v) {
+  const x = q[0], y = q[1], z = q[2], w = q[3];
+  // t = 2 * cross(q.xyz, v); v' = v + w*t + cross(q.xyz, t)
+  const tx = 2 * (y * v[2] - z * v[1]);
+  const ty = 2 * (z * v[0] - x * v[2]);
+  const tz = 2 * (x * v[1] - y * v[0]);
+  return [
+    v[0] + w * tx + (y * tz - z * ty),
+    v[1] + w * ty + (z * tx - x * tz),
+    v[2] + w * tz + (x * ty - y * tx)
+  ];
+}
+/* Spherical interpolation: the correct way to smooth a rotation. Filtering
+   the three angles separately goes wrong at the representation switch
+   described above — measured at a 0.2 deg physical step, the angle-by-angle
+   midpoint lands 180 deg from the phone. */
+function quatSlerp(a, b, t) {
+  let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+  // q and -q are the same rotation; take the short way round.
+  let bb = b;
+  if (d < 0) { d = -d; bb = [-b[0], -b[1], -b[2], -b[3]]; }
+  if (d > 0.9995) {
+    return quatNorm([
+      a[0] + t * (bb[0] - a[0]), a[1] + t * (bb[1] - a[1]),
+      a[2] + t * (bb[2] - a[2]), a[3] + t * (bb[3] - a[3])
+    ]);
+  }
+  const th = Math.acos(d), s = Math.sin(th);
+  const wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
+  return [
+    wa * a[0] + wb * bb[0], wa * a[1] + wb * bb[1],
+    wa * a[2] + wb * bb[2], wa * a[3] + wb * bb[3]
+  ];
+}
+// Compass azimuth of an Earth-frame vector, and how horizontal it is.
+const vecAz = v => (atan2(v[0], v[1]) + 360) % 360;
+const vecHoriz = v => Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+
+/* The three screen axes expressed in Earth coordinates, for one orientation
+   and one screen rotation. Computed once per frame; projecting a body is then
+   three dot products. The sensors report in the device's natural frame while
+   the canvas is in screen space, hence the screenAngle term. */
+function viewBasis(q, screenAngle) {
+  const dx = quatRotate(q, [1, 0, 0]);
+  const dy = quatRotate(q, [0, 1, 0]);
+  const dz = quatRotate(q, [0, 0, 1]);
+  const cT = cos(screenAngle || 0), sT = sin(screenAngle || 0);
   return {
-    az: (atan2(e, n) + 360) % 360,
-    alt: asin(u),
-    // Aiming near-vertically (phone flat, so the camera looks at the ground or
-    // straight up) leaves azimuth poorly defined — atan2 of two near-zero
-    // numbers swings wildly. Below this, callers fall back to the heading of
-    // the top of the screen, which stays meaningful when the phone is flat.
-    stable: Math.sqrt(e * e + n * n) > 0.15
+    x: [cT * dx[0] - sT * dy[0], cT * dx[1] - sT * dy[1], cT * dx[2] - sT * dy[2]],
+    y: [sT * dx[0] + cT * dy[0], sT * dx[1] + cT * dy[1], sT * dx[2] + cT * dy[2]],
+    z: dz
   };
 }
-/* Direction to a body (az/alt) expressed in *screen* axes: x right, y up the
-   displayed page, z out of the screen toward the viewer — so anything the
-   phone's back is facing has z < 0. This is the transpose of the matrix in
-   orientationToAim (world -> device instead of device -> world), then rotated
-   by the screen angle, since the canvas is in screen space while the sensors
-   report in the device's natural frame. Feed the result to skyProject. */
-function worldToScreenDir(az, alt, alpha, beta, gamma, screenAngle) {
-  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
+/* Direction to a body in screen axes: x right, y up the displayed page, z out
+   of the screen toward the viewer — anything the camera faces has z < 0.
+   Feed the result to skyProject. */
+function toScreen(basis, az, alt) {
   const e = cos(alt) * sin(az), n = cos(alt) * cos(az), u = sin(alt);
-  // Device axes in world coordinates are the columns of Rz(a)*Rx(b)*Ry(g);
-  // dotting the body against each column projects it onto that axis.
-  const x = (cA * cG - sA * sB * sG) * e + (sA * cG + cA * sB * sG) * n + (-cB * sG) * u;
-  const y = (-sA * cB) * e + (cA * cB) * n + sB * u;
-  const z = (cA * sG + sA * sB * cG) * e + (sA * sG - cA * sB * cG) * n + (cB * cG) * u;
-  const cT = cos(screenAngle || 0), sT = sin(screenAngle || 0);
-  return { x: cT * x - sT * y, y: sT * x + cT * y, z };
+  const b = basis;
+  return {
+    x: b.x[0] * e + b.x[1] * n + b.x[2] * u,
+    y: b.y[0] * e + b.y[1] * n + b.y[2] * u,
+    z: b.z[0] * e + b.z[1] * n + b.z[2] * u
+  };
 }
+/* Where the camera is aimed. `stable` is false when it points nearly
+   straight up or down, where azimuth is meaningless; callers then fall back
+   to screenUpAz, the bearing of the top of the displayed page, which stays
+   meaningful when the phone is held flat. */
+function aimOf(q) {
+  const v = quatRotate(q, [0, 0, -1]);
+  return { az: vecAz(v), alt: asin(v[2]), stable: vecHoriz(v) > 0.15 };
+}
+const screenUpAz = (q, screenAngle) => vecAz(viewBasis(q, screenAngle).y);
 /* Pinhole projection of a screen-frame direction onto the canvas. Returns null
    when the body is behind the phone. `fov` is the vertical field of view. */
 function skyProject(d, w, h, fov) {
@@ -1626,18 +1706,365 @@ function skyProject(d, w, h, fov) {
   const f = (h / 2) / Math.tan((fov / 2) * D2R), k = f / -d.z;
   return { x: w / 2 + d.x * k, y: h / 2 - d.y * k };
 }
-/* Compass heading of the top of the *displayed* page, for when the phone is
-   held flat and the camera axis says nothing useful. The sensor angles are
-   always reported against the device's natural orientation, so a phone turned
-   into landscape reports a device-top 90° away from the top the user sees —
-   hence the screenAngle term. (The aim vector above needs no such correction:
-   the camera is bolted to the body, so rotating the UI can't move it.) */
-function screenUpHeading(alpha, beta, gamma, screenAngle) {
-  const cA = cos(alpha), sA = sin(alpha), cB = cos(beta), sB = sin(beta), cG = cos(gamma), sG = sin(gamma);
-  const cT = cos(screenAngle || 0), sT = sin(screenAngle || 0);
-  const e = sT * (cA * cG - sA * sB * sG) - cT * (sA * cB);
-  const n = sT * (sA * cG + cA * sB * sG) + cT * (cA * cB);
-  return (atan2(e, n) + 360) % 360;
+
+/* ---- Magnetic declination (World Magnetic Model 2025) ----
+   Every azimuth this app computes is referenced to TRUE north. A phone's
+   compass is not, and which one you get depends on the platform:
+
+     iOS Safari     — webkitCompassHeading is true north; the OS has already
+                      applied declination, so adding it again would double it.
+     Android Chrome — deviceorientationabsolute yaw comes from the rotation
+                      vector, which is referenced to MAGNETIC north. Nothing
+                      in the platform corrects it.
+
+   Left uncorrected that is a fixed error equal to the local declination:
+   near zero across much of the eastern US, but 15-20 deg in Alaska, the
+   Pacific Northwest and the Southern Ocean — the difference between Sky View
+   pointing at Sirius and pointing at nothing. Aim Assist's manual "Align"
+   nudge could paper over it, but only if the user noticed, and only for as
+   long as they stayed put.
+
+   WMM2025 is valid 2025.0-2030.0; magneticDeclination() clamps outside that
+   window and reports it, so an expired model degrades visibly rather than
+   silently. Regenerate with scripts/generate-wmm.js when the next epoch
+   ships. */
+const WMM_EPOCH_YEARS = 5;
+const WMM_COF = "2025 -293518 0 120 0 -14108 45454 97 -215 -25566 0 -116 0 29511 -31336 -52 -277 16493 -8151 -80 -121 13610 0 -13 0 -24041 -566 -42 40 12438 2375 4 -3 4536 -5495 -156 -41 8950 0 -16 0 7995 2786 -24 -11 557 -1339 -60 41 -2811 2120 56 16 121 -3756 -70 -44 -2332 0 6 0 3689 454 14 -5 1872 2202 0 22 -1387 -1229 6 4 -1420 430 22 17 209 1061 9 19 644 0 -2 0 638 -184 -4 3 769 168 9 -16 -1157 488 12 -4 -409 -598 -9 9 149 109 3 7 -607 727 9 9 795 0 0 0 -770 -489 -1 6 -88 -144 -1 5 593 -10 5 -8 158 234 -1 0 25 -74 -8 -10 -111 -251 -8 6 142 -23 8 -2 232 0 -1 0 108 71 2 -2 -175 -126 0 5 20 114 5 -4 -217 -97 -1 4 169 127 3 -5 150 7 2 -6 -168 -52 0 3 9 39 2 2 46 0 0 0 78 -248 -1 -3 30 122 1 3 -2 83 3 -3 -25 -33 -3 3 -131 -52 0 2 24 72 3 -1 86 -6 -1 -2 -87 8 1 4 -129 100 -1 1 -13 0 1 0 -64 33 0 0 2 0 1 0 20 24 1 -2 -10 53 0 1 -6 -91 -3 -1 -9 4 0 1 15 -42 -1 0 9 -38 -1 -1 -27 9 0 2 -39 -91 0 0 29 0 0 0 -15 0 0 0 -25 29 0 1 24 -6 0 0 -6 2 0 1 -1 5 -1 0 -6 -3 0 0 -1 -12 0 1 11 -17 -1 0 -10 -29 -1 0 -2 -18 -1 0 26 -23 -1 0 -20 0 0 0 -2 -13 0 0 3 7 0 0 12 10 0 -1 -13 -14 0 1 6 0 0 0 6 6 1 0 5 -1 0 0 -1 8 0 0 -4 1 0 0 -2 -10 -1 0 -13 1 0 0 -7 2 -1 -1";
+// Parsed on first use, not at load: most sessions never open Aim Assist.
+let wmmCache = null;
+function wmmModel() {
+  if (wmmCache) return wmmCache;
+  const t = WMM_COF.split(' ');
+  const epoch = parseFloat(t[0]);
+  const g = [], h = [], gd = [], hd = [];
+  let i = 1;
+  for (let n = 1; n <= 12; n++) {
+    g[n] = []; h[n] = []; gd[n] = []; hd[n] = [];
+    for (let m = 0; m <= n; m++) {
+      g[n][m] = +t[i++] / 10; h[n][m] = +t[i++] / 10;
+      gd[n][m] = +t[i++] / 10; hd[n][m] = +t[i++] / 10;
+    }
+  }
+  wmmCache = { epoch, g, h, gd, hd };
+  return wmmCache;
+}
+/* Declination (magnetic variation) in degrees, east positive, at sea level.
+   True bearing = magnetic bearing + declination.
+
+   Standard spherical-harmonic evaluation of the main field: Schmidt
+   semi-normalised associated Legendre functions to degree 12, summed in the
+   geocentric frame and rotated back to geodetic. Height is taken as 0 — at
+   any altitude a person observes from, the difference is far below the
+   compass's own error. Returns { deg, stale } so callers can surface an
+   out-of-date model. */
+function magneticDeclination(lat, lon, date) {
+  const M = wmmModel();
+  const d = date || new Date();
+  const year = d.getUTCFullYear() + (d.getUTCMonth() * 30.4 + d.getUTCDate()) / 365.25;
+  const lo = M.epoch, hi = M.epoch + WMM_EPOCH_YEARS;
+  const stale = year < lo || year > hi;
+  const dt = Math.min(hi, Math.max(lo, year)) - M.epoch;
+
+  // Geodetic -> geocentric spherical (WGS84).
+  const phi = lat * D2R, lam = lon * D2R;
+  const sp = Math.sin(phi), cp = Math.cos(phi);
+  const A = 6378.137, F = 1 / 298.257223563, E2 = F * (2 - F);
+  const Rc = A / Math.sqrt(1 - E2 * sp * sp);
+  const p = Rc * cp, z = Rc * (1 - E2) * sp;
+  const r = Math.sqrt(p * p + z * z);
+  const phiG = Math.asin(z / r);
+  const ct = Math.sin(phiG), st = Math.cos(phiG); // cos/sin of colatitude
+
+  // Schmidt semi-normalised P(n,m) and dP/dtheta. The n === 1 sectoral seed
+  // carries no sqrt((2n-1)/(2n)) factor: P(1,1) is sin(theta) exactly, and
+  // folding the general factor in there instead rescales the entire field —
+  // it produced a plausible-looking 1.04 deg where NOAA says 1.28.
+  const P = [[1]], dP = [[0]];
+  for (let n = 1; n <= 12; n++) {
+    P[n] = []; dP[n] = [];
+    for (let m = 0; m <= n; m++) {
+      if (n === m) {
+        const k = n === 1 ? 1 : Math.sqrt((2 * n - 1) / (2 * n));
+        P[n][n] = k * st * P[n - 1][n - 1];
+        dP[n][n] = k * (st * dP[n - 1][n - 1] + ct * P[n - 1][n - 1]);
+      } else {
+        const a = Math.sqrt(n * n - m * m);
+        const b = Math.sqrt((n - 1) * (n - 1) - m * m);
+        const p2 = n - 2 >= m ? P[n - 2][m] : 0;
+        const d2 = n - 2 >= m ? dP[n - 2][m] : 0;
+        P[n][m] = ((2 * n - 1) * ct * P[n - 1][m] - b * p2) / a;
+        dP[n][m] = ((2 * n - 1) * (ct * dP[n - 1][m] - st * P[n - 1][m]) - b * d2) / a;
+      }
+    }
+  }
+
+  const RE = 6371.2; // geomagnetic reference radius, km
+  let X = 0, Y = 0, Z = 0;
+  for (let n = 1; n <= 12; n++) {
+    const f = Math.pow(RE / r, n + 2);
+    for (let m = 0; m <= n; m++) {
+      const gn = M.g[n][m] + dt * M.gd[n][m];
+      const hn = M.h[n][m] + dt * M.hd[n][m];
+      const cm = Math.cos(m * lam), sm = Math.sin(m * lam);
+      X += f * (gn * cm + hn * sm) * dP[n][m];
+      Y += f * m * (gn * sm - hn * cm) * P[n][m];
+      Z -= f * (n + 1) * (gn * cm + hn * sm) * P[n][m];
+    }
+  }
+  if (st > 1e-10) Y /= st;
+
+  // Rotate the geocentric components back into the geodetic frame.
+  const dd = phiG - phi;
+  const Xg = X * Math.cos(dd) - Z * Math.sin(dd);
+  return { deg: atan2(Y, Xg), stale: stale };
+}
+
+/* ---- Console: derived copy and countdown formatting ----
+   Lifted out of RealtimeTwilight so the thresholds and the wording can be
+   tested. These decide what the Console says about tonight, which is the
+   first thing most visitors read, and the branch order matters: twilight
+   phase outranks the Moon, because a bright Moon during nautical twilight is
+   still nautical twilight. */
+function tonightGlance(live) {
+  const moonUp = live.m.alt > 0;
+  const illumPct = Math.round(live.m.illum * 100);
+  const ph = live.phase;
+  if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
+  if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
+  if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible \u2014 the sextant window is open.", tone: "var(--band-naut)" };
+  if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
+  if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
+  return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
+}
+/* Two granularities on purpose, not a duplication to merge: the sextant
+   window is a planning number where seconds are noise, while the next-event
+   countdown is something you watch tick. */
+const cdText = ms => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+};
+const cdHMS = ms => {
+  const t = Math.max(0, ms);
+  const h = Math.floor(t / 3600000);
+  const m = Math.floor((t % 3600000) / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
+};
+
+/* ---- Orientation fusion ----
+   Two kinds of sensor data, with opposite strengths:
+
+     attitude — how the phone is turned. Android's plain `deviceorientation`
+                comes from the game rotation vector (gyroscope and
+                accelerometer): smooth and responsive, but its yaw origin is
+                arbitrary. iOS's `alpha` is likewise relative.
+     north    — which way is north. Android's `deviceorientationabsolute`
+                folds in the magnetometer, iOS supplies webkitCompassHeading.
+                Both are noisy, and the magnetometer is easily disturbed.
+
+   Feeding the north-referenced stream straight to the screen makes the sky
+   jitter with every magnetometer twitch. Instead the smooth stream drives the
+   view, and the north stream only estimates one slowly varying number — the
+   yaw that turns the relative frame into the true one. This is a
+   complementary filter, and it is what makes dedicated sky apps feel steady.
+
+   Written as a pure step, state -> state, so it can be tested without a
+   phone. Samples:
+     { kind: 'rel', q }                       relative attitude
+     { kind: 'abs', q, magnetic }             north-referenced attitude
+     { kind: 'heading', q, heading, trueNorth }
+                                              iOS: relative attitude plus a
+                                              compass heading
+*/
+const ORIENT_SMOOTH = 0.35;   // slerp weight of each attitude sample
+const NORTH_SMOOTH = 0.04;    // weight of each north sample; ~0.5 s at 60 Hz
+const ORIENT_MIN_MS = 16;     // ~60 published updates a second, at most
+// A heading axis must be at least this horizontal to say anything about
+// north. cos 60 deg — steeper than that and noise dominates its azimuth.
+const NORTH_MIN_HORIZ = 0.5;
+// How far up the screen must face before an iOS heading is believed: the
+// screen normal's upward component, so 0.25 is about 75 deg from flat.
+const NORTH_FACE_UP = 0.25;
+// A north sample further than this from the estimate is not blended in.
+// Near 180 deg of disagreement, "the shorter way round" flips direction with
+// every bit of noise, and blending makes the estimate spin.
+const NORTH_JUMP_DEG = 60;
+// ...unless the new value persists, consistently, for this many samples
+// (~0.75 s at 60 Hz) — a genuine change, such as a compass recalibrating.
+const NORTH_JUMP_SAMPLES = 45;
+
+/* Exponential smoothing for an angle that wraps: 359 and 1 must average to 0,
+   not 180. Used here only for the yaw offset. */
+function smoothAngle(prev, next, k) {
+  if (prev === null || !Number.isFinite(prev)) return ((next % 360) + 360) % 360;
+  const d = ((next - prev) % 360 + 540) % 360 - 180; // shortest signed path
+  return ((prev + k * d) % 360 + 360) % 360;
+}
+const angGap = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
+
+/* Fold one north sample into the estimate. Small disagreements are blended.
+   Large ones are held back until they have persisted and agreed with each
+   other, then adopted outright — never blended, since blending across a gap
+   near 180 deg has no well-defined direction and the view spins. */
+function updateNorth(s, y, trusted) {
+  const yN = ((y % 360) + 360) % 360;
+  if (s.yaw === null) return { yaw: yN, trusted, pending: 0, pendingYaw: null };
+  if (angGap(yN, s.yaw) <= NORTH_JUMP_DEG) {
+    return {
+      yaw: smoothAngle(s.yaw, yN, NORTH_SMOOTH),
+      trusted: s.trusted || trusted, pending: 0, pendingYaw: null
+    };
+  }
+  // A trusted sample overrides an untrusted first guess straight away.
+  if (trusted && !s.trusted) return { yaw: yN, trusted: true, pending: 0, pendingYaw: null };
+  if (s.pendingYaw !== null && angGap(yN, s.pendingYaw) <= NORTH_JUMP_DEG) {
+    const pending = s.pending + 1;
+    const pendingYaw = smoothAngle(s.pendingYaw, yN, 0.2);
+    if (pending >= NORTH_JUMP_SAMPLES) return { yaw: pendingYaw, trusted: s.trusted || trusted, pending: 0, pendingYaw: null };
+    return { yaw: s.yaw, trusted: s.trusted, pending, pendingYaw };
+  }
+  return { yaw: s.yaw, trusted: s.trusted, pending: 1, pendingYaw: yN };
+}
+
+/* The yaw psi with yawQ(psi) * rel ≈ abs, read off how the two rotations
+   carry a horizontal reference vector. Azimuths fall by psi under yawQ(psi),
+   so psi = az(rel) - az(abs). The reference used is whichever device axis is
+   more horizontal, so the answer stays well conditioned in any pose. Both
+   inputs are full rotations, so there is no ambiguity about which axis a
+   heading belongs to. */
+function yawBetween(abs, rel) {
+  const top = quatRotate(rel, [0, 1, 0]);
+  const axis = vecHoriz(top) >= NORTH_MIN_HORIZ ? [0, 1, 0] : [0, 0, -1];
+  return vecAz(quatRotate(rel, axis)) - vecAz(quatRotate(abs, axis));
+}
+
+/* iOS supplies a heading, not a rotation, and does not say which device axis
+   it belongs to. With the screen facing up, every sensible definition agrees:
+   it is the bearing of the top of the phone. Once the phone tips back past
+   vertical to look at the sky, they stop agreeing — the top of the phone now
+   points away from the stars, and on a real iPhone the reported heading
+   behaves as if it follows the camera instead. Trusting it there turned north
+   180 degrees round whenever the phone was raised to the sky, and back again
+   when lowered.
+
+   So a heading is used only while the screen faces up and the top is clearly
+   horizontal. Otherwise the estimate is held: the gyro keeps the view right,
+   and the relative stream drifts slowly enough that holding costs nothing
+   noticeable between glances down.
+
+   Returns { yaw, trusted } or null. With no estimate at all and the phone
+   upright, the camera axis is used as an untrusted first guess, replaced the
+   moment the phone faces up. Face-down with no estimate, nothing is guessed. */
+function yawFromHeading(rel, heading) {
+  const top = quatRotate(rel, [0, 1, 0]);
+  const face = quatRotate(rel, [0, 0, 1]);
+  if (face[2] >= NORTH_FACE_UP && vecHoriz(top) >= NORTH_MIN_HORIZ) {
+    return { yaw: vecAz(top) - heading, trusted: true };
+  }
+  if (Math.abs(face[2]) < NORTH_FACE_UP) {
+    return { yaw: vecAz(quatRotate(rel, [0, 0, -1])) - heading, trusted: false, guessOnly: true };
+  }
+  return null;
+}
+
+const FUSION_INIT = {
+  att: null, frame: null, yaw: null, trusted: false, pending: 0, pendingYaw: null,
+  lastAbs: null, haveRel: false, magnetic: false, northKind: null
+};
+
+function fuseOrientation(s, sample) {
+  const q = quatNorm(sample.q);
+  const out = Object.assign({}, s);
+  if (sample.kind === 'rel' || sample.kind === 'heading') {
+    out.haveRel = true;
+    const switching = s.frame !== 'rel';
+    out.frame = 'rel';
+    out.att = switching || !s.att ? q : quatSlerp(s.att, q, ORIENT_SMOOTH);
+    // Coming from an absolute-only stream: take north from the last absolute
+    // sample straight away, so the switch costs nothing on screen.
+    if (switching && s.lastAbs && s.yaw === null) {
+      Object.assign(out, updateNorth(s, yawBetween(s.lastAbs, q), true));
+    }
+    if (sample.kind === 'heading') {
+      out.northKind = 'heading';
+      out.magnetic = !sample.trueNorth;
+      // iOS marks an unusable heading with a negative accuracy.
+      const usable = Number.isFinite(sample.heading) && !(typeof sample.acc === 'number' && sample.acc < 0);
+      const h = usable ? yawFromHeading(q, sample.heading) : null;
+      if (h && !(h.guessOnly && out.yaw !== null)) Object.assign(out, updateNorth(out, h.yaw, h.trusted));
+    }
+    out.fresh = switching || !s.att;
+    return out;
+  }
+  // 'abs'
+  out.northKind = 'abs';
+  out.lastAbs = q;
+  out.magnetic = !!sample.magnetic;
+  if (!s.haveRel) {
+    // No smooth stream on this device: the absolute one has to be the view.
+    const switching = s.frame !== 'abs';
+    out.frame = 'abs';
+    out.att = switching || !s.att ? q : quatSlerp(s.att, q, ORIENT_SMOOTH);
+    out.trusted = true;
+    out.fresh = switching || !s.att;
+    return out;
+  }
+  if (s.att) Object.assign(out, updateNorth(s, yawBetween(q, s.att), true));
+  out.fresh = false;
+  return out;
+}
+
+/* What the fused state means: the best current rotation, whether it is
+   referenced to north at all, and whether that north has been confirmed.
+   Relative with no north estimate is still worth showing — tilt is fully
+   valid, and the manual Align nudge supplies north. */
+function fusedView(s) {
+  if (!s.att) return null;
+  if (s.frame === 'abs') return { q: s.att, abs: true, magnetic: s.magnetic, trusted: true };
+  if (s.yaw === null) return { q: s.att, abs: false, magnetic: false, trusted: false };
+  return { q: quatMul(yawQ(s.yaw), s.att), abs: true, magnetic: s.magnetic, trusted: s.trusted };
+}
+
+/* Apply the heading correction — declination plus the manual nudge — as one
+   rotation. Adding c to every azimuth is yawQ(-c). */
+const correctView = (q, headingCorr) => quatMul(yawQ(-(headingCorr || 0)), q);
+
+/* Spoken guidance for Aim Assist.
+
+   Aiming a phone at the sky in the dark is the one screen an eyes-free user
+   most needs spoken, and the one where the naive approach is worst: Turn and
+   Tilt are recomputed on every orientation event, dozens of times a second,
+   so an aria-live region bound straight to them would produce a continuous
+   unusable stream. So this announces a coarsened instruction at most once
+   every AIM_ANNOUNCE_MS, quantised to 5 degrees, and immediately when the
+   on-target state flips — the one transition worth interrupting for. */
+const AIM_ANNOUNCE_MS = 2500;
+const AIM_ANNOUNCE_STEP = 5;
+function aimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  if (aimTurn === null) return '';
+  if (onTarget) return 'On target' + (targetName ? ', ' + targetName : '');
+  const step = d => Math.round(Math.abs(d) / AIM_ANNOUNCE_STEP) * AIM_ANNOUNCE_STEP;
+  const parts = [];
+  const turn = step(aimTurn);
+  if (turn >= AIM_ANNOUNCE_STEP) parts.push('turn ' + turn + ' degrees ' + (aimTurn >= 0 ? 'right' : 'left'));
+  if (aimTilt !== null) {
+    const tilt = step(aimTilt);
+    if (tilt >= AIM_ANNOUNCE_STEP) parts.push('tilt ' + tilt + ' degrees ' + (aimTilt >= 0 ? 'up' : 'down'));
+  }
+  return parts.length ? parts.join(', ') : 'Almost there, hold steady';
+}
+function useAimAnnouncement(aimTurn, aimTilt, onTarget, targetName) {
+  const [msg, setMsg] = useState('');
+  const last = useRef({ at: 0, onTarget: null });
+  useEffect(() => {
+    if (aimTurn === null) { if (msg) setMsg(''); return; }
+    const now = Date.now();
+    const flipped = last.current.onTarget !== onTarget;
+    if (!flipped && now - last.current.at < AIM_ANNOUNCE_MS) return;
+    last.current = { at: now, onTarget };
+    setMsg(aimAnnouncement(aimTurn, aimTilt, onTarget, targetName));
+  }, [aimTurn, aimTilt, onTarget, targetName, msg]);
+  return msg;
 }
 
 /* ---- Navigator: sight-reduction corrections (Hs -> Ho) ----
@@ -1887,6 +2314,58 @@ function weekPlannerEl(nights, loc, h24, pro) {
     )
   );
 }
+/* The twilight-band legend: three fixed bands, no state, no props, and the
+   only thing it reads from the app is the design tokens. It sat inline in
+   RealtimeTwilight purely because that is where it was written, and ~45 lines
+   of static markup in the middle of the Console's render made the parts that
+   do change harder to find. Being a plain function of nothing also means a
+   test can call it directly and walk the tree it returns. */
+function TwilightBands() {
+  return React.createElement("section", {
+    style: {
+      maxWidth: 1080,
+      margin: "0 auto",
+      borderTop: `1px solid ${C.line}`,
+      padding: "20px 0",
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+      gap: "18px 24px"
+    }
+  }, [{
+    c: "var(--band-civil)",
+    n: "Civil 0° to −6° (Golden Hour)",
+    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
+  }, {
+    c: "var(--band-naut)",
+    n: "Nautical −6° to −12°",
+    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
+  }, {
+    c: "var(--band-astro)",
+    n: "Astronomical −12° to −18°",
+    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
+  }].map(p => React.createElement("div", {
+    key: p.n,
+    style: {
+      borderLeft: `2px solid ${p.c}`,
+      paddingLeft: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      fontFamily: "var(--font-ui)",
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: C.ink
+    }
+  }, p.n), React.createElement("div", {
+    style: {
+      fontSize: 12.5,
+      color: C.inkDim,
+      marginTop: 5,
+      lineHeight: 1.5
+    }
+  }, p.t))));
+}
+
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -2155,23 +2634,8 @@ function RealtimeTwilight({ redMode } = {}) {
   const meta = PHASE_META[live.phase];
   const horizonY = 64;
   const countdown = win ? win.open ? win.e - now : win.s - now : 0;
-  const cdText = ms => {
-    const m = Math.max(0, Math.round(ms / 60000));
-    return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
-  };
   const sunY = Math.max(6, Math.min(96, horizonY - live.alt * 1.15));
-  /* ---- "Tonight at a glance" verdict, derived entirely from live data ---- */
-  const glance = (() => {
-    const moonUp = live.m.alt > 0;
-    const illumPct = Math.round(live.m.illum * 100);
-    const ph = live.phase;
-    if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
-    if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
-    if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible — the sextant window is open.", tone: "var(--band-naut)" };
-    if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
-    if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
-    return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
-  })();
+  const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
     left: Math.random() * 100,
@@ -2393,7 +2857,12 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto" }
   },
-    React.createElement("div", { style: { padding: "22px 0 2px" } },
+    React.createElement("div", {
+      // Changes on its own as twilight advances, rarely enough that
+      // announcing it is useful rather than noisy.
+      role: "status", "aria-live": "polite", "aria-atomic": "true",
+      style: { padding: "22px 0 2px" }
+    },
       React.createElement("div", {
         style: { fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "clamp(26px,4.6vw,34px)", fontWeight: 400, color: C.ink, lineHeight: 1.05 }
       }, glance.head),
@@ -2617,13 +3086,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
     React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
-    }, (() => {
-      const ms = nextSunEv.t - now;
-      const h = Math.floor(ms / 3600000);
-      const m = Math.floor((ms % 3600000) / 60000);
-      const s = Math.floor((ms % 60000) / 1000);
-      return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
-    })())
+    }, cdHMS(nextSunEv.t - now))
   ),
   React.createElement("div", {
     className: "rt-readouts",
@@ -2807,49 +3270,7 @@ function RealtimeTwilight({ redMode } = {}) {
     dir: "down",
     events: day.sunEv,
     tz: loc.tz
-  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement("section", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto",
-      borderTop: `1px solid ${C.line}`,
-      padding: "20px 0",
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-      gap: "18px 24px"
-    }
-  }, [{
-    c: "var(--band-civil)",
-    n: "Civil 0° to −6° (Golden Hour)",
-    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
-  }, {
-    c: "var(--band-naut)",
-    n: "Nautical −6° to −12°",
-    t: "The horizon is still faintly visible and the brighter navigation stars are out. This overlap is the window for sextant sights."
-  }, {
-    c: "var(--band-astro)",
-    n: "Astronomical −12° to −18°",
-    t: "The horizon has gone and the sky is heading for full dark. Good for faint, deep-sky objects; too late for sextant work."
-  }].map(p => React.createElement("div", {
-    key: p.n,
-    style: {
-      borderLeft: `2px solid ${p.c}`,
-      paddingLeft: 12
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 12.5,
-      fontWeight: 600,
-      color: C.ink
-    }
-  }, p.n), React.createElement("div", {
-    style: {
-      fontSize: 12.5,
-      color: C.inkDim,
-      marginTop: 5,
-      lineHeight: 1.5
-    }
-  }, p.t)))), React.createElement("section", {
+  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement(TwilightBands, null), React.createElement("section", {
     ref: factRef,
     style: {
       maxWidth: 1080,
@@ -4032,24 +4453,59 @@ const COUNTER_WINDOW_MS = 24 * 60 * 60 * 1000;
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sensorMsg, relativeHeading }) {
+function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
   const [size, setSize] = useState({ w: 360, h: 640 });
+  // The overlay whose box the canvas fills, and therefore the box the
+  // projection has to be computed for.
+  const wrapRef = useRef(null);
   // Drag-to-look, used whenever the sensors aren't driving the view.
   const [manual, setManual] = useState({ az: 180, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
-  const aimOffset = useAimOffset();
-  const live = !!orient;
+  const live = !!viewQ;
 
+  /* Measure the element the canvas actually fills, rather than asking the
+     window how big it thinks it is.
+
+     window.innerHeight is not the height of this overlay. On mobile the two
+     part company whenever the browser's toolbars collapse or expand, and on
+     iOS the resize event does not reliably fire when they do. The projection
+     treats h/2 as the optical centre of the camera image, so any disagreement
+     between the height it projects for and the height it paints into moves
+     every body up or down the screen by half the difference — a constant
+     offset that looks exactly like a miscalibrated compass.
+
+     A ResizeObserver on the container cannot disagree with the container.
+     The window and visualViewport listeners are belt-and-braces for browsers
+     without one. */
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const el = wrapRef.current;
+    const measure = () => {
+      const r = el && el.getBoundingClientRect();
+      const w = Math.round(r && r.width ? r.width : window.innerWidth);
+      const h = Math.round(r && r.height ? r.height : window.innerHeight);
+      if (w > 0 && h > 0) setSize(s => (s.w === w && s.h === h ? s : { w, h }));
+    };
+    measure();
+    let ro = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    const vv = window.visualViewport;
+    if (vv) { vv.addEventListener('resize', measure); vv.addEventListener('scroll', measure); }
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+      if (vv) { vv.removeEventListener('resize', measure); vv.removeEventListener('scroll', measure); }
+    };
   }, []);
 
   useEffect(() => {
@@ -4070,19 +4526,15 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     return () => { cancelled = true; if (stream) stream.getTracks().forEach(t => t.stop()); };
   }, [cam]);
 
-  // Where the view is pointed. With no sensors, synthesise the same Euler
-  // angles a phone aimed that way would report, so both paths render through
-  // one code path rather than two that can drift apart.
-  //
-  // The manual heading correction has to be applied HERE, not just in Aim
-  // Assist: it is the same phone, the same heading and the same error, so a
-  // correction that moves the turn arrow but leaves the drawn sky where it
-  // was makes the two tools contradict each other. Since az = 360 - alpha,
-  // adding aimOffset to the heading means subtracting it from alpha. The
-  // drag-to-look branch is not sensor-derived and needs no correction.
-  const view = live
-    ? { alpha: (orient.alpha - aimOffset + 720) % 360, beta: orient.beta, gamma: orient.gamma, sa: screenAngle }
-    : { alpha: (360 - manual.az) % 360, beta: 90 + manual.alt, gamma: 0, sa: 0 };
+  // Where the view is pointed. Live, that is the corrected rotation computed
+  // once in StarFinder — the same object Aim Assist reads, so the two cannot
+  // disagree. With no sensors, synthesise the rotation a phone aimed that way
+  // would have, so both paths render through one code path.
+  const view = useMemo(() => live
+    ? { q: viewQ, sa: screenAngle }
+    : { q: quatFromEuler((360 - manual.az) % 360, 90 + manual.alt, 0), sa: 0 },
+  [live, viewQ, screenAngle, manual.az, manual.alt]);
+  const basis = useMemo(() => viewBasis(view.q, view.sa), [view]);
 
   useEffect(() => {
     const cv = canvasRef.current;
@@ -4099,13 +4551,13 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
 
-    const dir = b => worldToScreenDir(b.az, b.alt, view.alpha, view.beta, view.gamma, view.sa);
+    const dir = b => toScreen(basis, b.az, b.alt);
     const proj = d => skyProject(d, w, h, fov);
 
     if (!cam) {
       // Sky gradient, darkest overhead — reads as depth without competing
       // with the bodies for attention.
-      const up = proj(worldToScreenDir(0, 90, view.alpha, view.beta, view.gamma, view.sa));
+      const up = proj(toScreen(basis, 0, 90));
       const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
       grad.addColorStop(0, '#05070f');
       grad.addColorStop(1, '#0b1020');
@@ -4119,7 +4571,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.beginPath();
     let started = false;
     for (let a = 0; a <= 360; a += 2) {
-      const p = proj(worldToScreenDir(a, 0, view.alpha, view.beta, view.gamma, view.sa));
+      const p = proj(toScreen(basis, a, 0));
       if (!p) { started = false; continue; }
       if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
     }
@@ -4130,7 +4582,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.fillStyle = 'rgba(210,160,77,.8)';
     g.textAlign = 'center';
     for (let a = 0; a < 360; a += 45) {
-      const p = proj(worldToScreenDir(a, 0, view.alpha, view.beta, view.gamma, view.sa));
+      const p = proj(toScreen(basis, a, 0));
       if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
     }
 
@@ -4203,14 +4655,14 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
     g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
     g.stroke();
-  }, [bodies, view.alpha, view.beta, view.gamma, view.sa, size, cam, targetName, fov]);
+  }, [bodies, basis, size, cam, targetName, fov]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
   const target = bodies.find(b => b.name === targetName);
   let offscreen = null;
   if (target) {
-    const d = worldToScreenDir(target.az, target.alt, view.alpha, view.beta, view.gamma, view.sa);
+    const d = toScreen(basis, target.az, target.alt);
     const p = skyProject(d, size.w, size.h, fov);
     if (!p || p.x < 0 || p.x > size.w || p.y < 0 || p.y > size.h) {
       offscreen = (atan2(d.x, d.y) + 360) % 360; // direction to swing, in screen plane
@@ -4226,7 +4678,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     let best = null, bestD = 44;
     bodies.forEach(bd => {
       if (!bd.name) return; // catalogue stars without a proper name can't be named
-      const p = skyProject(worldToScreenDir(bd.az, bd.alt, view.alpha, view.beta, view.gamma, view.sa), size.w, size.h, fov);
+      const p = skyProject(toScreen(basis, bd.az, bd.alt), size.w, size.h, fov);
       if (!p) return;
       const d = Math.hypot(p.x - cx, p.y - cy);
       // Prefer the brighter of two candidates at similar distance, so a faint
@@ -4266,7 +4718,14 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     borderRadius: 9, cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)',
     background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
   };
+  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' };
+  /* Controls sit on top of the sky, and a press that starts on one must not
+     also count as a tap on the sky beneath it — that would identify whatever
+     is under the button, or clear the target when nothing is. Stopping the
+     press at the control means the overlay never records it as a tap. */
+  const keepTap = { onMouseDown: e => e.stopPropagation(), onTouchStart: e => e.stopPropagation() };
   return React.createElement('div', {
+    ref: wrapRef,
     // Above the tab bar (100) and its menu (200): Sky View is immersive and
     // owns the screen until its own Back button is tapped.
     style: { position: 'fixed', inset: 0, zIndex: 300, background: '#05070f', overscrollBehavior: 'none', touchAction: 'none' },
@@ -4283,13 +4742,45 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
     React.createElement('canvas', { ref: canvasRef, style: { position: 'absolute', inset: 0 } }),
     // Top bar
     React.createElement('div', {
+      ...keepTap,
       style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
     },
       React.createElement('button', { onClick: onClose, style: chip }, '← Back'),
       React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      diag && React.createElement('button', {
+        onClick: diag.onToggle, 'aria-expanded': diag.open,
+        style: { ...chip, ...(diag.open ? chipOn : {}) }
+      }, 'Sensors'),
       targetName && React.createElement('span', {
         style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, color: '#e8b563', padding: '8px 4px' }
       }, targetName)
+    ),
+    // Sensor readout. Capped in height so the centre reticle stays visible —
+    // the reading is only meaningful while a body is held in the middle.
+    diag && diag.open && React.createElement('div', {
+      ...keepTap,
+      style: {
+        position: 'absolute', left: 12, right: 12,
+        top: 'calc(max(12px, env(safe-area-inset-top)) + 52px)',
+        maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
+        padding: '10px 12px', borderRadius: 10,
+        background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
+        backdropFilter: 'blur(8px)', color: '#eef2ff',
+        fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
+      }
+    },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+        React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
+          targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
+        React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel)
+      ),
+      diag.entries.map(([k, v]) => React.createElement('div', {
+        key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+      },
+        React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
+        React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
+      )),
+      React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
     ),
     // Bottom status
     React.createElement('div', {
@@ -4299,6 +4790,7 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
       // no browser API reports a camera's field of view, so this is the only
       // way to make the stars line up with what the camera sees.
       cam && React.createElement('div', {
+        ...keepTap,
         style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }
       },
         React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)' } }, 'Match to camera'),
@@ -4308,12 +4800,13 @@ function SkyDome({ bodies, orient, screenAngle, targetName, onPick, onClose, sen
         fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), style: { ...chip, padding: '6px 12px' } }, 'Reset')
       ),
       camErr ? camErr + ' ' : '',
+      // A north warning takes precedence: until north is settled, what is
+      // drawn cannot be trusted, and that matters more than the target line.
+      live && northMsg && React.createElement('div', { style: { color: '#e8b563', marginBottom: 4 } }, northMsg),
       target
         ? target.name + ' · ' + Math.round(target.alt) + '° alt · ' + Math.round(target.az) + '° ' + compass16(target.az)
         : (live
-            ? (relativeHeading
-                ? 'Live, but this phone gives no true-north reference — use Align in Aim Assist to set north. Tap anything to identify it.'
-                : 'Live — move your phone to look around. Tap anything to identify it.')
+            ? 'Live — move your phone to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
     offscreen !== null && React.createElement('div', {
@@ -4426,6 +4919,11 @@ function StarFinder({ redMode } = {}) {
   const [screenAngle, setScreenAngle] = useState(0);
   // Sensor diagnostics — the only way to debug a device I can't hold.
   const sensorStatsRef = useRef({ rel: 0, abs: 0, usable: 0, last: null });
+  // Sensor fusion state, and when a view was last published. Refs, not
+  // state: they change on every sensor event and must not themselves cause
+  // a render — the publish throttle exists precisely to stop that.
+  const fusionRef = useRef(null);
+  const lastEmitRef = useRef(0);
   const [showDiag, setShowDiag] = useState(false);
   const [sensorStats, setSensorStats] = useState(null);
   const aimOffset = useAimOffset();
@@ -4514,8 +5012,11 @@ function StarFinder({ redMode } = {}) {
     //   Others          — `deviceorientation` with absolute === true.
     // Listening only to `deviceorientation` and requiring e.absolute (what
     // this did originally) means Android never yields a heading at all.
-    let sawAbsolute = false;
-    const handler = e => {
+    // Each event is turned into a quaternion on arrival and handed to the
+    // fusion step; see fuseOrientation for why the streams are combined
+    // rather than one being chosen over the other.
+    fusionRef.current = FUSION_INIT;
+    const orientHandler = e => {
       // Tally first, before any filtering: when nothing works, the useful
       // question is whether events arrive at all and what they contain.
       const st = sensorStatsRef.current;
@@ -4532,41 +5033,65 @@ function StarFinder({ redMode } = {}) {
         gamma: typeof e.gamma === 'number' ? Math.round(e.gamma * 10) / 10 : null,
         wk: typeof e.webkitCompassHeading === 'number' ? Math.round(e.webkitCompassHeading) : null
       };
-      const absEvent = e.type === 'deviceorientationabsolute' || e.absolute === true;
-      let alpha = null, acc = null, abs = absEvent;
+      // A rotation needs the angles. A compass heading alone places nothing.
+      if (typeof e.alpha !== 'number') return;
+      const q = quatFromEuler(
+        e.alpha,
+        typeof e.beta === 'number' ? e.beta : 0,
+        typeof e.gamma === 'number' ? e.gamma : 0
+      );
+      let sample, acc = null;
       if (typeof e.webkitCompassHeading === 'number') {
-        alpha = (360 - e.webkitCompassHeading) % 360;
-        abs = true;
+        // iOS: alpha is relative; the heading carries north. Treated as true
+        // north, as iOS applies declination itself — a device reading can
+        // overturn that, and Sensor details shows what was assumed.
         if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
-      } else if (typeof e.alpha === 'number') {
-        alpha = e.alpha;
+        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: true, acc };
+      } else if (e.type === 'deviceorientationabsolute' || e.absolute === true) {
+        // Android's absolute stream is magnetometer-referenced: magnetic north.
+        sample = { kind: 'abs', q, magnetic: true };
+      } else {
+        sample = { kind: 'rel', q };
       }
-      if (alpha === null) return;
-      // Once an absolute source has spoken, ignore the relative stream — both
-      // fire on Android and the relative one would fight it.
-      if (abs) sawAbsolute = true;
-      else if (sawAbsolute) return;
+      const before = fusedView(fusionRef.current);
+      const next = fuseOrientation(fusionRef.current, sample);
+      fusionRef.current = next;
+      const fused = fusedView(next);
+      if (!fused) return;
+      // Publish at most ORIENT_MIN_MS apart — the fusion state advances on
+      // every event regardless, so a skipped publish loses nothing. A change
+      // in what the view is referenced to always publishes at once: that is
+      // the reading the user is waiting for.
+      const changed = !before || before.abs !== fused.abs || before.magnetic !== fused.magnetic || before.trusted !== fused.trusted;
+      const nowMs = Date.now();
+      if (!next.fresh && !changed && nowMs - lastEmitRef.current < ORIENT_MIN_MS) return;
+      lastEmitRef.current = nowMs;
       setOrient({
-        alpha,
-        beta: typeof e.beta === 'number' ? e.beta : 0,
-        gamma: typeof e.gamma === 'number' ? e.gamma : 0,
+        q: fused.q,
         acc,
-        // Relative headings are still worth using: tilt is fully valid, and
-        // the manual offset turns an arbitrary yaw origin into a correct
-        // bearing the moment the user aligns on a known body.
-        abs
+        // Relative with no north yet is still worth showing: tilt is fully
+        // valid, and the manual Align nudge supplies north.
+        abs: fused.abs,
+        // Whether declination applies. Only a magnetometer-referenced north
+        // does; iOS's is already true, and a relative view has none at all.
+        magnetic: fused.magnetic,
+        // Whether north has been confirmed rather than guessed. On iOS it is
+        // only confirmed with the screen facing up.
+        trusted: fused.trusted,
+        // For Sensor details.
+        frame: next.frame, yaw: next.yaw, haveRel: next.haveRel, northKind: next.northKind
       });
     };
     // Fired by browsers that can tell the magnetometer has drifted. Left
     // un-cancelled on purpose: where a platform has its own calibration
     // overlay, that beats ours.
     const calHandler = () => setNeedsCal(true);
-    window.addEventListener('deviceorientationabsolute', handler, true);
-    window.addEventListener('deviceorientation', handler, true);
+    window.addEventListener('deviceorientationabsolute', orientHandler, true);
+    window.addEventListener('deviceorientation', orientHandler, true);
     window.addEventListener('compassneedscalibration', calHandler, true);
     return () => {
-      window.removeEventListener('deviceorientationabsolute', handler, true);
-      window.removeEventListener('deviceorientation', handler, true);
+      window.removeEventListener('deviceorientationabsolute', orientHandler, true);
+      window.removeEventListener('deviceorientation', orientHandler, true);
       window.removeEventListener('compassneedscalibration', calHandler, true);
     };
   }, [aimSensor]);
@@ -4577,24 +5102,44 @@ function StarFinder({ redMode } = {}) {
     const s = navStars.find(x => x.name === aimTargetName);
     return s ? { name: s.name, alt: s.alt, az: s.az } : null;
   }, [aimTargetName, now, loc.lat, loc.lon, navStars]);
-  // Where the phone is actually aimed, before the manual correction.
-  const aimRaw = useMemo(
-    () => orient ? orientationToAim(orient.alpha, orient.beta, orient.gamma) : null,
-    [orient]
+  // Local declination, recomputed only when the place changes — it varies by
+  // well under a degree over any distance a user moves in a session, and the
+  // harmonic sum is not worth running on every sensor frame.
+  const decl = useMemo(
+    () => magneticDeclination(loc.lat, loc.lon, new Date()),
+    [loc.lat, loc.lon]
   );
+  /* One heading correction, read by both consumers. Aim Assist and Sky View
+     have to apply exactly the same value or they contradict each other (the
+     bug fixed in 05a3a16), so it is computed once here rather than derived
+     twice. Declination converts a magnetic heading to true; the manual nudge
+     is whatever the user has dialled in on top of that. */
+  const headingCorr = (orient && orient.magnetic ? decl.deg : 0) + aimOffset;
+  // The corrected rotation. Applied to the quaternion once, here, and passed
+  // to Sky View as it is — so the turn arrow and the drawn sky are not merely
+  // kept in agreement, they are computed from the same object.
+  // What to tell someone looking at Sky View about north, if anything.
+  const northMsg = !orient ? null
+    : orient.abs && !orient.trusted ? "North is a first guess \u2014 lower the phone flat for a moment to confirm it."
+    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 lower the phone flat for a moment."
+    : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
+    : null;
+  const viewQ = useMemo(
+    () => orient ? correctView(orient.q, headingCorr) : null,
+    [orient, headingCorr]
+  );
+  const aimNow = useMemo(() => viewQ ? aimOf(viewQ) : null, [viewQ]);
   // Held flat, the camera looks at the ground and its azimuth is meaningless —
   // fall back to the bearing the top of the screen points, i.e. compass mode.
-  const aimAz = aimRaw
-    ? (aimRaw.stable ? aimRaw.az : screenUpHeading(orient.alpha, orient.beta, orient.gamma, screenAngle))
-    : null;
-  const aimAzC = aimAz === null ? null : (aimAz + aimOffset + 720) % 360;
+  const aimAzC = aimNow ? (aimNow.stable ? aimNow.az : screenUpAz(viewQ, screenAngle)) : null;
   const aimTurn = useMemo(() => {
     if (!aimTarget || aimAzC === null) return null;
     return ((aimTarget.az - aimAzC + 540) % 360) - 180; // signed, [-180,180]; + = turn right/clockwise
   }, [aimTarget, aimAzC]);
   // Only meaningful once the phone is raised enough to be aiming at sky.
-  const aimTilt = (aimTarget && aimRaw && aimRaw.stable) ? aimTarget.alt - aimRaw.alt : null;
+  const aimTilt = (aimTarget && aimNow && aimNow.stable) ? aimTarget.alt - aimNow.alt : null;
   const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
+  const aimSpoken = useAimAnnouncement(aimTurn, aimTilt, onTarget, aimTargetName);
   // Everything Sky View can draw. Kept a little below the horizon so the
   // horizon line has something on both sides of it.
   const skyBodies = useMemo(() => {
@@ -4937,33 +5482,91 @@ function StarFinder({ redMode } = {}) {
     React.createElement("span", { style: { color: C.ink, fontVariantNumeric: "tabular-nums", textAlign: "right" } }, v)
   );
   const dl = sensorStats && sensorStats.last;
+  /* The readout, built once and shown in two places: under Aim Assist, and
+     over Sky View. Sky View is where a registration problem is visible, so it
+     has to be readable there without closing the view — by the time you had
+     closed it to read the numbers, they would describe wherever the phone was
+     pointing then. Orientation rows come first; plumbing rows last. */
+  const turnWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "right" : "left");
+  const tiltWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "up" : "down");
+  const diagEntries = [
+    ["Fusion", !orient ? "\u2014"
+      // "Gyro + compass" is the good case; "compass only" means this device
+      // sent no smooth relative stream, so the view carries magnetometer noise.
+      : orient.frame === 'abs' ? "compass only"
+      : orient.abs ? "gyro + compass" : "gyro only (no north yet)"],
+    ["Aimed at", !aimNow ? "\u2014"
+      : "az " + aimNow.az.toFixed(0) + "\u00b0 \u00b7 alt " + aimNow.alt.toFixed(0) + "\u00b0" + (aimNow.stable ? "" : " (flat)")],
+    aimTarget && ["Target", aimTarget.name + " \u00b7 az " + aimTarget.az.toFixed(0) + "\u00b0 \u00b7 alt " + aimTarget.alt.toFixed(0) + "\u00b0"],
+    // The measurement that matters. Hold the phone so the real body is in the
+    // centre of the camera view: whatever this still says is the app's error.
+    aimTarget && aimTurn !== null && ["App says move",
+      "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
+    ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
+      : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
+    ["North source", !orient || !orient.northKind ? "\u2014"
+      : orient.northKind === 'heading' ? "compass heading (used only with the screen facing up)" : "absolute orientation"],
+    ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
+    // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
+    ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
+    ["Manual correction", (aimOffset > 0 ? "+" : "") + aimOffset.toFixed(0) + "\u00b0"],
+    ["Total applied", (headingCorr > 0 ? "+" : "") + headingCorr.toFixed(1) + "\u00b0"],
+    ["Screen angle", screenAngle + "\u00b0"],
+    ["Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")],
+    ["Events: relative", sensorStats ? String(sensorStats.rel) : "0"],
+    ["Events: absolute", sensorStats ? String(sensorStats.abs) : "0"],
+    ["Events with angles", sensorStats ? String(sensorStats.usable) : "0"],
+    dl && ["Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")],
+    dl && ["alpha / beta / gamma",
+      (dl.alpha === null ? "\u2014" : dl.alpha) + " / " + (dl.beta === null ? "\u2014" : dl.beta) + " / " + (dl.gamma === null ? "\u2014" : dl.gamma)],
+    dl && dl.wk !== null && ["webkitCompassHeading", String(dl.wk)],
+    ["deviceorientationabsolute", "ondeviceorientationabsolute" in window ? "supported" : "not supported"],
+    ["DeviceOrientationEvent", typeof DeviceOrientationEvent === "undefined" ? "missing"
+      : (typeof DeviceOrientationEvent.requestPermission === "function" ? "yes (asks permission)" : "yes")],
+    ["Secure context", typeof window !== "undefined" && window.isSecureContext === false ? "no" : "yes"],
+    ["Location", loc.lat.toFixed(2) + ", " + loc.lon.toFixed(2)],
+    ["Build", BUILD]
+  ].filter(Boolean);
+  const diagSummary = !sensorStats || sensorStats.rel + sensorStats.abs === 0
+    ? "No orientation events are arriving at all \u2014 the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
+    : sensorStats.usable === 0
+      ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
+      : "Sensors are working. Move the phone and these numbers should change.";
+  // Copy as plain text, so a report can be pasted rather than retyped from a
+  // screenshot.
+  const [diagCopied, setDiagCopied] = useState(null);
+  const copyDiag = () => {
+    const text = diagEntries.map(([k, v]) => k + ": " + v).join("\n");
+    const done = ok => { setDiagCopied(ok ? "Copied" : "Copy failed"); setTimeout(() => setDiagCopied(null), 1600); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+      else done(false);
+    } catch (e) { done(false); }
+  };
+  const diag = {
+    open: showDiag,
+    onToggle: () => setShowDiag(v => !v),
+    entries: diagEntries,
+    summary: diagSummary,
+    onCopy: copyDiag,
+    copyLabel: diagCopied || "Copy"
+  };
   const diagBlock = React.createElement("div", { style: { marginTop: 16 } },
-    React.createElement("button", {
-      onClick: () => setShowDiag(v => !v),
-      style: { ...segBtn(showDiag), padding: "5px 11px", fontSize: 11.5 }
-    }, showDiag ? "Hide sensor details" : "Sensor details"),
+    React.createElement("div", { style: { display: "flex", gap: 8 } },
+      React.createElement("button", {
+        onClick: diag.onToggle,
+        style: { ...segBtn(showDiag), padding: "5px 11px", fontSize: 11.5 }
+      }, showDiag ? "Hide sensor details" : "Sensor details"),
+      showDiag && React.createElement("button", {
+        onClick: copyDiag,
+        style: { ...segBtn(false), padding: "5px 11px", fontSize: 11.5 }
+      }, diag.copyLabel)
+    ),
     showDiag && React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 11.5, lineHeight: 1.75, marginTop: 10, maxWidth: 380 }
     },
-      diagRow("Build", BUILD),
-      diagRow("Secure context", typeof window !== "undefined" && window.isSecureContext === false ? "no" : "yes"),
-      diagRow("DeviceOrientationEvent", typeof DeviceOrientationEvent === "undefined" ? "missing"
-        : (typeof DeviceOrientationEvent.requestPermission === "function" ? "yes (asks permission)" : "yes")),
-      diagRow("deviceorientationabsolute", "ondeviceorientationabsolute" in window ? "supported" : "not supported"),
-      diagRow("Events: relative", sensorStats ? String(sensorStats.rel) : "0"),
-      diagRow("Events: absolute", sensorStats ? String(sensorStats.abs) : "0"),
-      diagRow("Events with angles", sensorStats ? String(sensorStats.usable) : "0"),
-      diagRow("Heading source", !orient ? "none" : (orient.abs === false ? "relative" : "absolute")),
-      dl && diagRow("Last event", dl.type + (dl.absolute === true ? " (absolute)" : dl.absolute === false ? " (relative)" : "")),
-      dl && diagRow("alpha / beta / gamma",
-        (dl.alpha === null ? "—" : dl.alpha) + " / " + (dl.beta === null ? "—" : dl.beta) + " / " + (dl.gamma === null ? "—" : dl.gamma)),
-      dl && dl.wk !== null && diagRow("webkitCompassHeading", String(dl.wk)),
-      React.createElement("div", { style: { color: C.inkFaint, marginTop: 8, lineHeight: 1.5 } },
-        !sensorStats || sensorStats.rel + sensorStats.abs === 0
-          ? "No orientation events are arriving at all — the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
-          : sensorStats.usable === 0
-            ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
-            : "Sensors are working. Move the phone and these numbers should change.")
+      diagEntries.map(([k, v]) => diagRow(k, v)),
+      React.createElement("div", { style: { color: C.inkFaint, marginTop: 8, lineHeight: 1.5 } }, diagSummary)
     )
   );
   const aimPanel = React.createElement("section", {
@@ -4999,13 +5602,17 @@ function StarFinder({ redMode } = {}) {
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
                       React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Turn"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Turn " + Math.abs(aimTurn).toFixed(0) + " degrees " + (aimTurn >= 0 ? "right" : "left")
+                        }, Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
                       ),
                       aimTilt !== null && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Tilt"),
-                        React.createElement("div", { style: bigNum },
-                          Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
+                        React.createElement("div", {
+                          style: bigNum,
+                          "aria-label": "Tilt " + Math.abs(aimTilt).toFixed(0) + " degrees " + (aimTilt >= 0 ? "up" : "down")
+                        }, Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
                       ),
                       aimTarget && React.createElement("div", null,
                         React.createElement("div", navLabelSt, "Target altitude"),
@@ -5015,6 +5622,12 @@ function StarFinder({ redMode } = {}) {
                     ),
                     aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
                       "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                    // Throttled and quantised in useAimAnnouncement; the raw
+                    // numbers above deliberately stay outside this region.
+                    React.createElement("div", {
+                      className: "sr-only", role: "status",
+                      "aria-live": "polite", "aria-atomic": "true"
+                    }, aimSpoken),
                     calBlock
                   )
               ),
@@ -5066,13 +5679,14 @@ function StarFinder({ redMode } = {}) {
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
       bodies: skyBodies,
-      orient,
       screenAngle,
       targetName: aimTargetName,
       // Picking in Sky View sets the Aim Assist target too, so closing the
       // overlay leaves you pointed at whatever you just tapped.
       onPick: name => setAimTargetName(name),
-      relativeHeading: !!(orient && orient.abs === false),
+      northMsg,
+      viewQ,
+      diag,
       onClose: () => setSkyOpen(false),
       sensorMsg: aimStatusMsg
     })

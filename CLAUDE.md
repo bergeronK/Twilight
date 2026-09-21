@@ -84,19 +84,89 @@ Three tabs, one `index.html`, no build step:
   low-traffic content pages, not core app shell, so normal network-first
   navigation is sufficient.
 
+## Sky View orientation pipeline
+
+Orientation is a **quaternion** from the moment an event arrives. Never
+smooth, combine or reason about alpha/beta/gamma directly: at beta = 90 only
+alpha + gamma is defined, and as the phone rolls past gamma = ±90 the browser
+switches representation, (a, b, g) → (a+180, 180−b, g−180), so two readings
+0.2° apart physically differ by 180 in two angles. Filtering those one at a
+time lands the view 180° away (measured; see `fusion.test.js`).
+
+Flow, all in `index.html`:
+
+```
+event --quatFromEuler--> sample --fuseOrientation--> state --fusedView--> orient.q
+orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist)
+                                           \--> viewBasis --> toScreen   (Sky View)
+```
+
+- **Fusion is a complementary filter.** The smooth gyro-based *relative*
+  stream (Android plain `deviceorientation`; iOS alpha) drives the view. The
+  noisy *north* source (Android `deviceorientationabsolute`; iOS
+  `webkitCompassHeading`) only estimates one slow yaw offset (`NORTH_SMOOTH`).
+  A device with no relative stream falls back to the absolute one directly.
+  **This inverts the pre-quaternion handler**, which discarded Android's
+  relative stream once the absolute one appeared.
+- **iOS heading axis.** CoreLocation defines heading as the bearing of the
+  *top* of the device, which reverses as the phone tips past vertical — the
+  old `alpha := 360 − heading` substitution was 180° wrong there, i.e. exactly
+  when looking at the sky. The heading is compared against the top axis only
+  while it is ≥ `NORTH_MIN_HORIZ` horizontal; otherwise the estimate is held,
+  with the camera axis as a first guess if there is no estimate yet. **Which
+  axis iOS actually reports when upright is an assumption, not verified on
+  hardware.**
+- **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
+  passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
+  object, so they cannot disagree (the v1.3 bug class).
+- **What the tests can and cannot prove.** `orientation.test.js` separates
+  *self-consistency* tests (hold by construction — they cannot see a mirrored
+  or transposed convention) from *correspondence* tests (the W3C matrix
+  written out independently, plus physical postures described in words). The
+  latter pin the app to the spec, not to what a given browser sends. A
+  pre-quaternion suite that was entirely self-consistency passed while the
+  feature was "way off all around" on a real phone. **Only a device reading
+  settles convention questions** — Sensor details shows fusion mode, north
+  offset and where the camera is computed to be aimed, for exactly that.
+
+## Magnetic declination
+
+Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
+and it differs by platform: iOS `webkitCompassHeading` is true north (the OS
+applies declination itself), Android `deviceorientationabsolute` yaw is
+MAGNETIC north and nothing corrects it. Uncorrected that is a fixed error of
+the local declination — near zero in the eastern US, 15-20° in Alaska, the
+Pacific Northwest and the Southern Ocean.
+
+`magneticDeclination(lat, lon, date)` evaluates the **World Magnetic Model
+2025** to degree 12 and returns `{ deg, stale }`, east positive. The
+coefficients are NOAA's, bundled as a 1.1 KB string (`WMM_COF`) and parsed on
+first use. **The model expires: WMM2025 is valid 2025.0–2030.0.** Past that
+`stale` goes true, the date is clamped, and the diagnostics panel says so —
+regenerate with `node scripts/generate-wmm.js path/to/WMM2025.COF` from the
+new epoch's download. `declination.test.js` fails once the bundled model no
+longer covers today, so this cannot pass unnoticed.
+
+**One correction, applied once.** `headingCorr` (declination + the manual
+"Align" nudge) is applied to the quaternion as a single world-yaw rotation
+(`correctView`), producing `viewQ` — see the pipeline section above. Do not
+reintroduce a separate correction inside `SkyDome`.
+Declination is added only when the heading is absolute *and* not iOS: a
+relative heading has an arbitrary yaw origin with no north in it, so there is
+nothing for declination to correct there.
+
 ## Build workflow (do this every time you edit `index.html`)
 
 ```
+node scripts/update-csp-hashes.js   # rewrites script-src from the current scripts
 node scripts/verify-build.js        # will fail if hashes are stale
 ```
 
-If it fails (or you touched any inline `<script>` content), recompute hashes.
-There's no committed script for this — the working pattern used all session is:
-read the 5 `<script>` blocks, SHA-256 each with `crypto.createHash('sha256')`,
-base64-encode, and rewrite the `script-src` line in the CSP `<meta>` tag. A
-throwaway Node script doing exactly that (find `<script>...</script>` regex,
-hash, replace) is the fastest path — write one if it doesn't exist in your
-scratchpad.
+Run the first whenever you touch any inline `<script>` content, then the
+second to confirm. Both extract scripts identically (bare `<script>` blocks,
+so the `ld+json` data block stays excluded) — if they ever disagreed about
+what counts as an executable script, the guard would pass on a set of hashes
+the browser rejects, which is the one outcome both exist to prevent.
 
 Also bump `CACHE` in `sw.js` (and mirror any new/changed asset filename into
 its `ASSETS` array and into `native/sync-web.js`'s file list) whenever a
@@ -104,12 +174,16 @@ cached asset changes.
 
 ## Git workflow — a landmine to know about
 
-This repo squash-merges every PR into `main`. That means **the dev branch's
+PRs #55 onward have landed as **merge commits**, not squashes — keep doing
+that, especially for stacked PRs (a branch cut from another open PR's branch).
+With a merge commit the stacked branch shares real history with `main` and
+reduces to its own commits once the lower PR lands; with a squash it does not.
+
+If a PR *is* ever squash-merged, the landmine below applies: **the branch's
 own commit objects for already-merged work never match `main`'s squash
-commit**, even though content is identical. Consequence: `git merge
-origin/main` into the dev branch will show conflicts on files that were
-touched by a just-merged PR, purely because git's merge-base is stale, not
-because content actually differs.
+commit**, even though content is identical, so `git merge origin/main` shows
+conflicts on files touched by the just-merged PR purely because git's
+merge-base is stale.
 
 **Fix, every time, before pushing new work**: `git fetch origin main && git
 merge origin/main --no-edit`. If it conflicts, first verify with `git diff
@@ -121,17 +195,89 @@ work, nothing more/less.
 
 ## Deploy
 
-**GitHub Pages currently deploys production (twilyte.info) from the dev
-branch `claude/web-app-style-review-x4rrz4`, not from `main`.** This means
-every push to that branch goes live immediately, before PR review or merge.
-This has been flagged to the owner as worth switching (Settings → Pages →
-Branch: `main`) so production is merge-gated instead of push-gated. Not yet
-done as of this writing — confirm current state before assuming either way.
+**GitHub Pages deploys production (twilyte.info) from `main`**, switched on
+2026-09-15 (it previously deployed from `claude/web-app-style-review-x4rrz4`,
+so pushes went live before review). Production is now merge-gated: pushing a
+branch publishes nothing; merging a PR does. Check with
+`gh api repos/bergeronK/Twilight/pages --jq .source.branch`. A quick way to
+confirm what is live: compare the 4th `sha256-` hash in twilyte.info's CSP
+with the one in `origin/main:index.html`.
 
 The Pages deploy job has intermittently failed on first attempt with a
 generic "Deployment failed, try again later" (platform-side flake, not a
 content problem) — re-running the full workflow (not just the failed job)
 has fixed it every time.
+
+## Math tests — `scripts/test/`
+
+```
+node --test scripts/test/*.test.js     # unquoted: the shell expands the glob
+```
+
+Runs in CI on every push and PR, alongside the build guard. Covers the three
+things a syntax check cannot see:
+
+- **`solar-parity.test.js`** — asserts `index.html` and
+  `twilight-times/twilight-calc.js` produce *identical* twilight times across
+  12 locations × 8 dates, including the polar no-event cases. This is the
+  lockstep the Architecture section asks you to maintain by hand; it is now
+  enforced rather than remembered.
+- **`orientation.test.js`** — the quaternion geometry, split deliberately
+  into *correspondence* tests (the W3C matrix written out independently;
+  physical postures described in words) and *self-consistency* tests (aim
+  lands at centre; nothing behind the phone is drawn; roll invariance). See
+  the pipeline section for why the split matters. Also drives the shipped
+  `viewQ` / `aimNow` / `aimAzC` / `view` / `basis` expressions.
+- **`fusion.test.js`** — `fuseOrientation` against simulated devices with a
+  known true pose: Android gyro+compass, compass-only, magnetometer jitter,
+  iOS tipping past vertical, the representation switch at gamma = ±90.
+- **`orient-lib.js`** — not a test; extracts the whole orientation pipeline
+  in one piece for the three suites above.
+- **`sight-reduction.test.js`** — Hs→Ho corrections and, importantly, the
+  v1.6 guards: below-horizon, near-zenith, weak-low and blunder-sized
+  intercepts.
+- **`declination.test.js`** — the WMM evaluation against NOAA's own published
+  test vectors. The reference table is extracted from NOAA's file by script,
+  never typed: a first pass at it got four of six values wrong by hand, and a
+  wrong reference value is worse than no test.
+- **`heading-reference.test.js`** — drives the real `orientHandler` with
+  synthetic iOS / Android / spec events (the v1.5 lesson: name all three
+  platform contracts), plus the publish throttle and the declination
+  correction end to end.
+- **`announcement.test.js`** — the spoken form of Aim Assist's guidance. Its
+  failure mode is invisible to a sighted developer: the panel looks identical
+  whether the announcement says "turn 20 degrees right" or "left".
+- **`console-copy.test.js`** — `tonightGlance()`'s branch order and
+  thresholds, plus the two countdown formatters. Every branch returns a
+  sentence that reads fine even when it is the wrong one for the sky outside.
+- **`components.test.js`** — smoke tests for extracted presentational
+  components. **This is how to verify a component extraction here.** There is
+  no render harness and CI has no browser, but a React function component is
+  just a function returning `createElement` output, so calling it with a
+  stubbed React executes every line and a lost closure variable surfaces as a
+  ReferenceError. Only works on hook-free components — which is a reason to
+  prefer extracting hook-free markup, and why the remaining large components
+  are still large.
+
+**`extract.js` is the thing to understand before adding tests.** There is no
+module to import — `index.html` is one file with no build step and ends by
+mounting React into `document`. So `extract()` pulls named declarations out
+of the app's `<script>` block by name and evaluates them in isolation, and
+`declSource()` returns a declaration's raw text so a test can wrap an
+expression that lives *inside* a component and exercise the shipped code.
+That second one is what makes the Sky View test real: the 05a3a16 bug was not
+inside any pure function, it was two call sites disagreeing about whether the
+manual heading correction had been applied, and a test that restates that
+composition cannot see it. The extractor throws on a missing or ambiguous
+name, so a rename fails loudly instead of silently testing nothing.
+
+**Verify a new test by breaking the code it covers.** Every test here was
+checked against a deliberate mutation. Two of them passed a first draft that
+looked thorough and caught nothing — the Sky View test because it fed one
+consistent heading to both sides, and the refraction-clamp test because its
+sample points all happened to miss the pole (Bennett's formula reaches ~337°
+of bogus correction near h = -4.36, not at the -4.4 singularity). A green
+test is not evidence until you have seen it go red.
 
 ## Testing without a real browser session
 
@@ -168,8 +314,8 @@ pages (30 curated cities + hub index, see Architecture section above), and
 a QA/polish pass that fixed a real header-overflow bug at 360-383px
 viewport widths (see git history on `index.html` for details).
 
-**Pushed to the dev branch, live on twilyte.info, not yet merged to `main`
-(no PR opened yet):**
+**Navigator v1–v1.6 (merged to `main` as #44–#54; the text below predates
+that and is kept for its design detail):**
 - **Navigator v1** (Sight Reduction Calculator + Aim Assist MVP), in the
   Stars tab. Free, covers stars/Sun/Moon sights, plus a compass-only "which
   way to turn" aim assist. Built per `docs/navigator-spec.md` — see that
@@ -304,8 +450,12 @@ viewport widths (see git history on `index.html` for details).
 
 ## Conventions established this session (follow unless told otherwise)
 
-- One PR per logical change; squash-merge; always `git fetch` + reconcile
-  before pushing (see Git workflow above).
+- One PR per logical change; merge-commit (not squash — see Git workflow);
+  always `git fetch` + reconcile before pushing.
+- **Commit before mutation testing.** Reverting a mutation with
+  `git checkout -- index.html` restores the last *commit*, so uncommitted
+  work goes with it. This destroyed a whole feature once.
+- **Verify a new test by breaking the code it covers** (see Math tests).
 - Commit messages and PR bodies are the durable record of *why* — write them
   as if this file didn't exist, since PR history outlives any one session.
 - Screenshots/mockups before big visual changes; ship real Playwright
