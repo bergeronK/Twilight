@@ -186,12 +186,36 @@ conflicts on files touched by the just-merged PR purely because git's
 merge-base is stale.
 
 **Fix, every time, before pushing new work**: `git fetch origin main && git
-merge origin/main --no-edit`. If it conflicts, first verify with `git diff
-origin/main <dev-branch-tip> -- <file>` that the dev branch is already a
-strict superset of main (it almost always is, since PRs are additive) — then
-resolve with `git checkout --ours <file>` and commit. Confirm afterward with
-`git diff origin/main HEAD` that the resulting diff is *exactly* the new
-work, nothing more/less.
+merge origin/main --no-edit`. If it conflicts, first establish which of two
+cases you are in, per conflicted file:
+
+```
+git diff origin/main <branch-tip> -- <file>
+```
+
+- **Only `+` lines** (ignoring the CSP `script-src` line and `sw.js`
+  `CACHE`, which always differ and are regenerated, not chosen): the branch
+  is a strict superset of main. Resolve with `git checkout --ours <file>`.
+- **Any `-` lines**: main has work the branch doesn't. **Never use
+  `--ours` here** — it silently deletes that work, and nothing afterwards
+  will flag it. Resolve each hunk by hand.
+
+The second case is not hypothetical. On 2026-09-21 the long-lived dev branch
+was a week behind main (PRs #59–#62, the Sky View orientation rewrite), and
+the `--ours` recipe this section used to give unconditionally would have
+thrown all of it away. It is most likely whenever a branch has sat idle while
+other branches merged.
+
+Either way: regenerate the CSP hashes (`node scripts/update-csp-hashes.js`),
+set `CACHE` above main's value, run `node scripts/verify-build.js` and the
+full `node --test scripts/test/*.test.js`, then confirm `git diff
+origin/main HEAD` is *exactly* the new work, nothing more or less.
+
+**Run merge-and-push chains with `set -eo pipefail`.** Piping each step
+through `tail` for tidier output replaces its exit code with `tail`'s,
+so a failed merge and a failed build guard both read as success and the
+push still runs. That is how a push went out mid-conflict on 2026-09-21
+(harmlessly, only because the half-finished merge was never committed).
 
 ## Deploy
 
