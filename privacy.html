@@ -121,7 +121,9 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   <p>Like any web server, the counting service receives your IP address with
   that request. So that it doesn't count the same visitor twice in one day, it
   keeps a one-way, salted hash of the address — never the address itself —
-  for 24 hours, after which it's deleted automatically. The hash isn't linked
+  for 24 hours, after which it's deleted automatically. For an IPv6 address
+  only the first half, the part that identifies your network rather than your
+  device, goes into the hash. The hash isn't linked
   to your location or to anything else, and is used for nothing but the count.</p>
 
   <h2>In-app purchase (Pro features, iOS &amp; Android app only)</h2>
