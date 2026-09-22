@@ -174,14 +174,22 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   A device with no relative stream falls back to the absolute one directly.
   **This inverts the pre-quaternion handler**, which discarded Android's
   relative stream once the absolute one appeared.
-- **iOS heading axis.** CoreLocation defines heading as the bearing of the
-  *top* of the device, which reverses as the phone tips past vertical — the
-  old `alpha := 360 − heading` substitution was 180° wrong there, i.e. exactly
-  when looking at the sky. The heading is compared against the top axis only
-  while it is ≥ `NORTH_MIN_HORIZ` horizontal; otherwise the estimate is held,
-  with the camera axis as a first guess if there is no estimate yet. **Which
-  axis iOS actually reports when upright is an assumption, not verified on
-  hardware.**
+- **iOS heading axis — SETTLED ON HARDWARE 2026-09-22.**
+  `webkitCompassHeading` is the bearing of the **camera / back of the phone**,
+  not of its top. Two Sensor details readouts from an iPhone aimed at the
+  Moon (in `fusion.test.js` as `IPHONE`) decide it: read as the camera the
+  view lands 5° and 19° from the Moon's true bearing — ordinary magnetometer
+  error — read as the top it lands 180° and 158° away. The app had assumed
+  the top, so `yawFromHeading` captured an offset while the phone lay flat
+  and then drew the sky *behind the observer* when it was raised; Aim Assist
+  reported "aimed at az 331" while the phone pointed at az 149, tilt correct
+  the whole time. Now: the heading is trusted whenever the camera axis is at
+  least `NORTH_MIN_HORIZ` from vertical — which is exactly when aiming — and
+  ignored with the phone flat, where the camera points at the ground and its
+  bearing means nothing. **The lesson is the one this file already carried:
+  every synthetic test agreed with the assumption because they all built
+  their heading out of it.** Two of them literally constructed the heading
+  from the top axis; they were rewritten, not patched.
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
@@ -233,6 +241,10 @@ second to confirm. Both extract scripts identically (bare `<script>` blocks,
 so the `ld+json` data block stays excluded) — if they ever disagreed about
 what counts as an executable script, the guard would pass on a set of hashes
 the browser rejects, which is the one outcome both exist to prevent.
+
+Bump `BUILD` in `index.html` alongside `CACHE`: it is what a Sensor details
+screenshot reports, and it sat at `v56` for weeks while the app moved on,
+making every field report ambiguous about what was actually running.
 
 Also bump `CACHE` in `sw.js` (and mirror any new/changed asset filename into
 its `ASSETS` array and into `native/sync-web.js`'s file list) whenever a
@@ -320,7 +332,11 @@ things a syntax check cannot see:
   `viewQ` / `aimNow` / `aimAzC` / `view` / `basis` expressions.
 - **`fusion.test.js`** — `fuseOrientation` against simulated devices with a
   known true pose: Android gyro+compass, compass-only, magnetometer jitter,
-  iOS tipping past vertical, the representation switch at gamma = ±90.
+  iOS tipping past vertical, the representation switch at gamma = ±90. Ends
+  with `IPHONE`: two real readouts from a phone aimed at the Moon, the only
+  hardware evidence for the heading axis — and a test that the discarded
+  top-of-phone rule *is* ~180° out on that sample, so the mistake cannot
+  quietly return.
 - **`orient-lib.js`** — not a test; extracts the whole orientation pipeline
   in one piece for the three suites above.
 - **`horizon.test.js`** — the Console horizon view. `nightPlan`'s edges with

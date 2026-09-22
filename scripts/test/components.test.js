@@ -285,7 +285,7 @@ test('the readout distinguishes the fusion modes', () => {
   assert.strictEqual(asMap(rows({ orient: { abs: true, magnetic: true, frame: 'abs', yaw: null } }))['Fusion'], 'compass only');
   const guess = asMap(rows({ orient: { abs: true, magnetic: false, frame: 'rel', yaw: 12, trusted: false, northKind: 'heading' } }));
   assert.strictEqual(guess['North offset'], '12.0° (first guess)');
-  assert.match(guess['North source'], /screen facing up/);
+  assert.match(guess['North source'], /back of the phone/);
   const rel = asMap(rows({ orient: { abs: false, magnetic: false, frame: 'rel', yaw: null } }));
   assert.strictEqual(rel['Fusion'], 'gyro only (no north yet)');
   assert.strictEqual(rel['Heading reference'], 'arbitrary (relative)');
