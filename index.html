@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-z7h/61+x9eR6VzAn49b2qqvyMeERIePEte75K1ZV92o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-e+VYVoVCQws7iweomVDVAzzAaOzXOzssTw4V8B3Z1fU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -700,6 +700,12 @@ const BORTLE = {
 const BORTLE_WORD = {
   1: "Excellent dark sky", 2: "Truly dark", 3: "Rural", 4: "Rural/suburban", 5: "Suburban",
   6: "Bright suburban", 7: "Suburban/urban", 8: "City", 9: "Inner-city"
+};
+// The same word as a phrase that stands on its own ("Inner-city sky"), for the
+// Console, where the class number and the scale's name don't belong.
+const skyWord = b => {
+  const w = BORTLE_WORD[b];
+  return !w ? "Your sky" : /sky$/i.test(w) ? w : w + " sky";
 };
 /* ---- Auto Bortle estimate from a bundled city/population dataset (SimpleMaps
    World Cities, CC BY 4.0; see scripts/build-bortle-data.js). Approximates
@@ -2489,13 +2495,6 @@ function RealtimeTwilight({ redMode } = {}) {
     setSaved(next);
     try { localStorage.setItem('tw_saved', JSON.stringify(next)); } catch(e) {}
   };
-  const goToFacts = () => {
-    nextFact();
-    requestAnimationFrame(() => factRef.current && factRef.current.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    }));
-  };
   useEffect(() => {
     tick.current = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick.current);
@@ -2755,6 +2754,9 @@ function RealtimeTwilight({ redMode } = {}) {
       width: "100%",
       overflowX: "hidden",
       position: "relative",
+      // Own stacking context, so the star field's z-index -1 stays above
+      // this background instead of dropping behind it.
+      isolation: "isolate",
       background: pageBg,
       color: C.ink,
       fontFamily: "var(--font-body)",
@@ -2764,7 +2766,7 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement("div", {
     className: "tw-stars",
     "aria-hidden": "true",
-    style: { position: "absolute", inset: 0, pointerEvents: "none" }
+    style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: -1 }
   }, bgStars.map((s, i) => React.createElement("div", {
     key: i,
     style: {
@@ -2826,10 +2828,7 @@ function RealtimeTwilight({ redMode } = {}) {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
     title: "Save this location"
-  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "Saved" : "Save"), React.createElement("button", {
-    className: "rtbtn",
-    onClick: goToFacts
-  }, "Twilight facts")), geoMsg && React.createElement("div", {
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "Saved" : "Save")), geoMsg && React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 11,
@@ -2947,7 +2946,7 @@ function RealtimeTwilight({ redMode } = {}) {
     },
       [
         { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: wxScore ? wxScore.factor : "forecast unavailable", hero: true },
-        { k: "Faintest star visible", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? `${BORTLE_WORD[bortle] || "Class " + bortle} (Bortle ${bortle})` : "with your eyes alone" },
+        { k: "Faintest star visible", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? skyWord(bortle) : "with your eyes alone" },
         { k: "Moon", v: `${Math.round(live.m.illum * 100)}%`, h: live.m.alt > 0 ? "up now" : "below horizon" },
         { k: "Planets up", v: String(planets.length), h: "above horizon" }
       ].map(s => React.createElement("div", { key: s.k },
@@ -3982,6 +3981,7 @@ function TwilightEphemeris({ redMode } = {}) {
     style: {
       minHeight: "100vh",
       position: "relative",
+      isolation: "isolate",
       overflow: "hidden",
       color: ink,
       background: pageBg,
@@ -4006,7 +4006,8 @@ function TwilightEphemeris({ redMode } = {}) {
     style: {
       position: "absolute",
       inset: 0,
-      pointerEvents: "none"
+      pointerEvents: "none",
+      zIndex: -1
     }
   }, stars.map((s, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
@@ -4533,6 +4534,9 @@ function pingVisitorCounter(show) {
   // for nothing, which the App Store and Play privacy forms would have to
   // declare. Skipping it keeps the apps out of it entirely.
   if (window.Capacitor) return;
+  // Production only: a page served from localhost or a preview host is a
+  // developer, not a visitor, and its request would still be counted.
+  if (location.hostname !== 'twilyte.info') return;
   let last = 0, cached = null;
   try {
     last = parseInt(localStorage.getItem('tw_counted_at') || '0', 10) || 0;
@@ -5872,7 +5876,7 @@ function TwilightApp() {
     try { const t = new URLSearchParams(window.location.search).get('tab'); if (t === 'console' || t === 'ephemeris' || t === 'stars') return t; } catch (e) {}
     return localStorage.getItem('tw_tab') || 'console';
   });
-  const switchTab = t => { setActiveTab(t); localStorage.setItem('tw_tab', t); };
+  const switchTab = t => { window.scrollTo(0, 0); setActiveTab(t); localStorage.setItem('tw_tab', t); };
   const [visitorCount, setVisitorCount] = React.useState(null);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };

@@ -69,11 +69,14 @@ Three tabs, one `index.html`, no build step:
     at most once per `COUNTER_WINDOW_MS` (24h), tracked in `tw_counted_at`,
     and shows the cached `tw_count` in between. The window is enforced here
     because the Worker can only recognise a visitor by IP, and a phone's IP
-    changes with its network. Three rules, each tested in
+    changes with its network. Four rules, each tested in
     `visitor-counter.test.js`: check `r.ok` before trusting the body (the
     Worker's errors are `{"count":0}` with status 500, and 0 passes a typeof
-    check); write the window only on success; and **return immediately when
-    `window.Capacitor` is present** — the counter is website-only.
+    check); write the window only on success; **return immediately when
+    `window.Capacitor` is present** — the counter is website-only; and
+    **return unless `location.hostname` is `twilyte.info`**, because a page on
+    localhost or a preview host still reaches the live Worker (CORS only
+    blocks reading the reply) and would count a developer as a visit.
   - **Worker, `worker/`** (`twilight-counter.ken-b39.workers.dev`),
     committed 2026-09-22 from the dashboard copy — before that it existed only
     in Cloudflare. Dedupes by a salted hash of `visitorKey(ip)` in KV with a
