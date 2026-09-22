@@ -13,6 +13,27 @@
  * counted again once.
  */
 
+// What a visitor is recognised by. IPv4: the address. IPv6: only the /64
+// network prefix. Windows, iOS and Android give each device temporary IPv6
+// addresses whose second half is random and rotates (often daily), so the
+// full address makes one visitor look new every rotation. The /64 is what the
+// network assigns the household or phone and stays put across rotations, and
+// it is less specific than a full address. IPv4 is unchanged, so every IPv4
+// entry written before this change still matches.
+function visitorKey(ip) {
+  ip = String(ip || '').trim().toLowerCase();
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d) is an IPv4 client.
+  const mapped = ip.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mapped) return mapped[1];
+  if (!ip.includes(':')) return ip;
+  const [head, tail] = ip.split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail !== undefined ? (tail ? tail.split(':') : []) : null;
+  const groups = t === null ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  if (groups.length < 4 || groups.slice(0, 4).some(g => !/^[0-9a-f]{1,4}$/.test(g))) return ip;
+  return groups.slice(0, 4).map(g => parseInt(g, 16).toString(16)).join(':') + '::/64';
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin') || '';
@@ -36,8 +57,9 @@ export default {
       // a different salt makes every returning visitor look new.
       if (!env.IP_SALT) throw new Error('IP_SALT secret is not set');
 
-      // Get client IP (Cloudflare always sets this header)
-      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      // Get client IP (Cloudflare always sets this header), reduced to what
+      // identifies the visitor — see visitorKey.
+      const ip = visitorKey(request.headers.get('CF-Connecting-IP') || 'unknown');
 
       // Hash the IP for privacy — we store the hash, never the raw IP
       const hashBuffer = await crypto.subtle.digest(

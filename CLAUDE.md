@@ -76,8 +76,10 @@ Three tabs, one `index.html`, no build step:
     `window.Capacitor` is present** — the counter is website-only.
   - **Worker, `worker/`** (`twilight-counter.ken-b39.workers.dev`),
     committed 2026-09-22 from the dashboard copy — before that it existed only
-    in Cloudflare. Dedupes by a salted IP hash in KV with a **24h TTL** (1
-    year before 2026-09-22). The salt is the `IP_SALT` Worker secret, never
+    in Cloudflare. Dedupes by a salted hash of `visitorKey(ip)` in KV with a
+    **24h TTL** (1 year before 2026-09-22). `visitorKey` keeps IPv4 as is but
+    reduces IPv6 to its /64, because OS privacy addresses rotate the second
+    half (often daily) and made one visitor look new at every rotation. The salt is the `IP_SALT` Worker secret, never
     in the repo, because the repo is public and a salted IPv4 hash is only as
     private as its salt. **Merging does not deploy the Worker**; Pages serves
     only the static site. Deploy with `npx wrangler deploy` from `worker/`
@@ -316,6 +318,11 @@ things a syntax check cannot see:
   ReferenceError. Only works on hook-free components — which is a reason to
   prefer extracting hook-free markup, and why the remaining large components
   are still large.
+- **`worker.test.js`** — the counter Worker itself. Evaluates
+  `worker/src/index.js` as text (CI's Node 20 can't import an ES-module
+  `.js`) and drives `fetch` against an in-memory KV: `visitorKey`'s IPv6
+  /64 reduction in every written form, IPv4 keys unchanged from the old
+  scheme, 24h TTL, and the missing-salt refusal.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage

@@ -19,7 +19,15 @@ In the `TWILIGHT-VISITORS` KV namespace (bound as `VISITORS`):
 | Key | Value | Expires |
 |---|---|---|
 | `__total__` | the running total | never |
-| first 20 hex chars of SHA-256(IP + `IP_SALT`) | `"1"` | 24 hours |
+| first 20 hex chars of SHA-256(`visitorKey(IP)` + `IP_SALT`) | `"1"` | 24 hours |
+
+`visitorKey` is the IPv4 address unchanged, or for IPv6 only the /64 network
+prefix (`2600:6c65:6a40:653::/64`). Windows, iOS and Android give devices
+temporary IPv6 addresses whose second half is random and rotates, often
+daily, so hashing the full address made one visitor look new at every
+rotation. The /64 stays put, and is less specific than a full address. Since
+2026-09-22; IPv4 keys didn't change, so IPv4 entries written before still
+match, while IPv6 visitors were each counted once more on the day it shipped.
 
 The raw IP is never written. The salt is a Worker secret, not in this file,
 because the repo is public: an IPv4 address has only about 4 billion possible
@@ -86,6 +94,6 @@ These are properties of the code as deployed, recorded rather than changed:
 
 ## Testing
 
-No test runs in CI. To exercise it locally, import `src/index.js` from an
-`.mjs` file in Node 22+ (which has `Request`, `Response` and `crypto.subtle`)
-and call `fetch(request, env)` with an in-memory stand-in for `env.VISITORS`.
+`scripts/test/worker.test.js` runs in CI with the rest of the suite. It
+evaluates this file's text (CI's Node 20 can't import it as a module) and
+drives `fetch` against an in-memory stand-in for `env.VISITORS`.
