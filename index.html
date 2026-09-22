@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-0Heot4ZgXHZCpeM7owZzgfJzbpMVrIt8WbrVm9wCsb8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-s8YUc2xiSJIH9W7cz7/okr9UaBYH1yhGQ8s7DX8P0xk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -4467,7 +4467,7 @@ function pingVisitorCounter(show) {
   fetch(COUNTER_WORKER_URL)
     // The Worker reports its own failures as {"count":0} with status 500, and
     // 0 is a number — so the status is the only thing that tells an outage
-    // from a real total. Without this check an outage showed "0 visitors",
+    // from a real total. Without this check an outage showed "0 visits",
     // cached the 0, and started the 24h window with nobody counted.
     .then(r => (r.ok ? r.json() : null))
     .then(d => {
@@ -5915,7 +5915,7 @@ function TwilightApp() {
           letterSpacing: 0.5,
           whiteSpace: "nowrap"
         }
-      }, visitorCount.toLocaleString(), " visitors"),
+      }, visitorCount.toLocaleString(), visitorCount === 1 ? " visit" : " visits"),
       React.createElement("button", {
         onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
         title: "Settings",

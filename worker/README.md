@@ -19,11 +19,16 @@ In the `TWILIGHT-VISITORS` KV namespace (bound as `VISITORS`):
 | Key | Value | Expires |
 |---|---|---|
 | `__total__` | the running total | never |
-| first 20 hex chars of SHA-256(IP + `IP_SALT`) | `"1"` | 1 year |
+| first 20 hex chars of SHA-256(IP + `IP_SALT`) | `"1"` | 24 hours |
 
 The raw IP is never written. The salt is a Worker secret, not in this file,
 because the repo is public: an IPv4 address has only about 4 billion possible
 values, so a salted hash is only as private as its salt.
+
+Until 2026-09-22 the per-IP entries expired after **1 year**. Changing the
+TTL only affects new writes: entries written before the change keep their
+1-year expiry until they lapse, unless deleted from the namespace. The
+privacy policy's 24-hour statement is fully true only once those are gone.
 
 ## How it fits with the client
 
@@ -31,7 +36,14 @@ The Worker can only recognise a returning visitor by IP, and an IP is not a
 person: a phone's address changes whenever its network does. So `index.html`
 also keeps its own window: it pings at most once per `COUNTER_WINDOW_MS`
 (24h), tracked in `tw_counted_at`. The Worker's per-IP check is the backstop
-for when that local record is gone (cleared storage, private browsing).
+for when that local record is gone (cleared storage, private browsing), and
+its 24h TTL matches that window.
+
+**What the total means.** Both windows are 24 hours, so the count is
+*visitor-days*: one person visiting on five different days counts five
+times. With the old 1-year TTL, a returning visitor on an unchanged IP was
+counted once a year, so the total now grows noticeably faster than it did.
+The header labels it accordingly: "358 visits", not "358 visitors".
 
 ## Deploying from here
 
