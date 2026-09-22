@@ -79,13 +79,26 @@ Three tabs, one `index.html`, no build step:
     in Cloudflare. Dedupes by a salted hash of `visitorKey(ip)` in KV with a
     **24h TTL** (1 year before 2026-09-22). `visitorKey` keeps IPv4 as is but
     reduces IPv6 to its /64, because OS privacy addresses rotate the second
-    half (often daily) and made one visitor look new at every rotation. The salt is the `IP_SALT` Worker secret, never
-    in the repo, because the repo is public and a salted IPv4 hash is only as
-    private as its salt. **Merging does not deploy the Worker**; Pages serves
-    only the static site. Deploy with `npx wrangler deploy` from `worker/`
-    (needs `npx wrangler login` on the machine). First deployed from the repo
-    2026-09-22 as version `0bba4ff8`; a GET from a previously counted IP
-    returned `"new":false`, confirming the secret matches the old salt.
+    half (often daily) and made one visitor look new at every rotation.
+    (Since 2026-09-22. IPv4 keys didn't change; each IPv6 visitor was counted
+    once more that day because their key did.) The salt is the `IP_SALT`
+    Worker secret, never in the repo, because the repo is public and a salted
+    IPv4 hash is only as private as its salt. **Merging does not deploy the
+    Worker**; Pages serves only the static site. Deploy with `npx wrangler
+    deploy` from `worker/` on `main`, so what runs matches the repo (needs
+    `npx wrangler login` on the machine). First deployed from the repo
+    2026-09-22 (`0bba4ff8`); live as of this writing: `2017aee9`, the /64
+    change. `npx wrangler deployments list` shows what is actually live.
+  - **Checking the live Worker can inflate the count — every GET is a
+    potential visit.** Verify a deploy with `curl -4` from a machine whose
+    IPv4 address was already counted: expect `"new":false` and an unchanged
+    total, which also proves the salt is right (a wrong salt means a different
+    hash, so `"new":true`). Don't use a plain `curl`: a dual-stack machine may
+    go out over a temporary IPv6 address the Worker has never seen, and count.
+    That happened once, 435 -> 436. To see which address you are using, ask
+    `https://www.cloudflare.com/cdn-cgi/trace` (`ip=` line), never the
+    counter. One live machine can't exercise the /64 logic anyway (it needs
+    two addresses in one prefix); `worker.test.js` covers that.
   - **The total counts visits, not people.** With both windows at 24h, one
     browser visiting on five different days adds five, so the header says
     "visits". Within 24h it's one per browser; a phone and a laptop are two.
