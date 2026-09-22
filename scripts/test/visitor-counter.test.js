@@ -29,14 +29,14 @@ function store({ broken = false } = {}) {
 }
 
 // One page load at time `now`. `respond` builds the fetch outcome.
-async function load(ls, now, respond) {
+async function load(ls, now, respond, win = {}) {
   const pings = [];
   const shown = [];
   const fetchStub = url => { pings.push(url); return respond(); };
   const fn = new Function(
-    'COUNTER_WORKER_URL', 'COUNTER_WINDOW_MS', 'localStorage', 'Date', 'fetch',
+    'COUNTER_WORKER_URL', 'COUNTER_WINDOW_MS', 'localStorage', 'Date', 'fetch', 'window',
     declSource('pingVisitorCounter') + '\nreturn pingVisitorCounter;'
-  )('https://counter.test/', WINDOW, ls, { now: () => now }, fetchStub);
+  )('https://counter.test/', WINDOW, ls, { now: () => now }, fetchStub, win);
   fn(v => shown.push(v));
   for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
   return { pinged: pings.length > 0, shown };
@@ -99,4 +99,12 @@ test('with storage unavailable it pings every load and does not throw', async ()
     assert.strictEqual(r.pinged, true);
     assert.deepStrictEqual(r.shown, [7]);
   }
+});
+
+test('the native apps never contact the counter', async () => {
+  const ls = store();
+  const r = await load(ls, T0, ok(358), { Capacitor: {} });
+  assert.strictEqual(r.pinged, false, 'no request from inside Capacitor');
+  assert.deepStrictEqual(r.shown, []);
+  assert.deepStrictEqual(ls.m, {}, 'nothing stored either');
 });

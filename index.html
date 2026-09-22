@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-s8YUc2xiSJIH9W7cz7/okr9UaBYH1yhGQ8s7DX8P0xk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fqH3Icps8zOVU6kzbyhDqloHtfEuxJGUc1A46gYRk70=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -4454,6 +4454,14 @@ const COUNTER_WINDOW_MS = 24 * 60 * 60 * 1000;
 // for cleared storage.
 function pingVisitorCounter(show) {
   if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
+  // Web only. In the native apps the page origin (capacitor://localhost,
+  // https://localhost) isn't on the Worker's CORS allow-list, so the count
+  // could never be shown there — but a plain GET needs no preflight, so the
+  // request would still reach the Worker and be counted, on every launch,
+  // since the failed fetch never starts the window. That is data collected
+  // for nothing, which the App Store and Play privacy forms would have to
+  // declare. Skipping it keeps the apps out of it entirely.
+  if (window.Capacitor) return;
   let last = 0, cached = null;
   try {
     last = parseInt(localStorage.getItem('tw_counted_at') || '0', 10) || 0;
