@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-1hQIbxZI02EqxWlEsxFY8cZ6HX/ZMs3HP/OqpnEPslY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/e7JrQ3dKj1y0t6AvoAB4ZHG5mtmzQ5pMEN3kuBi4+s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -2139,15 +2139,6 @@ function drawHorizonScene(g, w, h, o) {
       label('Moon', x, y, r + 7);
     }
   }
-  // Compass points along the horizon, so the painting reads as a direction.
-  g.font = '600 10.5px Inter, system-ui, sans-serif';
-  g.textAlign = 'center';
-  g.fillStyle = 'rgba(238,241,250,.5)';
-  for (let az = 0; az < 360; az += 45) {
-    const x = X(az);
-    if (x !== null && x > 14 && x < w - 14) g.fillText(compass16(az), x, hy - 10);
-  }
-
   // Ground: buildings where the sky is city-bright, a treeline elsewhere,
   // the same every visit for the same place.
   const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
@@ -2180,6 +2171,20 @@ function drawHorizonScene(g, w, h, o) {
   const fade = g.createLinearGradient(0, hy - 30, 0, h);
   fade.addColorStop(0, 'rgba(5,7,15,0)'); fade.addColorStop(0.45, 'rgba(5,7,15,.78)'); fade.addColorStop(1, 'rgba(5,7,15,.98)');
   g.fillStyle = fade; g.fillRect(0, hy - 30, w, h - hy + 30);
+
+  // Compass points last, over the ground: drawn before it, the skyline hid
+  // them, and without them the painting is a pretty picture of nowhere.
+  g.font = '600 11px Inter, system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (let az = 0; az < 360; az += 45) {
+    const x = X(az);
+    if (x === null || x < 16 || x > w - 16) continue;
+    g.fillStyle = 'rgba(238,241,250,.34)';
+    g.fillRect(x - 0.5, hy + 4, 1, 7);
+    g.fillStyle = 'rgba(238,241,250,.62)';
+    g.fillText(compass16(az), x, hy + 21);
+  }
 }
 /* Two granularities on purpose, not a duplication to merge: the sextant
    window is a planning number where seconds are noise, while the next-event
