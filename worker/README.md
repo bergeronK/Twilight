@@ -43,6 +43,7 @@ its 24h TTL matches that window.
 *visitor-days*: one person visiting on five different days counts five
 times. With the old 1-year TTL, a returning visitor on an unchanged IP was
 counted once a year, so the total now grows noticeably faster than it did.
+The header labels it accordingly: "358 visits", not "358 visitors".
 
 ## Deploying from here
 

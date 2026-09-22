@@ -69,7 +69,7 @@ test('a 500 {"count":0} is not a total: nothing shown, cached, or windowed', asy
   const ls = store();
   const r = await load(ls, T0, serverError);
   assert.strictEqual(r.pinged, true);
-  assert.deepStrictEqual(r.shown, [], 'must not display "0 visitors"');
+  assert.deepStrictEqual(r.shown, [], 'must not display "0 visits"');
   assert.strictEqual(ls.m.tw_count, undefined, 'must not cache the 0');
   assert.strictEqual(ls.m.tw_counted_at, undefined, 'must not start the window');
   const next = await load(ls, T0 + 5 * 60e3, ok(358));
