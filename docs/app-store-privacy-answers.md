@@ -11,34 +11,28 @@ The underlying facts driving every answer here: no accounts, no ads, no
 analytics SDK, no cookies. The only data that leaves the device is (a)
 coordinates sent to Open-Meteo for weather/place-search, (b) — native app
 only — an anonymous RevenueCat install ID + purchase receipt for IAP
-verification, and (c) a request to the visit counter, which keeps a salted
-hash of the requester's IP address for 24 hours. See `/privacy.html` for the
-human-readable version of this same information.
+verification. The website also sends a request to the visit counter, which
+keeps a salted hash of the requester's IP address for 24 hours, but the apps
+never do (below), so the counter is not part of either store's answers. See
+`/privacy.html` for the human-readable version of this same information.
 
-### The visit counter in the native apps — read before answering
+### The visit counter is website-only — nothing to declare for it
 
-The counter (`pingVisitorCounter` in `index.html`, Worker source in
-`worker/`) has no native-app guard, so it runs in the iOS and Android apps
-as well as on the web. What it does there, reasoned from the code and **not
-yet observed on a device**:
+`pingVisitorCounter` in `index.html` returns immediately when
+`window.Capacitor` is present (the same check `sw.js` registration uses), so
+the iOS and Android apps never contact the counter Worker and store nothing
+for it. Added September 2026 (#70) for a specific reason, reasoned from the
+code rather than observed on a device: before the guard, the apps' page
+origin (`capacitor://localhost`, `https://localhost`) wasn't on the Worker's
+CORS allow-list, so the count could never show in the apps — yet a plain GET
+needs no preflight, so every launch still reached the Worker and was counted,
+with a salted IP hash kept for 24 hours. That would have been data collected
+for a feature the apps don't have, and it would have had to be declared.
 
-- The app's page origin is `capacitor://localhost` (iOS) or
-  `https://localhost` (Android). The Worker answers unrecognised origins
-  with `Access-Control-Allow-Origin: https://twilyte.info`, so the WebView
-  blocks the response and **the count never displays in the apps**.
-- The request is a plain GET, which needs no CORS preflight, so it **still
-  reaches the Worker**. The Worker counts it and stores the salted IP hash
-  for 24 hours exactly as it does for the web.
-- Because the fetch fails on the client, the app's 24-hour window never
-  starts, so it pings on **every launch**. The Worker's per-IP check still
-  limits the count to one per IP per 24 hours.
-
-So, as shipped, the apps collect data for a feature that doesn't show up in
-them. The declarations below cover that. The simpler fix is to skip the
-counter when `window.Capacitor` is present (the same guard `sw.js`
-registration uses), at which point the apps collect nothing for it and the
-counter declarations below can be dropped. Decide which before submitting;
-the two options need different answers.
+**If the guard is ever removed**, the apps collect again and both forms need
+a declaration. What to declare is recorded under each store below, so the
+reasoning doesn't have to be redone. The pre-submission checklist includes
+confirming the guard is still there.
 
 ## Apple App Store Connect — "App Privacy"
 
@@ -72,26 +66,20 @@ Used for Tracking / App Functionality — some reviewers expect purchase
 verification IDs listed under both Purchases and Identifiers. Either
 approach is consistent with what the code actually does.
 
-### 3. Usage Data — visit counter (only if the counter runs in the app; see above)
-- **Collected:** Yes. Apple treats data as collected when it's kept off the
-  device longer than needed to answer the request in real time, and the
-  Worker keeps a salted IP hash for 24 hours.
-- **Type:** Usage Data → **Product Interaction** (it records that the app was
-  opened)
-- **Linked to the user's identity:** No. The hash is of an IP address, is
-  salted, expires after 24 hours, and is never tied to an account, the
-  RevenueCat ID, or location.
-- **Used for tracking:** No. It's never combined with other companies' data
-  or shared with anyone; Cloudflare only runs the Worker.
-- **Purpose:** **Analytics** — the conservative answer, since counting visits
-  is measuring audience size, and inside the apps the count isn't even shown.
-  If the counter is later made to display in the apps, App Functionality is
-  defensible alongside it.
+### 3. Visit counter — *not* a data-collection declaration
 
-Optional and more conservative still: also declare **Identifiers → Device
-ID** (Not Linked / Not Used for Tracking / Analytics) for the IP hash itself.
-It's a per-network pseudonym rather than a device ID, so Product Interaction
-alone is a fair reading; declaring both costs nothing but a longer label.
+The apps never contact the counter (see the top of this doc), so under
+**Usage Data** answer **No**.
+
+*Only if the `window.Capacitor` guard is ever removed:* declare **Usage Data
+→ Product Interaction**: Collected / Not Linked / Not Used for Tracking /
+**Analytics**. It counts as collected because Apple's threshold is data kept
+longer than needed to answer the request in real time, and the Worker keeps
+the salted IP hash for 24 hours. It's not linked, because the hash is salted,
+expires in 24 hours, and is tied to nothing else. Analytics is the
+conservative purpose, since counting visits measures audience size.
+Optionally also declare **Identifiers → Device ID** with the same answers,
+for the hash itself.
 
 ### 4. Camera — *not* a data-collection declaration
 
@@ -121,8 +109,7 @@ What camera use *does* require:
 
 **Every other category** (Contact Info, Health & Fitness, Financial Info,
 Sensitive Info, Contacts, User Content, Browsing History, Search History,
-Diagnostics, Other Data) → **not collected**. Usage Data too, if the counter
-is guarded out of the apps.
+Usage Data, Diagnostics, Other Data) → **not collected**.
 
 **"Do you or your third-party partners use data for tracking as defined by
 Apple?"** → **No.**
@@ -154,19 +141,17 @@ Path: Play Console → your app → App content → Data safety.
 - **Users can request deletion:** Not applicable — no account exists to
   delete; RevenueCat's own data-deletion process applies if a user asks
 
-### App activity — visit counter (only if the counter runs in the app; see above)
-- **Collected:** Yes — **App activity → App interactions**
-- **Shared with third parties:** No. Cloudflare runs the Worker as a service
-  provider on your behalf, and Play doesn't count transfers to a service
-  provider as sharing.
-- **Processed ephemerally:** No — the salted IP hash is kept for 24 hours
-- **Required or optional:** Required; it runs on launch with no setting
-- **Purpose:** **Analytics**
-- **Users can request deletion:** not needed — the hash is deleted
-  automatically after 24 hours, and the running total holds no per-user data
+### Visit counter — *not* a data-collection declaration
 
-Optional and more conservative: also declare **Device or other IDs** for the
-IP hash itself, with the same answers. Same judgment call as on Apple's form.
+The apps never contact the counter, so under **App activity** answer **No**.
+
+*Only if the `window.Capacitor` guard is ever removed:* declare **App
+activity → App interactions**: Collected; not shared, because Cloudflare runs
+the Worker as a service provider and Play doesn't count that as sharing; not
+processed ephemerally, since the hash is kept 24 hours; required; purpose
+**Analytics**. No deletion request is needed, because the hash deletes itself
+after 24 hours and the total holds no per-user data. Optionally also declare
+**Device or other IDs**, the same way as on Apple's form.
 
 ### Camera — *not* a data-collection declaration
 
@@ -185,8 +170,8 @@ default, with nothing captured or stored.
 **Everything else** → not collected.
 
 **"Is all of the user data collected by your app encrypted in transit?"**
-→ **Yes** (Open-Meteo, RevenueCat and the counter Worker are all HTTPS-only;
-the CSP in `index.html` doesn't permit anything else).
+→ **Yes** (both Open-Meteo and RevenueCat are HTTPS-only; the CSP in
+`index.html` doesn't permit anything else).
 
 **"Do you provide a way for users to request data deletion?"** → there's no
 account or server-side profile to delete. For location/preferences, the
@@ -214,11 +199,12 @@ document/CCATS filing.
 
 - If `RC_KEYS` is still empty (IAP inert) at submission time, drop the
   Purchases / Identifiers declarations above and revisit once a key is set.
-- Decide whether the visit counter runs in the apps (see the section near
-  the top). If it's guarded out with `window.Capacitor`, drop the Usage Data
-  (Apple) and App activity (Google) declarations. If it stays, keep them,
-  and check the TTL in `worker/src/index.js` still says 24 hours, since the
-  answers above depend on it.
+- Confirm `pingVisitorCounter` in `index.html` still returns when
+  `window.Capacitor` is present (`visitor-counter.test.js` checks this). The
+  "not collected" answers for Usage Data (Apple) and App activity (Google)
+  depend on it. If the guard has been removed, use the declarations recorded
+  under each store, and check the TTL in `worker/src/index.js` still says 24
+  hours.
 - If a future feature adds a new third-party call (e.g. push notifications
   for Alerts), it needs its own row here and in `/privacy.html` before that
   version ships — check `connect-src` in the CSP meta tag in `index.html`,
