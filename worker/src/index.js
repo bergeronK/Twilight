@@ -56,8 +56,12 @@ export default {
       if (!seen) {
         // New unique visitor
         total += 1;
-        // Store with 1-year expiry so IPs eventually cycle out
-        await env.VISITORS.put(ipHash, '1', { expirationTtl: 365 * 24 * 60 * 60 });
+        // Keep the hash only as long as it is needed: 24 hours, matching the
+        // browser's own window (COUNTER_WINDOW_MS in index.html), which does
+        // the real deduping. This is only the backstop for browsers with no
+        // stored record, so holding a per-IP value longer buys little and is
+        // exactly what the privacy policy has to disclose. (Was 1 year.)
+        await env.VISITORS.put(ipHash, '1', { expirationTtl: 24 * 60 * 60 });
         await env.VISITORS.put('__total__', String(total));
       }
 

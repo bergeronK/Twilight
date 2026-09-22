@@ -52,7 +52,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
 <main>
   <div class="kicker">Twilight</div>
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated September 14, 2026</div>
+  <div class="updated">Last updated September 22, 2026</div>
 
   <p>Twilight doesn't track you. There's no account, no advertising, no analytics
   software, and no profile built about you or your device. This page explains,
@@ -115,11 +115,13 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   <p>Twilight shows a running visitor count on the Console tab. Loading the
   page pings a small counting service at most once a day; reloading the page,
   or leaving and coming back later the same day, doesn't ping it again. The
-  app does not send your location,
-  device identifiers, or any other data to it beyond what any web request
-  inherently includes (like your IP address, which the app itself never sees
-  or stores). The counter exists to show a running total, not to build a
-  profile of any individual visitor.</p>
+  app sends it nothing beyond what any web request inherently includes — not
+  your location, not a device identifier.</p>
+  <p>Like any web server, the counting service receives your IP address with
+  that request. So that it doesn't count the same visitor twice in one day, it
+  keeps a one-way, salted hash of the address — never the address itself —
+  for 24 hours, after which it's deleted automatically. The hash isn't linked
+  to your location or to anything else, and is used for nothing but the count.</p>
 
   <h2>In-app purchase (Pro features, iOS &amp; Android app only)</h2>
   <p>The native iOS and Android apps offer an optional one-time purchase to
@@ -147,7 +149,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <tr><th>Service</th><th>Purpose</th><th>Data sent</th></tr>
     <tr><td>Open-Meteo</td><td>Weather forecast &amp; place search</td><td>Coordinates or search text</td></tr>
     <tr><td>GeoNames</td><td>Place-name database backing search results</td><td>None directly — accessed via Open-Meteo</td></tr>
-    <tr><td>Visitor counter (Cloudflare Worker)</td><td>Anonymous running visit total</td><td>None sent by the app beyond the request itself</td></tr>
+    <tr><td>Visitor counter (Cloudflare Worker)</td><td>Anonymous running visit total</td><td>None sent by the app beyond the request itself; a salted hash of your IP address is kept for 24 hours</td></tr>
     <tr><td>RevenueCat (native app only)</td><td>Purchase verification &amp; restore</td><td>Anonymous install ID, purchase receipt</td></tr>
   </table>
 

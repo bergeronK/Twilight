@@ -67,7 +67,7 @@ Three tabs, one `index.html`, no build step:
 - **`worker/`**: source of the visitor-counter Cloudflare Worker
   (`twilight-counter.ken-b39.workers.dev`), committed 2026-09-22 from the
   dashboard copy — before that it existed only in Cloudflare. Dedupes by
-  salted IP hash in KV (1-year TTL); the salt is the `IP_SALT` Worker
+  salted IP hash in KV (24h TTL — 1 year before 2026-09-22); the salt is the `IP_SALT` Worker
   secret, never in the repo, since the repo is public. `index.html` adds its
   own 24h window on top (`tw_counted_at`), because IPs change. Deploying
   from here replaces the dashboard code — read `worker/README.md` first.
