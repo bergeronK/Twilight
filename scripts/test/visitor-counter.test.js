@@ -29,14 +29,14 @@ function store({ broken = false } = {}) {
 }
 
 // One page load at time `now`. `respond` builds the fetch outcome.
-async function load(ls, now, respond, win = {}) {
+async function load(ls, now, respond, win = {}, host = 'twilyte.info') {
   const pings = [];
   const shown = [];
   const fetchStub = url => { pings.push(url); return respond(); };
   const fn = new Function(
-    'COUNTER_WORKER_URL', 'COUNTER_WINDOW_MS', 'localStorage', 'Date', 'fetch', 'window',
+    'COUNTER_WORKER_URL', 'COUNTER_WINDOW_MS', 'localStorage', 'Date', 'fetch', 'window', 'location',
     declSource('pingVisitorCounter') + '\nreturn pingVisitorCounter;'
-  )('https://counter.test/', WINDOW, ls, { now: () => now }, fetchStub, win);
+  )('https://counter.test/', WINDOW, ls, { now: () => now }, fetchStub, win, { hostname: host });
   fn(v => shown.push(v));
   for (let i = 0; i < 4; i++) await new Promise(r => setImmediate(r));
   return { pinged: pings.length > 0, shown };
@@ -107,4 +107,13 @@ test('the native apps never contact the counter', async () => {
   assert.strictEqual(r.pinged, false, 'no request from inside Capacitor');
   assert.deepStrictEqual(r.shown, []);
   assert.deepStrictEqual(ls.m, {}, 'nothing stored either');
+});
+
+test('only the production site counts: localhost and preview hosts never ping', async () => {
+  for (const host of ['localhost', '127.0.0.1', 'bergeronk.github.io']) {
+    const ls = store();
+    const r = await load(ls, T0, ok(358), {}, host);
+    assert.strictEqual(r.pinged, false, host);
+    assert.deepStrictEqual(ls.m, {}, `${host}: nothing stored`);
+  }
 });
