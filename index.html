@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fqH3Icps8zOVU6kzbyhDqloHtfEuxJGUc1A46gYRk70=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-z7h/61+x9eR6VzAn49b2qqvyMeERIePEte75K1ZV92o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -768,6 +768,46 @@ function loadStarCatalog() {
   }
   return starCatalogPromise;
 }
+
+/* ---- Constellation lines for Sky View (constellations.bin) ----
+   Stick figures joining the stars, so the sky reads as constellations rather
+   than a scatter of dots. Fetched on first use, like stars.bin. Derived from
+   d3-celestial by Olaf Frohn, BSD 3-Clause; see constellations.LICENSE.txt.
+   Format is documented in scripts/generate-constellation-lines.js. Returns
+   one entry per polyline: { id, rank, pts: [{ ra, dec }] }. */
+let constellationLinesPromise = null;
+function loadConstellationLines() {
+  if (!constellationLinesPromise) {
+    constellationLinesPromise = fetch('constellations.bin')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.arrayBuffer(); })
+      .then(buf => {
+        const dv = new DataView(buf);
+        const nConst = dv.getUint16(0, true), nPoly = dv.getUint16(2, true), nPts = dv.getUint16(4, true);
+        const lenOff = 6 + nConst * 5, raOff = lenOff + nPoly, decOff = raOff + nPts * 2;
+        const out = [];
+        let poly = 0, v = 0;
+        for (let k = 0; k < nConst; k++) {
+          const at = 6 + k * 5;
+          const id = String.fromCharCode(dv.getUint8(at), dv.getUint8(at + 1), dv.getUint8(at + 2));
+          const rank = dv.getUint8(at + 3), polys = dv.getUint8(at + 4);
+          for (let j = 0; j < polys; j++, poly++) {
+            const len = dv.getUint8(lenOff + poly), pts = new Array(len);
+            for (let t = 0; t < len; t++, v++) {
+              pts[t] = {
+                ra: dv.getUint16(raOff + v * 2, true) * 360 / 65536,
+                dec: dv.getInt16(decOff + v * 2, true) * 90 / 32767
+              };
+            }
+            out.push({ id, rank, pts });
+          }
+        }
+        return out;
+      })
+      // Decoration, not data: without it Sky View is exactly what it was.
+      .catch(() => []);
+  }
+  return constellationLinesPromise;
+}
 const BORTLE_THRESH = [0.3, 0.9, 1.5, 2.2, 2.9, 3.5, 4.0, 4.2]; // log10(score+1) cut points for classes 1..9
 function estimateBortle(lat0, lon0, data) {
   const { n, lat, lon, pop } = data;
@@ -789,11 +829,13 @@ const prefStore = (() => {
   let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
   let aimOffset = 0; // Aim Assist manual compass correction, degrees
   let skyFov = 63;   // Sky View vertical field of view, degrees
+  let skyLines = true; // Sky View constellation lines
   try { const v = localStorage.getItem('tw_h24'); if (v !== null) h24 = v === '1'; } catch (e) {}
   try { bortle = parseInt(localStorage.getItem('tw_bortle') || '0', 10) || 0; } catch (e) {}
   try { const v = localStorage.getItem('tw_pro'); if (v !== null) pro = v === '1'; } catch (e) {}
   try { aimOffset = parseFloat(localStorage.getItem('tw_aim_offset') || '0') || 0; } catch (e) {}
   try { const v = parseFloat(localStorage.getItem('tw_sky_fov')); if (v >= 30 && v <= 100) skyFov = v; } catch (e) {}
+  try { const v = localStorage.getItem('tw_sky_lines'); if (v !== null) skyLines = v === '1'; } catch (e) {}
   try {
     const v = localStorage.getItem('tw_bortle_mode');
     // A stored mode wins. Otherwise, a pre-existing manual Bortle value from
@@ -831,6 +873,8 @@ const prefStore = (() => {
       try { localStorage.setItem('tw_sky_fov', String(skyFov)); } catch (e) {}
       emit();
     },
+    getSkyLines: () => skyLines,
+    setSkyLines: v => { skyLines = !!v; try { localStorage.setItem('tw_sky_lines', skyLines ? '1' : '0'); } catch (e) {} emit(); },
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
@@ -840,6 +884,7 @@ function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe
 function usePro() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getPro); }
 function useAimOffset() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getAimOffset); }
 function useSkyFov() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getSkyFov); }
+function useSkyLines() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getSkyLines); }
 /* ---- Pro entitlement via in-app purchase (native shell only) ----
    RevenueCat public SDK keys — safe to embed; they can only read offerings
    and this device's own purchases. While a key is empty, IAP is disabled on
@@ -1699,6 +1744,32 @@ function aimOf(q) {
   return { az: vecAz(v), alt: asin(v[2]), stable: vecHoriz(v) > 0.15 };
 }
 const screenUpAz = (q, screenAngle) => vecAz(viewBasis(q, screenAngle).y);
+/* Constellation lines as screen segments. `paths` is [{ rank, pts: [{az, alt}] }];
+   `project(az, alt)` returns {x, y}, or null when the point is behind the
+   camera. Straight segments are exact: a pinhole projection maps great
+   circles to straight lines. A segment with either end behind the camera is
+   dropped rather than clipped; figures are small enough that this only loses
+   the odd segment at the very edge of a turn. Each end is pulled back a few
+   pixels so lines stop short of the stars they join, the way printed charts
+   draw them. `below` marks a segment whose midpoint is under the horizon. */
+function constellationSegments(paths, project, gap) {
+  const out = [];
+  paths.forEach(path => {
+    for (let i = 1; i < path.pts.length; i++) {
+      const a = path.pts[i - 1], b = path.pts[i];
+      const p = project(a.az, a.alt), q = project(b.az, b.alt);
+      if (!p || !q) continue;
+      const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      const g = Math.min(gap, len * 0.3), ux = dx / len, uy = dy / len;
+      out.push({
+        x1: p.x + ux * g, y1: p.y + uy * g, x2: q.x - ux * g, y2: q.y - uy * g,
+        rank: path.rank, below: (a.alt + b.alt) / 2 < 0
+      });
+    }
+  });
+  return out;
+}
 /* Pinhole projection of a screen-frame direction onto the canvas. Returns null
    when the body is behind the phone. `fov` is the vertical field of view. */
 function skyProject(d, w, h, fov) {
@@ -4503,7 +4574,7 @@ function pingVisitorCounter(show) {
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
+function SkyDome({ bodies, lines, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
@@ -4516,6 +4587,7 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
   const [manual, setManual] = useState({ az: 180, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
+  const showLines = useSkyLines();
   const live = !!viewQ;
 
   /* Measure the element the canvas actually fills, rather than asking the
@@ -4636,6 +4708,36 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
       if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
     }
 
+    // Constellation lines, under every body. Faint and cool against the warm
+    // horizon, so they give the sky its shapes without competing with the
+    // stars; stronger over the camera image, which is brighter than the
+    // painted sky. Fainter constellations (d3-celestial rank 2, 3) recede.
+    if (showLines && lines && lines.length) {
+      const segs = constellationSegments(lines, (az, alt) => proj(toScreen(basis, az, alt)), 4);
+      const base = cam ? 0.5 : 0.34;
+      g.lineWidth = 1;
+      g.lineCap = 'round';
+      segs.forEach(sg => {
+        if (Math.max(sg.x1, sg.x2) < -20 || Math.min(sg.x1, sg.x2) > w + 20 ||
+            Math.max(sg.y1, sg.y2) < -20 || Math.min(sg.y1, sg.y2) > h + 20) return;
+        const a = base * (sg.rank <= 1 ? 1 : sg.rank === 2 ? 0.8 : 0.62) * (sg.below ? 0.3 : 1);
+        g.strokeStyle = 'rgba(138,164,232,' + a.toFixed(3) + ')';
+        g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+      });
+      // A faint dot at every vertex. Where the catalogue has the star, it is
+      // drawn over this and hides it; where it doesn't (about 3% of vertices,
+      // stars fainter than stars.bin's magnitude-5 cut, mostly in dim
+      // southern constellations), the line still visibly ends on a star.
+      g.fillStyle = 'rgba(238,242,255,.4)';
+      lines.forEach(path => path.pts.forEach(v => {
+        const p = proj(toScreen(basis, v.az, v.alt));
+        if (!p || p.x < -4 || p.x > w + 4 || p.y < -4 || p.y > h + 4) return;
+        g.globalAlpha = v.alt < 0 ? 0.3 : 1;
+        g.beginPath(); g.arc(p.x, p.y, 0.8, 0, 7); g.fill();
+      }));
+      g.globalAlpha = 1;
+    }
+
     // Bodies, faintest first so bright ones win any overlap.
     const drawn = [];
     // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
@@ -4705,7 +4807,7 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
     g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
     g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
     g.stroke();
-  }, [bodies, basis, size, cam, targetName, fov]);
+  }, [bodies, lines, showLines, basis, size, cam, targetName, fov]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
@@ -4797,6 +4899,10 @@ function SkyDome({ bodies, viewQ, screenAngle, targetName, onPick, onClose, sens
     },
       React.createElement('button', { onClick: onClose, style: chip }, '← Back'),
       React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      React.createElement('button', {
+        onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines,
+        style: { ...chip, ...(showLines ? chipOn : {}) }
+      }, 'Lines'),
       diag && React.createElement('button', {
         onClick: diag.onToggle, 'aria-expanded': diag.open,
         style: { ...chip, ...(diag.open ? chipOn : {}) }
@@ -4991,6 +5097,13 @@ function StarFinder({ redMode } = {}) {
     loadStarCatalog().then(c => { if (live) setStarCatalog(c); });
     return () => { live = false; };
   }, [skyOpen, starCatalog]);
+  const [constLines, setConstLines] = useState(null);
+  useEffect(() => {
+    if (!skyOpen || constLines) return;
+    let live = true;
+    loadConstellationLines().then(c => { if (live) setConstLines(c); });
+    return () => { live = false; };
+  }, [skyOpen, constLines]);
   // Shared by Aim Assist and Sky View. Must be reached synchronously from a
   // tap: iOS only grants motion access during a real user gesture.
   const ensureSensors = async () => {
@@ -5215,6 +5328,16 @@ function StarFinder({ redMode } = {}) {
     // on every sensor event.
     return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
   }, [now, loc.lat, loc.lon, starCatalog]);
+  // Constellation vertices to alt/az once per clock tick, like the catalogue
+  // above, so the draw loop only projects.
+  const constellationPaths = useMemo(() => {
+    if (!constLines || !constLines.length) return [];
+    const d = new Date(now);
+    return constLines.map(c => ({
+      rank: c.rank,
+      pts: c.pts.map(v => { const p = starHcZn(v.ra, v.dec, loc.lat, loc.lon, d); return { az: p.az, alt: p.alt }; })
+    }));
+  }, [now, loc.lat, loc.lon, constLines]);
   // iOS is the only platform that tells us how good the heading is:
   // webkitCompassAccuracy is +/- degrees, or negative when it's unusable.
   const compassQuality = orient && typeof orient.acc === 'number'
@@ -5729,6 +5852,7 @@ function StarFinder({ redMode } = {}) {
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
       bodies: skyBodies,
+      lines: constellationPaths,
       screenAngle,
       targetName: aimTargetName,
       // Picking in Sky View sets the Aim Assist target too, so closing the
@@ -6128,7 +6252,11 @@ function TwilightApp() {
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
-        " (CC BY-SA 4.0) · No tracking — only an anonymous visit count. ",
+        " (CC BY-SA 4.0) · Constellation lines: ",
+        React.createElement("a", { href: "https://github.com/ofrohn/d3-celestial", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "d3-celestial"),
+        " © Olaf Frohn (",
+        React.createElement("a", { href: "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
+        ") · No tracking — only an anonymous visit count. ",
         React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy")
       )
     )
