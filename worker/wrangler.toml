@@ -2,12 +2,14 @@
 # Deploy from this directory: see README.md — set the IP_SALT secret first.
 name = "twilight-counter"
 main = "src/index.js"
-# Not recorded when this was first deployed from the dashboard. The code uses
-# only long-standard runtime APIs, so any recent date behaves the same; check
-# Settings -> Runtime in the dashboard before the first deploy from here if you
-# want it to match exactly.
+# Not recorded when this was first deployed from the dashboard; the code uses
+# only long-standard runtime APIs, so any recent date behaves the same. First
+# deployed from here with this value on 2026-09-22.
 compatibility_date = "2024-09-01"
 workers_dev = true
+# No per-version preview URLs. Each would be another public endpoint writing to
+# the same KV namespace, and nothing uses them.
+preview_urls = false
 
 [[kv_namespaces]]
 binding = "VISITORS"                        # TWILIGHT-VISITORS in the dashboard

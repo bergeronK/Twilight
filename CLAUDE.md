@@ -80,8 +80,10 @@ Three tabs, one `index.html`, no build step:
     year before 2026-09-22). The salt is the `IP_SALT` Worker secret, never
     in the repo, because the repo is public and a salted IPv4 hash is only as
     private as its salt. **Merging does not deploy the Worker**; Pages serves
-    only the static site. Deploy with `npx wrangler deploy` from `worker/`,
-    which replaces the dashboard code — read `worker/README.md` first.
+    only the static site. Deploy with `npx wrangler deploy` from `worker/`
+    (needs `npx wrangler login` on the machine). First deployed from the repo
+    2026-09-22 as version `0bba4ff8`; a GET from a previously counted IP
+    returned `"new":false`, confirming the secret matches the old salt.
   - **The total counts visits, not people.** With both windows at 24h, one
     browser visiting on five different days adds five, so the header says
     "visits". Within 24h it's one per browser; a phone and a laptop are two.
@@ -486,12 +488,11 @@ that and is kept for its design detail):**
   `index.html` to activate the purchase flow. Owner has an Apple Developer
   account as of this writing but has not yet created the App Store Connect
   app record, the IAP product, or the RevenueCat project.
-- **Deploy `worker/` to Cloudflare** (`npx wrangler secret put IP_SALT`
-  with the dashboard's current value, *then* `npx wrangler deploy`). Not
-  confirmed done as of 2026-09-22. Until it is, the live Worker still keeps
-  hashes for a year while `/privacy.html` says 24 hours. Hashes written under
-  the 1-year TTL also persist until they lapse or are deleted from the
+- **Old 1-year visitor hashes.** Hashes the Worker wrote before 2026-09-22
+  keep their 1-year expiry until they lapse or are deleted from the
   `TWILIGHT-VISITORS` namespace (delete the hash keys, never `__total__`).
+  Until then `/privacy.html`'s "kept 24 hours" isn't true of those entries.
+  Deleting stored data is the owner's call.
 - Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
   here until the owner has one available.
 
