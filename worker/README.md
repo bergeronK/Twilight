@@ -47,8 +47,8 @@ The header labels it accordingly: "358 visits", not "358 visitors".
 
 ## Deploying from here
 
-Deploying from this directory **replaces the code currently running in the
-dashboard**. Run from `worker/`:
+First deployed from this repo on 2026-09-22 (version `0bba4ff8`); the code
+in the dashboard is now this code. Run from `worker/`:
 
 1. **Set the salt first**, to the value in the dashboard's current code (the
    string appended to `ip` in the `crypto.subtle.digest` call):
