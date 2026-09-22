@@ -122,15 +122,22 @@ const hooks = {
   useEffect: () => {},
   useMemo: f => f()
 };
+// The constellation-lines preference as SkyDome sees it, and the last value
+// its Lines button asked to store.
+let skyLinesOn = true, skyLinesSet;
 function renderSkyDome(props) {
   const SkyDome = build('SkyDome', {
     React, ...hooks,
     useSkyFov: () => 63,
-    prefStore: { setSkyFov: () => {} },
+    useSkyLines: () => skyLinesOn,
+    prefStore: { setSkyFov: () => {}, setSkyLines: v => { skyLinesSet = v; } },
     SKY_FOV_DEFAULT: 63,
     compass16: az => 'N',
     quatFromEuler: O.quatFromEuler, viewBasis: O.viewBasis,
-    toScreen: O.toScreen, skyProject: O.skyProject, atan2: O.atan2
+    toScreen: O.toScreen, skyProject: O.skyProject, atan2: O.atan2,
+    // Only reached from the canvas effect, which the stubbed useEffect never
+    // runs; supplied so the build finds every name SkyDome closes over.
+    constellationSegments: () => []
   });
   return SkyDome(Object.assign({
     bodies: [{ name: 'Moon', az: 120, alt: 30, kind: 'moon', mag: -12 }],
@@ -173,6 +180,18 @@ test('Sky View still renders with no diagnostics passed at all', () => {
   const tree = renderSkyDome({ diag: undefined });
   assert.ok(!find(tree, n => n.type === 'button' && textOf(n).trim() === 'Sensors'),
     'no diag prop, no Sensors button');
+});
+
+test('Sky View has a Lines toggle that reflects and flips the preference', () => {
+  for (const on of [true, false]) {
+    skyLinesOn = on; skyLinesSet = undefined;
+    const btn = find(renderSkyDome({ diag: diagProp(false) }), n => n.type === 'button' && textOf(n).trim() === 'Lines');
+    assert.ok(btn, 'Sky View should have a Lines button');
+    assert.strictEqual(btn.props['aria-pressed'], on);
+    btn.props.onClick();
+    assert.strictEqual(skyLinesSet, !on, 'tapping should store the opposite');
+  }
+  skyLinesOn = true;
 });
 
 test('Sky View renders in drag-to-look mode with no sensors', () => {

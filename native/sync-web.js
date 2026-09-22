@@ -19,6 +19,9 @@ const FILES = [
   'manifest.json',
   'bortle-cities.bin',
   'stars.bin',
+  'constellations.bin',
+  // BSD 3-Clause: binary redistribution must carry the notice with it.
+  'constellations.LICENSE.txt',
   'icon-192.png',
   'icon-512.png',
   'icon-512-maskable.png',
