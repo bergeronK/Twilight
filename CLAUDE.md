@@ -64,6 +64,20 @@ Three tabs, one `index.html`, no build step:
 - **`scripts/verify-build.js`**: CI build guard — asserts exactly 5 inline
   scripts, syntax-checks them, and asserts the CSP hashes match. Runs in
   `.github/workflows/build-guard.yml` on every push/PR.
+- **Console horizon view (redesign direction A, preview)** — the Console's
+  new first screen: a painted panorama of this location's sky now, the
+  verdict over it, tonight as one ribbon, three facts. **Behind a flag until
+  it replaces the old top**: `?preview=horizon` turns it on and remembers
+  (`tw_preview_horizon`), `?preview=off` clears it. Nothing in the painting
+  is invented — `skyColors(sunAlt)` gives the gradient, the stars drawn are
+  those brighter than `live.mag` (the app's own faintest-visible estimate,
+  Moon and light pollution included), and Moon, Sun and planets sit at their
+  computed bearing and height. 200° panorama facing the equator
+  (`heroFacing`), turning only to keep a risen Moon in frame; azimuth
+  increases to the right, so facing south puts east on the left. Pure and
+  tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
+  `panoX`/`panoY`; `drawHorizonScene` paints. Phase 2, not built: location
+  into a tappable header, tabs to the bottom, reference below the fold.
 - **Visit counter** — the "N visits" total in the header. Two halves:
   - **Client, `pingVisitorCounter(show)` in `index.html`.** Pings the Worker
     at most once per `COUNTER_WINDOW_MS` (24h), tracked in `tw_counted_at`,
@@ -309,6 +323,14 @@ things a syntax check cannot see:
   iOS tipping past vertical, the representation switch at gamma = ±90.
 - **`orient-lib.js`** — not a test; extracts the whole orientation pipeline
   in one piece for the three suites above.
+- **`horizon.test.js`** — the Console horizon view. `nightPlan`'s edges with
+  synthetic events (a night that never gets fully dark, a Moon up the whole
+  dark stretch, two moonless gaps, no sunset at all), the words `moonNote`
+  and `heroLabel` put on screen, the panorama mapping, and `NightRibbon` /
+  `NightFacts` rendered with a stub React. One test runs the real astronomy
+  for Boston on 2026-09-22 against the Ephemeris times — and note the trap it
+  found: the app's *morning* figures on a date are that morning's, while
+  tonight's sunrise is tomorrow's, about a minute later in late September.
 - **`planets.test.js`** — `planetAltAz` against dated events rather than
   against itself: at published oppositions (Saturn 2024-09-08 and 2025-09-21,
   Jupiter 2024-12-07 and 2026-01-10, Mars 2025-01-16) each planet must be

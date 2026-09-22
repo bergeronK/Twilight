@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ev/vF1CmJc8ruL7XqQILIzDyLq3jZ4hfPaHKXA8UfmQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/e7JrQ3dKj1y0t6AvoAB4ZHG5mtmzQ5pMEN3kuBi4+s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1917,6 +1917,275 @@ function tonightGlance(live) {
   if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
   return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
 }
+/* ---- Console horizon view (redesign direction A) ----
+   The top of the Console as a painting of this location's sky right now,
+   then tonight as one ribbon, then three facts. Nothing in the painting is
+   decoration: the colours come from the Sun's altitude, the stars shown are
+   the ones the app estimates you can actually see (Moon and light pollution
+   included), and the Moon and planets sit at their real bearing and height.
+   In preview until it replaces the old top: ?preview=horizon turns it on and
+   remembers, ?preview=off turns it off. */
+const HORIZON_PREVIEW = (() => {
+  try {
+    const q = new URLSearchParams(window.location.search).get('preview');
+    if (q === 'horizon') localStorage.setItem('tw_preview_horizon', '1');
+    if (q === 'off') localStorage.removeItem('tw_preview_horizon');
+    return localStorage.getItem('tw_preview_horizon') === '1';
+  } catch (e) { return false; }
+})();
+const HZ_SPAN = 200; // degrees of horizon across the painting
+
+/* The night in progress, or the next one: a sunset and the sunrise after it.
+   `sunEv` is scanCrossings output against SUN_THR. null when no such pair is
+   in range, i.e. the Sun stays up (polar day) or stays down (polar night). */
+function nightSpan(sunEv, now) {
+  const rises = sunEv.filter(e => e.key === 'rise' && e.dir === 'up');
+  for (const s of sunEv) {
+    if (s.key !== 'rise' || s.dir !== 'down') continue;
+    const r = rises.find(x => x.t > s.t);
+    if (r && r.t > now) return { start: s.t, end: r.t };
+  }
+  return null;
+}
+// The phase the sky is in once the Sun crosses each threshold.
+const HZ_AFTER = {
+  down: { civil: 'naut', naut: 'astro', astro: 'night' },
+  up: { astro: 'astro', naut: 'naut', civil: 'civil' }
+};
+/* Tonight as bands (civil / naut / astro / night), the Moon's time above the
+   horizon, full darkness, and the darkest stretch: fully dark with the Moon
+   down, the longest if there are several, ignoring slivers under 10 minutes.
+   `moonUpAtStart` is whether the Moon is up at sunset; `moonEv` is
+   scanCrossings output against MOON_THR covering the night. */
+function nightPlan(span, sunEv, moonEv, moonUpAtStart) {
+  const { start, end } = span;
+  const bands = [];
+  let kind = 'civil', from = start;
+  sunEv.filter(e => e.t > start && e.t < end && e.key !== 'rise').forEach(e => {
+    const next = HZ_AFTER[e.dir] && HZ_AFTER[e.dir][e.key];
+    if (!next) return;
+    bands.push({ from, to: e.t, kind });
+    from = e.t; kind = next;
+  });
+  bands.push({ from, to: end, kind });
+
+  const moonUp = [];
+  let up = moonUpAtStart, since = start;
+  moonEv.filter(e => e.t > start && e.t < end).forEach(e => {
+    if (e.dir === 'up' && !up) { up = true; since = e.t; }
+    else if (e.dir === 'down' && up) { moonUp.push({ from: since, to: e.t }); up = false; }
+  });
+  if (up) moonUp.push({ from: since, to: end });
+
+  const nights = bands.filter(b => b.kind === 'night');
+  const dark = nights.length ? { from: nights[0].from, to: nights[nights.length - 1].to } : null;
+  let darkest = null;
+  if (dark) {
+    const gaps = [];
+    let cursor = dark.from;
+    moonUp.filter(m => m.to > dark.from && m.from < dark.to).forEach(m => {
+      if (m.from > cursor) gaps.push({ from: cursor, to: Math.min(m.from, dark.to) });
+      cursor = Math.max(cursor, m.to);
+    });
+    if (cursor < dark.to) gaps.push({ from: cursor, to: dark.to });
+    darkest = gaps.filter(g => g.to - g.from >= 600000)
+      .sort((a, b) => (b.to - b.from) - (a.to - a.from))[0] || null;
+  }
+  return { start, end, bands, moonUp, dark, darkest };
+}
+// What the Moon does tonight, from where we are in it, in plain words.
+function moonNote(plan, now, fmt) {
+  const ahead = plan.moonUp.filter(m => m.to > now);
+  if (!ahead.length) return plan.moonUp.length ? 'Set for the night' : 'Down all night';
+  const m = ahead[0];
+  if (m.from <= Math.max(now, plan.start)) {
+    if (m.from <= plan.start && m.to >= plan.end) return 'Up all night';
+    return m.to >= plan.end ? 'Up until sunrise' : `Sets at ${fmt(m.to)}`;
+  }
+  return `Rises at ${fmt(m.from)}`;
+}
+// The line above the headline: where tonight is, and what comes next.
+function heroLabel(plan, now, sunAlt, fmt) {
+  if (!plan) return sunAlt > 0 ? 'The Sun stays up all night' : 'The Sun stays down all day';
+  if (now < plan.start) {
+    return `Sunset at ${fmt(plan.start)}` +
+      (plan.dark ? ` · fully dark at ${fmt(plan.dark.from)}` : ' · never fully dark tonight');
+  }
+  if (!plan.dark) return `Twilight all night · sunrise at ${fmt(plan.end)}`;
+  if (now < plan.dark.from) return `Twilight · fully dark at ${fmt(plan.dark.from)}`;
+  if (now < plan.dark.to) return `Dark until ${fmt(plan.dark.to)}`;
+  return `Dawn · sunrise at ${fmt(plan.end)}`;
+}
+/* Which way the painting faces. Toward the equator — south in the northern
+   hemisphere — where the Sun, Moon and planets spend their time, turning only
+   as far as needed to keep a Moon that's up comfortably in frame. */
+function heroFacing(lat, moon) {
+  const meridian = lat >= 0 ? 180 : 0;
+  if (!moon || moon.alt <= 0) return meridian;
+  const d = ((moon.az - meridian + 540) % 360) - 180;
+  if (Math.abs(d) <= 70) return meridian;
+  return (moon.az - Math.sign(d) * 70 + 360) % 360;
+}
+// Across the painting: 0 at the left edge, 1 at the right, null out of frame.
+// Azimuth increases to the right, as it does when you face the sky.
+function panoX(az, facing, span) {
+  const d = ((az - facing + 540) % 360) - 180;
+  return Math.abs(d) > span / 2 ? null : 0.5 + d / span;
+}
+// Up the painting: the horizon at `horizonY`, 75° altitude near the top.
+function panoY(alt, horizonY) {
+  return Math.max(16, horizonY - (alt / 75) * (horizonY - 22));
+}
+// Deterministic scatter for the skyline, so a place always looks the same.
+function hzRandom(seed) {
+  let s = seed >>> 0 || 1;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+// A Moon disc at its phase, lit on the right unless `litLeft`.
+function drawMoonDisc(g, x, y, r, illum, litLeft) {
+  g.save();
+  g.translate(x, y);
+  if (litLeft) g.scale(-1, 1);
+  g.fillStyle = '#1d2029'; // earthshine: the dark side is faint, never black
+  g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill();
+  const k = 2 * illum - 1; // -1 new, 0 quarter, 1 full
+  g.beginPath();
+  g.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+  g.ellipse(0, 0, Math.max(0.001, Math.abs(k) * r), r, 0, Math.PI / 2, -Math.PI / 2, k < 0);
+  g.closePath();
+  g.clip();
+  const body = g.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.1);
+  body.addColorStop(0, '#f6f4ec'); body.addColorStop(1, '#bdb9ad');
+  g.fillStyle = body; g.fillRect(-r, -r, 2 * r, 2 * r);
+  [[-0.25, -0.3, 0.28], [0.12, -0.18, 0.22], [-0.05, 0.15, 0.3], [0.3, 0.28, 0.16], [-0.35, 0.25, 0.14]].forEach(([dx, dy, s]) => {
+    const mg = g.createRadialGradient(dx * r, dy * r, 0, dx * r, dy * r, s * r);
+    mg.addColorStop(0, 'rgba(120,118,112,.38)'); mg.addColorStop(1, 'rgba(120,118,112,0)');
+    g.fillStyle = mg; g.beginPath(); g.arc(dx * r, dy * r, s * r, 0, 7); g.fill();
+  });
+  g.restore();
+}
+/* Paints the hero. `o`: { sky: live.sky, sunAlt, sun: {az, alt}, moon:
+   {az, alt, illum}, facing, stars: [{az, alt, mag}], planets: [{name, az,
+   alt}], bortle, lat, lon }. */
+function drawHorizonScene(g, w, h, o) {
+  const hy = Math.round(h * 0.62); // the horizon; ground and text sit below
+  const X = az => { const f = panoX(az, o.facing, HZ_SPAN); return f === null ? null : f * w; };
+  const Y = alt => panoY(alt, hy);
+  const night = o.sunAlt < -6;
+
+  const sky = g.createLinearGradient(0, 0, 0, hy);
+  sky.addColorStop(0, o.sky.s); sky.addColorStop(0.55, o.sky.m); sky.addColorStop(1, o.sky.h);
+  g.fillStyle = sky; g.fillRect(0, 0, w, hy + 2);
+
+  // Where the Sun is, or went: a glow on the horizon at its bearing, pinned
+  // to the nearer edge when it's out of frame, fading out by full darkness.
+  if (o.sunAlt > -18 && o.sunAlt < 12) {
+    const d = ((o.sun.az - o.facing + 540) % 360) - 180;
+    const sx = Math.max(-0.2, Math.min(1.2, 0.5 + d / HZ_SPAN)) * w;
+    const a = o.sunAlt > 0 ? 0.3 : 0.5 * (1 + o.sunAlt / 18);
+    const glow = g.createRadialGradient(sx, hy, 0, sx, hy, Math.max(w, h) * 0.75);
+    glow.addColorStop(0, `rgba(244,176,98,${a.toFixed(3)})`); glow.addColorStop(1, 'rgba(244,176,98,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, w, hy + 2);
+  }
+  // The Sun itself, while it's up and in frame.
+  if (o.sunAlt > -0.8) {
+    const x = X(o.sun.az);
+    if (x !== null) {
+      const y = Y(Math.max(0, o.sunAlt));
+      const halo = g.createRadialGradient(x, y, 0, x, y, 70);
+      halo.addColorStop(0, 'rgba(255,236,190,.9)'); halo.addColorStop(1, 'rgba(255,236,190,0)');
+      g.fillStyle = halo; g.beginPath(); g.arc(x, y, 70, 0, 7); g.fill();
+      g.fillStyle = '#fff4d6'; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
+    }
+  }
+  // Stars: only those bright enough to see from here right now.
+  o.stars.forEach(s => {
+    const x = X(s.az);
+    if (x === null) return;
+    g.globalAlpha = Math.max(0.3, Math.min(1, 1.05 - s.mag * 0.13));
+    g.fillStyle = '#eef2ff';
+    g.beginPath(); g.arc(x, Y(s.alt), Math.max(0.55, 2.2 - s.mag * 0.34), 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+
+  g.font = '600 12px Inter, system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  const label = (text, x, y, gap) => {
+    const flip = x + gap + g.measureText(text).width > w - 8;
+    g.textAlign = flip ? 'right' : 'left';
+    g.fillStyle = 'rgba(238,241,250,.82)';
+    g.fillText(text, flip ? x - gap : x + gap, y);
+  };
+  o.planets.forEach(p => {
+    const x = X(p.az);
+    if (x === null) return;
+    const y = Y(p.alt);
+    g.fillStyle = '#f0c98a'; g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill();
+    label(p.name, x, y, 9);
+  });
+  if (o.moon.alt > -0.5) {
+    const x = X(o.moon.az);
+    if (x !== null) {
+      const y = Y(Math.max(0, o.moon.alt)), r = Math.max(12, Math.min(22, w * 0.036));
+      if (night) {
+        const halo = g.createRadialGradient(x, y, r * 0.8, x, y, r * (2 + 4 * o.moon.illum));
+        halo.addColorStop(0, `rgba(232,230,223,${(0.08 + 0.22 * o.moon.illum).toFixed(3)})`);
+        halo.addColorStop(1, 'rgba(232,230,223,0)');
+        g.fillStyle = halo; g.beginPath(); g.arc(x, y, r * (2 + 4 * o.moon.illum), 0, 7); g.fill();
+      }
+      // The lit limb faces the Sun.
+      const toSun = ((o.sun.az - o.moon.az + 540) % 360) - 180;
+      drawMoonDisc(g, x, y, r, o.moon.illum, toSun < 0);
+      label('Moon', x, y, r + 7);
+    }
+  }
+  // Ground: buildings where the sky is city-bright, a treeline elsewhere,
+  // the same every visit for the same place.
+  const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
+  g.fillStyle = '#05070d';
+  g.beginPath();
+  g.moveTo(0, h);
+  if (o.bortle >= 6) {
+    let x = 0;
+    while (x < w) {
+      const bw = 12 + rnd() * 34, bh = 8 + rnd() * (rnd() > 0.85 ? 48 : 22);
+      g.lineTo(x, hy - bh); g.lineTo(x + bw, hy - bh);
+      x += bw;
+    }
+  } else {
+    for (let x = 0; x <= w; x += 6) {
+      const hill = 6 + 8 * Math.sin(x / w * 5 + o.lon) + 5 * Math.sin(x / w * 13 + o.lat);
+      g.lineTo(x, hy - hill - rnd() * 9);
+    }
+  }
+  g.lineTo(w, h);
+  g.closePath();
+  g.fill();
+  if (o.bortle >= 6 && o.sunAlt < -2) {
+    for (let i = 0; i < w / 5; i++) {
+      g.fillStyle = `rgba(232,181,99,${(0.2 + rnd() * 0.45).toFixed(2)})`;
+      g.fillRect(rnd() * w, hy - 4 - rnd() * 40, 1.6, 2.2);
+    }
+  }
+  // Settle into the page below, so the text over the ground stays readable.
+  const fade = g.createLinearGradient(0, hy - 30, 0, h);
+  fade.addColorStop(0, 'rgba(5,7,15,0)'); fade.addColorStop(0.45, 'rgba(5,7,15,.78)'); fade.addColorStop(1, 'rgba(5,7,15,.98)');
+  g.fillStyle = fade; g.fillRect(0, hy - 30, w, h - hy + 30);
+
+  // Compass points last, over the ground: drawn before it, the skyline hid
+  // them, and without them the painting is a pretty picture of nowhere.
+  g.font = '600 11px Inter, system-ui, sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (let az = 0; az < 360; az += 45) {
+    const x = X(az);
+    if (x === null || x < 16 || x > w - 16) continue;
+    g.fillStyle = 'rgba(238,241,250,.34)';
+    g.fillRect(x - 0.5, hy + 4, 1, 7);
+    g.fillStyle = 'rgba(238,241,250,.62)';
+    g.fillText(compass16(az), x, hy + 21);
+  }
+}
 /* Two granularities on purpose, not a duplication to merge: the sextant
    window is a planning number where seconds are noise, while the next-event
    countdown is something you watch tick. */
@@ -2447,6 +2716,181 @@ function TwilightBands() {
   }, p.t))));
 }
 
+/* Tonight from sunset to sunrise as one strip: twilight bands in the app's
+   band colours, the Moon's time above the horizon beneath, the darkest
+   stretch outlined, and now marked. Hook-free, so the component tests can
+   render it. */
+function NightRibbon({ plan, now, fmt }) {
+  const span = plan.end - plan.start;
+  const at = t => ((t - plan.start) / span * 100).toFixed(3) + '%';
+  const len = (a, b) => ((b - a) / span * 100).toFixed(3) + '%';
+  const band = { civil: 'var(--band-civil)', naut: 'var(--band-naut)', astro: 'var(--band-astro)', night: 'var(--band-night)' };
+  const small = { fontFamily: 'var(--font-ui)', fontSize: 11.5, color: C.inkFaint, fontVariantNumeric: 'tabular-nums' };
+  return React.createElement('div', { style: { display: 'grid', gap: 6 } },
+    React.createElement('div', { style: { ...small, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' } }, 'Tonight, sunset to sunrise'),
+    React.createElement('div', {
+      role: 'img',
+      'aria-label': `Sunset ${fmt(plan.start)}, ` +
+        (plan.dark ? `fully dark ${fmt(plan.dark.from)} to ${fmt(plan.dark.to)}, ` : 'never fully dark, ') +
+        (plan.darkest ? `darkest ${fmt(plan.darkest.from)} to ${fmt(plan.darkest.to)}, ` : '') +
+        `sunrise ${fmt(plan.end)}`,
+      style: { position: 'relative', height: 30, borderRadius: 9, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.08)' }
+    },
+      plan.bands.map((b, i) => React.createElement('div', {
+        key: i, style: { position: 'absolute', top: 0, bottom: 0, left: at(b.from), width: len(b.from, b.to), background: band[b.kind] }
+      })),
+      plan.darkest && React.createElement('div', {
+        style: { position: 'absolute', top: 2, bottom: 2, left: at(plan.darkest.from), width: len(plan.darkest.from, plan.darkest.to), border: '2px solid var(--accent)', borderRadius: 7, boxSizing: 'border-box' }
+      }),
+      now >= plan.start && now <= plan.end && React.createElement('div', {
+        style: { position: 'absolute', top: 0, bottom: 0, left: at(now), width: 2, marginLeft: -1, background: C.ink }
+      })
+    ),
+    React.createElement('div', { style: { position: 'relative', height: 6 } },
+      plan.moonUp.map((m, i) => React.createElement('div', {
+        key: i, style: { position: 'absolute', top: 1, height: 4, borderRadius: 2, left: at(m.from), width: len(m.from, m.to), background: '#e8e6df', opacity: 0.8 }
+      }))
+    ),
+    React.createElement('div', { style: { ...small, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
+      React.createElement('span', null, 'Sunset ', fmt(plan.start)),
+      React.createElement('span', null,
+        plan.moonUp.length ? '— Moon up   ' : '',
+        plan.darkest ? '▭ Darkest' : ''),
+      React.createElement('span', null, 'Sunrise ', fmt(plan.end))
+    )
+  );
+}
+
+/* Three facts about tonight, flat and separated by hairlines (read-only
+   content gets no boxes; see CLAUDE.md's design rule). */
+function NightFacts({ plan, now, fmt, illum, planets }) {
+  const darkest = !plan ? { v: '—', c: 'No sunset tonight' }
+    : plan.darkest ? { v: `${fmt(plan.darkest.from)}–${fmt(plan.darkest.to)}`, c: 'Fully dark, Moon down' }
+    : plan.dark ? { v: 'Moonlit', c: 'The Moon is up the whole dark stretch' }
+    : { v: 'Never', c: 'Never fully dark tonight' };
+  const moon = { v: `${illum}%`, c: plan ? moonNote(plan, now, fmt) : 'lit' };
+  const top = planets[0];
+  const pl = top
+    ? { v: planets.slice(0, 2).map(p => p.name).join(' · '), c: `${top.name} in the ${compass16(top.az)}, ${top.alt > 40 ? 'high' : top.alt > 18 ? 'well up' : 'low'}` }
+    : { v: 'None', c: 'No bright planets up tonight' };
+  const cell = (k, f, first) => React.createElement('div', {
+    key: k,
+    style: { display: 'grid', gap: 2, alignContent: 'start', padding: first ? '0 12px 0 0' : '0 12px', borderLeft: first ? 'none' : '1px solid var(--line, rgba(255,255,255,.1))' }
+  },
+    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint } }, k),
+    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 17, fontWeight: 600, color: C.ink, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 } }, f.v),
+    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 12, color: C.inkDim, lineHeight: 1.35 } }, f.c)
+  );
+  return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } },
+    cell('Darkest', darkest, true), cell('Moon', moon), cell('Planets', pl));
+}
+
+/* The top of the Console in the horizon preview: the painted sky with the
+   verdict over its ground, then the ribbon and the facts. */
+function HorizonHero({ loc, now, live, glance, bortle }) {
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const [width, setWidth] = useState(390);
+  const [catalog, setCatalog] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadStarCatalog().then(c => { if (alive) setCatalog(c); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    const el = wrapRef.current;
+    const measure = () => { const w = el && el.getBoundingClientRect().width; if (w) setWidth(Math.round(w)); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  const fmt = t => fmtT(t, loc.tz);
+  const tenMin = Math.floor(now / 600000);
+  const minute = Math.floor(now / 60000);
+  // Tonight, recomputed every ten minutes: sunset-to-sunrise events from a
+  // window wide enough to hold the night we're in or the next one.
+  const plan = useMemo(() => {
+    const sunEv = scanCrossings(now - 20 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2);
+    const span = nightSpan(sunEv, now);
+    if (!span) return null;
+    const moonAlt = (d, la, lo) => moonState(d, la, lo).alt;
+    const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAlt, MOON_THR, 4);
+    return nightPlan(span, sunEv, moonEv, moonAlt(new Date(span.start), loc.lat, loc.lon) > -0.833);
+  }, [tenMin, loc.lat, loc.lon]);
+  // Planets worth a look tonight: those up once it's dark, or now if later.
+  const planetsTonight = useMemo(() => {
+    const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
+    const d = new Date(Math.max(now, dusk));
+    return ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury']
+      .map(n => ({ name: n, ...(planetAltAz(n, d, loc.lat, loc.lon) || {}) }))
+      .filter(p => p.alt > 8)
+      .sort((a, b) => b.alt - a.alt);
+  }, [tenMin, loc.lat, loc.lon, plan]);
+  // What's in the sky this minute.
+  const scene = useMemo(() => {
+    const d = new Date(now);
+    const stars = [];
+    if (live.alt < -3) {
+      const add = (ra, dec, mag) => {
+        if (mag > live.mag) return;
+        const p = starHcZn(ra, dec, loc.lat, loc.lon, d);
+        if (p.alt > 0) stars.push({ az: p.az, alt: p.alt, mag });
+      };
+      NAV_STARS.forEach(s => add(s[1] * 15, s[2], s[3]));
+      (catalog || []).forEach(s => add(s.ra, s.dec, s.mag));
+    }
+    return {
+      sun: sunHcZn(d, loc.lat, loc.lon),
+      stars,
+      planets: ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury']
+        .map(n => ({ name: n, ...(planetAltAz(n, d, loc.lat, loc.lon) || {}) }))
+        .filter(p => p.alt > 0)
+    };
+  }, [minute, loc.lat, loc.lon, catalog, live]);
+  const H = width < 560 ? 380 : 420;
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(width * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = width + 'px'; cv.style.height = H + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawHorizonScene(g, width, H, {
+      sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
+      facing: heroFacing(loc.lat, live.m), stars: scene.stars, planets: scene.planets,
+      bortle, lat: loc.lat, lon: loc.lon
+    });
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon]);
+
+  const pad = 'clamp(14px,3.5vw,40px)';
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', {
+      ref: wrapRef,
+      style: { position: 'relative', height: H, margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 18px` }
+    },
+      React.createElement('canvas', {
+        ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H },
+        'aria-hidden': 'true'
+      }),
+      React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto' } },
+        React.createElement('div', {
+          style: { fontFamily: 'var(--font-ui)', fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(238,241,250,.72)', fontVariantNumeric: 'tabular-nums' }
+        }, heroLabel(plan, now, live.alt, fmt)),
+        React.createElement('h2', {
+          style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(32px, 8vw, 46px)', lineHeight: 1.02, margin: '4px 0 6px', color: C.ink, textWrap: 'balance' }
+        }, glance.head),
+        React.createElement('p', {
+          style: { fontFamily: 'var(--font-ui)', fontSize: 14, color: C.inkDim, margin: 0, maxWidth: '44ch' }
+        }, glance.sub)
+      )
+    ),
+    React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
+      plan && React.createElement(NightRibbon, { plan, now, fmt }),
+      React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight })
+    )
+  );
+}
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -2785,6 +3229,7 @@ function RealtimeTwilight({ redMode } = {}) {
       animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
     }
   }))),
+  HORIZON_PREVIEW && React.createElement(HorizonHero, { loc, now, live, glance, bortle }),
   React.createElement("header", {
     style: {
       maxWidth: 1080,
@@ -5981,7 +6426,7 @@ function TwilightApp() {
         --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
       }
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
-      .tw-stars,.rt-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
+      .tw-stars,.rt-sky,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
     installPrompt && !installDismissed && React.createElement("div", {
       style: {
