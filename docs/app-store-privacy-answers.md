@@ -2,16 +2,37 @@
 
 Reference sheet for filling out the "App Privacy" (Apple) and "Data safety"
 (Google) forms when submitting Twilight. These are grounded in exactly what
-`index.html` and `native/` do as of this writing (July 2026) — re-check
-against the code if data flows change before you submit. Store forms get
-reworded over time; match by meaning, not by exact wording below.
+`index.html` and `native/` do as of this writing (July 2026; visit counter
+added September 2026) — re-check against the code if data flows change
+before you submit. Store forms get reworded over time; match by meaning, not
+by exact wording below.
 
 The underlying facts driving every answer here: no accounts, no ads, no
 analytics SDK, no cookies. The only data that leaves the device is (a)
-coordinates sent to Open-Meteo for weather/place-search, and (b) — native
-app only — an anonymous RevenueCat install ID + purchase receipt for IAP
-verification. See `/privacy.html` for the human-readable version of this
-same information.
+coordinates sent to Open-Meteo for weather/place-search, (b) — native app
+only — an anonymous RevenueCat install ID + purchase receipt for IAP
+verification. The website also sends a request to the visit counter, which
+keeps a salted hash of the requester's IP address for 24 hours, but the apps
+never do (below), so the counter is not part of either store's answers. See
+`/privacy.html` for the human-readable version of this same information.
+
+### The visit counter is website-only — nothing to declare for it
+
+`pingVisitorCounter` in `index.html` returns immediately when
+`window.Capacitor` is present (the same check `sw.js` registration uses), so
+the iOS and Android apps never contact the counter Worker and store nothing
+for it. Added September 2026 (#70) for a specific reason, reasoned from the
+code rather than observed on a device: before the guard, the apps' page
+origin (`capacitor://localhost`, `https://localhost`) wasn't on the Worker's
+CORS allow-list, so the count could never show in the apps — yet a plain GET
+needs no preflight, so every launch still reached the Worker and was counted,
+with a salted IP hash kept for 24 hours. That would have been data collected
+for a feature the apps don't have, and it would have had to be declared.
+
+**If the guard is ever removed**, the apps collect again and both forms need
+a declaration. What to declare is recorded under each store below, so the
+reasoning doesn't have to be redone. The pre-submission checklist includes
+confirming the guard is still there.
 
 ## Apple App Store Connect — "App Privacy"
 
@@ -45,7 +66,22 @@ Used for Tracking / App Functionality — some reviewers expect purchase
 verification IDs listed under both Purchases and Identifiers. Either
 approach is consistent with what the code actually does.
 
-### 3. Camera — *not* a data-collection declaration
+### 3. Visit counter — *not* a data-collection declaration
+
+The apps never contact the counter (see the top of this doc), so under
+**Usage Data** answer **No**.
+
+*Only if the `window.Capacitor` guard is ever removed:* declare **Usage Data
+→ Product Interaction**: Collected / Not Linked / Not Used for Tracking /
+**Analytics**. It counts as collected because Apple's threshold is data kept
+longer than needed to answer the request in real time, and the Worker keeps
+the salted IP hash for 24 hours. It's not linked, because the hash is salted,
+expires in 24 hours, and is tied to nothing else. Analytics is the
+conservative purpose, since counting visits measures audience size.
+Optionally also declare **Identifiers → Device ID** with the same answers,
+for the hash itself.
+
+### 4. Camera — *not* a data-collection declaration
 
 Sky View can show the live rear-camera feed behind the star overlay
 (`getUserMedia`, off by default). Nothing is recorded, stored, or
@@ -105,6 +141,18 @@ Path: Play Console → your app → App content → Data safety.
 - **Users can request deletion:** Not applicable — no account exists to
   delete; RevenueCat's own data-deletion process applies if a user asks
 
+### Visit counter — *not* a data-collection declaration
+
+The apps never contact the counter, so under **App activity** answer **No**.
+
+*Only if the `window.Capacitor` guard is ever removed:* declare **App
+activity → App interactions**: Collected; not shared, because Cloudflare runs
+the Worker as a service provider and Play doesn't count that as sharing; not
+processed ephemerally, since the hash is kept 24 hours; required; purpose
+**Analytics**. No deletion request is needed, because the hash deletes itself
+after 24 hours and the total holds no per-user data. Optionally also declare
+**Device or other IDs**, the same way as on Apple's form.
+
 ### Camera — *not* a data-collection declaration
 
 Same reasoning as Apple above: Sky View's optional viewfinder never records
@@ -151,6 +199,12 @@ document/CCATS filing.
 
 - If `RC_KEYS` is still empty (IAP inert) at submission time, drop the
   Purchases / Identifiers declarations above and revisit once a key is set.
+- Confirm `pingVisitorCounter` in `index.html` still returns when
+  `window.Capacitor` is present (`visitor-counter.test.js` checks this). The
+  "not collected" answers for Usage Data (Apple) and App activity (Google)
+  depend on it. If the guard has been removed, use the declarations recorded
+  under each store, and check the TTL in `worker/src/index.js` still says 24
+  hours.
 - If a future feature adds a new third-party call (e.g. push notifications
   for Alerts), it needs its own row here and in `/privacy.html` before that
   version ships — check `connect-src` in the CSP meta tag in `index.html`,
