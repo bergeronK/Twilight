@@ -309,6 +309,14 @@ things a syntax check cannot see:
   iOS tipping past vertical, the representation switch at gamma = ±90.
 - **`orient-lib.js`** — not a test; extracts the whole orientation pipeline
   in one piece for the three suites above.
+- **`planets.test.js`** — `planetAltAz` against dated events rather than
+  against itself: at published oppositions (Saturn 2024-09-08 and 2025-09-21,
+  Jupiter 2024-12-07 and 2026-01-10, Mars 2025-01-16) each planet must be
+  opposite the Sun, and Venus beside it at the 2025-03-23 inferior
+  conjunction. Until 2026-09-22 the orbital-element code subtracted the node
+  twice (`v + w - O` with Schlyter's argument of perihelion) and every planet
+  was tens of degrees off — Saturn ~114° along the ecliptic — on the Console,
+  in Sky View and in the planet count, and no test compared it with the sky.
 - **`sight-reduction.test.js`** — Hs→Ho corrections and, importantly, the
   v1.6 guards: below-horizon, near-zenith, weak-low and blunder-sized
   intercepts.
