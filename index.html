@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-N8uKLJC+A8FuYj138QeAURUq8GWjZhRw31xJjho4t0w=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Jg/rqnS63E511dYkN8+DDrRuY8bGAXdefpOHzlAqMOc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -54,7 +54,7 @@
     /* ink */
     --ink:#eae7e0;           /* primary text (warm white) */
     --ink-dim:#a09a8f;       /* secondary text */
-    --ink-faint:#7d766a;     /* tertiary text (AA-safe on --bg) */
+    --ink-faint:#888174;     /* tertiary text: 4.6:1 on the lightest panel, 5.0 on --bg (was #7d766a, 4.3, under AA) */
     /* accent — brass, reserved for data that matters */
     --accent:#d2a04d;
     --accent-hi:#e5ba6e;
@@ -135,8 +135,11 @@
     position:absolute; width:1px; height:1px; margin:-1px; padding:0;
     overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
   }
+  /* !important: several fields set outline:none inline, and an inline style
+     beats any stylesheet rule that isn't important, which left keyboard
+     focus invisible on them. */
   :where(button,a,input,select,[tabindex]):focus-visible{
-    outline:2px solid var(--accent-hi);
+    outline:2px solid var(--accent-hi) !important;
     outline-offset:2px;
     border-radius:6px;
   }
@@ -1315,7 +1318,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v103";
+const BUILD = "v106";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3860,8 +3863,9 @@ function RealtimeTwilight({ redMode } = {}) {
     setPickerOpen(open);
     if (!open) { setResults([]); setQuery(""); setSearchMsg(""); }
   };
+  // The place is the Console's heading: what a screen reader lists first.
   const placeHeader = React.createElement("div", null,
-    React.createElement("button", {
+    React.createElement("h1", { style: { margin: 0, font: "inherit" } }, React.createElement("button", {
       onClick: togglePicker,
       "aria-expanded": pickerOpen,
       "aria-controls": "rt-place-panel",
@@ -3877,7 +3881,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }, loc.name,
       React.createElement("svg", { "aria-hidden": "true", width: 14, height: 14, viewBox: "0 0 14 14", style: { flexShrink: 0, transform: pickerOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } },
         React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
-    ),
+    )),
     React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
     }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
@@ -4507,6 +4511,17 @@ function fmtLocal(utcMin, offMin) {
   let h12 = h % 12;
   if (h12 === 0) h12 = 12;
   return h12 + ":" + pad2(mn) + " " + ap + tag;
+}
+/* The Ephemeris chart in words, for a screen reader: the day's Sun and
+   darkness from the same figures the table shows. `fmt(utcMin)` formats a
+   time as the tab does. */
+function daySummary(day, lat, fmt, darkStart, darkEnd) {
+  const high = Math.round(90 - Math.abs(lat - day.p.decl));
+  let s = 'The Sun\u2019s height through the day. ';
+  if (day.sunrise.none === 'above') s += 'It stays up all day, highest at ' + high + '\u00b0 around ' + fmt(day.noon) + '. ';
+  else if (day.sunrise.none === 'below') s += 'It stays below the horizon all day. ';
+  else s += 'It rises at ' + fmt(day.sunrise.utc) + ', is highest at ' + high + '\u00b0 around ' + fmt(day.noon) + ', and sets at ' + fmt(day.sunset.utc) + '. ';
+  return s + (darkStart != null ? 'Fully dark from ' + fmt(darkStart) + ' to ' + fmt(darkEnd) + '.' : 'It never gets fully dark.');
 }
 function durStr(mins) {
   if (mins == null) return "\u2014";
@@ -5148,6 +5163,7 @@ function TwilightEphemeris({ redMode } = {}) {
       marginBottom: 10
     }
   }, /*#__PURE__*/React.createElement("select", {
+    "aria-label": "What to export",
     value: icalMode,
     onChange: e => setIcalMode(e.target.value),
     style: {
@@ -5224,11 +5240,11 @@ function TwilightEphemeris({ redMode } = {}) {
   },
     /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { style: labelSt }, "Latitude"),
-      /*#__PURE__*/React.createElement("input", { style: inputSt, value: lat, onChange: e => { goManual(); setPlaceName(null); setLat(e.target.value); } })
+      /*#__PURE__*/React.createElement("input", { "aria-label": "Latitude", style: inputSt, value: lat, onChange: e => { goManual(); setPlaceName(null); setLat(e.target.value); } })
     ),
     /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { style: labelSt }, "Longitude"),
-      /*#__PURE__*/React.createElement("input", { style: inputSt, value: lon, onChange: e => { goManual(); setPlaceName(null); setLon(e.target.value); } })
+      /*#__PURE__*/React.createElement("input", { "aria-label": "Longitude", style: inputSt, value: lon, onChange: e => { goManual(); setPlaceName(null); setLon(e.target.value); } })
     )
   ),
   /*#__PURE__*/React.createElement("button", {
@@ -5243,13 +5259,13 @@ function TwilightEphemeris({ redMode } = {}) {
   },
     /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { style: labelSt }, "Date"),
-      /*#__PURE__*/React.createElement("input", { type: "date", style: inputSt, value: dateStr, onChange: e => setDateStr(e.target.value) })
+      /*#__PURE__*/React.createElement("input", { type: "date", "aria-label": "Date", style: inputSt, value: dateStr, onChange: e => setDateStr(e.target.value) })
     ),
     /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { style: labelSt }, "UTC offset (hrs)"),
       /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "stretch", marginTop: 6 } },
         /*#__PURE__*/React.createElement("input", {
-          type: "number", step: "0.25",
+          type: "number", step: "0.25", "aria-label": "UTC offset in hours",
           style: { ...inputSt, marginTop: 0, flex: 1, minWidth: 0 },
           value: zone ? zone.std / 60 : offset,
           onChange: e => { goManual(); setOffset(e.target.value === "" ? 0 : Number(e.target.value)); }
@@ -5340,6 +5356,8 @@ function TwilightEphemeris({ redMode } = {}) {
     }
   }, "Latitude must be \u226490\xB0 and longitude \u2264180\xB0.") : /*#__PURE__*/React.createElement("svg", {
     ref: svgRef,
+    role: "img",
+    "aria-label": today ? daySummary(today, latN, m => fmtLocal(m, offMin), darkStart, darkEnd) : "The Sun\u2019s height through the day.",
     viewBox: `0 0 ${W} ${H}`,
     style: {
       width: "100%",
@@ -5613,7 +5631,8 @@ function TwilightEphemeris({ redMode } = {}) {
       )
     )
   )
-  , /*#__PURE__*/React.createElement("footer", {
+  // A plain block, not a <footer>: the page has one footer, at the bottom.
+  , /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 28,
       font: "11px var(--font-ui)",
@@ -5976,6 +5995,17 @@ function edgePoint(angle, w, h, inset) {
     Math.abs(dy) > 1e-9 ? (h / 2 - inset) / Math.abs(dy) : Infinity);
   return { x: w / 2 + dx * t, y: h / 2 + dy * t };
 }
+/* What Sky View shows, in words, for a screen reader: where it looks and
+   the brightest named things in frame (the Moon and planets first, then
+   stars by brightness), at most five. */
+function skyViewSummary(centre, inView) {
+  const where = 'Looking ' + (centre.alt >= 75 ? 'almost straight up' : 'toward the ' + compassWord(centre.az) + ', ' + Math.round(centre.alt) + '\u00b0 up') + '. ';
+  const rank = b => (b.kind === 'moon' ? -100 : b.kind === 'planet' ? -50 : b.mag);
+  const names = inView.filter(b => b.name && b.kind !== 'sun' && b.alt >= 0).sort((a, b) => rank(a) - rank(b)).slice(0, 5).map(b => theName(b.name));
+  if (!names.length) return where + 'Nothing bright in view.';
+  const list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  return where + 'In view: ' + list + '.';
+}
 /* The Stars tab's opening picture: Sky View itself, drawn with the same
    painter, looking toward the equator 35° up (where the Console's painting
    faces too), redrawn once a minute. The whole picture is the button that
@@ -6163,6 +6193,21 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const guide = findGuide(centre, target);
   const found = !!(guide && guide.on);
   const findGroups = useMemo(() => findOpen ? findList(bodies, names) : [], [findOpen, bodies, names]);
+  // The picture in words, for a screen reader: the named bodies in frame.
+  const summary = skyViewSummary(centre, bodies.filter(b => (b.kind !== 'star' || b.nav || (b.name && b.mag <= 2)) && (() => {
+    const p = skyProject(toScreen(basis, b.az, b.alt), size.w, size.h, fov);
+    return p && p.x >= 0 && p.x <= size.w && p.y >= 0 && p.y <= size.h;
+  })()));
+  // A dialog: focus goes to Back on opening and returns to whatever opened
+  // it on closing, and Escape closes it.
+  const backRef = useRef(null);
+  useEffect(() => {
+    const before = document.activeElement;
+    if (backRef.current) backRef.current.focus();
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); if (before && before.focus) before.focus(); };
+  }, []);
   // Arriving on it: said once to a screen reader, and a short buzz where the
   // phone can (Android; iOS has no web vibration).
   const [foundSay, setFoundSay] = useState('');
@@ -6231,6 +6276,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     ref: wrapRef,
     // Above the tab bar (100) and its menu (200): Sky View is immersive and
     // owns the screen until its own Back button is tapped.
+    role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sky View',
     style: { position: 'fixed', inset: 0, zIndex: 300, background: '#05070f', overscrollBehavior: 'none', touchAction: 'none' },
     onMouseDown: onDown, onMouseMove: onMove, onMouseUp: onUp,
     // Leaving the element cancels the gesture rather than counting as a tap.
@@ -6242,13 +6288,13 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       ref: videoRef, playsInline: true, muted: true, autoPlay: true,
       style: { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
     }),
-    React.createElement('canvas', { ref: canvasRef, style: { position: 'absolute', inset: 0 } }),
+    React.createElement('canvas', { ref: canvasRef, role: 'img', 'aria-label': summary, style: { position: 'absolute', inset: 0 } }),
     // Top bar
     React.createElement('div', {
       ...keepTap,
       style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
     },
-      React.createElement('button', { onClick: onClose, style: chip }, '← Back'),
+      React.createElement('button', { ref: backRef, onClick: onClose, style: chip }, '← Back'),
       React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
       React.createElement('button', {
         onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines,
@@ -6985,48 +7031,48 @@ function StarFinder({ redMode } = {}) {
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", navLabelSt, "Body"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
+          ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, "aria-pressed": sightBody === b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
         )
       ),
       sightBody === "star" && React.createElement("div", { style: { flex: "1 1 160px", minWidth: 140 } },
         React.createElement("div", navLabelSt, "Star"),
         React.createElement("select", {
-          value: sightStarName, onChange: e => setSightStarName(e.target.value), style: { ...navInputSt, cursor: "pointer" }
+          "aria-label": "Star", value: sightStarName, onChange: e => setSightStarName(e.target.value), style: { ...navInputSt, cursor: "pointer" }
         }, NAV_STARS.slice().sort((a, b) => a[0].localeCompare(b[0])).map(s => React.createElement("option", { key: s[0], value: s[0] }, s[0])))
       ),
       (sightBody === "sun" || sightBody === "moon") && React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", navLabelSt, "Limb"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          ["lower", "upper"].map(l => React.createElement("button", { key: l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
+          ["lower", "upper"].map(l => React.createElement("button", { key: l, "aria-pressed": sightLimb === l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
         )
       ),
       React.createElement("div", { style: { flex: "1 1 180px", minWidth: 160 } },
         React.createElement("div", navLabelSt, "Sight time"),
-        React.createElement("input", { type: "datetime-local", value: sightTime, onChange: e => setSightTime(e.target.value), style: navInputSt })
+        React.createElement("input", { type: "datetime-local", "aria-label": "Sight time", value: sightTime, onChange: e => setSightTime(e.target.value), style: navInputSt })
       )
     ),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 90px" } },
         React.createElement("div", navLabelSt, "Hs deg"),
-        React.createElement("input", { type: "number", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
+        React.createElement("input", { type: "number", "aria-label": "Hs, degrees", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
       ),
       React.createElement("div", { style: { flex: "0 0 90px" } },
         React.createElement("div", navLabelSt, "Hs min"),
-        React.createElement("input", { type: "number", step: "0.1", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
+        React.createElement("input", { type: "number", step: "0.1", "aria-label": "Hs, minutes", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
       ),
       React.createElement("div", { style: { flex: "0 0 120px" } },
         React.createElement("div", navLabelSt, "Height of eye (m)"),
-        React.createElement("input", { type: "number", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
+        React.createElement("input", { type: "number", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 100px" } },
         React.createElement("div", navLabelSt, "Index error '"),
-        React.createElement("input", { type: "number", step: "0.1", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
+        React.createElement("input", { type: "number", step: "0.1", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", navLabelSt, "Index error is"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          React.createElement("button", { style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
-          React.createElement("button", { style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
+          React.createElement("button", { "aria-pressed": sightIeOnArc, style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
+          React.createElement("button", { "aria-pressed": !sightIeOnArc, style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
         )
       )
     ),
@@ -7431,6 +7477,7 @@ function TwilightApp() {
       .tw-stars,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
     installPrompt && !installDismissed && React.createElement("div", {
+      role: "region", "aria-label": "Install Twilyte",
       style: {
         background: "var(--surface)",
         borderBottom: "1px solid var(--line)",
@@ -7454,7 +7501,7 @@ function TwilightApp() {
         style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 16, cursor: "pointer", padding: "2px 6px" }
       }, "✕")
     ),
-    React.createElement("div", {
+    React.createElement("header", {
       style: {
         background: "var(--bg)",
         borderBottom: "1px solid var(--line)",
@@ -7666,6 +7713,7 @@ function TwilightApp() {
       }, shared ? "Copied!" : "Share")
     ),
     !hintDismissed && React.createElement("div", {
+      role: "region", "aria-label": "Tip",
       style: {
         display: "flex", alignItems: "center", gap: 10,
         padding: "8px 16px", fontFamily: "var(--font-ui)", fontSize: 12,
@@ -7690,9 +7738,9 @@ function TwilightApp() {
         style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 15, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }
       }, "✕")
     ),
-    React.createElement("div", {
+    React.createElement("main", {
       key: activeTab,
-      style: { animation: "tabFade 0.25s ease" },
+      style: { display: "block", animation: "tabFade 0.25s ease" },
       onTouchStart: handleTouchStart,
       onTouchEnd: handleTouchEnd
     },
