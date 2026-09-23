@@ -287,6 +287,18 @@ Three tabs, one `index.html`, no build step:
   brings its own IANA zone, and if the date shown was today it moves to the
   new place's today (it can already be tomorrow there). It does not write
   `tw_loc` — the Console's saved place stays the Console's.
+- **Ephemeris: golden and blue hours, moonrise and moonset (2026-09-24).**
+  Under the times, two flat sections for the date shown:
+  - **For photographers**, from `photoWindows(lat, lon, p)`. Golden hour is
+    the Sun from 4° below to 6° up; blue hour is 6° to 4° below. The
+    sub-lines say so, since definitions vary between sources.
+  - **The Moon**, from `moonRiseSet(lat, lon, startMs)`: the Console's
+    topocentric `moonAltSeen` scanned over the local day, plus % lit.
+    "No moonrise today" happens about once a month, which is real, not a
+    bug.
+  - The CSV export gains six columns, and iCal a "photography" mode.
+  - `computeDay` is untouched, so `twilight-calc.js` and the city pages
+    need no port. `ephemeris-extras.test.js`.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the
@@ -695,6 +707,13 @@ things a syntax check cannot see:
   `edgePoint`, a picked constellation drawn amber and named once, and at
   source level that `aimTarget` resolves Sky View's picks and is declared
   after what it reads.
+- **`ephemeris-extras.test.js`** — golden and blue hours against geometry
+  that doesn't depend on the code: 40 and 8 minutes at the equator on an
+  equinox, longer at a slant; windows that can't happen far north in
+  midsummer and midwinter. Moonrise and moonset against the 26 Sep 2026
+  full Moon (rises with sunset, sets with sunrise), the Moon's height at the
+  minute given, the next day's later rise, and a month with a moonless day.
+  The CSV and the photography iCal are run from source.
 - **`share-card.test.js`** — the share picture carries place, time,
   label, verdict, highlight and address; the painting is drawn scaled;
   long names and verdicts wrap inside the margins and clear the address;
