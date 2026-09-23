@@ -408,6 +408,17 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   every synthetic test agreed with the assumption because they all built
   their heading out of it.** Two of them literally constructed the heading
   from the top axis; they were rewritten, not patched.
+- **iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
+  A third iPhone reading (42.11, -72.54, declination 13.3° W; Moon at az 120,
+  alt 12; `webkitCompassHeading` 125) drew the Moon 6° left of the real one.
+  Treating iOS as magnetic and applying declination would make it 7° out the
+  other way, and the confirmed earlier reading 8.5° out, so the true-north
+  assumption stays; the residual 5-6° is ordinary phone-compass error.
+  The fix is the user's Align, which Sky View now carries itself (bottom
+  row once a body is picked: "Put the real one in the ring, then Align",
+  plus Reset), wired to the same `alignHere` as Aim Assist. Sensor details
+  also shows iOS's `webkitCompassAccuracy`. The reading is in
+  `fusion.test.js` as the third `IPHONE` sample.
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
