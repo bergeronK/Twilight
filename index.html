@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gON9aYO7l+htbMl6lWzjhBm9l0rKM9/ziz56ZDxGvWo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-N8uKLJC+A8FuYj138QeAURUq8GWjZhRw31xJjho4t0w=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1315,7 +1315,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v101";
+const BUILD = "v103";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -5784,7 +5784,8 @@ function drawSkyView(g, w, h, o) {
     // label the figures without reading as bodies. Drawn under the bodies,
     // so a star's own label always wins.
     if (names && names.length) {
-      const spots = constellationLabelSpots(names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, o.clearTop === undefined ? 72 : o.clearTop, o.clearBottom === undefined ? 76 : o.clearBottom);
+      // The picked constellation is named in amber below, not twice.
+      const spots = constellationLabelSpots(targetName ? names.filter(c => c.name !== targetName) : names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, o.clearTop === undefined ? 72 : o.clearTop, o.clearBottom === undefined ? 76 : o.clearBottom);
       g.font = '500 10.5px Inter, system-ui, sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
@@ -5796,6 +5797,22 @@ function drawSkyView(g, w, h, o) {
         g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
       });
       g.textBaseline = 'alphabetic';
+    }
+  }
+
+  // A constellation picked in Find: its figure in the target's amber, even
+  // with Lines off, and its name, so the shape itself is what you find.
+  const tc = targetName && names && lines && names.find(c => c.name === targetName && c.id);
+  if (tc) {
+    g.strokeStyle = 'rgba(232,181,99,.85)'; g.lineWidth = 2; g.lineCap = 'round';
+    constellationSegments(lines.filter(l => l.id === tc.id), (az, alt) => proj(toScreen(basis, az, alt)), 5).forEach(sg => {
+      g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+    });
+    const lp = proj(toScreen(basis, tc.az, tc.alt));
+    if (lp) {
+      g.font = '600 12px Inter, system-ui, sans-serif'; g.textAlign = 'center'; g.fillStyle = '#e8b563';
+      // Above its middle, so on arrival it sits over the ring, not in it.
+      g.fillText(tc.name, lp.x, lp.y - 26);
     }
   }
 
@@ -5893,6 +5910,72 @@ function screenDir(basis, px, py, w, h, fov) {
   const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
   return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
 }
+/* ---- Find it: Sky View's guide to one thing in the sky ----
+   Words for a direction, for people who don't think in degrees. */
+const COMPASS_WORDS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+function compassWord(az) { return COMPASS_WORDS[Math.round(rev(az) / 45) % 8]; }
+function whereWords(az, alt) {
+  if (alt >= 75) return 'almost overhead';
+  return (alt < 20 ? 'low in the ' : alt < 50 ? 'in the ' : 'high in the ') + compassWord(az);
+}
+// What the Find list offers: only what is up now (3° clear of the horizon;
+// constellations 10°, measured at their label), in four groups. The Sun is
+// left out on purpose: nobody should be steered into looking at it.
+const PLANET_ORDER = ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury'];
+function findList(bodies, names) {
+  const up = b => b.alt >= 3;
+  const item = b => ({ name: b.name, where: whereWords(b.az, b.alt) });
+  const moon = bodies.filter(b => b.kind === 'moon' && up(b));
+  const planets = bodies.filter(b => b.kind === 'planet' && up(b))
+    .sort((a, b) => PLANET_ORDER.indexOf(a.name) - PLANET_ORDER.indexOf(b.name));
+  const stars = bodies.filter(b => b.kind === 'star' && b.name && b.mag <= 1.5 && up(b))
+    .sort((a, b) => a.mag - b.mag);
+  const cons = (names || []).filter(c => c.rank === 1 && c.alt >= 10)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [
+    { title: 'Moon and planets', items: moon.concat(planets).map(item) },
+    { title: 'Brightest stars', items: stars.map(item) },
+    { title: 'Constellations', items: cons.map(item) }
+  ].filter(g => g.items.length);
+}
+// The thing picked, whatever it is: a body, or a constellation (aimed at its
+// label point, the middle of the figure).
+function findTarget(name, bodies, names) {
+  if (!name) return null;
+  const b = bodies.find(x => x.name === name);
+  if (b) return b;
+  const c = (names || []).find(x => x.name === name);
+  return c ? { name: c.name, az: c.az, alt: c.alt, kind: 'const', id: c.id } : null;
+}
+/* How to move from where the view is pointed (`centre`, {az, alt}) to the
+   target, in words. `on` within 4°, about the reticle's ring on a phone.
+   Turn is along the horizon, tilt is up or down; either is left out when it
+   is under 3°, so the last few degrees read "Tilt up 5°", not "Turn left 1°
+   and tilt up 5°". */
+const theName = n => (n === 'Moon' || n === 'Sun' ? 'the ' + n : n);
+const capFirst = s => s[0].toUpperCase() + s.slice(1);
+function findGuide(centre, t) {
+  if (!centre || !t) return null;
+  if (t.alt < 0) return { on: false, below: true, text: capFirst(theName(t.name) + ' is below the horizon now.') };
+  const turn = ((t.az - centre.az + 540) % 360) - 180, tilt = t.alt - centre.alt;
+  if (sepAltAz(centre, t) < 4) return { on: true, turn, tilt, text: 'That\u2019s ' + theName(t.name) + ', in the ring.' };
+  const parts = [];
+  // Looking almost straight up, turning is meaningless: every bearing is
+  // a small step away. Just tilt down toward it.
+  if (Math.abs(turn) >= 3 && centre.alt < 80) parts.push('turn ' + (turn > 0 ? 'right ' : 'left ') + Math.round(Math.abs(turn)) + '°');
+  if (Math.abs(tilt) >= 3) parts.push('tilt ' + (tilt > 0 ? 'up ' : 'down ') + Math.round(Math.abs(tilt)) + '°');
+  const s = parts.join(' and ') || 'nearly there';
+  return { on: false, turn, tilt, text: capFirst(s) + '.' };
+}
+/* Where an arrow pointing at `angle` (degrees clockwise from straight up)
+   meets the screen's edge, `inset` px in. */
+function edgePoint(angle, w, h, inset) {
+  const dx = sin(angle), dy = -cos(angle);
+  const t = Math.min(
+    Math.abs(dx) > 1e-9 ? (w / 2 - inset) / Math.abs(dx) : Infinity,
+    Math.abs(dy) > 1e-9 ? (h / 2 - inset) / Math.abs(dy) : Infinity);
+  return { x: w / 2 + dx * t, y: h / 2 + dy * t };
+}
 /* The Stars tab's opening picture: Sky View itself, drawn with the same
    painter, looking toward the equator 35° up (where the Console's painting
    faces too), redrawn once a minute. The whole picture is the button that
@@ -5965,6 +6048,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
+  const [findOpen, setFindOpen] = useState(false);
   const [size, setSize] = useState({ w: 360, h: 640 });
   // The overlay whose box the canvas fills, and therefore the box the
   // projection has to be computed for.
@@ -6064,7 +6148,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
-  const target = bodies.find(b => b.name === targetName);
+  const target = findTarget(targetName, bodies, names);
   let offscreen = null;
   if (target) {
     const d = toScreen(basis, target.az, target.alt);
@@ -6073,6 +6157,20 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       offscreen = (atan2(d.x, d.y) + 360) % 360; // direction to swing, in screen plane
     }
   }
+  // Where the middle of the screen is looking, and how to get from there to
+  // the target, in words.
+  const centre = screenDir(basis, size.w / 2, size.h / 2, size.w, size.h, fov);
+  const guide = findGuide(centre, target);
+  const found = !!(guide && guide.on);
+  const findGroups = useMemo(() => findOpen ? findList(bodies, names) : [], [findOpen, bodies, names]);
+  // Arriving on it: said once to a screen reader, and a short buzz where the
+  // phone can (Android; iOS has no web vibration).
+  const [foundSay, setFoundSay] = useState('');
+  useEffect(() => {
+    if (!found) return;
+    setFoundSay('That\u2019s ' + theName(targetName) + '.');
+    if (live && navigator.vibrate) { try { navigator.vibrate(30); } catch (e) {} }
+  }, [found, targetName]);
 
   // Tap a body to identify it — the point of pointing your phone at the sky
   // is asking "what is that?", and until now the only way to name something
@@ -6156,13 +6254,47 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines,
         style: { ...chip, ...(showLines ? chipOn : {}) }
       }, 'Lines'),
+      React.createElement('button', {
+        onClick: () => { setFindOpen(v => !v); if (diag && diag.open) diag.onToggle(); }, 'aria-expanded': findOpen,
+        style: { ...chip, ...(findOpen ? chipOn : {}) }
+      }, 'Find'),
       diag && React.createElement('button', {
-        onClick: diag.onToggle, 'aria-expanded': diag.open,
+        onClick: () => { setFindOpen(false); diag.onToggle(); }, 'aria-expanded': diag.open,
         style: { ...chip, ...(diag.open ? chipOn : {}) }
       }, 'Sensors'),
-      targetName && React.createElement('span', {
-        style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, color: '#e8b563', padding: '8px 4px' }
-      }, targetName)
+      targetName && React.createElement('button', {
+        onClick: () => onPick && onPick(null), 'aria-label': 'Stop finding ' + targetName,
+        style: { ...chip, ...chipOn, background: 'rgba(10,12,20,.5)' }
+      }, targetName + ' \u00d7'),
+      // The Find list: what's up now, in plain words, one tap to be guided to
+      // it. The bar's last row, so it sits under the buttons however many
+      // rows they wrap to.
+      findOpen && React.createElement('div', {
+        style: {
+          flexBasis: '100%', boxSizing: 'border-box',
+          maxWidth: 420, maxHeight: '58vh', overflowY: 'auto',
+          padding: '6px 12px 10px', borderRadius: 10,
+          background: 'rgba(10,12,20,.9)', border: '1px solid rgba(255,255,255,.14)',
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#eef2ff', fontFamily: 'var(--font-ui)'
+        }
+      },
+        findGroups.length ? findGroups.map(gr => React.createElement('div', { key: gr.title },
+          React.createElement('div', { style: { fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(238,242,255,.5)', padding: '10px 0 2px' } }, gr.title),
+          gr.items.map(it => React.createElement('button', {
+            key: it.name,
+            onClick: () => { onPick && onPick(it.name); setFindOpen(false); },
+            style: {
+              display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline', gap: 12,
+              padding: '9px 0', background: 'none', border: 'none', borderTop: '1px solid rgba(255,255,255,.06)',
+              color: it.name === targetName ? '#e8b563' : '#eef2ff', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 550,
+              textAlign: 'left', cursor: 'pointer'
+            }
+          },
+            it.name,
+            React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
+        ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
+          'Nothing bright is up right now. Try again after dark.')
+      )
     ),
     // Sensor readout. Capped in height so the centre reticle stays visible —
     // the reading is only meaningful while a body is held in the middle.
@@ -6228,25 +6360,38 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
           'Reset ' + (align.offset > 0 ? '+' : '\u2212') + Math.abs(align.offset).toFixed(0) + '\u00b0')
       ),
       target
-        ? target.name + ' · ' + Math.round(target.alt) + '° alt · ' + Math.round(target.az) + '° ' + compass16(target.az)
+        ? React.createElement(React.Fragment, null,
+            React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: found ? '#e8b563' : '#eef2ff' } }, guide.text),
+            React.createElement('div', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)', marginTop: 2 } },
+              capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'))
         : (live
             ? 'Live — move your phone to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
-    offscreen !== null && React.createElement('div', {
-      style: {
-        position: 'absolute', left: '50%', top: '50%', width: 0, height: 0,
-        transform: 'rotate(' + offscreen.toFixed(1) + 'deg)', pointerEvents: 'none'
-      }
-    },
-      React.createElement('div', {
-        style: {
-          position: 'absolute', left: -9, top: -108, width: 18, height: 18,
-          borderLeft: '3px solid #e8b563', borderTop: '3px solid #e8b563',
-          transform: 'rotate(45deg)'
-        }
-      })
-    )
+    // Off screen: an arrow at the edge the target lies beyond, with its name
+    // just inside, kept clear of the bars at the top and bottom.
+    offscreen !== null && (() => {
+      const e = edgePoint(offscreen, size.w, size.h, 30);
+      const y = Math.max(92, Math.min(size.h - 120, e.y));
+      const inward = edgePoint(offscreen, size.w, size.h, 64);
+      return React.createElement(React.Fragment, null,
+        React.createElement('div', {
+          'aria-hidden': 'true',
+          style: { position: 'absolute', left: e.x, top: y, width: 0, height: 0, transform: 'rotate(' + offscreen.toFixed(1) + 'deg)', pointerEvents: 'none' }
+        },
+          React.createElement('div', {
+            style: { position: 'absolute', left: -11, top: -8, width: 22, height: 22, borderLeft: '3px solid #e8b563', borderTop: '3px solid #e8b563', transform: 'rotate(45deg)' }
+          })),
+        React.createElement('div', {
+          'aria-hidden': 'true',
+          style: {
+            position: 'absolute', left: Math.max(50, Math.min(size.w - 50, inward.x)), top: Math.max(92, Math.min(size.h - 120, inward.y)),
+            transform: 'translate(-50%, -50%)', pointerEvents: 'none', whiteSpace: 'nowrap',
+            fontFamily: 'var(--font-ui)', fontSize: 12.5, fontWeight: 600, color: '#e8b563', textShadow: '0 1px 4px rgba(0,0,0,.9)'
+          }
+        }, target.name));
+    })(),
+    React.createElement('div', { role: 'status', 'aria-live': 'polite', style: { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' } }, foundSay)
   );
 }
 
@@ -6546,13 +6691,59 @@ function StarFinder({ redMode } = {}) {
       window.removeEventListener('compassneedscalibration', calHandler, true);
     };
   }, [aimSensor]);
+  // Everything Sky View can draw. Kept a little below the horizon so the
+  // horizon line has something on both sides of it.
+  const skyBodies = useMemo(() => {
+    const d = new Date(now), out = [];
+    const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
+    const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12, illum: mo.illum });
+    ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
+      const r = planetAltAz(p, d, loc.lat, loc.lon);
+      if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
+    });
+    // nav: true marks the app's working set — always labelled, and the only
+    // stars the sight-reduction and aim tools know about.
+    const navCi = (starCatalog && starCatalog.navCi) || [];
+    NAV_STARS.forEach((st, i) => {
+      const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, d);
+      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3], nav: true, color: starColor(navCi[i], st[3]) });
+    });
+    (starCatalog || []).forEach(st => {
+      const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, d);
+      out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag, color: starColor(st.ci, st.mag) });
+    });
+    // Sorted faintest-first once here rather than per frame, so the draw loop
+    // gets correct overlap (bright on top) without re-sorting ~1600 entries
+    // on every sensor event.
+    return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
+  }, [now, loc.lat, loc.lon, starCatalog]);
+  // Constellation vertices to alt/az once per clock tick, like the catalogue
+  // above, so the draw loop only projects.
+  const constellationPaths = useMemo(() => {
+    if (!constLines || !constLines.length) return [];
+    const d = new Date(now);
+    return constLines.map(c => ({
+      id: c.id, rank: c.rank,
+      pts: c.pts.map(v => { const p = starHcZn(v.ra, v.dec, loc.lat, loc.lon, d); return { az: p.az, alt: p.alt }; })
+    }));
+  }, [now, loc.lat, loc.lon, constLines]);
+  const constellationNames = useMemo(() => {
+    if (!constNames || !constNames.length) return [];
+    const d = new Date(now);
+    return constNames.map(c => { const p = starHcZn(c.ra, c.dec, loc.lat, loc.lon, d); return { id: c.id, name: c.name, rank: c.rank, az: p.az, alt: p.alt }; });
+  }, [now, loc.lat, loc.lon, constNames]);
   const aimTarget = useMemo(() => {
     if (!aimTargetName) return null;
     if (aimTargetName === 'Sun') { const p = sunHcZn(new Date(now), loc.lat, loc.lon); return { name: 'Sun', alt: p.alt, az: p.az }; }
     if (aimTargetName === 'Moon') { const p = moonTopo(moonState(new Date(now), loc.lat, loc.lon)); return { name: 'Moon', alt: p.alt, az: p.az }; }
     const s = navStars.find(x => x.name === aimTargetName);
-    return s ? { name: s.name, alt: s.alt, az: s.az } : null;
-  }, [aimTargetName, now, loc.lat, loc.lon, navStars]);
+    if (s) return { name: s.name, alt: s.alt, az: s.az };
+    // Anything else Sky View can pick: a planet, a catalogue star, or a
+    // constellation from Find. Before, only the list above resolved, so
+    // tapping Jupiter in Sky View left Aim Assist with nothing to aim at.
+    const t = findTarget(aimTargetName, skyBodies, constellationNames);
+    return t ? { name: t.name, alt: t.alt, az: t.az } : null;
+  }, [aimTargetName, now, loc.lat, loc.lon, navStars, skyBodies, constellationNames]);
   // Local declination, recomputed only when the place changes — it varies by
   // well under a degree over any distance a user moves in a session, and the
   // harmonic sum is not worth running on every sensor frame.
@@ -6591,47 +6782,6 @@ function StarFinder({ redMode } = {}) {
   const aimTilt = (aimTarget && aimNow && aimNow.stable) ? aimTarget.alt - aimNow.alt : null;
   const onTarget = aimTurn !== null && Math.abs(aimTurn) < 5 && (aimTilt === null || Math.abs(aimTilt) < 5);
   const aimSpoken = useAimAnnouncement(aimTurn, aimTilt, onTarget, aimTargetName);
-  // Everything Sky View can draw. Kept a little below the horizon so the
-  // horizon line has something on both sides of it.
-  const skyBodies = useMemo(() => {
-    const d = new Date(now), out = [];
-    const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
-    const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12, illum: mo.illum });
-    ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
-      const r = planetAltAz(p, d, loc.lat, loc.lon);
-      if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
-    });
-    // nav: true marks the app's working set — always labelled, and the only
-    // stars the sight-reduction and aim tools know about.
-    const navCi = (starCatalog && starCatalog.navCi) || [];
-    NAV_STARS.forEach((st, i) => {
-      const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, d);
-      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3], nav: true, color: starColor(navCi[i], st[3]) });
-    });
-    (starCatalog || []).forEach(st => {
-      const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, d);
-      out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag, color: starColor(st.ci, st.mag) });
-    });
-    // Sorted faintest-first once here rather than per frame, so the draw loop
-    // gets correct overlap (bright on top) without re-sorting ~1600 entries
-    // on every sensor event.
-    return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
-  }, [now, loc.lat, loc.lon, starCatalog]);
-  // Constellation vertices to alt/az once per clock tick, like the catalogue
-  // above, so the draw loop only projects.
-  const constellationPaths = useMemo(() => {
-    if (!constLines || !constLines.length) return [];
-    const d = new Date(now);
-    return constLines.map(c => ({
-      rank: c.rank,
-      pts: c.pts.map(v => { const p = starHcZn(v.ra, v.dec, loc.lat, loc.lon, d); return { az: p.az, alt: p.alt }; })
-    }));
-  }, [now, loc.lat, loc.lon, constLines]);
-  const constellationNames = useMemo(() => {
-    if (!constNames || !constNames.length) return [];
-    const d = new Date(now);
-    return constNames.map(c => { const p = starHcZn(c.ra, c.dec, loc.lat, loc.lon, d); return { name: c.name, rank: c.rank, az: p.az, alt: p.alt }; });
-  }, [now, loc.lat, loc.lon, constNames]);
   // iOS is the only platform that tells us how good the heading is:
   // webkitCompassAccuracy is +/- degrees, or negative when it's unusable.
   const compassQuality = orient && typeof orient.acc === 'number'
