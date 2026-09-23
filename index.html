@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2Z3nSuq5U/OMqCTmlHyavFEzbawyQZBGI6oHBsr7hC4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ebMRPF0MVfe3G4kunzSzwopOdJCcsTUkuJN+G7ABeb8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1198,7 +1198,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v93";
+const BUILD = "v94";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -1690,12 +1690,27 @@ function drawMoonDisc(g, x, y, r, illum, litLeft, angle) {
 }
 /* Paints the hero. `o`: { sky: live.sky, sunAlt, sun: {az, alt}, moon:
    {az, alt, illum}, facing, stars: [{az, alt, mag}], planets: [{name, az,
-   alt}], bortle, lat, lon }. */
+   alt}], bortle, lat, lon }.
+   `o.part` splits it for the moving painting: 'sky' is everything above the
+   ground, 'ground' the ridge, town lights, fade and compass points, drawn
+   `o.bleed` px past both sides so it can slide under tilt. Without a part
+   it paints the whole still picture, as it does for reduced motion. */
+// Where the painting draws the Moon, if it does: {x, y, r} in px.
+function heroMoonDisc(w, hy, moon, facing) {
+  if (!moon || moon.alt <= -0.5) return null;
+  const f = panoX(moon.az, facing, HZ_SPAN);
+  if (f === null) return null;
+  return { x: f * w, y: panoY(Math.max(0, moon.alt), hy), r: Math.max(12, Math.min(22, w * 0.036)) };
+}
 function drawHorizonScene(g, w, h, o) {
   const hy = Math.round(h * 0.62); // the horizon; ground and text sit below
   const X = az => { const f = panoX(az, o.facing, HZ_SPAN); return f === null ? null : f * w; };
   const Y = alt => panoY(alt, hy);
   const night = o.sunAlt < -6;
+  if (o.part !== 'ground') drawHorizonSky(g, w, h, o, hy, X, Y, night);
+  if (o.part !== 'sky') drawHorizonGround(g, w, h, o, hy, X);
+}
+function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
 
   const sky = g.createLinearGradient(0, 0, 0, hy);
   sky.addColorStop(0, o.sky.s); sky.addColorStop(0.55, o.sky.m); sky.addColorStop(1, o.sky.h);
@@ -1758,21 +1773,19 @@ function drawHorizonScene(g, w, h, o) {
     g.fillStyle = '#f0c98a'; g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill();
     label(p.name, x, y, 9);
   });
-  if (o.moon.alt > -0.5) {
-    const x = X(o.moon.az);
-    if (x !== null) {
-      const y = Y(Math.max(0, o.moon.alt)), r = Math.max(12, Math.min(22, w * 0.036));
-      if (night) {
-        const halo = g.createRadialGradient(x, y, r * 0.8, x, y, r * (2 + 4 * o.moon.illum));
-        halo.addColorStop(0, `rgba(232,230,223,${(0.08 + 0.22 * o.moon.illum).toFixed(3)})`);
-        halo.addColorStop(1, 'rgba(232,230,223,0)');
-        g.fillStyle = halo; g.beginPath(); g.arc(x, y, r * (2 + 4 * o.moon.illum), 0, 7); g.fill();
-      }
-      // The lit limb faces the Sun.
-      const toSun = ((o.sun.az - o.moon.az + 540) % 360) - 180;
-      drawMoonDisc(g, x, y, r, o.moon.illum, toSun < 0);
-      label('Moon', x, y, r + 7);
+  const md = heroMoonDisc(w, hy, o.moon, o.facing);
+  if (md) {
+    const { x, y, r } = md;
+    if (night) {
+      const halo = g.createRadialGradient(x, y, r * 0.8, x, y, r * (2 + 4 * o.moon.illum));
+      halo.addColorStop(0, `rgba(232,230,223,${(0.08 + 0.22 * o.moon.illum).toFixed(3)})`);
+      halo.addColorStop(1, 'rgba(232,230,223,0)');
+      g.fillStyle = halo; g.beginPath(); g.arc(x, y, r * (2 + 4 * o.moon.illum), 0, 7); g.fill();
     }
+    // The lit limb faces the Sun.
+    const toSun = ((o.sun.az - o.moon.az + 540) % 360) - 180;
+    drawMoonDisc(g, x, y, r, o.moon.illum, toSun < 0);
+    label('Moon', x, y, r + 7);
   }
   // A town's light, after dark: a warm dome over the horizon, which is how
   // city light looks from outside it, stronger the brighter the sky.
@@ -1782,6 +1795,9 @@ function drawHorizonScene(g, w, h, o) {
     dome.addColorStop(0, 'rgba(214,150,84,0)'); dome.addColorStop(1, `rgba(214,150,84,${a.toFixed(3)})`);
     g.fillStyle = dome; g.fillRect(0, hy - hy * 0.45, w, hy * 0.45 + 2);
   }
+}
+function drawHorizonGround(g, w, h, o, hy, X) {
+  const b = o.bleed || 0;
   // Ground: a low ridge with a soft treeline along it, the same every visit
   // for the same place. One shape everywhere; a city shows as its light, not
   // as buildings. (Buildings were tried twice: rectangles of any size read
@@ -1789,27 +1805,27 @@ function drawHorizonScene(g, w, h, o) {
   const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
   g.fillStyle = '#05070d';
   g.beginPath();
-  g.moveTo(0, h);
+  g.moveTo(-b, h);
   let tree = 0;
-  for (let x = 0; x <= w; x += 3) {
+  for (let x = -b; x <= w + b; x += 3) {
     const ridge = 5 + 6 * Math.sin(x / w * 4 + o.lon) + 3.5 * Math.sin(x / w * 11 + o.lat);
     tree = tree * 0.55 + rnd() * 6 * 0.45; // smoothed, so the edge is soft, not jagged
     g.lineTo(x, hy - ridge - tree);
   }
-  g.lineTo(w, h);
+  g.lineTo(w + b, h);
   g.closePath();
   g.fill();
   if (o.bortle >= 6 && o.sunAlt < -2) {
     // Lights in the town, on the ground rather than floating in the sky.
-    for (let i = 0; i < w / 6; i++) {
+    for (let i = 0; i < (w + 2 * b) / 6; i++) {
       g.fillStyle = `rgba(232,181,99,${(0.18 + rnd() * 0.4).toFixed(2)})`;
-      g.fillRect(rnd() * w, hy + 1 + rnd() * 9, 1.4, 1.4);
+      g.fillRect(rnd() * (w + 2 * b) - b, hy + 1 + rnd() * 9, 1.4, 1.4);
     }
   }
   // Settle into the page below, so the text over the ground stays readable.
   const fade = g.createLinearGradient(0, hy - 30, 0, h);
   fade.addColorStop(0, 'rgba(5,7,15,0)'); fade.addColorStop(0.45, 'rgba(5,7,15,.78)'); fade.addColorStop(1, 'rgba(5,7,15,.98)');
-  g.fillStyle = fade; g.fillRect(0, hy - 30, w, h - hy + 30);
+  g.fillStyle = fade; g.fillRect(-b, hy - 30, w + 2 * b, h - hy + 30 + b);
 
   // Compass points last, over the ground: drawn before it, the skyline hid
   // them, and without them the painting is a pretty picture of nowhere.
@@ -1824,6 +1840,122 @@ function drawHorizonScene(g, w, h, o) {
     g.fillStyle = 'rgba(238,241,250,.62)';
     g.fillText(compass16(az), x, hy + 21);
   }
+}
+/* ---- The painting in motion ----
+   Stars brighter than TWINKLE_MAG twinkle, on a canvas of their own over the
+   still sky (which is only redrawn once a second); fainter ones stay put.
+   Twinkling is the air, not the star, so it is strongest low down, where the
+   light crosses the most air, and planets, whose discs average it out, are
+   left steady. The rate is chosen to look calm, not measured. */
+const TWINKLE_MAG = 2.5;
+function twinkleAmp(alt) {
+  const z = 1 - Math.min(Math.max(alt, 0), 60) / 60;
+  return 0.1 + 0.4 * z * z;
+}
+// A brightness factor around 1 for star `seed` at time t (seconds): three
+// unrelated sines per star, so no two stars pulse together.
+function twinkle(seed, t, alt) {
+  const a = seed * 12.9898;
+  const n = 0.5 * Math.sin(t * (2.1 + (seed % 7) * 0.31) + a)
+    + 0.3 * Math.sin(t * (4.7 + (seed % 5) * 0.53) + a * 1.7)
+    + 0.2 * Math.sin(t * 9.3 + a * 2.3);
+  return 1 + twinkleAmp(alt) * n;
+}
+/* The major annual showers, from the International Meteor Organization's
+   working list: [name, month, day of peak (UT, fractional), ZHR, radiant RA,
+   radiant Dec (degrees), spread either side of the peak in days]. */
+const METEOR_SHOWERS = [
+  ['Quadrantids', 1, 3.5, 110, 230, 49, 0.6],
+  ['Lyrids', 4, 22.5, 18, 271, 34, 1],
+  ['Eta Aquariids', 5, 6, 50, 338, -1, 3],
+  ['Southern Delta Aquariids', 7, 30, 25, 340, -16, 4],
+  ['Perseids', 8, 12.5, 100, 48, 58, 2.5],
+  ['Orionids', 10, 21, 20, 95, 16, 3],
+  ['Leonids', 11, 17.5, 15, 152, 22, 1],
+  ['Geminids', 12, 14, 150, 112, 33, 1],
+  ['Ursids', 12, 22, 10, 217, 76, 0.7]
+];
+const SPORADIC_HR = 8; // background meteors an hour under a perfect sky
+// How active a shower is on `date`, 0 to 1 (1 at its peak).
+function showerActivity(sh, date) {
+  const y = date.getUTCFullYear();
+  let best = 0;
+  for (const yy of [y - 1, y, y + 1]) {
+    const dd = (date - (Date.UTC(yy, sh[1] - 1, 1) + (sh[2] - 1) * 86400000)) / 86400000;
+    best = Math.max(best, Math.exp(-dd * dd / (2 * sh[6] * sh[6])));
+  }
+  return best;
+}
+/* Meteors an hour a watcher here would actually see, reckoned the standard
+   way: each shower's ZHR times the sine of its radiant's height, plus the
+   sporadic background, all cut by the sky's faintest visible star (each
+   magnitude lost below 6.5 costs a factor of about 2.2). None before
+   nautical dusk ends. -> { total, parts: [{ sh, hr, radiant }] }, sh null for
+   the sporadics. At real rates most minutes show none; that is the point. */
+function meteorRate(date, lat, lon, lm, sunAlt) {
+  if (!(sunAlt <= -12) || !(lm > 0)) return { total: 0, parts: [] };
+  const k = Math.pow(2.2, Math.min(0, lm - 6.5));
+  const parts = [{ sh: null, hr: SPORADIC_HR * k, radiant: null }];
+  METEOR_SHOWERS.forEach(sh => {
+    const act = showerActivity(sh, date);
+    if (act < 0.01) return;
+    const radiant = starHcZn(sh[4], sh[5], lat, lon, date);
+    if (radiant.alt <= 0) return;
+    parts.push({ sh, hr: sh[3] * act * Math.sin(radiant.alt * D2R) * k, radiant });
+  });
+  return { total: parts.reduce((a, p) => a + p.hr, 0), parts };
+}
+/* One meteor for the painting, from `rate` (meteorRate's result). A shower
+   meteor flies straight away from its radiant, which is how a shower is
+   recognised in the sky; a sporadic one goes any way. Positions in px. */
+function newMeteor(rand, rate, w, hy, facing) {
+  let pick = rand() * rate.total, part = rate.parts[0];
+  for (const p of rate.parts) { if (pick < p.hr) { part = p; break; } pick -= p.hr; }
+  const x = w * (0.06 + 0.88 * rand()), y = panoY(18 + rand() * 50, hy);
+  let dx, dy;
+  if (part.radiant) {
+    const d = ((part.radiant.az - facing + 540) % 360) - 180;
+    dx = x - (0.5 + d / HZ_SPAN) * w;
+    dy = y - (hy - (part.radiant.alt / 75) * (hy - 22));
+  } else {
+    const a = rand() * 2 * Math.PI;
+    dx = Math.cos(a); dy = Math.sin(a);
+  }
+  const n = Math.hypot(dx, dy) || 1;
+  return { x, y, dx: dx / n, dy: dy / n, len: 60 + rand() * 110, dur: 0.35 + rand() * 0.55, b: 0.55 + rand() * 0.45, shower: part.sh ? part.sh[0] : null };
+}
+/* The moving layer: twinkling stars and any meteor in flight at time t (s).
+   `o`: { stars: [{az, alt, mag, seed}], facing, moon, meteors: [{..., t0}] }.
+   A star under the painted Moon is not drawn: the disc is drawn larger than
+   life, and a star twinkling on top of it would give the game away. */
+function drawSkyMotion(g, w, h, o, t) {
+  g.clearRect(0, 0, w, h);
+  const hy = Math.round(h * 0.62);
+  const md = heroMoonDisc(w, hy, o.moon, o.facing);
+  g.fillStyle = '#eef2ff';
+  o.stars.forEach(s => {
+    const f = panoX(s.az, o.facing, HZ_SPAN);
+    if (f === null) return;
+    const x = f * w, y = panoY(s.alt, hy);
+    if (md && Math.hypot(x - md.x, y - md.y) < md.r + 2) return;
+    const k = twinkle(s.seed, t, s.alt);
+    g.globalAlpha = Math.max(0, Math.min(1, (1.05 - s.mag * 0.13) * k));
+    g.beginPath(); g.arc(x, y, Math.max(0.55, 2.2 - s.mag * 0.34) * (0.85 + 0.15 * k), 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+  g.lineCap = 'round';
+  o.meteors.forEach(m => {
+    const age = (t - m.t0) / m.dur;
+    if (age < 0 || age > 1) return;
+    const headX = m.x + m.dx * age * m.len, headY = m.y + m.dy * age * m.len;
+    const tail = Math.min(age, 0.45) * m.len;
+    const tx = headX - m.dx * tail, ty = headY - m.dy * tail;
+    const gr = g.createLinearGradient(tx, ty, headX, headY);
+    gr.addColorStop(0, 'rgba(238,242,255,0)');
+    gr.addColorStop(1, `rgba(238,242,255,${(Math.sin(Math.PI * age) * m.b).toFixed(3)})`);
+    g.strokeStyle = gr; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(tx, ty); g.lineTo(headX, headY); g.stroke();
+  });
 }
 /* Two granularities on purpose, not a duplication to merge: the sextant
    window is a planning number where seconds are noise, while the next-event
@@ -2633,8 +2765,15 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
 
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
+const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past each side
 function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const groundRef = useRef(null);
+  // Reduced motion gets the still picture, drawn whole on one canvas.
+  const [still] = useState(() => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
+  });
   const headerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
@@ -2680,7 +2819,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
       const add = (ra, dec, mag) => {
         if (mag > live.mag) return;
         const p = starHcZn(ra, dec, loc.lat, loc.lon, d);
-        if (p.alt > 0) stars.push({ az: p.az, alt: p.alt, mag });
+        if (p.alt > 0) stars.push({ az: p.az, alt: p.alt, mag, seed: Math.round(ra * 101 + (dec + 90) * 37) % 997 });
       };
       NAV_STARS.forEach(s => add(s[1] * 15, s[2], s[3]));
       (catalog || []).forEach(s => add(s.ra, s.dec, s.mag));
@@ -2694,12 +2833,23 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
   const H = width < 560 ? 380 : 420;
+  const facing = heroFacing(loc.lat, live.m);
+  // Meteors to expect this minute, for the moving layer.
+  const rate = useMemo(() => meteorRate(new Date(now), loc.lat, loc.lon, live.mag, live.alt),
+    [minute, loc.lat, loc.lon, Math.round(live.mag * 4), Math.round(live.alt)]);
+  // What the animation loop reads each frame; refreshed every render, so the
+  // loop itself never restarts.
+  const motion = useRef(null);
+  motion.current = { stars: scene.stars.filter(s => s.mag <= TWINKLE_MAG), facing, moon: live.m, rate, w: width, H };
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.round(width * dpr); cv.height = Math.round(H * dpr);
-    cv.style.width = width + 'px'; cv.style.height = H + 'px';
+    const size = (c, w, h) => {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      c.style.width = w + 'px'; c.style.height = h + 'px';
+    };
+    size(cv, width, H);
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Where the place-name header actually sits over the painting, so body
@@ -2711,22 +2861,113 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
       const hb = rg.getBoundingClientRect(), cb = cv.getBoundingClientRect();
       if (hb.width) reserve = { w: hb.right - cb.left + 10, h: hb.bottom - cb.top + 6 };
     }
-    drawHorizonScene(g, width, H, {
+    const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
-      facing: heroFacing(loc.lat, live.m), stars: scene.stars, planets: scene.planets,
+      facing, stars: scene.stars, planets: scene.planets,
       bortle, lat: loc.lat, lon: loc.lon, reserve
-    });
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name]);
+    };
+    const gc = groundRef.current;
+    if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
+    // Moving: the bright stars leave the still sky for the twinkling layer,
+    // and the ground goes on its own canvas so it can slide under tilt.
+    drawHorizonScene(g, width, H, Object.assign({}, o, { part: 'sky', stars: scene.stars.filter(s => s.mag > TWINKLE_MAG) }));
+    size(gc, width + 2 * HERO_BLEED, H + HERO_BLEED);
+    const g2 = gc.getContext('2d');
+    g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
+    drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
+    if (animRef.current) size(animRef.current, width, H);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still]);
+
+  /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
+     the ground sliding a few px as the phone tilts, like a view through a
+     window. One loop for the life of the hero; it sleeps when the painting
+     is off screen, the tab is hidden, or there is nothing to move. On iOS,
+     tilt only arrives once motion access has been granted (Sky View asks);
+     the painting never asks for it. */
+  useEffect(() => {
+    const cv = animRef.current, gd = groundRef.current, wrap = wrapRef.current;
+    if (still || !cv || !gd) return;
+    let raf = 0, timer = 0, last = 0, onScreen = true, meteors = [];
+    const tilt = { x: 0, y: 0, tx: 0, ty: 0, h0: null, v0: null };
+    const clamp = v => Math.max(-HERO_BLEED, Math.min(HERO_BLEED, v));
+    const onOrient = e => {
+      if (e.beta == null || e.gamma == null) return;
+      const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+      const side = Math.abs(ang) === 90;
+      const h = side ? e.beta * Math.sign(ang) : e.gamma, v = side ? -e.gamma * Math.sign(ang) : e.beta;
+      if (tilt.h0 === null) { tilt.h0 = h; tilt.v0 = v; }
+      // The resting pose drifts toward however the phone is held, so the
+      // ground recentres instead of staying pushed to one side.
+      tilt.h0 += (h - tilt.h0) * 0.01; tilt.v0 += (v - tilt.v0) * 0.01;
+      tilt.tx = clamp(-(h - tilt.h0) * 0.5);
+      tilt.ty = clamp(-(v - tilt.v0) * 0.35);
+      schedule();
+    };
+    const frame = ts => {
+      raf = 0;
+      const m = motion.current, t = ts / 1000;
+      tilt.x += (tilt.tx - tilt.x) * 0.1; tilt.y += (tilt.ty - tilt.y) * 0.1;
+      gd.style.transform = `translate3d(${tilt.x.toFixed(2)}px,${tilt.y.toFixed(2)}px,0)`;
+      if (ts - last >= 33) { // ~30 frames a second is plenty for a twinkle
+        const dt = last ? Math.min(0.25, (ts - last) / 1000) : 0;
+        last = ts;
+        if (m.rate.total > 0 && Math.random() < m.rate.total / 3600 * dt) {
+          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, Math.round(m.H * 0.62), m.facing), { t0: t }));
+        }
+        meteors = meteors.filter(x => t - x.t0 < x.dur);
+        const dpr = cv.width / m.w;
+        const g = cv.getContext('2d');
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawSkyMotion(g, m.w, m.H, { stars: m.stars, facing: m.facing, moon: m.moon, meteors }, t);
+      }
+      schedule();
+    };
+    const schedule = () => {
+      if (raf || timer || !onScreen || document.hidden) return;
+      const m = motion.current;
+      const moving = m.stars.length || meteors.length || m.rate.total > 0 ||
+        Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
+      if (moving) raf = requestAnimationFrame(frame);
+      else {
+        // Daytime, no tilt: clear what was drawn, then check back in a second.
+        if (last) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); last = 0; }
+        timer = setTimeout(() => { timer = 0; schedule(); }, 1000);
+      }
+    };
+    const onVis = () => schedule();
+    let io = null;
+    if (wrap && typeof IntersectionObserver === 'function') {
+      io = new IntersectionObserver(es => { onScreen = es[0].isIntersecting; schedule(); });
+      io.observe(wrap);
+    }
+    window.addEventListener('deviceorientation', onOrient);
+    document.addEventListener('visibilitychange', onVis);
+    schedule();
+    return () => {
+      cancelAnimationFrame(raf); clearTimeout(timer);
+      if (io) io.disconnect();
+      window.removeEventListener('deviceorientation', onOrient);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [still]);
 
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement(React.Fragment, null,
     React.createElement('div', {
       ref: wrapRef,
-      style: { position: 'relative', height: H, margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 18px` }
+      style: { position: 'relative', height: H, overflow: 'hidden', margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 18px` }
     },
       React.createElement('canvas', {
         ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H },
         'aria-hidden': 'true'
+      }),
+      !still && React.createElement('canvas', {
+        ref: animRef, className: 'hz-sky', 'aria-hidden': 'true',
+        style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }
+      }),
+      !still && React.createElement('canvas', {
+        ref: groundRef, className: 'hz-sky', 'aria-hidden': 'true',
+        style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
       }),
       header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
       React.createElement('div', {

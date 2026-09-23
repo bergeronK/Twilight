@@ -125,6 +125,24 @@ Three tabs, one `index.html`, no build step:
   4 px; a city (Bortle 5+) shows after dark as a warm light dome over the
   horizon and lights on the ground. Rectangles of any size read as a bar
   chart. `horizon-scene.test.js` pins all of this with a recording canvas.
+  **The painting moves (2026-09-23).** Three canvases: the still sky
+  (`drawHorizonScene` with `part: 'sky'`, redrawn once a second as before),
+  a moving layer (`drawSkyMotion`: stars brighter than `TWINKLE_MAG` 2.5
+  twinkle, strongest low down, never over the painted Moon; meteors), and the
+  ground (`part: 'ground'`, drawn `HERO_BLEED` px past each side) sliding up
+  to 10 px as the phone tilts, from plain `deviceorientation` — the painting
+  never asks iOS for motion access, so there it only moves once Sky View has.
+  **Meteors come at real rates**: `meteorRate` is each shower's ZHR (nine
+  IMO showers in `METEOR_SHOWERS`) times the sine of its radiant's height,
+  plus 8 sporadics an hour, cut by 2.2 per magnitude of limiting magnitude
+  below 6.5, nothing before the Sun is 12° down; `newMeteor` flies shower
+  meteors straight out from their radiant. On an ordinary night that is one
+  every ten minutes or more; at a Perseid peak about one a minute. Don't
+  speed it up. One `requestAnimationFrame` loop at ~30 fps, asleep when the
+  hero is off screen, the tab hidden, or nothing moves (daytime, no tilt).
+  `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
+  before. `sky-motion.test.js` covers the rates, directions, twinkle and
+  the layer split.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -519,6 +537,12 @@ things a syntax check cannot see:
   no straight quotes) and `drawFact` played over whole rounds with the deck
   stored as JSON between visits: no repeat within a round, never the same
   fact twice running, additions and removals, junk in storage.
+- **`sky-motion.test.js`** — the moving painting: shower activity across
+  the year boundary, `meteorRate` against ZHR × sin(radiant height) at the
+  2026 Perseid peak, the limiting-magnitude cut, none by day or with the
+  radiant down, shower meteors flying out from the radiant, twinkle
+  strongest low, no star drawn over the Moon, and sky + ground layers
+  together drawing exactly what the still picture draws.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
