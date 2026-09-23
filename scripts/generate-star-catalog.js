@@ -23,6 +23,11 @@
  *   i8   mag[count]      visual magnitude x10
  *   u8   nameLen[count]  0 when the star has no proper name
  *   ...  UTF-8 name bytes, concatenated in row order
+ * then, appended so an older reader that stops after the names still works:
+ *   "CI"                 two bytes, marking the colour section
+ *   i8   ci[count]       B-V colour index x50 (-128 = unknown)
+ *   u8   navCount        how many NAV_STARS follow, in index.html's order
+ *   i8   navCi[navCount] their B-V x50, from the catalogue entry each one is
  *
  * Both resolutions are far finer than a phone screen can show: a 63-degree
  * field over ~800px is ~0.08 deg/px, roughly 15x coarser than the RA step.
@@ -72,8 +77,12 @@ function splitCsv(line) {
 const lines = fs.readFileSync(src, 'utf8').split('\n');
 const cols = splitCsv(lines[0]).map(s => s.replace(/"/g, '').trim());
 const iId = cols.indexOf('id'), iRa = cols.indexOf('ra'), iDec = cols.indexOf('dec');
-const iMag = cols.indexOf('mag'), iProper = cols.indexOf('proper');
-if ([iId, iRa, iDec, iMag, iProper].some(i => i < 0)) throw new Error('unexpected HYG columns');
+const iMag = cols.indexOf('mag'), iProper = cols.indexOf('proper'), iCi = cols.indexOf('ci');
+if ([iId, iRa, iDec, iMag, iProper, iCi].some(i => i < 0)) throw new Error('unexpected HYG columns');
+const ciOf = f => { const c = parseFloat(f[iCi]); return isFinite(c) ? c : null; };
+// Each nav star's colour, from the brightest catalogue star within the dedupe
+// radius of it (the one it replaced).
+const navCi = nav.map(() => null), navBest = nav.map(() => Infinity);
 
 const stars = [];
 let dropped = 0;
@@ -86,8 +95,12 @@ for (let i = 1; i < lines.length; i++) {
   const ra = parseFloat(f[iRa]) * 15;              // HYG stores RA in hours
   const dec = parseFloat(f[iDec]);
   if (!isFinite(ra) || !isFinite(dec)) continue;
-  if (nav.some(n => sepDeg(ra, dec, n.ra, n.dec) * 60 < DEDUPE_ARCMIN)) { dropped++; continue; }
-  stars.push({ ra, dec, mag, name: (f[iProper] || '').trim() });
+  const hit = nav.findIndex(n => sepDeg(ra, dec, n.ra, n.dec) * 60 < DEDUPE_ARCMIN);
+  if (hit >= 0) {
+    if (mag < navBest[hit]) { navBest[hit] = mag; navCi[hit] = ciOf(f); }
+    dropped++; continue;
+  }
+  stars.push({ ra, dec, mag, name: (f[iProper] || '').trim(), ci: ciOf(f) });
 }
 // Brightest first: the renderer draws faintest-first for correct overlap, but
 // a stable known order makes the file diffable between regenerations.
@@ -98,7 +111,9 @@ const nameBufs = stars.map(s => Buffer.from(s.name, 'utf8'));
 nameBufs.forEach((b, i) => { if (b.length > 255) nameBufs[i] = b.slice(0, 255); });
 const namesTotal = nameBufs.reduce((s, b) => s + b.length, 0);
 
-const buf = Buffer.alloc(4 + n * 2 + n * 2 + n + n + namesTotal);
+if (navCi.some(c => c === null)) throw new Error('no colour for ' + nav.filter((_, i) => navCi[i] === null).map(x => x.name).join(', '));
+const ci8 = c => c === null ? -128 : Math.max(-127, Math.min(127, Math.round(c * 50)));
+const buf = Buffer.alloc(4 + n * 2 + n * 2 + n + n + namesTotal + 2 + n + 1 + nav.length);
 let o = 0;
 buf.writeUInt32LE(n, o); o = 4;
 stars.forEach(s => { buf.writeUInt16LE(Math.round(s.ra / 360 * 65536) & 0xFFFF, o); o += 2; });
@@ -106,6 +121,10 @@ stars.forEach(s => { buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.roun
 stars.forEach(s => { buf.writeInt8(Math.max(-128, Math.min(127, Math.round(s.mag * 10))), o); o += 1; });
 nameBufs.forEach(b => { buf.writeUInt8(b.length, o); o += 1; });
 nameBufs.forEach(b => { b.copy(buf, o); o += b.length; });
+buf.write('CI', o, 'ascii'); o += 2;
+stars.forEach(s => { buf.writeInt8(ci8(s.ci), o); o += 1; });
+buf.writeUInt8(nav.length, o); o += 1;
+navCi.forEach(c => { buf.writeInt8(ci8(c), o); o += 1; });
 if (o !== buf.length) throw new Error('size mismatch: wrote ' + o + ' of ' + buf.length);
 
 fs.writeFileSync(path.join(root, 'stars.bin'), buf);

@@ -15,10 +15,10 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'gmst', 'jd', 'starHcZn',
-  'HZ_SPAN', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'drawMoonDisc',
-  'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround',
+  'HZ_SPAN', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc',
+  'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow',
   'TWINKLE_MAG', 'twinkleAmp', 'twinkle', 'METEOR_SHOWERS', 'SPORADIC_HR', 'showerActivity',
-  'meteorRate', 'newMeteor', 'drawSkyMotion']);
+  'meteorRate', 'newMeteor', 'starGlow', 'drawSkyMotion']);
 
 const rng = (seed = 1) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 const PERSEIDS = m.METEOR_SHOWERS.find(s => s[0] === 'Perseids');
@@ -120,7 +120,7 @@ test('the moving layer: no star twinkles on top of the painted Moon; meteors dra
   const W = 400, H = 380, hy = Math.round(H * 0.62);
   const moon = { az: 180, alt: 30, illum: 0.6 };
   const md = m.heroMoonDisc(W, hy, moon, 180);
-  const stars = [{ az: 180, alt: 30.5, mag: 1, seed: 3 }, { az: 150, alt: 40, mag: 1, seed: 4 }];
+  const stars = [{ az: 180, alt: 30.5, mag: 2, seed: 3 }, { az: 150, alt: 40, mag: 2, seed: 4 }]; // too faint for a halo
   const g = stubCtx();
   m.drawSkyMotion(g, W, H, { stars, facing: 180, moon, meteors: [] }, 1);
   assert.strictEqual(g.dots.length, 1, 'the star behind the Moon disc is not drawn');

@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'hx', 'toHex', 'lerpC', 'skyColors',
-  'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'heroMoonDisc']);
+  'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
 
 function stubCtx() {
   const texts = [], dots = [], ground = [];

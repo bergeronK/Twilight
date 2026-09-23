@@ -159,6 +159,27 @@ Three tabs, one `index.html`, no build step:
   over Sky View's camera image. `milky-way.test.js` checks the data against
   the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of
   the glow within 20° of the plane) and each inverse against its projection.
+- **The Moon's face and the stars' colours (2026-09-23).** `drawMoonDisc(g,
+  x, y, r, illum, litLeft, angle, north)` draws the near side's maria
+  (`MOON_MARIA`: IAU centres and sizes, Procellarum and Frigoris as patches,
+  Tycho and Copernicus bright) foreshortened toward the limb, the lit side
+  turned to the Sun (`angle`; `litLeft` is now a half turn, never a mirror,
+  which would flip the face) and lunar north to `north`, so the Moon is the
+  right way up for where it is: upright on the meridian from the north,
+  upside down from the south, tipped at moonrise. Directions come from
+  `skyBearing` (0 toward the zenith, 90 toward increasing azimuth) mapped
+  into each view: the painting's own stretch, `bearingOnScreen` through the
+  chart's and Sky View's projections. Sky View's Moon, a flat grey disc
+  before, is now the same disc. **Star colours**: `stars.bin` gained a
+  trailing `"CI"` section, B-V ×50 for every star and then for each of
+  `NAV_STARS` in order (the catalogue entry each replaced), appended so the
+  old reader still works; the generator reproduced the old file byte for
+  byte first. `starColor(ci, mag)` maps B-V to Mitchell Charity's
+  spectral-class colours and fades to white below about magnitude 4, where
+  the eye sees none; `starGlow` gives stars of magnitude 1.5 and brighter a
+  halo in their own colour. Applied on the painting (still and twinkling),
+  the chart and Sky View. HYG gives Betelgeuse B-V 1.50, not the textbook
+  1.85; it is still orange.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -564,6 +585,13 @@ things a syntax check cannot see:
   Orion's belt out), `horizToEq` against `starHcZn`, `chartDir` and
   `screenDir` against their projections, the visibility thresholds, and
   that the painting draws the band under the stars and not in a bright sky.
+- **`moon-and-colours.test.js`** — the Moon's north up on the meridian from
+  the north, down from the south, tipped left rising in the south-east;
+  `drawMoonDisc`'s rotations (Sun, then north, then back); maria where they
+  are (Crisium east, Imbrium north-west, Tycho south); `bearingOnScreen` at
+  the chart's horizon; the real `stars.bin` colours (Betelgeuse and Antares
+  orange, Rigel blue-white, Sirius white, 99%+ of stars coloured); faint
+  stars white; halos only on the brightest.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
