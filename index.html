@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-o8/d8vWJZ1vJmLN/31NYHlZpUQKORfOCE21kAmW0uwI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-REwPe2vBSt1egMIDaiXxRC2aH1x3eDNzsvAIQpkJMFE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1313,7 +1313,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v98";
+const BUILD = "v99";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2909,6 +2909,90 @@ function TonightHighlights({ items }) {
   );
 }
 
+/* ---- Tonight's sky, as a picture to share ----
+   A 1080x1350 card (the 4:5 shape phones show whole in a feed): the
+   Console's painting of this place's sky, the place and time over it, the
+   verdict under it, and the first of tonight's highlights. The painting is
+   drawn at half size and scaled up, so stars and labels keep the
+   proportions they have on a phone. */
+// Words wrapped to a width; returns the lines.
+function wrapText(g, text, width) {
+  const words = String(text).split(' '), lines = [];
+  let line = '';
+  words.forEach(w => {
+    const next = line ? line + ' ' + w : w;
+    if (line && g.measureText(next).width > width) { lines.push(line); line = w; } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+function drawShareCard(g, W, H, o) {
+  const k = 2, pw = W / k, ph = Math.round(H * 0.95 / k); // horizon ~60% down
+  g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H);
+  g.save(); g.scale(k, k);
+  drawHorizonScene(g, pw, ph, Object.assign({}, o.scene, { reserve: { w: pw * 0.72, h: 70 } }));
+  g.restore();
+  const pad = 64;
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#eef1fa';
+  g.font = '650 50px Inter, system-ui, sans-serif';
+  g.fillText(o.place, pad, 96);
+  g.fillStyle = 'rgba(238,241,250,.72)';
+  g.font = '400 28px Inter, system-ui, sans-serif';
+  g.fillText(o.when, pad, 140);
+  // The text starts just under the painting's compass points.
+  let y = Math.round(ph * 0.62) * k + 110;
+  g.fillStyle = 'rgba(238,241,250,.66)';
+  g.font = '600 24px Inter, system-ui, sans-serif';
+  g.fillText(o.label.toUpperCase(), pad, y);
+  y += 84;
+  g.fillStyle = '#f3efe4';
+  g.font = '600 84px "Cormorant Garamond", Georgia, serif';
+  wrapText(g, o.head, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 86; });
+  y -= 30;
+  g.fillStyle = 'rgba(238,241,250,.74)';
+  g.font = '400 32px Inter, system-ui, sans-serif';
+  wrapText(g, o.sub, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 44; });
+  if (o.highlight) {
+    y += 22;
+    g.fillStyle = '#e8b563';
+    g.font = '600 30px Inter, system-ui, sans-serif';
+    wrapText(g, '✦ ' + o.highlight, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 40; });
+  }
+  g.fillStyle = 'rgba(238,241,250,.6)';
+  g.font = '600 26px Inter, system-ui, sans-serif';
+  g.textAlign = 'right';
+  g.fillText('✦ twilyte.info', W - pad, H - 48);
+  g.textAlign = 'left';
+}
+// Makes the card and shares it, or saves it where sharing files isn't
+// available (most desktop browsers). Browser only.
+function shareSkyCard(o) {
+  const cv = document.createElement('canvas');
+  cv.width = 1080; cv.height = 1350;
+  const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  return ready.then(() => {
+    drawShareCard(cv.getContext('2d'), 1080, 1350, o);
+    return new Promise(r => cv.toBlob(r, 'image/png'));
+  }).then(blob => {
+    if (!blob) throw new Error('no image');
+    const name = 'twilyte-tonight.png';
+    const file = typeof File === 'function' ? new File([blob], name, { type: 'image/png' }) : null;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: "Tonight's sky", text: `${o.place}: ${o.head}. twilyte.info` })
+        .then(() => 'shared', e => e && e.name === 'AbortError' ? 'cancelled' : save());
+    }
+    return save();
+    function save() {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      return 'saved';
+    }
+  });
+}
+
 /* ---- Star Finder sky chart ----
    The whole sky above you on one disc: zenith at the centre, horizon at the
    rim. Stereographic, like a planisphere, because it keeps constellation
@@ -3340,6 +3424,23 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     };
   }, [still]);
 
+  // One tap: tonight's sky as a picture, shared or saved.
+  const [shareMsg, setShareMsg] = useState('');
+  const share = () => {
+    setShareMsg('Making the picture\u2026');
+    shareSkyCard({
+      scene: {
+        sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
+        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      },
+      place: loc.name,
+      when: `${fmtDate(now, loc.tz)} \u00B7 ${fmt(now)}`,
+      label: heroLabel(plan, now, live.alt, fmt),
+      head: glance.head, sub: glance.sub,
+      highlight: highlights[0] ? highlights[0].title : null
+    }).then(r => setShareMsg(r === 'saved' ? 'Saved as a picture.' : ''), () => setShareMsg('Couldn\u2019t make the picture on this device.'));
+  };
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement(React.Fragment, null,
     React.createElement('div', {
@@ -3380,7 +3481,13 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
-      React.createElement(TonightHighlights, { items: highlights })
+      React.createElement(TonightHighlights, { items: highlights }),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          className: 'rtbtn', onClick: share, disabled: shareMsg === 'Making the picture\u2026',
+          style: { fontSize: 13, padding: '9px 16px' }
+        }, '\u2197 Share tonight\u2019s sky'),
+        shareMsg && React.createElement('span', { role: 'status', style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, color: C.inkDim } }, shareMsg))
     )
   );
 }

@@ -212,6 +212,16 @@ Three tabs, one `index.html`, no build step:
   (`TonightHighlights`). `highlights.test.js` runs it on published nights:
   the 2026 Perseid peak, Venus–Jupiter on 9 June 2026, Saturn's 4 October
   2026 opposition, plus a year's sweep for order and length.
+- **Share tonight's sky (2026-09-23).** A button under the highlights makes
+  a 1080×1350 (4:5) picture: `drawShareCard` paints the Console's scene at
+  half size scaled ×2 (so stars and labels keep phone proportions, the
+  horizon about 60% down), the place and time over the sky, the hero label,
+  verdict and subtitle under it (`wrapText`, two lines at most), the first
+  highlight in amber, and "✦ twilyte.info". `shareSkyCard` waits for fonts,
+  makes a PNG and uses `navigator.share({ files })` where the browser can
+  share files (phones), otherwise downloads `twilyte-tonight.png`. Inside
+  the native apps it goes through the same web share, untested on a device.
+  `share-card.test.js`.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -634,6 +644,10 @@ things a syntax check cannot see:
   2026-06-09 named brighter first, Saturn at its best at opposition and not
   three months on, nothing when the Sun never sets, ≤4 items in rank order
   across a year of nights, and the list rendered with a stub React.
+- **`share-card.test.js`** — the share picture carries place, time,
+  label, verdict, highlight and address; the painting is drawn scaled;
+  long names and verdicts wrap inside the margins and clear the address;
+  no highlight line without one; `wrapText` never splits a word.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
