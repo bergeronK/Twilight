@@ -1,6 +1,8 @@
-constellations.bin is derived from data/constellations.lines.json in
+constellations.bin is derived from data/constellations.lines.json, and
+constellation-names.json from data/constellations.json, in
 d3-celestial (https://github.com/ofrohn/d3-celestial), commit
-7e720a3de062059d4c5400a379146a601d9010e0, by scripts/generate-constellation-lines.js.
+7e720a3de062059d4c5400a379146a601d9010e0, by scripts/generate-constellation-lines.js
+and scripts/generate-constellation-names.js.
 It is redistributed under the original licence, reproduced below.
 
 Copyright (c) 2015, Olaf Frohn
