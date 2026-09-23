@@ -132,7 +132,12 @@ Three tabs, one `index.html`, no build step:
   `skyColors` along the day), stars where the Sun is well down, the Moon's
   track (`moonDayTrack`, parallax-corrected) and a "now" line. The CSV month
   export gives **each day its own offset** — it applied one to the whole month,
-  so every day after a DST change was an hour out. Below 560 px the chart is drawn
+  so every day after a DST change was an hour out. **The altitude scale is fixed,
+  -24° to 90°** (2026-09-23): it used to top out at the day's highest Sun
+  + 4°, so every curve nearly touched the top and a 20° winter noon looked
+  as high as a 70° summer one — the owner found it "exaggerated". Now 30°,
+  60° and 90° are labelled, the painted sky stops at the horizon, and below
+  it is dark ground with the twilight bands faintly tinted. Below 560 px the chart is drawn
   at its shown width, one viewBox unit per pixel and nearly square (it was
   820×380 scaled to ~340 px: 4 px labels, a 150 px-tall day); wide screens
   keep 820×380. City search at the top of the form uses the same
