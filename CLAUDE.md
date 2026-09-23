@@ -143,6 +143,22 @@ Three tabs, one `index.html`, no build step:
   `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
   before. `sky-motion.test.js` covers the rates, directions, twinkle and
   the layer split.
+- **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
+  grid of its brightness (0..250, run-length coded), built by
+  `scripts/generate-milky-way.js` from d3-celestial's `mw.json` (five nested
+  isophotes) at the same pinned commit as the constellations; same BSD
+  licence file, which now names it, and the footer credit says so. Loaded by
+  `loadMilkyWay`; sampled by `milkyWayField(mw, cols, rows, dirAt, lat, lst)`
+  through each view's inverse projection (`horizToEq`; the painting's
+  panorama; `chartDir` for the chart; `screenDir` for Sky View), turned into a
+  small image and drawn scaled up, which is what makes it a soft glow. **On
+  the Console it is honest**: `milkyWayVisibility(live.mag)` — all of it at
+  limiting magnitude 6.25+, none at 5.2 (Bortle 7, a big Moon, twilight) —
+  and it dims toward the horizon. **On the chart and in Sky View it is
+  always drawn, faintly**, as charts show it (they show every star too); not
+  over Sky View's camera image. `milky-way.test.js` checks the data against
+  the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of
+  the glow within 20° of the plane) and each inverse against its projection.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -543,6 +559,11 @@ things a syntax check cannot see:
   radiant down, shower meteors flying out from the radiant, twinkle
   strongest low, no star drawn over the Moon, and sky + ground layers
   together drawing exactly what the still picture draws.
+- **`milky-way.test.js`** — `milkyway.bin` against the galaxy (Sagittarius
+  brightest, galactic poles empty, glow near the plane, Cygnus in and
+  Orion's belt out), `horizToEq` against `starHcZn`, `chartDir` and
+  `screenDir` against their projections, the visibility thresholds, and
+  that the painting draws the band under the stars and not in a bright sky.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.

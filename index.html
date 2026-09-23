@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ebMRPF0MVfe3G4kunzSzwopOdJCcsTUkuJN+G7ABeb8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-PVUaLjOBHFmpRrtXUo9hoa0XeakmHocQzQc6vlzXT/I=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -847,6 +847,78 @@ function loadConstellationLines() {
 /* Constellation names and where to write them, from the same d3-celestial
    commit as the lines: [id, name, rank, ra, dec], ra/dec in degrees.
    Decoration like the lines, so a failure is an empty list. */
+/* ---- The Milky Way (milkyway.bin) ----
+   How bright the Milky Way is across the whole sky, as a 1° grid (0..250,
+   250 = its brightest star clouds), built by scripts/generate-milky-way.js
+   from d3-celestial's mw.json (BSD 3-Clause; constellations.LICENSE.txt).
+   Decoration: a failed load is null and nothing is drawn. */
+let milkyWayPromise = null;
+function loadMilkyWay() {
+  if (!milkyWayPromise) {
+    milkyWayPromise = fetch('milkyway.bin')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.arrayBuffer(); })
+      .then(buf => decodeMilkyWay(new Uint8Array(buf)))
+      .catch(() => null);
+  }
+  return milkyWayPromise;
+}
+function decodeMilkyWay(u) {
+  const W = u[0] | u[1] << 8, H = u[2] | u[3] << 8, v = new Uint8Array(W * H);
+  let k = 0;
+  for (let i = 4; i + 1 < u.length && k < v.length; i += 2) v.fill(u[i], k, k += u[i + 1]);
+  if (k !== W * H) return null;
+  return { W, H, v };
+}
+// Brightness at RA/Dec (degrees), 0..1, smoothed between cells.
+function mwLevel(mw, ra, dec) {
+  const x = rev(ra) - 0.5, y = dec + 89.5;
+  const i0 = Math.floor(x), j0 = Math.max(0, Math.min(mw.H - 2, Math.floor(y)));
+  const fx = x - i0, fy = Math.max(0, Math.min(1, y - j0));
+  const at = (i, j) => mw.v[j * mw.W + ((i % mw.W) + mw.W) % mw.W];
+  const top = at(i0, j0 + 1) * (1 - fx) + at(i0 + 1, j0 + 1) * fx;
+  const bot = at(i0, j0) * (1 - fx) + at(i0 + 1, j0) * fx;
+  return (bot * (1 - fy) + top * fy) / 250;
+}
+// The other way from starHcZn: a point on the sky to RA/Dec, given the local
+// sidereal time `lst` in degrees.
+function horizToEq(az, alt, lat, lst) {
+  const dec = asin(sin(lat) * sin(alt) + cos(lat) * cos(alt) * cos(az));
+  const ha = atan2(-sin(az) * cos(alt), cos(lat) * sin(alt) - sin(lat) * cos(alt) * cos(az));
+  return { ra: rev(lst - ha), dec };
+}
+/* The Milky Way sampled over a grid of cells, for any view: `dirAt(i, j)`
+   says where on the sky cell (i, j) looks, as {az, alt, w} (w an optional
+   weight) or null for none. Returns cols * rows levels, 0..1. */
+function milkyWayField(mw, cols, rows, dirAt, lat, lst) {
+  const out = new Float32Array(cols * rows);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const d = dirAt(i, j);
+    if (!d) continue;
+    const e = horizToEq(d.az, d.alt, lat, lst);
+    out[j * cols + i] = mwLevel(mw, e.ra, e.dec) * (d.w === undefined ? 1 : d.w);
+  }
+  return out;
+}
+/* How much of the Milky Way a limiting magnitude lets you see, 0..1: all of
+   it under a properly dark sky (6.25 and up; the app's darkest is 6.3), none
+   at 5.2 — a bright suburb, a big Moon, or twilight. Bortle 5 (5.9) shows it
+   washed out, Bortle 6 (5.4) barely. */
+const milkyWayVisibility = lm => Math.max(0, Math.min(1, (lm - 5.2) / 1.05));
+// A field as a small image, to be drawn scaled up: the browser's smoothing
+// turns the cells into a soft glow. Browser only; `rgb` "r,g,b".
+function milkyWayImage(field, cols, rows, rgb, reuse) {
+  const c = reuse || document.createElement('canvas');
+  if (c.width !== cols) c.width = cols;
+  if (c.height !== rows) c.height = rows;
+  const g = c.getContext('2d'), img = g.createImageData(cols, rows);
+  const [r, gg, b] = rgb.split(',').map(Number);
+  for (let k = 0; k < field.length; k++) {
+    img.data[4 * k] = r; img.data[4 * k + 1] = gg; img.data[4 * k + 2] = b;
+    img.data[4 * k + 3] = Math.round(255 * Math.min(1, field[k]));
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
 let constellationNamesPromise = null;
 function loadConstellationNames() {
   if (!constellationNamesPromise) {
@@ -1198,7 +1270,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v94";
+const BUILD = "v95";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -1736,6 +1808,12 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
       g.fillStyle = halo; g.beginPath(); g.arc(x, y, 70, 0, 7); g.fill();
       g.fillStyle = '#fff4d6'; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
     }
+  }
+  // The Milky Way, a soft band under the stars, as bright as the sky allows.
+  if (o.mw && o.mw.alpha > 0) {
+    g.globalAlpha = o.mw.alpha;
+    g.drawImage(o.mw.img, 0, 0, w, hy);
+    g.globalAlpha = 1;
   }
   // Stars: only those bright enough to see from here right now.
   o.stars.forEach(s => {
@@ -2605,6 +2683,10 @@ function drawSkyChart(g, size, d) {
   g.save();
   g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
 
+  // The Milky Way under everything, as a chart shows it: always, faintly,
+  // whatever tonight's sky allows (the chart shows every star, too).
+  if (d.mw) g.drawImage(d.mw, cx - R, cy - R, 2 * R, 2 * R);
+
   // Constellation lines under everything, as in Sky View.
   if (d.lines) {
     g.strokeStyle = 'rgba(138,164,232,.34)';
@@ -2722,10 +2804,24 @@ function drawSkyChart(g, size, d) {
 /* The sky chart as it appears in the Stars tab: a square canvas that fills
    its column, redrawn each minute. Data comes from StarFinder, which already
    computes everything it needs. */
-function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
+/* Where on the sky a point of the chart disc looks: the inverse of chartXY,
+   for a disc of radius R centred at the origin. Null outside the disc. */
+function chartDir(x, y, R) {
+  const r = Math.hypot(x, y);
+  if (r > R) return null;
+  return { az: rev(atan2(-x, -y)), alt: 90 - 2 * Math.atan(r / R) * R2D };
+}
+function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris, mw, lat, lst }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [size, setSize] = useState(320);
+  // The Milky Way across the disc, 96 cells a side, drawn scaled to fit.
+  const mwImg = useMemo(() => {
+    if (!mw || typeof document === 'undefined') return null;
+    const N = 96;
+    const field = milkyWayField(mw, N, N, (i, j) => chartDir((i + 0.5) / N * 2 - 1, (j + 0.5) / N * 2 - 1, 1), lat, lst);
+    return milkyWayImage(field.map(v => v * 0.34), N, N, '170,186,228');
+  }, [mw, lat, Math.round(lst * 4)]);
   useEffect(() => {
     const el = wrapRef.current;
     const measure = () => {
@@ -2747,8 +2843,8 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, size, size);
-    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris });
-  }, [size, stars, lines, planets, moon, sunAz, fix, polaris]);
+    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris, mw: mwImg });
+  }, [size, stars, lines, planets, moon, sunAz, fix, polaris, mwImg]);
   return React.createElement('div', { ref: wrapRef, style: { flex: '1 1 300px', maxWidth: 420, minWidth: 0 } },
     React.createElement('canvas', {
       ref: canvasRef, className: 'hz-sky',
@@ -2778,9 +2874,11 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
+  const [mw, setMw] = useState(null);
   useEffect(() => {
     let alive = true;
     loadStarCatalog().then(c => { if (alive) setCatalog(c); });
+    loadMilkyWay().then(m => { if (alive) setMw(m); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {
@@ -2834,6 +2932,20 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   }, [minute, loc.lat, loc.lon, catalog, live]);
   const H = width < 560 ? 380 : 420;
   const facing = heroFacing(loc.lat, live.m);
+  // The Milky Way over the painting, once a minute, only when the sky is dark
+  // enough to show some of it. Sampled every 4 px and drawn scaled up; it
+  // fades toward the horizon, where the extra air dims it.
+  const mwVis = milkyWayVisibility(live.mag);
+  const mwPaint = useMemo(() => {
+    if (!mw || !(mwVis > 0) || typeof document === 'undefined') return null;
+    const hy = Math.round(H * 0.62), cols = Math.ceil(width / 4), rows = Math.ceil(hy / 4);
+    const lst = rev(gmst(new Date(now)) + loc.lon);
+    const field = milkyWayField(mw, cols, rows, (i, j) => {
+      const alt = (hy - (j + 0.5) * hy / rows) / (hy - 22) * 75;
+      return { az: facing + ((i + 0.5) / cols - 0.5) * HZ_SPAN, alt, w: Math.max(0, Math.min(1, (alt + 2) / 22)) };
+    }, loc.lat, lst);
+    return milkyWayImage(field, cols, rows, '205,214,236');
+  }, [mw, mwVis > 0, minute, width, H, facing, loc.lat, loc.lon]);
   // Meteors to expect this minute, for the moving layer.
   const rate = useMemo(() => meteorRate(new Date(now), loc.lat, loc.lon, live.mag, live.alt),
     [minute, loc.lat, loc.lon, Math.round(live.mag * 4), Math.round(live.alt)]);
@@ -2864,7 +2976,8 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve
+      bortle, lat: loc.lat, lon: loc.lon, reserve,
+      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
     };
     const gc = groundRef.current;
     if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
@@ -2876,7 +2989,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
     drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
     if (animRef.current) size(animRef.current, width, H);
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still]);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint]);
 
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
@@ -5130,8 +5243,17 @@ function pingVisitorCounter(show) {
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
+/* Where a point of Sky View's screen looks: the inverse of toScreen and
+   skyProject, as {az, alt}. */
+function screenDir(basis, px, py, w, h, fov) {
+  const f = (h / 2) / Math.tan((fov / 2) * D2R);
+  const sx = (px - w / 2) / f, sy = -(py - h / 2) / f, b = basis;
+  const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
+  return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
+}
+function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst }) {
   const canvasRef = useRef(null);
+  const mwCanvas = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
@@ -5241,6 +5363,19 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       grad.addColorStop(1, '#0b1020');
       g.fillStyle = grad;
       g.fillRect(0, 0, w, h);
+      // The Milky Way, faintly, as on the Stars tab's chart; sampled every
+      // 10 px and drawn scaled up. Not over the camera, which shows the real
+      // one or doesn't. Below the horizon it fades out with the stars.
+      if (mw && lst !== undefined) {
+        const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
+        const field = milkyWayField(mw, cols, rows, (i, j) => {
+          const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
+          d.w = d.alt >= 0 ? 0.34 : 0.1;
+          return d;
+        }, lat, lst);
+        mwCanvas.current = milkyWayImage(field, cols, rows, '170,186,228', mwCanvas.current);
+        g.drawImage(mwCanvas.current, 0, 0, cols * 10, rows * 10);
+      }
     }
 
     // Horizon + cardinal marks: the anchor that tells you the view is real.
@@ -5380,7 +5515,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
     g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
     g.stroke();
-  }, [bodies, lines, names, showLines, basis, size, cam, targetName, fov]);
+  }, [bodies, lines, names, showLines, basis, size, cam, targetName, fov, mw, lat, lst]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
@@ -5677,6 +5812,12 @@ function StarFinder({ redMode } = {}) {
     loadStarCatalog().then(c => { if (live) setStarCatalog(c); });
     return () => { live = false; };
   }, [starCatalog]);
+  const [milkyWay, setMilkyWay] = useState(null);
+  useEffect(() => {
+    let live = true;
+    loadMilkyWay().then(m => { if (live) setMilkyWay(m); });
+    return () => { live = false; };
+  }, []);
   const [constLines, setConstLines] = useState(null);
   useEffect(() => {
     if (constLines) return;
@@ -6015,7 +6156,8 @@ function StarFinder({ redMode } = {}) {
   const skyChart = React.createElement(SkyChart, {
     stars: chartStars, lines: chartLines, planets: chartPlanets,
     moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
-    fix: fixStars, polaris: showPolaris ? polaris : null
+    fix: fixStars, polaris: showPolaris ? polaris : null,
+    mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(now)) + loc.lon)
   });
   const polarisBox = showPolaris && React.createElement("div", {
     style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 16 }
@@ -6461,6 +6603,7 @@ function StarFinder({ redMode } = {}) {
     navigatorPanel,
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
+      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       bodies: skyBodies,
       lines: constellationPaths,
       names: constellationNames,
@@ -6868,7 +7011,7 @@ function TwilightApp() {
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
-        " (CC BY-SA 4.0) · Constellation lines and names: ",
+        " (CC BY-SA 4.0) · Constellation lines and names, Milky Way: ",
         React.createElement("a", { href: "https://github.com/ofrohn/d3-celestial", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "d3-celestial"),
         " © Olaf Frohn (",
         React.createElement("a", { href: "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),

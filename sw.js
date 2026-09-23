@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v94';
+const CACHE = 'twilight-v95';
 const ASSETS = [
   '/',
   '/index.html',
@@ -15,6 +15,7 @@ const ASSETS = [
   '/stars.bin',
   '/constellations.bin',
   '/constellation-names.json',
+  '/milkyway.bin',
   '/facts.json',
   '/fonts/inter-var.woff2',
   '/fonts/cormorant.woff2',
