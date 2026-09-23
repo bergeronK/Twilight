@@ -217,6 +217,19 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   settles convention questions** — Sensor details shows fusion mode, north
   offset and where the camera is computed to be aimed, for exactly that.
 
+## The Moon: geocentric for the sextant, topocentric for everything else
+
+`moonState` is **geocentric** — right for sight reduction, where `sightToHo`
+applies the Moon's parallax to Ho. Everything that *draws* the Moon or times
+its rising and setting uses `moonTopo(moonState(...))` (or `moonAltSeen` in
+`scanCrossings`): the Moon as seen from the ground, lower by the parallax in
+altitude — 0.83° at 25° up, about a full degree on the horizon, 1½–2
+Moon-widths. Found 2026-09-22 when Sky View's Moon sat visibly high over the
+camera image. Bearing is untouched. Moonrise/set shift by several minutes
+(one field night: 03:15 → 03:09). **Never pass `moonTopo` to the sextant
+path** — it would correct parallax twice; `moon-parallax.test.js` guards
+both directions by reading the call sites in `StarFinder`.
+
 ## Magnetic declination
 
 Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
@@ -375,6 +388,11 @@ things a syntax check cannot see:
   The stub tracks `translate`/`save`/`restore`, or the Moon disc — drawn in
   its own frame — reads as painted at the corner. This is how to test a
   canvas painter here; no browser needed.
+- **`moon-parallax.test.js`** — `moonTopo` against the standard relation
+  sin p = sin HP · cos h (derived differently from its vector shift), the
+  Moon's geocentric altitude at moonset against Meeus's h0 = 0.7275·HP −
+  0.5667°, and a source-level guard that the sextant path stays geocentric
+  while every display call site in `StarFinder` is corrected.
 - **`planets.test.js`** — `planetAltAz` against dated events rather than
   against itself: at published oppositions (Saturn 2024-09-08 and 2025-09-21,
   Jupiter 2024-12-07 and 2026-01-10, Mars 2025-01-16) each planet must be

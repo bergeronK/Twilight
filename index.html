@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-gKbyboyQy5fXblwGBW+yUpi78PVloBMyVGhSNV9+bKI=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-VF9opq2dGefg7TAQZb1wmEykX1oQrVhDF1HviRo66V8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-gKbyboyQy5fXblwGBW+yUpi78PVloBMyVGhSNV9+bKI=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-D/2AzlEtn4JDHnleYAKYQKn6f5YEY+qPMHN0V8rfpk8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -613,6 +613,23 @@ function moonState(date, lat, lonE) {
     age: elong / 360 * 29.53
   };
 }
+/* Where the Moon appears from the ground. moonState is GEOCENTRIC, which is
+   right for sight reduction — the sextant path applies parallax itself
+   (moonParallaxCorr) and must keep getting the geocentric altitude. But the
+   Moon is close enough that from the Earth's surface it sits visibly lower:
+   about 0.83° at 25° up and nearly 1° on the horizon, one and a half to two
+   Moon-widths. Sky View drew it that far too high over the camera image.
+
+   Moving the Moon's position vector from the Earth's centre to an observer
+   one Earth radius up (a sphere; flattening changes this by well under an
+   arcminute) leaves the bearing exactly unchanged and lowers the altitude.
+   Refraction is not included, as nowhere else in the drawing includes it. */
+function moonTopo(m) {
+  return Object.assign({}, m, { alt: atan2(sin(m.alt) * m.r - 1, cos(m.alt) * m.r) });
+}
+// Topocentric altitude for scanCrossings: rise and set are when the Moon
+// appears to cross the horizon, not when the Earth's centre would see it do so.
+const moonAltSeen = (d, la, lo) => moonTopo(moonState(d, la, lo)).alt;
 function moonName(age) {
   const a = age % 29.53;
   if (a < 1.85) return "New";
@@ -1575,7 +1592,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v77";
+const BUILD = "v78";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -3021,9 +3038,8 @@ function HorizonHero({ loc, now, live, glance, bortle }) {
     const sunEv = scanCrossings(now - 20 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2);
     const span = nightSpan(sunEv, now);
     if (!span) return null;
-    const moonAlt = (d, la, lo) => moonState(d, la, lo).alt;
-    const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAlt, MOON_THR, 4);
-    return nightPlan(span, sunEv, moonEv, moonAlt(new Date(span.start), loc.lat, loc.lon) > -0.833);
+    const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
+    return nightPlan(span, sunEv, moonEv, moonAltSeen(new Date(span.start), loc.lat, loc.lon) > -0.833);
   }, [tenMin, loc.lat, loc.lon]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
@@ -3267,7 +3283,7 @@ function RealtimeTwilight({ redMode } = {}) {
     const mid = localMidnight(loc.tz, now);
     const sunEv = scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
     const winEv = scanCrossings(now - 2 * 3600000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
-    const moonEv = scanCrossings(now - 2 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, (d, la, lo) => moonState(d, la, lo).alt, MOON_THR, 4);
+    const moonEv = scanCrossings(now - 2 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
     const wins = [];
     const civilD = winEv.filter(e => e.key === "civil" && e.dir === "down");
     const nautD = winEv.filter(e => e.key === "naut" && e.dir === "down");
@@ -3300,7 +3316,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const live = useMemo(() => {
     const d = new Date(now);
     const alt = sunAltitude(d, loc.lat, loc.lon);
-    const m = moonState(d, loc.lat, loc.lon);
+    const m = moonTopo(moonState(d, loc.lat, loc.lon));
     const dep = Math.max(0, -alt);
     const darkLimit = alt > 0 ? -10 : limitingMag(dep);
     const nelm = BORTLE[bortle] ? BORTLE[bortle].nelm : null;
@@ -5703,6 +5719,8 @@ function StarFinder({ redMode } = {}) {
     const dt = new Date(s.time);
     let hc, zn, moonR;
     if (s.body === 'sun') { const p = sunHcZn(dt, loc.lat, loc.lon); hc = p.alt; zn = p.az; }
+    // Geocentric on purpose: sightToHo applies the Moon's parallax to Ho, so
+    // using moonTopo here would correct it twice.
     else if (s.body === 'moon') { const p = moonState(dt, loc.lat, loc.lon); hc = p.alt; zn = p.az; moonR = p.r; }
     else { const star = NAV_STARS.find(n => n[0] === s.starName) || NAV_STARS[0]; const p = starHcZn(star[1] * 15, star[2], loc.lat, loc.lon, dt); hc = p.alt; zn = p.az; }
     const ho = sightToHo({ hs: s.hs, indexErrorMin: s.ieMin, heightM: s.heightM, body: s.body, limb: s.limb, moonR });
@@ -5927,7 +5945,7 @@ function StarFinder({ redMode } = {}) {
   const aimTarget = useMemo(() => {
     if (!aimTargetName) return null;
     if (aimTargetName === 'Sun') { const p = sunHcZn(new Date(now), loc.lat, loc.lon); return { name: 'Sun', alt: p.alt, az: p.az }; }
-    if (aimTargetName === 'Moon') { const p = moonState(new Date(now), loc.lat, loc.lon); return { name: 'Moon', alt: p.alt, az: p.az }; }
+    if (aimTargetName === 'Moon') { const p = moonTopo(moonState(new Date(now), loc.lat, loc.lon)); return { name: 'Moon', alt: p.alt, az: p.az }; }
     const s = navStars.find(x => x.name === aimTargetName);
     return s ? { name: s.name, alt: s.alt, az: s.az } : null;
   }, [aimTargetName, now, loc.lat, loc.lon, navStars]);
@@ -5974,7 +5992,7 @@ function StarFinder({ redMode } = {}) {
   const skyBodies = useMemo(() => {
     const d = new Date(now), out = [];
     const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
-    const mo = moonState(d, loc.lat, loc.lon); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12 });
+    const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12 });
     ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
       const r = planetAltAz(p, d, loc.lat, loc.lon);
       if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
@@ -6084,7 +6102,7 @@ function StarFinder({ redMode } = {}) {
       .map(n => ({ name: n, ...(planetAltAz(n, dt, loc.lat, loc.lon) || {}) }))
       .filter(p => p.alt > 0);
   }, [minuteKey, loc.lat, loc.lon]);
-  const chartMoon = useMemo(() => moonState(new Date(now), loc.lat, loc.lon), [minuteKey, loc.lat, loc.lon]);
+  const chartMoon = useMemo(() => moonTopo(moonState(new Date(now), loc.lat, loc.lon)), [minuteKey, loc.lat, loc.lon]);
   const chartSunAz = useMemo(() => sunHcZn(new Date(now), loc.lat, loc.lon).az, [minuteKey, loc.lat, loc.lon]);
   const skyChart = React.createElement(SkyChart, {
     stars: chartStars, lines: chartLines, planets: chartPlanets,
@@ -6279,7 +6297,7 @@ function StarFinder({ redMode } = {}) {
     fixPanel
   );
   // ---- Navigator: AR aim assist (compass-only) ----
-  const moonNowAlt = moonState(new Date(now), loc.lat, loc.lon).alt;
+  const moonNowAlt = moonAltSeen(new Date(now), loc.lat, loc.lon);
   const aimableBodies = [
     ...(sunAlt > -6 ? [{ name: "Sun", alt: sunAlt }] : []),
     ...(moonNowAlt > 0 ? [{ name: "Moon", alt: moonNowAlt }] : []),
