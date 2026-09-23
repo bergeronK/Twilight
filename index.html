@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-yV5TnqqVY1tF7zWgT9GWc3hSnO7sShN+B+bZsyjcVz4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gfqgHN83yyHrFINWQUMlJu86jLfnwlS2eRwdaqMCQ/A=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1592,7 +1592,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v80";
+const BUILD = "v82";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -3115,6 +3115,20 @@ function HorizonHero({ loc, now, live, glance, bortle }) {
     )
   );
 }
+/* Place search, shared by the Console and the Ephemeris: Open-Meteo's
+   geocoder (keyless, CORS, already in connect-src). Resolves to a list of
+   { label, name, lat, lon, tz }; throws on a failed request. */
+function geocodePlaces(q, fetchFn = fetch) {
+  return fetchFn("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) + "&count=8&language=en&format=json")
+    .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
+    .then(d => (d.results || []).map(p => ({
+    label: [p.name, p.admin1, p.country].filter(Boolean).join(", "),
+    name: p.name + (p.country_code ? ", " + p.country_code : ""),
+    lat: p.latitude,
+    lon: p.longitude,
+    tz: p.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  })));
+}
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -3209,18 +3223,8 @@ function RealtimeTwilight({ redMode } = {}) {
     setSearchMsg("Searching\u2026");
     setResults([]);
     try {
-      const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) + "&count=8&language=en&format=json");
+      const list = await geocodePlaces(q);
       if (seq !== searchSeq.current) return; // a newer search superseded this one
-      if (!r.ok) throw new Error("bad");
-      const d = await r.json();
-      if (seq !== searchSeq.current) return;
-      const list = (d.results || []).map(p => ({
-        label: [p.name, p.admin1, p.country].filter(Boolean).join(", "),
-        name: p.name + (p.country_code ? ", " + p.country_code : ""),
-        lat: p.latitude,
-        lon: p.longitude,
-        tz: p.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-      }));
       setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
       setResults(list);
     } catch (e) {
@@ -4402,7 +4406,15 @@ function TwilightEphemeris({ redMode } = {}) {
   const [icalMode, setIcalMode] = useState("stargazing");
   const [geoMsg, setGeoMsg] = useState("");
   const [hoverX, setHoverX] = useState(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searchMsg, setSearchMsg] = useState("");
+  const [searchBusy, setSearchBusy] = useState(false);
+  const searchSeq = useRef(0);
   const svgRef = useRef(null);
+  // The chart's drawn width, so its geometry can follow it: an 820-wide
+  // drawing shrunk onto a phone put its labels at about 4 px.
+  const [chartW, setChartW] = useState(820);
   const latN = parseFloat(lat);
   const lonN = parseFloat(lon);
   const [Y, Mo, D] = dateStr.split("-").map(Number);
@@ -4421,6 +4433,19 @@ function TwilightEphemeris({ redMode } = {}) {
   const goToday = () => setDateStr(dateKey(Date.now(), tz || deviceTz));
   const isToday = dateStr === dateKey(Date.now(), tz || deviceTz);
   const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && Y && Mo && D;
+  useEffect(() => {
+    const el = svgRef.current && svgRef.current.parentElement;
+    if (!el) return;
+    const measure = () => {
+      const r = svgRef.current ? svgRef.current.getBoundingClientRect() : null;
+      if (r && r.width) setChartW(Math.round(r.width));
+    };
+    measure();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(measure); ro.observe(el); }
+    window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [!!valid]);
   const today = useMemo(() => valid ? computeDay(latN, lonN, Y, Mo, D) : null, [latN, lonN, Y, Mo, D, valid]);
   // next day's dawns are needed for the overnight "dark window"
   const tomorrow = useMemo(() => {
@@ -4472,6 +4497,36 @@ function TwilightEphemeris({ redMode } = {}) {
     }, err => setGeoMsg(err && err.code === 1 ? "Permission denied \u2014 allow location access, or type coordinates instead." : "Couldn\u2019t get a location fix \u2014 type coordinates instead."), {
       timeout: 8000
     });
+  }
+  async function findPlaces() {
+    const q = query.trim();
+    if (q.length < 2) { setSearchMsg("Type at least 2 letters."); return; }
+    const seq = ++searchSeq.current;
+    setSearchBusy(true);
+    setSearchMsg("Searching\u2026");
+    setResults([]);
+    try {
+      const list = await geocodePlaces(q);
+      if (seq !== searchSeq.current) return; // a newer search superseded this one
+      setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
+      setResults(list);
+    } catch (e) {
+      if (seq === searchSeq.current) setSearchMsg("Couldn\u2019t search \u2014 check your connection.");
+    }
+    if (seq === searchSeq.current) setSearchBusy(false);
+  }
+  // A searched place brings its own IANA zone, so the offset follows it,
+  // daylight saving included, exactly as for the Console's saved place.
+  function choosePlace(p) {
+    setLat(Number(p.lat).toFixed(4));
+    setLon(Number(p.lon).toFixed(4));
+    setTz(p.tz);
+    setPlaceName(p.name);
+    // "Today" is the new place's today: it can already be tomorrow there.
+    if (isToday) setDateStr(dateKey(Date.now(), p.tz));
+    setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg("");
+    // On a phone the form sits below the answer; go back up to it.
+    try { if (window.matchMedia("(max-width:780px)").matches) window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
   }
 
   /* ---------- export ---------- */
@@ -4547,9 +4602,13 @@ function TwilightEphemeris({ redMode } = {}) {
   }
 
   /* ---------- chart geometry ---------- */
-  const W = 820,
-    H = 380,
-    padL = 46,
+  // Wide screens keep the 820 x 380 drawing. Below 560 px the drawing is
+  // made at the width it is shown, one unit to a pixel, so text stays at
+  // its real size, and nearly square, so the day has height to show in.
+  const narrow = chartW < 560;
+  const W = narrow ? Math.max(280, chartW) : 820,
+    H = narrow ? Math.round(W * 0.95) : 380,
+    padL = narrow ? 36 : 46,
     padR = 18,
     padT = 16,
     padB = 30;
@@ -4809,6 +4868,7 @@ function TwilightEphemeris({ redMode } = {}) {
           .te-wrap{padding:26px 14px 52px}
           .te-grid{grid-template-columns:1fr}
           .te-grid > section:first-child{order:2}
+          .te-chart{padding:18px 0 8px !important}
         }
       `), /*#__PURE__*/React.createElement("div", {
     className: "tw-stars",
@@ -4870,8 +4930,35 @@ function TwilightEphemeris({ redMode } = {}) {
       ...panel,
       padding: 20
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }
+  }, React.createElement("div", { style: labelSt }, "Search any city or place"),
+  React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 6, marginBottom: 6 } },
+    React.createElement("input", {
+      value: query,
+      onChange: e => setQuery(e.target.value),
+      onKeyDown: e => { if (e.key === "Enter") findPlaces(); },
+      placeholder: "e.g. Tokyo, Nairobi, Reykjav\u00EDk",
+      "aria-label": "Search for a city or place",
+      style: { ...inputSt, marginTop: 0, flex: 1 }
+    }),
+    React.createElement("button", {
+      onClick: findPlaces,
+      disabled: searchBusy,
+      style: { ...btn, background: "rgba(242,200,121,.14)", color: gold, border: "1px solid rgba(242,200,121,.3)", padding: "0 14px", flexShrink: 0, opacity: searchBusy ? 0.6 : 1 }
+    }, searchBusy ? "\u2026" : "Search")
+  ),
+  searchMsg && React.createElement("div", {
+    role: "status",
+    style: { fontSize: 12, color: dim, fontFamily: "var(--font-ui)", marginBottom: 6 }
+  }, searchMsg),
+  results.length > 0 && React.createElement("div", {
+    style: { display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }
+  }, results.map((p, i) => React.createElement("button", {
+    key: i,
+    onClick: () => choosePlace(p),
+    style: { textAlign: "left", font: "14px var(--font-ui)", color: ink, padding: "9px 12px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--field-bg)", cursor: "pointer" }
+  }, p.label))),
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10, marginTop: 8 }
   },
     /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { style: labelSt }, "Latitude"),
@@ -5011,6 +5098,7 @@ function TwilightEphemeris({ redMode } = {}) {
       gap: 22
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "te-chart",
     style: {
       ...panel,
       padding: "18px 18px 8px"
@@ -5127,7 +5215,7 @@ function TwilightEphemeris({ redMode } = {}) {
       font: "10px var(--font-ui)",
       fill: dim
     }
-  }, pad2(h), ":00"))), bands.map((b, i) => {
+  }, narrow && h % 6 ? "" : pad2(h) + ":00"))), bands.map((b, i) => {
     const {
       y,
       h
