@@ -111,7 +111,11 @@ Three tabs, one `index.html`, no build step:
   so every day after a DST change was an hour out. Below 560 px the chart is drawn
   at its shown width, one viewBox unit per pixel and nearly square (it was
   820×380 scaled to ~340 px: 4 px labels, a 150 px-tall day); wide screens
-  keep 820×380. Not done yet: no city search here as there is on the Console.
+  keep 820×380. City search at the top of the form uses the same
+  `geocodePlaces` as the Console (Open-Meteo geocoder); a chosen place
+  brings its own IANA zone, and if the date shown was today it moves to the
+  new place's today (it can already be tomorrow there). It does not write
+  `tw_loc` — the Console's saved place stays the Console's.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the

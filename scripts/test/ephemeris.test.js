@@ -94,3 +94,48 @@ test('with no zone (coordinates typed by hand) the export uses the manual offset
   const rows = monthRows(null, 2026, 3, -300);
   assert.ok(rows.every(r => r.off === -300));
 });
+
+// Place search. geocodePlaces is shared with the Console; the Ephemeris's
+// choosePlace is run from source with its setters recorded, because what
+// matters is that a searched place brings its own zone rather than leaving
+// the old offset in force.
+test('geocodePlaces: maps Open-Meteo results, keeps each place\'s zone, throws on a failed request', async () => {
+  const g = extract(['geocodePlaces']).geocodePlaces;
+  let asked = null;
+  const ok = body => async url => { asked = url; return { ok: true, json: async () => body }; };
+  const list = await g('Reykjavík', ok({ results: [
+    { name: 'Reykjavík', admin1: 'Capital Region', country: 'Iceland', country_code: 'IS', latitude: 64.1355, longitude: -21.8954, timezone: 'Atlantic/Reykjavik' }
+  ] }));
+  assert.match(asked, /name=Reykjav%C3%ADk&/);
+  assert.deepStrictEqual(list, [{ label: 'Reykjavík, Capital Region, Iceland', name: 'Reykjavík, IS', lat: 64.1355, lon: -21.8954, tz: 'Atlantic/Reykjavik' }]);
+  assert.deepStrictEqual(await g('zzzz', ok({})), []);
+  await assert.rejects(g('Tokyo', async () => ({ ok: false, json: async () => ({}) })));
+});
+
+const choosePlaceWith = (isToday, now) => {
+  const calls = {};
+  const set = k => v => { calls[k] = v; };
+  const env = { setLat: set('lat'), setLon: set('lon'), setTz: set('tz'), setPlaceName: set('name'),
+    setResults: set('results'), setQuery: set('query'), setSearchMsg: set('msg'), setGeoMsg: set('geo'),
+    setDateStr: set('date'), isToday, dateKey: extract(['dateKey']).dateKey,
+    Date: { now: () => now }, window: { matchMedia: () => ({ matches: false }) } };
+  const choosePlace = new Function(...Object.keys(env), declSource('choosePlace') + '\nreturn choosePlace;')(...Object.values(env));
+  return { choosePlace, calls };
+};
+
+test('choosePlace: sets the coordinates, the place\'s own zone and its name, and clears the search', () => {
+  const { choosePlace, calls } = choosePlaceWith(false, Date.UTC(2026, 8, 22, 23, 30));
+  choosePlace({ name: 'Nairobi, KE', lat: -1.28333, lon: 36.81667, tz: 'Africa/Nairobi' });
+  assert.deepStrictEqual(calls, { lat: '-1.2833', lon: '36.8167', tz: 'Africa/Nairobi', name: 'Nairobi, KE',
+    results: [], query: '', msg: '', geo: '' });
+});
+
+test('choosePlace: on today, moves to the new place\'s today; on another date, keeps it', () => {
+  // 23:30 UTC on 22 September is already 09:30 on the 23rd in Sydney.
+  const now = Date.UTC(2026, 8, 22, 23, 30);
+  const sydney = { name: 'Sydney, AU', lat: -33.8688, lon: 151.2093, tz: 'Australia/Sydney' };
+  let r = choosePlaceWith(true, now); r.choosePlace(sydney);
+  assert.strictEqual(r.calls.date, '2026-09-23');
+  r = choosePlaceWith(false, now); r.choosePlace(sydney);
+  assert.strictEqual(r.calls.date, undefined);
+});
