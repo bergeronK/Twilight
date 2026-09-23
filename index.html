@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-W7LOtLzrOupI1Jtgd/Y+/4i0SmNvTOg2p60Xv9ISVZs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-wC1wQlMr/a1BcoSChLdngOnOniN/RfM5JQhCIbvJ77g=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1608,7 +1608,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v90";
+const BUILD = "v91";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2144,13 +2144,24 @@ function drawHorizonScene(g, w, h, o) {
 
   g.font = '600 12px Inter, system-ui, sans-serif';
   g.textBaseline = 'middle';
+  // A name goes right of its body, or left near the edge; it is skipped if
+  // both would cover the place-name header drawn over the top-left
+  // (`o.reserve`, {w, h} in px), where it used to collide with the date line.
+  const rsv = o.reserve || { w: 0, h: 0 };
   const label = (text, x, y, gap) => {
-    const flip = x + gap + g.measureText(text).width > w - 8;
+    const tw = g.measureText(text).width;
+    const hits = (x0, x1) => y - 8 < rsv.h && x0 < rsv.w && x1 > 0;
+    let flip = x + gap + tw > w - 8;
+    if (!flip && hits(x + gap, x + gap + tw)) flip = true;
+    if (flip && hits(x - gap - tw, x - gap)) return;
     g.textAlign = flip ? 'right' : 'left';
     g.fillStyle = 'rgba(238,241,250,.82)';
     g.fillText(text, flip ? x - gap : x + gap, y);
   };
-  o.planets.forEach(p => {
+  // Planets only once the sky is dark enough to show them: in daylight they
+  // are there but invisible, and painting them over a blue sky promised
+  // something no one could see. By mid civil twilight the bright ones are out.
+  if (o.sunAlt < -3) o.planets.forEach(p => {
     const x = X(p.az);
     if (x === null) return;
     const y = Y(p.alt);
@@ -2180,9 +2191,14 @@ function drawHorizonScene(g, w, h, o) {
   g.beginPath();
   g.moveTo(0, h);
   if (o.bortle >= 6) {
+    // A distant town, not a wall of blocks: low roofs over a gentle rise,
+    // with the odd taller building. (The first version's buildings were up
+    // to 70 px tall and 46 wide, and read as a bar chart across the sky.)
     let x = 0;
     while (x < w) {
-      const bw = 12 + rnd() * 34, bh = 8 + rnd() * (rnd() > 0.85 ? 48 : 22);
+      const bw = 5 + rnd() * 14, tall = rnd() > 0.93;
+      const base = 3 + 3 * Math.sin(x / w * 6 + o.lon);
+      const bh = base + (tall ? 10 + rnd() * 12 : rnd() * 7);
       g.lineTo(x, hy - bh); g.lineTo(x + bw, hy - bh);
       x += bw;
     }
@@ -3030,6 +3046,7 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
    verdict over its ground, then the ribbon and the facts. */
 function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   const canvasRef = useRef(null);
+  const headerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
@@ -3096,12 +3113,21 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     cv.style.width = width + 'px'; cv.style.height = H + 'px';
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Where the place-name header actually sits over the painting, so body
+    // labels can keep clear of it.
+    let reserve = null;
+    const hdr = headerRef.current;
+    if (hdr && typeof document !== 'undefined' && document.createRange) {
+      const rg = document.createRange(); rg.selectNodeContents(hdr);
+      const hb = rg.getBoundingClientRect(), cb = cv.getBoundingClientRect();
+      if (hb.width) reserve = { w: hb.right - cb.left + 10, h: hb.bottom - cb.top + 6 };
+    }
     drawHorizonScene(g, width, H, {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing: heroFacing(loc.lat, live.m), stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon
+      bortle, lat: loc.lat, lon: loc.lon, reserve
     });
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon]);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name]);
 
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement(React.Fragment, null,
@@ -3113,7 +3139,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
         ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H },
         'aria-hidden': 'true'
       }),
-      header && React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+      header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
       React.createElement('div', {
         // Changes on its own as twilight advances, rarely enough that
         // announcing it is useful rather than noisy.
@@ -4146,11 +4172,14 @@ function shiftDate(dateStr, days) {
    keyed on the Sun's altitude — so night is night-blue, the twilights glow and
    midday is day-blue: the day's actual light instead of five flat bands.
    `pts` is [localMinute, sunAltitude] through the day. */
+// The sky's overhead colour (skyColors' `s`), not its middle band: each
+// colour fills a full-height column of the chart, and the middle band's pinks
+// at dusk read as a magenta stripe down the chart rather than as a sky.
 function daySkyStops(pts, every) {
   const out = [];
-  for (let i = 0; i < pts.length; i += every) out.push({ at: pts[i][0] / 1440, color: skyColors(pts[i][1]).m });
+  for (let i = 0; i < pts.length; i += every) out.push({ at: pts[i][0] / 1440, color: skyColors(pts[i][1]).s });
   const last = pts[pts.length - 1];
-  if (out[out.length - 1].at < last[0] / 1440) out.push({ at: last[0] / 1440, color: skyColors(last[1]).m });
+  if (out[out.length - 1].at < last[0] / 1440) out.push({ at: last[0] / 1440, color: skyColors(last[1]).s });
   return out;
 }
 /* The Moon's altitude through a local day as seen from the ground (parallax
@@ -4496,7 +4525,9 @@ function TwilightEphemeris({ redMode } = {}) {
   const moonLayer = moonTrack && React.createElement("g", { clipPath: "url(#plot)" },
     React.createElement("path", { d: moonPath, fill: "none", stroke: "rgba(232,230,223,.72)", strokeWidth: 1.6, strokeDasharray: "5 5", strokeLinejoin: "round" }),
     moonPeak && moonPeak[1] > 2 && React.createElement("text", {
-      x: X(moonPeak[0]), y: Yc(moonPeak[1]) - 8, textAnchor: "middle",
+      // Kept inside the plot: at a peak near midnight the centred label was
+      // cut off at the chart's edge.
+      x: Math.max(padL + 18, Math.min(W - padR - 18, X(moonPeak[0]))), y: Yc(moonPeak[1]) - 8, textAnchor: "middle",
       style: { font: "600 10.5px var(--font-ui)", fill: "rgba(232,230,223,.88)" }
     }, "Moon"));
   const nowMin = ((Math.floor(Date.now() / 60000) + offMin) % 1440 + 1440) % 1440;
@@ -4931,7 +4962,10 @@ function TwilightEphemeris({ redMode } = {}) {
       const r = svgRef.current.getBoundingClientRect();
       setHoverX((e.touches[0].clientX - r.left) / r.width * W);
     },
-    onTouchEnd: () => setHoverX(null)
+    onTouchEnd: () => setHoverX(null),
+    // A touch that turns into a scroll is cancelled, not ended (iOS); without
+    // this the readout stayed stuck on the chart after scrolling past it.
+    onTouchCancel: () => setHoverX(null)
   }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("filter", {
     id: "glow"
   }, /*#__PURE__*/React.createElement("feGaussianBlur", {

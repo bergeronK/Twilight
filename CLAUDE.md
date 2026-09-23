@@ -115,7 +115,13 @@ Three tabs, one `index.html`, no build step:
   (all repeated the horizon view and facts); what only it had stays, flat:
   the next-twilight countdown, Sun height, horizon visible, and the sextant
   window with its calendar button. Then "Above the horizon now", the twilight
-  schedule, the band notes and the almanac, unchanged. Phase 2 is done.
+  schedule, the band notes and the almanac, unchanged. Phase 2 is done. **Painting fixes
+  from a phone screenshot (2026-09-23):** planets are drawn only once the
+  Sun is 3° down (they were painted and labelled in a blue daytime sky);
+  body labels keep clear of the place-name header (`o.reserve`, measured
+  from the header's text with a DOM Range) by flipping sides or being left
+  off; the city skyline is low roofs over a gentle rise (was blocks up to
+  70 px). `horizon-scene.test.js` pins all three with a recording canvas.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -137,7 +143,10 @@ Three tabs, one `index.html`, no build step:
   + 4°, so every curve nearly touched the top and a 20° winter noon looked
   as high as a 70° summer one — the owner found it "exaggerated". Now 30°,
   60° and 90° are labelled, the painted sky stops at the horizon, and below
-  it is dark ground with the twilight bands faintly tinted. Below 560 px the chart is drawn
+  it is dark ground with the twilight bands faintly tinted. The painted day uses
+  skyColors' overhead colour (`s`), not the middle band (`m`), whose dusk
+  pinks made a magenta stripe down the chart; a touch cancelled by a scroll
+  now clears the readout (it stuck on iOS); the Moon label stays inside. Below 560 px the chart is drawn
   at its shown width, one viewBox unit per pixel and nearly square (it was
   820×380 scaled to ~340 px: 4 px labels, a 150 px-tall day); wide screens
   keep 820×380. City search at the top of the form uses the same
