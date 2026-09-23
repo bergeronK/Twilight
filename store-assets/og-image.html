@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  The social card (og-image.png, 1200x630) shown wherever a twilyte.info link
+  is shared. Colours are the app's own tokens, sampled from the original card
+  when this file was written (2026-09-22) so a regenerate matches it.
+
+  Render:
+    chrome --headless=new --hide-scrollbars --force-device-scale-factor=1 \
+      --window-size=1200,630 --virtual-time-budget=3000 \
+      --screenshot=og-image.png file:///ABSOLUTE/PATH/store-assets/og-image.html
+
+  The name comes from the URL hash (#name=Something) so a render can be
+  compared against an older card; with no hash it is the current brand.
+-->
+<html><head><meta charset="utf-8"><title>Twilyte social card</title>
+<style>
+  @font-face{font-family:'Inter';font-weight:100 900;src:url(../fonts/inter-var.woff2) format('woff2');}
+  @font-face{font-family:'Cormorant Garamond';font-style:normal;font-weight:400 700;src:url(../fonts/cormorant.woff2) format('woff2');}
+  @font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:400;src:url(../fonts/cormorant-i.woff2) format('woff2');}
+  :root{ --bg:#0e0d0b; --glow:#17140e; --rule:#382d18; --accent:#d2a04d; --ink:#eae7e0; --tag:#f1efea; --amber:#dfbc81; --grey:#c9c8c8; --faint:#7d766a; }
+  html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:var(--bg);}
+  .card{position:relative;width:1200px;height:630px;
+    background:
+      radial-gradient(900px 500px at 100% 0%, var(--glow) 0%, rgba(14,13,11,0) 70%),
+      radial-gradient(700px 260px at 0% 100%, rgba(40,32,18,.55) 0%, rgba(40,32,18,0) 100%),
+      linear-gradient(180deg, rgba(14,13,11,0) 0px, rgba(14,13,11,0) 480px, #100f0c 481px, #1f1a11 630px),
+      var(--bg);}
+  canvas{position:absolute;inset:0;}
+  .rule{position:absolute;left:0;right:0;top:480px;height:1px;background:var(--rule);}
+  .mark{position:absolute;left:90px;top:217px;display:flex;align-items:center;gap:20px;}
+  .mark svg{width:58px;height:58px;flex:none;}
+  .word{font:500 77px/1 'Cormorant Garamond',Georgia,serif;color:var(--ink);letter-spacing:.005em;}
+  .tag{position:absolute;left:90px;top:330px;font:italic 400 40px/1 'Cormorant Garamond',Georgia,serif;color:var(--tag);}
+  .sub{position:absolute;left:90px;top:397px;font:400 21.5px/1 Inter,system-ui,sans-serif;color:var(--grey);}
+  .sub b{color:var(--amber);font-weight:700;}
+  .url{position:absolute;left:90px;top:563px;font:600 19px/1 Inter,system-ui,sans-serif;color:var(--faint);letter-spacing:.14em;}
+</style></head>
+<body><div class="card">
+  <canvas id="stars" width="1200" height="480"></canvas>
+  <div class="mark">
+    <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0l1.7 5.3L14 7l-5.3 1.7L7 14 5.3 8.7 0 7l5.3-1.7z" fill="#d2a04d"/></svg>
+    <span class="word" id="name">Twilyte</span>
+  </div>
+  <div class="tag">Tonight's sky, wherever you are.</div>
+  <div class="sub">Live <b>clear-and-dark</b> score · twilight ephemeris · celestial navigation</div>
+  <div class="rule"></div>
+  <div class="url">TWILYTE.INFO</div>
+</div>
+<script>
+  const m = location.hash.match(/name=([^&]+)/);
+  if (m) document.getElementById('name').textContent = decodeURIComponent(m[1]);
+  // A sparse, fixed field of faint stars above the rule.
+  const g = document.getElementById('stars').getContext('2d');
+  let s = 20260922;
+  const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  for (let i = 0; i < 110; i++) {
+    const x = r() * 1200, y = r() * 470, k = r();
+    g.fillStyle = `rgba(238,236,230,${(0.18 + k * k * 0.55).toFixed(2)})`;
+    g.beginPath(); g.arc(x, y, 0.6 + k * 1.1, 0, 7); g.fill();
+  }
+</script>
+</body></html>

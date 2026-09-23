@@ -1,9 +1,9 @@
-# Twilight — native shell (iOS & Android)
+# Twilyte — native shell (iOS & Android)
 
 A [Capacitor](https://capacitorjs.com) wrapper around the PWA in the repo
 root. The web app is the single source of truth; nothing here forks it. The
 shell bundles the same `index.html` + assets into native app packages so
-Twilight can ship on the App Store and Play Store (and later sell the Pro
+Twilyte can ship on the App Store and Play Store (and later sell the Pro
 tier through StoreKit / Play Billing instead of the current free-preview
 flag).
 

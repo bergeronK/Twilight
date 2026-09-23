@@ -60,7 +60,7 @@ async function capture(browser, tab, outPath, after) {
   const resp = await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
   if (!resp || !resp.ok()) throw new Error(`${SERVER} returned ${resp ? resp.status() : 'no response'} — is the local server running?`);
   await page.waitForTimeout(2600);
-  const mounted = await page.evaluate(() => !/Starting Twilight/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
+  const mounted = await page.evaluate(() => !/Starting Twilyte/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
   if (!mounted) throw new Error('app did not render — stale CSP hashes? run scripts/verify-build.js');
   if (after) await after(page);
   await page.screenshot({ path: outPath });

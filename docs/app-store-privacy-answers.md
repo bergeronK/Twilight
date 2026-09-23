@@ -1,7 +1,7 @@
 # App Store Connect & Play Console — privacy questionnaire answers
 
 Reference sheet for filling out the "App Privacy" (Apple) and "Data safety"
-(Google) forms when submitting Twilight. These are grounded in exactly what
+(Google) forms when submitting Twilyte. These are grounded in exactly what
 `index.html` and `native/` do as of this writing (July 2026; visit counter
 added September 2026) — re-check against the code if data flows change
 before you submit. Store forms get reworded over time; match by meaning, not
@@ -96,7 +96,7 @@ and invites questions you'd then have to un-answer.
 What camera use *does* require:
 - **`NSCameraUsageDescription` in `Info.plist`** — already added. Apple
   rejects builds that can reach a camera prompt without one, and reviewers
-  read the string. Current text: *"Twilight can show the live camera behind
+  read the string. Current text: *"Twilyte can show the live camera behind
   Sky View so you can line up stars against what you actually see. The camera
   is off by default, nothing is recorded, and no image ever leaves your
   device."*
@@ -180,7 +180,7 @@ point users to RevenueCat's deletion process if asked.
 
 ## Age rating (both stores)
 
-Twilight is a reference/utility app: no user-generated content, no chat, no
+Twilyte is a reference/utility app: no user-generated content, no chat, no
 violence, gambling, or mature themes. Apple's questionnaire and Google's
 equivalent should both land on the lowest tier (Apple: 4+; Google: Everyone)
 with every content-descriptor question answered "No."
