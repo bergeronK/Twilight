@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-wC1wQlMr/a1BcoSChLdngOnOniN/RfM5JQhCIbvJ77g=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-3cWFxEaSiyjN7DU1n2si3+N76syFhycpP3WwEsidD1E=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1608,7 +1608,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v91";
+const BUILD = "v92";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2184,37 +2184,36 @@ function drawHorizonScene(g, w, h, o) {
       label('Moon', x, y, r + 7);
     }
   }
-  // Ground: buildings where the sky is city-bright, a treeline elsewhere,
-  // the same every visit for the same place.
+  // A town's light, after dark: a warm dome over the horizon, which is how
+  // city light looks from outside it, stronger the brighter the sky.
+  if (o.bortle >= 5 && o.sunAlt < -4) {
+    const a = Math.min(0.34, 0.07 * (o.bortle - 4)) * Math.min(1, (-o.sunAlt - 4) / 8);
+    const dome = g.createLinearGradient(0, hy - hy * 0.45, 0, hy);
+    dome.addColorStop(0, 'rgba(214,150,84,0)'); dome.addColorStop(1, `rgba(214,150,84,${a.toFixed(3)})`);
+    g.fillStyle = dome; g.fillRect(0, hy - hy * 0.45, w, hy * 0.45 + 2);
+  }
+  // Ground: a low ridge with a soft treeline along it, the same every visit
+  // for the same place. One shape everywhere; a city shows as its light, not
+  // as buildings. (Buildings were tried twice: rectangles of any size read
+  // as a bar chart along the horizon.)
   const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
   g.fillStyle = '#05070d';
   g.beginPath();
   g.moveTo(0, h);
-  if (o.bortle >= 6) {
-    // A distant town, not a wall of blocks: low roofs over a gentle rise,
-    // with the odd taller building. (The first version's buildings were up
-    // to 70 px tall and 46 wide, and read as a bar chart across the sky.)
-    let x = 0;
-    while (x < w) {
-      const bw = 5 + rnd() * 14, tall = rnd() > 0.93;
-      const base = 3 + 3 * Math.sin(x / w * 6 + o.lon);
-      const bh = base + (tall ? 10 + rnd() * 12 : rnd() * 7);
-      g.lineTo(x, hy - bh); g.lineTo(x + bw, hy - bh);
-      x += bw;
-    }
-  } else {
-    for (let x = 0; x <= w; x += 6) {
-      const hill = 6 + 8 * Math.sin(x / w * 5 + o.lon) + 5 * Math.sin(x / w * 13 + o.lat);
-      g.lineTo(x, hy - hill - rnd() * 9);
-    }
+  let tree = 0;
+  for (let x = 0; x <= w; x += 3) {
+    const ridge = 5 + 6 * Math.sin(x / w * 4 + o.lon) + 3.5 * Math.sin(x / w * 11 + o.lat);
+    tree = tree * 0.55 + rnd() * 6 * 0.45; // smoothed, so the edge is soft, not jagged
+    g.lineTo(x, hy - ridge - tree);
   }
   g.lineTo(w, h);
   g.closePath();
   g.fill();
   if (o.bortle >= 6 && o.sunAlt < -2) {
-    for (let i = 0; i < w / 5; i++) {
-      g.fillStyle = `rgba(232,181,99,${(0.2 + rnd() * 0.45).toFixed(2)})`;
-      g.fillRect(rnd() * w, hy - 4 - rnd() * 40, 1.6, 2.2);
+    // Lights in the town, on the ground rather than floating in the sky.
+    for (let i = 0; i < w / 6; i++) {
+      g.fillStyle = `rgba(232,181,99,${(0.18 + rnd() * 0.4).toFixed(2)})`;
+      g.fillRect(rnd() * w, hy + 1 + rnd() * 9, 1.4, 1.4);
     }
   }
   // Settle into the page below, so the text over the ground stays readable.
@@ -4410,10 +4409,12 @@ function TwilightEphemeris({ redMode } = {}) {
   /* ---------- chart geometry ---------- */
   // Wide screens keep the 820 x 380 drawing. Below 560 px the drawing is
   // made at the width it is shown, one unit to a pixel, so text stays at
-  // its real size, and nearly square, so the day has height to show in.
+  // its real size, and at 4:3, wider than tall. (It was nearly square, and
+  // squeezing six hours of sunrise into a quarter of the width made a
+  // correct 48-degree noon look like a spike.)
   const narrow = chartW < 560;
   const W = narrow ? Math.max(280, chartW) : 820,
-    H = narrow ? Math.round(W * 0.95) : 380,
+    H = narrow ? Math.round(W * 0.75) : 380,
     padL = narrow ? 36 : 46,
     padR = 18,
     padT = 16,
@@ -5044,7 +5045,7 @@ function TwilightEphemeris({ redMode } = {}) {
       y,
       h
     } = bandClip(b.a1, b.a2);
-    if (h < 13 || b.a1 > 0) return null;
+    if (h < 11 || b.a1 > 0) return null;
     return /*#__PURE__*/React.createElement("text", {
       key: i,
       x: W - padR - 5,

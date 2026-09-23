@@ -70,12 +70,18 @@ test('a label that would cover the place-name header moves aside, or is left off
   assert.ok(names(paint(scene(Object.assign({}, night, { planets: [{ name: 'Jupiter', az: 150, alt: 60 }] })))).includes('Jupiter'));
 });
 
-test('a city skyline is a low line of roofs, not a bar chart', () => {
+test('the horizon is a soft ridge everywhere: no buildings, no vertical walls', () => {
   const hy = Math.round(H * 0.62);
-  const g = paint(scene({ bortle: 8 }));
-  const outline = g.ground.find(p => p.some(([, y]) => y < hy));
-  assert.ok(outline, 'a skyline was drawn');
-  const tallest = Math.max(...outline.map(([, y]) => hy - y));
-  // Was up to 70 px. Now roofs 3-13 px over a gentle rise, towers to ~28.
-  assert.ok(tallest <= 30, `a ${tallest.toFixed(0)} px building`);
+  for (const bortle of [2, 8]) {
+    const g = paint(scene({ bortle }));
+    const outline = g.ground.find(p => p.some(([, y]) => y < hy));
+    assert.ok(outline, 'a horizon was drawn');
+    const top = outline.filter(([, y]) => y < hy + 1);
+    // A building is a vertical wall: two consecutive points at one x. The
+    // ridge advances in x at every point.
+    for (let i = 1; i < top.length; i++) assert.ok(top[i][0] > top[i - 1][0], `a vertical edge at x=${top[i][0]} (bortle ${bortle})`);
+    // Nor any sudden step: neighbouring points 3 px apart differ by under 4 px.
+    for (let i = 1; i < top.length; i++) assert.ok(Math.abs(top[i][1] - top[i - 1][1]) < 4, `a ${Math.abs(top[i][1] - top[i - 1][1]).toFixed(1)} px step (bortle ${bortle})`);
+    assert.ok(Math.max(...top.map(([, y]) => hy - y)) <= 22, 'the ridge stays low');
+  }
 });

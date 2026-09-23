@@ -120,8 +120,11 @@ Three tabs, one `index.html`, no build step:
   Sun is 3° down (they were painted and labelled in a blue daytime sky);
   body labels keep clear of the place-name header (`o.reserve`, measured
   from the header's text with a DOM Range) by flipping sides or being left
-  off; the city skyline is low roofs over a gentle rise (was blocks up to
-  70 px). `horizon-scene.test.js` pins all three with a recording canvas.
+  off. **No buildings on the horizon** (owner, twice): one soft ridge and
+  treeline everywhere, smoothed so no neighbouring points step more than
+  4 px; a city (Bortle 5+) shows after dark as a warm light dome over the
+  horizon and lights on the ground. Rectangles of any size read as a bar
+  chart. `horizon-scene.test.js` pins all of this with a recording canvas.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -147,9 +150,10 @@ Three tabs, one `index.html`, no build step:
   skyColors' overhead colour (`s`), not the middle band (`m`), whose dusk
   pinks made a magenta stripe down the chart; a touch cancelled by a scroll
   now clears the readout (it stuck on iOS); the Moon label stays inside. Below 560 px the chart is drawn
-  at its shown width, one viewBox unit per pixel and nearly square (it was
-  820×380 scaled to ~340 px: 4 px labels, a 150 px-tall day); wide screens
-  keep 820×380. City search at the top of the form uses the same
+  at its shown width, one viewBox unit per pixel, at 4:3 (it was 820×380
+  scaled to ~340 px: 4 px labels; then nearly square, which made a correct
+  48° noon look like a spike — the owner asked why the arch was so high);
+  wide screens keep 820×380. City search at the top of the form uses the same
   `geocodePlaces` as the Console (Open-Meteo geocoder); a chosen place
   brings its own IANA zone, and if the date shown was today it moves to the
   new place's today (it can already be tomorrow there). It does not write
