@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-yV5TnqqVY1tF7zWgT9GWc3hSnO7sShN+B+bZsyjcVz4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-voaotaPGyRW082qbqOV7ibQam3YP5RQcwq7wtPLjZMs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1592,7 +1592,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v80";
+const BUILD = "v81";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -4403,6 +4403,9 @@ function TwilightEphemeris({ redMode } = {}) {
   const [geoMsg, setGeoMsg] = useState("");
   const [hoverX, setHoverX] = useState(null);
   const svgRef = useRef(null);
+  // The chart's drawn width, so its geometry can follow it: an 820-wide
+  // drawing shrunk onto a phone put its labels at about 4 px.
+  const [chartW, setChartW] = useState(820);
   const latN = parseFloat(lat);
   const lonN = parseFloat(lon);
   const [Y, Mo, D] = dateStr.split("-").map(Number);
@@ -4421,6 +4424,19 @@ function TwilightEphemeris({ redMode } = {}) {
   const goToday = () => setDateStr(dateKey(Date.now(), tz || deviceTz));
   const isToday = dateStr === dateKey(Date.now(), tz || deviceTz);
   const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && Y && Mo && D;
+  useEffect(() => {
+    const el = svgRef.current && svgRef.current.parentElement;
+    if (!el) return;
+    const measure = () => {
+      const r = svgRef.current ? svgRef.current.getBoundingClientRect() : null;
+      if (r && r.width) setChartW(Math.round(r.width));
+    };
+    measure();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(measure); ro.observe(el); }
+    window.addEventListener("resize", measure);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [!!valid]);
   const today = useMemo(() => valid ? computeDay(latN, lonN, Y, Mo, D) : null, [latN, lonN, Y, Mo, D, valid]);
   // next day's dawns are needed for the overnight "dark window"
   const tomorrow = useMemo(() => {
@@ -4547,9 +4563,13 @@ function TwilightEphemeris({ redMode } = {}) {
   }
 
   /* ---------- chart geometry ---------- */
-  const W = 820,
-    H = 380,
-    padL = 46,
+  // Wide screens keep the 820 x 380 drawing. Below 560 px the drawing is
+  // made at the width it is shown, one unit to a pixel, so text stays at
+  // its real size, and nearly square, so the day has height to show in.
+  const narrow = chartW < 560;
+  const W = narrow ? Math.max(280, chartW) : 820,
+    H = narrow ? Math.round(W * 0.95) : 380,
+    padL = narrow ? 36 : 46,
     padR = 18,
     padT = 16,
     padB = 30;
@@ -4809,6 +4829,7 @@ function TwilightEphemeris({ redMode } = {}) {
           .te-wrap{padding:26px 14px 52px}
           .te-grid{grid-template-columns:1fr}
           .te-grid > section:first-child{order:2}
+          .te-chart{padding:18px 0 8px !important}
         }
       `), /*#__PURE__*/React.createElement("div", {
     className: "tw-stars",
@@ -5011,6 +5032,7 @@ function TwilightEphemeris({ redMode } = {}) {
       gap: 22
     }
   }, /*#__PURE__*/React.createElement("div", {
+    className: "te-chart",
     style: {
       ...panel,
       padding: "18px 18px 8px"
@@ -5127,7 +5149,7 @@ function TwilightEphemeris({ redMode } = {}) {
       font: "10px var(--font-ui)",
       fill: dim
     }
-  }, pad2(h), ":00"))), bands.map((b, i) => {
+  }, narrow && h % 6 ? "" : pad2(h) + ":00"))), bands.map((b, i) => {
     const {
       y,
       h
