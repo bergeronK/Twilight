@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6RIiK7abUgb1OEoglj2vgkt06jjmOzNA1wXQ8H9AVaU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-REwPe2vBSt1egMIDaiXxRC2aH1x3eDNzsvAIQpkJMFE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1117,6 +1117,18 @@ function limitingMag(dep) {
   }
   return 6.3;
 }
+/* The faintest star you could see: twilight's limit, capped by the sky's
+   light pollution (the Bortle class's NELM), less what the Moon costs. The
+   Console's "Faintest star visible", and what decides which stars, meteors
+   and how much Milky Way the painting and the highlights show. */
+function skyLimit(sunAlt, moon, bortle) {
+  const darkLimit = sunAlt > 0 ? -10 : limitingMag(Math.max(0, -sunAlt));
+  const nelm = BORTLE[bortle] ? BORTLE[bortle].nelm : null;
+  // Light pollution sets a ceiling: you can't see fainter than your sky's NELM.
+  const base = (nelm != null && sunAlt <= 0) ? Math.min(darkLimit, nelm) : darkLimit;
+  const moonPen = moon.alt > 0 ? moon.illum * Math.min(1, moon.alt / 40) * 2.2 : 0;
+  return { mag: base - moonPen, moonPen };
+}
 function horizonVis(dep) {
   if (dep <= 0) return 1;
   if (dep <= 6) return 1 - dep / 6 * 0.15;
@@ -1301,7 +1313,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v97";
+const BUILD = "v99";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2733,7 +2745,7 @@ function NightFacts({ plan, now, fmt, illum, planets }) {
   const top = planets[0];
   const pl = top
     ? { v: planets.slice(0, 2).map(p => p.name).join(' · '), c: `${top.name} in the ${compass16(top.az)}, ${top.alt > 40 ? 'high' : top.alt > 18 ? 'well up' : 'low'}` }
-    : { v: 'None', c: 'No bright planets up tonight' };
+    : { v: 'None', c: 'No bright planets up this evening' };
   const cell = (k, f, first) => React.createElement('div', {
     key: k,
     style: { display: 'grid', gap: 2, alignContent: 'start', padding: first ? '0 12px 0 0' : '0 12px', borderLeft: first ? 'none' : '1px solid var(--line, rgba(255,255,255,.1))' }
@@ -2744,6 +2756,241 @@ function NightFacts({ plan, now, fmt, illum, planets }) {
   );
   return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } },
     cell('Darkest', darkest, true), cell('Moon', moon), cell('Planets', pl));
+}
+
+/* ---- Worth a look tonight ----
+   A short, plain list of what is worth stepping outside for tonight, worked
+   out from the same astronomy as everything else: meteor showers at the rate
+   you would actually see from here, the Moon or planets close together, a
+   planet at its best, the Milky Way's bright centre, and the darkest or
+   brightest Moon of the month. Nothing is listed unless it is up while the
+   sky is dark enough to see it. */
+// Stars bright enough, and near enough the ecliptic, for the Moon and
+// planets to pass them: [name, RA°, Dec°].
+const HIGHLIGHT_STARS = [['Regulus', 152.09, 11.97], ['Spica', 201.3, -11.16], ['Antares', 247.35, -26.43],
+  ['Aldebaran', 68.98, 16.51], ['Pollux', 116.33, 28.03], ['the Pleiades', 56.75, 24.12]];
+// Angle between two points on the sky given as az/alt, in degrees.
+function sepAltAz(a, b) {
+  const c = sin(a.alt) * sin(b.alt) + cos(a.alt) * cos(b.alt) * cos(a.az - b.az);
+  return Math.acos(Math.max(-1, Math.min(1, c))) * R2D;
+}
+function tonightHighlights(plan, lat, lon, bortle, fmt) {
+  if (!plan) return [];
+  const STEP = 15 * 60000, samples = [];
+  for (let t = plan.start; t <= plan.end; t += STEP) {
+    const d = new Date(t), sunAlt = sunAltitude(d, lat, lon);
+    if (sunAlt > -6) continue;
+    const moon = moonTopo(moonState(d, lat, lon));
+    const bodies = [{ name: 'the Moon', kind: 'moon', az: moon.az, alt: moon.alt }];
+    ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury'].forEach(n => {
+      const p = planetAltAz(n, d, lat, lon);
+      if (p) bodies.push({ name: n, kind: 'planet', az: p.az, alt: p.alt });
+    });
+    HIGHLIGHT_STARS.forEach(([n, ra, dec]) => bodies.push(Object.assign({ name: n, kind: 'star' }, starHcZn(ra, dec, lat, lon, d))));
+    samples.push({ t, d, sunAlt, moon, bodies, sun: sunHcZn(d, lat, lon), lm: skyLimit(sunAlt, moon, bortle).mag });
+  }
+  if (!samples.length) return [];
+  const out = [];
+  const where = alt => alt < 15 ? 'low in the' : alt > 50 ? 'high in the' : 'in the';
+
+  // Meteor showers, at the best hour's rate.
+  const showers = {};
+  samples.forEach(s => meteorRate(s.d, lat, lon, s.lm, s.sunAlt).parts.forEach(p => {
+    if (!p.sh) return;
+    const k = p.sh[0];
+    if (!showers[k] || p.hr > showers[k].hr) showers[k] = { hr: p.hr, t: s.t, radiant: p.radiant, act: showerActivity(p.sh, s.d) };
+  }));
+  Object.entries(showers).forEach(([name, m]) => {
+    const n = Math.round(m.hr);
+    if (n < 5) return;
+    out.push({
+      kind: 'meteors', rank: n >= 20 ? 0 : 5,
+      title: `The ${name} ${m.act > 0.8 ? 'peak tonight' : 'are active'}`,
+      detail: `Up to about ${n} meteors an hour from here, best around ${fmt(m.t)}. They can appear anywhere, flying out from the ${compass16(m.radiant.az)}.`
+    });
+  });
+
+  // Two of the Moon, the planets and the bright stars close together.
+  const pairs = {};
+  samples.forEach(s => {
+    if (s.sunAlt > -8) return;
+    const up = s.bodies.filter(b => b.alt >= 8);
+    for (let i = 0; i < up.length; i++) for (let j = i + 1; j < up.length; j++) {
+      const a = up[i], b = up[j];
+      if (a.kind === 'star' && b.kind === 'star') continue;
+      const lim = a.kind === 'moon' || b.kind === 'moon' ? 5 : b.kind === 'star' || a.kind === 'star' ? 3 : 4;
+      const sep = sepAltAz(a, b);
+      if (sep > lim) continue;
+      const key = a.name + '|' + b.name, p = pairs[key];
+      if (!p) pairs[key] = { a, b, sep, from: s.t, alt: (a.alt + b.alt) / 2, az: a.az };
+      else if (sep < p.sep) Object.assign(p, { sep });
+    }
+  });
+  Object.values(pairs).sort((x, y) => x.sep - y.sep).slice(0, 2).forEach(p => {
+    // The Moon first, then the brighter planet, then a star.
+    const rank = x => x.kind === 'moon' ? -1 : x.kind === 'star' ? 9 : ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury'].indexOf(x.name);
+    const [a, b] = rank(p.a) <= rank(p.b) ? [p.a, p.b] : [p.b, p.a];
+    const cap = a.name[0].toUpperCase() + a.name.slice(1);
+    out.push({
+      kind: 'pair', rank: 1,
+      title: `${cap} and ${b.name} close together`,
+      detail: `${p.sep < 1 ? 'Less than a degree' : `About ${Math.round(p.sep)}°`} apart, ${where(p.alt)} ${compass16(p.az)} from ${fmt(p.from)}.`
+    });
+  });
+
+  // An outer planet at opposition: opposite the Sun, up all night, brightest.
+  ['Mars', 'Jupiter', 'Saturn'].forEach(n => {
+    const at = samples.map(s => ({ s, b: s.bodies.find(b => b.name === n) })).filter(x => x.b);
+    if (!at.length) return;
+    const mid = at[Math.floor(at.length / 2)];
+    const elong = sepAltAz(mid.b, mid.s.sun);
+    const best = at.reduce((m, x) => x.b.alt > m.b.alt ? x : m, at[0]);
+    if (elong >= 165 && best.b.alt >= 15) out.push({
+      kind: 'planet', rank: 2,
+      title: `${n} is at its best`,
+      detail: `It is opposite the Sun: up all night and as bright as it gets this year, highest in the ${compass16(best.b.az)} around ${fmt(best.s.t)}.`
+    });
+  });
+  // Mercury, which is only easy to see a few weeks a year.
+  const merc = samples.filter(s => s.sunAlt <= -6 && s.sunAlt >= -12)
+    .map(s => ({ s, b: s.bodies.find(b => b.name === 'Mercury') }))
+    .filter(x => x.b && x.b.alt >= 5);
+  if (merc.length) {
+    const m = merc.reduce((a, x) => x.b.alt > a.b.alt ? x : a, merc[0]);
+    const evening = m.s.t < (plan.start + plan.end) / 2;
+    out.push({
+      kind: 'planet', rank: 3,
+      title: 'Mercury is on show',
+      detail: `Look low in the ${compass16(m.b.az)} around ${fmt(m.s.t)}, ${evening ? 'after sunset' : 'before sunrise'}. It is only this easy to see a few weeks a year.`
+    });
+  }
+
+  // The Milky Way's bright centre, when the sky is dark enough for it.
+  const core = samples.filter(s => s.sunAlt <= -15 && milkyWayVisibility(s.lm) >= 0.5)
+    .map(s => ({ s, c: starHcZn(266.4, -28.9, lat, lon, s.d) })).filter(x => x.c.alt >= 12);
+  if (core.length) {
+    const first = core[0], last = core[core.length - 1];
+    out.push({
+      kind: 'milkyway', rank: 3,
+      title: "The Milky Way's bright centre is up",
+      detail: first.s.t > samples[0].t + STEP
+        ? `From ${fmt(first.s.t)}, ${where(first.c.alt)} ${compass16(first.c.az)}, if you can get away from lights.`
+        : `${where(first.c.alt)[0].toUpperCase() + where(first.c.alt).slice(1)} ${compass16(first.c.az)} until ${fmt(last.s.t)}, if you can get away from lights.`
+    });
+  }
+
+  // The Moon at either end of the month.
+  const illum = samples[Math.floor(samples.length / 2)].moon.illum;
+  if (illum < 0.03) out.push({ kind: 'moon', rank: 4, title: 'No Moon tonight', detail: 'The darkest nights of the month, and the best for faint things.' });
+  else if (illum > 0.97) out.push({ kind: 'moon', rank: 6, title: 'Full Moon tonight', detail: 'Lovely to look at, but it washes out all but the brightest stars.' });
+
+  // Nothing special: the brightest planet up after dark, so there is always
+  // something to go out for.
+  if (!out.length) {
+    const up = samples.filter(s => s.sunAlt <= -8).flatMap(s => s.bodies.filter(b => b.kind === 'planet' && b.alt >= 12).map(b => ({ b, s })));
+    const order = ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury'];
+    up.sort((x, y) => order.indexOf(x.b.name) - order.indexOf(y.b.name) || x.s.t - y.s.t);
+    if (up.length) out.push({ kind: 'planet', rank: 7, title: `${up[0].b.name} after dark`, detail: `Up ${where(up[0].b.alt)} ${compass16(up[0].b.az)} from ${fmt(up[0].s.t)}; it is the brightest thing there that isn't twinkling.` });
+  }
+  return out.sort((x, y) => x.rank - y.rank).slice(0, 4);
+}
+// The list, flat under a small heading, a hairline between items.
+function TonightHighlights({ items }) {
+  if (!items || !items.length) return null;
+  return React.createElement('section', { 'aria-label': 'Worth a look tonight' },
+    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint, marginBottom: 6 } }, 'Worth a look tonight'),
+    items.map((h, i) => React.createElement('div', {
+      key: h.title,
+      style: { padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
+    },
+      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, color: C.ink } }, h.title),
+      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: C.inkDim, lineHeight: 1.45, marginTop: 2 } }, h.detail)
+    ))
+  );
+}
+
+/* ---- Tonight's sky, as a picture to share ----
+   A 1080x1350 card (the 4:5 shape phones show whole in a feed): the
+   Console's painting of this place's sky, the place and time over it, the
+   verdict under it, and the first of tonight's highlights. The painting is
+   drawn at half size and scaled up, so stars and labels keep the
+   proportions they have on a phone. */
+// Words wrapped to a width; returns the lines.
+function wrapText(g, text, width) {
+  const words = String(text).split(' '), lines = [];
+  let line = '';
+  words.forEach(w => {
+    const next = line ? line + ' ' + w : w;
+    if (line && g.measureText(next).width > width) { lines.push(line); line = w; } else line = next;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+function drawShareCard(g, W, H, o) {
+  const k = 2, pw = W / k, ph = Math.round(H * 0.95 / k); // horizon ~60% down
+  g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H);
+  g.save(); g.scale(k, k);
+  drawHorizonScene(g, pw, ph, Object.assign({}, o.scene, { reserve: { w: pw * 0.72, h: 70 } }));
+  g.restore();
+  const pad = 64;
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#eef1fa';
+  g.font = '650 50px Inter, system-ui, sans-serif';
+  g.fillText(o.place, pad, 96);
+  g.fillStyle = 'rgba(238,241,250,.72)';
+  g.font = '400 28px Inter, system-ui, sans-serif';
+  g.fillText(o.when, pad, 140);
+  // The text starts just under the painting's compass points.
+  let y = Math.round(ph * 0.62) * k + 110;
+  g.fillStyle = 'rgba(238,241,250,.66)';
+  g.font = '600 24px Inter, system-ui, sans-serif';
+  g.fillText(o.label.toUpperCase(), pad, y);
+  y += 84;
+  g.fillStyle = '#f3efe4';
+  g.font = '600 84px "Cormorant Garamond", Georgia, serif';
+  wrapText(g, o.head, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 86; });
+  y -= 30;
+  g.fillStyle = 'rgba(238,241,250,.74)';
+  g.font = '400 32px Inter, system-ui, sans-serif';
+  wrapText(g, o.sub, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 44; });
+  if (o.highlight) {
+    y += 22;
+    g.fillStyle = '#e8b563';
+    g.font = '600 30px Inter, system-ui, sans-serif';
+    wrapText(g, '✦ ' + o.highlight, W - 2 * pad).slice(0, 2).forEach(l => { g.fillText(l, pad, y); y += 40; });
+  }
+  g.fillStyle = 'rgba(238,241,250,.6)';
+  g.font = '600 26px Inter, system-ui, sans-serif';
+  g.textAlign = 'right';
+  g.fillText('✦ twilyte.info', W - pad, H - 48);
+  g.textAlign = 'left';
+}
+// Makes the card and shares it, or saves it where sharing files isn't
+// available (most desktop browsers). Browser only.
+function shareSkyCard(o) {
+  const cv = document.createElement('canvas');
+  cv.width = 1080; cv.height = 1350;
+  const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  return ready.then(() => {
+    drawShareCard(cv.getContext('2d'), 1080, 1350, o);
+    return new Promise(r => cv.toBlob(r, 'image/png'));
+  }).then(blob => {
+    if (!blob) throw new Error('no image');
+    const name = 'twilyte-tonight.png';
+    const file = typeof File === 'function' ? new File([blob], name, { type: 'image/png' }) : null;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      return navigator.share({ files: [file], title: "Tonight's sky", text: `${o.place}: ${o.head}. twilyte.info` })
+        .then(() => 'shared', e => e && e.name === 'AbortError' ? 'cancelled' : save());
+    }
+    return save();
+    function save() {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      return 'saved';
+    }
+  });
 }
 
 /* ---- Star Finder sky chart ----
@@ -3009,6 +3256,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
     return nightPlan(span, sunEv, moonEv, moonAltSeen(new Date(span.start), loc.lat, loc.lon) > -0.833);
   }, [tenMin, loc.lat, loc.lon]);
+  // What is worth going out for tonight, every ten minutes like the plan.
+  const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt),
+    [plan, loc.lat, loc.lon, bortle, loc.tz]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
     const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
@@ -3174,6 +3424,23 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     };
   }, [still]);
 
+  // One tap: tonight's sky as a picture, shared or saved.
+  const [shareMsg, setShareMsg] = useState('');
+  const share = () => {
+    setShareMsg('Making the picture\u2026');
+    shareSkyCard({
+      scene: {
+        sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
+        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      },
+      place: loc.name,
+      when: `${fmtDate(now, loc.tz)} \u00B7 ${fmt(now)}`,
+      label: heroLabel(plan, now, live.alt, fmt),
+      head: glance.head, sub: glance.sub,
+      highlight: highlights[0] ? highlights[0].title : null
+    }).then(r => setShareMsg(r === 'saved' ? 'Saved as a picture.' : ''), () => setShareMsg('Couldn\u2019t make the picture on this device.'));
+  };
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement(React.Fragment, null,
     React.createElement('div', {
@@ -3213,7 +3480,14 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     panel || null,
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
-      React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight })
+      React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
+      React.createElement(TonightHighlights, { items: highlights }),
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          className: 'rtbtn', onClick: share, disabled: shareMsg === 'Making the picture\u2026',
+          style: { fontSize: 13, padding: '9px 16px' }
+        }, '\u2197 Share tonight\u2019s sky'),
+        shareMsg && React.createElement('span', { role: 'status', style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, color: C.inkDim } }, shareMsg))
     )
   );
 }
@@ -3421,12 +3695,7 @@ function RealtimeTwilight({ redMode } = {}) {
     const alt = sunAltitude(d, loc.lat, loc.lon);
     const m = moonTopo(moonState(d, loc.lat, loc.lon));
     const dep = Math.max(0, -alt);
-    const darkLimit = alt > 0 ? -10 : limitingMag(dep);
-    const nelm = BORTLE[bortle] ? BORTLE[bortle].nelm : null;
-    // Light pollution sets a ceiling: you can't see fainter than your sky's NELM.
-    const base = (nelm != null && alt <= 0) ? Math.min(darkLimit, nelm) : darkLimit;
-    const moonPen = m.alt > 0 ? m.illum * Math.min(1, m.alt / 40) * 2.2 : 0;
-    const mag = base - moonPen;
+    const { mag, moonPen } = skyLimit(alt, m, bortle);
     return {
       alt,
       dep,

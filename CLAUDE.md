@@ -196,6 +196,32 @@ Three tabs, one `index.html`, no build step:
   Ephemeris" is now the small eyebrow and the tagline is gone. The month
   export is its own section after the results (grid `order: 3`, full width),
   visible with the form closed. `sky-view-preview.test.js`.
+- **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
+  `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
+  every 15 min across tonight's night span) lists up to four things worth
+  going out for, most important first: a meteor shower at the rate you'd see
+  from here (`meteorRate` with that hour's `skyLimit`; 20+ an hour leads,
+  5-20 comes last), two of the Moon/planets/bright ecliptic stars
+  (`HIGHLIGHT_STARS`) close together (Moon ≤5°, planets ≤4°, planet-star ≤3°,
+  both 8°+ up with the Sun 8°+ down; brighter body named first), an outer
+  planet at opposition (≥165° from the Sun), Mercury in twilight, the Milky
+  Way's centre when `milkyWayVisibility` allows, new or full Moon, and
+  otherwise the brightest planet up after dark. `skyLimit(sunAlt, moon,
+  bortle)` is the Console's limiting-magnitude formula pulled out of `live`
+  so the highlights use the same one. Flat list, hairlines only
+  (`TonightHighlights`). `highlights.test.js` runs it on published nights:
+  the 2026 Perseid peak, Venus–Jupiter on 9 June 2026, Saturn's 4 October
+  2026 opposition, plus a year's sweep for order and length.
+- **Share tonight's sky (2026-09-23).** A button under the highlights makes
+  a 1080×1350 (4:5) picture: `drawShareCard` paints the Console's scene at
+  half size scaled ×2 (so stars and labels keep phone proportions, the
+  horizon about 60% down), the place and time over the sky, the hero label,
+  verdict and subtitle under it (`wrapText`, two lines at most), the first
+  highlight in amber, and "✦ twilyte.info". `shareSkyCard` waits for fonts,
+  makes a PNG and uses `navigator.share({ files })` where the browser can
+  share files (phones), otherwise downloads `twilyte-tonight.png`. Inside
+  the native apps it goes through the same web share, untested on a device.
+  `share-card.test.js`.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -612,6 +638,16 @@ things a syntax check cannot see:
   `keepClear` (names under the overlaid text left off, stars still drawn)
   and `reticle: false`, and a source check that `SkyDome` and
   `SkyViewPreview` both draw through it and start facing the same way.
+- **`highlights.test.js`** — `tonightHighlights` on real nights: the
+  Perseid peak leads (40-100 an hour, radiant north-east, no Moon), thinner
+  and without the Milky Way from a city, Venus and Jupiter ~2° apart on
+  2026-06-09 named brighter first, Saturn at its best at opposition and not
+  three months on, nothing when the Sun never sets, ≤4 items in rank order
+  across a year of nights, and the list rendered with a stub React.
+- **`share-card.test.js`** — the share picture carries place, time,
+  label, verdict, highlight and address; the painting is drawn scaled;
+  long names and verdicts wrap inside the margins and clear the address;
+  no highlight line without one; `wrapText` never splits a word.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
