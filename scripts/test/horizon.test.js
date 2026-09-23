@@ -158,8 +158,9 @@ const R = { createElement: (type, props, ...children) => ({ type, props: props |
 const TOKENS = { ink: '#fff', inkDim: '#aaa', inkFaint: '#777' };
 const text = n => n == null || n === false ? '' : typeof n !== 'object' ? String(n) : n.children.map(text).join('');
 const walk = (n, f) => { if (n && typeof n === 'object') { f(n); n.children.forEach(c => walk(c, f)); } };
-const comp = name => new Function('React', 'C', 'moonNote', 'compass16',
-  declSource(name) + `\nreturn ${name};`)(R, TOKENS, m.moonNote, az => (az > 135 && az < 225 ? 'S' : 'E'));
+const { ribbonGradient } = extract(['ribbonGradient']);
+const comp = name => new Function('React', 'C', 'moonNote', 'compass16', 'ribbonGradient',
+  declSource(name) + `\nreturn ${name};`)(R, TOKENS, m.moonNote, az => (az > 135 && az < 225 ? 'S' : 'E'), ribbonGradient);
 const NightFacts = comp('NightFacts'), NightRibbon = comp('NightRibbon');
 
 test('NightFacts states tonight plainly, including the awkward nights', () => {
@@ -180,4 +181,28 @@ test('NightRibbon outlines a darkest window only when there is one, and marks no
   const nowMarks = now => { let n = 0; walk(NightRibbon({ plan: m.nightPlan(span, NIGHT, [], false), now, fmt }), e => { if (e.props.style && e.props.style.width === 2) n++; }); return n; };
   assert.strictEqual(nowMarks(T(20)), 1, 'during the night');
   assert.strictEqual(nowMarks(T(12)), 0, 'before sunset there is no "now" on the ribbon');
+});
+
+// The ribbon is one gradient, not a block per band: the sky darkens
+// continuously. No two neighbouring stops may share a position with different
+// colours (that is a hard edge), each twilight colour sits mid-band, and full
+// night is flat from astronomical dusk to astronomical dawn.
+test('NightRibbon paints tonight as one smooth gradient, with night flat across the dark hours', () => {
+  const plan = m.nightPlan(span, NIGHT, [], false);
+  let bg = null;
+  walk(NightRibbon({ plan, now: T(20), fmt }), e => { const b = e.props.style && e.props.style.background; if (/gradient/.test(String(b))) bg = b; });
+  assert.ok(bg, 'the strip is a gradient');
+  const stops = [...bg.matchAll(/(var\(--band-\w+\)) ([\d.]+)%/g)].map(x => ({ c: x[1], at: +x[2] }));
+  for (let i = 1; i < stops.length; i++) {
+    assert.ok(stops[i].at >= stops[i - 1].at, 'stops in order');
+    assert.ok(!(stops[i].at === stops[i - 1].at && stops[i].c !== stops[i - 1].c), `hard edge at ${stops[i].at}%`);
+  }
+  const pc = t => +((t - plan.start) / (plan.end - plan.start) * 100).toFixed(3);
+  const night = stops.filter(s => s.c === 'var(--band-night)').map(s => s.at);
+  assert.deepStrictEqual([Math.min(...night), Math.max(...night)], [pc(plan.dark.from), pc(plan.dark.to)]);
+  const civil = plan.bands.find(b => b.kind === 'civil');
+  assert.ok(stops.some(s => s.c === 'var(--band-civil)' && s.at === pc((civil.from + civil.to) / 2)), 'civil colour mid-band');
+  // A night that never gets fully dark still blends, with no night colour.
+  const light = m.nightPlan(span, NIGHT.filter(e => e.key !== 'astro'), [], false);
+  assert.ok(!ribbonGradient(light, { civil: 'c', naut: 'n', astro: 'a', night: 'N' }).includes('N '), 'no night stop when never fully dark');
 });

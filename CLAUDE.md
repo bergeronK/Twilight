@@ -94,7 +94,9 @@ Three tabs, one `index.html`, no build step:
   (`heroFacing`), turning only to keep a risen Moon in frame; azimuth
   increases to the right, so facing south puts east on the left. Pure and
   tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
-  `panoX`/`panoY`; `drawHorizonScene` paints. **The location is the
+  `panoX`/`panoY`, `ribbonGradient`; `drawHorizonScene` paints. The night
+  ribbon is one smooth gradient (each twilight colour at its band's middle,
+  night flat from astronomical dusk to dawn), not a block per band. **The location is the
   painting's header** (2026-09-23): the place name and ▾, with date and time
   under it, sit over the top-left of the sky; tapping opens a panel right
   under the painting with coordinates, Use my location, Save, saved places
