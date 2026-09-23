@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tYEtE0kpLDDuqS/6ySsctSCJyRRL2qqbyqNi3qi8et4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HykZ/dpfXCfRFWGweI3dk7JnIn9i+Y+IwJBoPyJ+G1M=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -93,12 +93,27 @@
     --shadow-2:0 2px 12px rgba(0,0,0,.22);
     --panel-top:rgba(255,255,255,.05);  /* hairline top highlight */
   }
-  /* Hide the wordmark on narrow screens so the tab bar never crowds.
-     384px (not 359px) because the header's natural width is 381px — a
-     360-383px viewport (this bracket covers real devices: 360px Android,
-     375px iPhone SE/6-8/X/11 Pro/12 mini) overflowed horizontally on every
-     tab otherwise. */
-  @media (max-width:384px){ .tw-brand-word{ display:none; } }
+  /* Tabs: in the header on wide screens, a bar along the bottom on phones
+     and small tablets, where the thumb is. On wide screens the <nav> is
+     display:contents, so the buttons sit in the header's flex row as they
+     always have. Moving them off the header also ended the 360-383px
+     overflow that used to hide the wordmark on narrow phones. The !important
+     rules override the buttons' inline top-tab styles. */
+  .tw-tabs{ display:contents; }
+  @media (max-width:780px){
+    .tw-tabs{
+      display:flex; position:fixed; left:0; right:0; bottom:0; z-index:100;
+      background:var(--bg); border-top:1px solid var(--line);
+      box-shadow:0 -2px 12px rgba(0,0,0,.28);
+      padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .tw-tab{
+      flex:1 1 0; min-height:56px; font-size:13.5px !important;
+      border-bottom:none !important; border-top:2px solid transparent !important;
+    }
+    .tw-tab[aria-current="page"]{ border-top-color:var(--accent) !important; }
+    #root{ padding-bottom:calc(58px + env(safe-area-inset-bottom)); }
+  }
   /* Free up room on small screens */
   @media (max-width:560px){ .tw-visitors{ display:none; } }
   /* Glassy "instrument panel" elevation: soft drop shadow + hairline top highlight */
@@ -1592,7 +1607,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v85";
+const BUILD = "v87";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -2735,10 +2750,23 @@ function TwilightBands() {
   }, p.t))));
 }
 
-/* Tonight from sunset to sunrise as one strip: twilight bands in the app's
-   band colours, the Moon's time above the horizon beneath, the darkest
-   stretch outlined, and now marked. Hook-free, so the component tests can
-   render it. */
+/* Tonight from sunset to sunrise as one strip, the Moon's time above the
+   horizon beneath, the darkest stretch outlined, and now marked. Hook-free,
+   so the component tests can render it.
+   The strip is one gradient, not a block per band, because the sky darkens
+   continuously: each twilight band's colour sits at the middle of that band
+   and blends into its neighbours, and full night is flat from the moment it
+   starts (astronomical dusk) to the moment it ends. */
+function ribbonGradient(plan, band) {
+  const span = plan.end - plan.start;
+  const pc = t => ((t - plan.start) / span * 100).toFixed(3) + '%';
+  const stops = [];
+  plan.bands.forEach(b => {
+    if (b.kind === 'night') stops.push(`${band.night} ${pc(b.from)}`, `${band.night} ${pc(b.to)}`);
+    else stops.push(`${band[b.kind]} ${pc((b.from + b.to) / 2)}`);
+  });
+  return stops.length > 1 ? `linear-gradient(to right, ${stops.join(', ')})` : (stops.length ? stops[0].split(' ')[0] : band.night);
+}
 function NightRibbon({ plan, now, fmt }) {
   const span = plan.end - plan.start;
   const at = t => ((t - plan.start) / span * 100).toFixed(3) + '%';
@@ -2755,9 +2783,7 @@ function NightRibbon({ plan, now, fmt }) {
         `sunrise ${fmt(plan.end)}`,
       style: { position: 'relative', height: 30, borderRadius: 9, overflow: 'hidden', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.08)' }
     },
-      plan.bands.map((b, i) => React.createElement('div', {
-        key: i, style: { position: 'absolute', top: 0, bottom: 0, left: at(b.from), width: len(b.from, b.to), background: band[b.kind] }
-      })),
+      React.createElement('div', { style: { position: 'absolute', inset: 0, background: ribbonGradient(plan, band) } }),
       plan.darkest && React.createElement('div', {
         style: { position: 'absolute', top: 2, bottom: 2, left: at(plan.darkest.from), width: len(plan.darkest.from, plan.darkest.to), border: '2px solid var(--accent)', borderRadius: 7, boxSizing: 'border-box' }
       }),
@@ -6937,9 +6963,14 @@ function TwilightApp() {
         ),
         React.createElement("span", { className: "tw-brand-word" }, "Twilyte")
       ),
-      React.createElement("button", { style: tabStyle(activeTab === 'console'), onClick: () => switchTab('console') }, "Console"),
-      React.createElement("button", { style: tabStyle(activeTab === 'ephemeris'), onClick: () => switchTab('ephemeris') }, "Ephemeris"),
-      React.createElement("button", { style: tabStyle(activeTab === 'stars'), onClick: () => switchTab('stars') }, "Stars"),
+      React.createElement("nav", { className: "tw-tabs", "aria-label": "Sections" },
+        [["console", "Console"], ["ephemeris", "Ephemeris"], ["stars", "Stars"]].map(([t, label]) =>
+          React.createElement("button", {
+            key: t, className: "tw-tab", style: tabStyle(activeTab === t),
+            "aria-current": activeTab === t ? "page" : undefined,
+            onClick: () => switchTab(t)
+          }, label))
+      ),
       visitorCount !== null && React.createElement("span", {
         className: "tw-visitors",
         style: {
