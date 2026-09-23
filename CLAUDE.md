@@ -94,8 +94,14 @@ Three tabs, one `index.html`, no build step:
   (`heroFacing`), turning only to keep a risen Moon in frame; azimuth
   increases to the right, so facing south puts east on the left. Pure and
   tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
-  `panoX`/`panoY`; `drawHorizonScene` paints. Phase 2, not built: location
-  into a tappable header, tabs to the bottom, reference below the fold.
+  `panoX`/`panoY`; `drawHorizonScene` paints. **The location is the
+  painting's header** (2026-09-23): the place name and ▾, with date and time
+  under it, sit over the top-left of the sky; tapping opens a panel right
+  under the painting with coordinates, Use my location, Save, saved places
+  and the city search (the old block of those below the painting is gone).
+  `HorizonHero` takes them as `header` and `panel` props; `pickerOpen` is the
+  panel's state, and a failed first geolocation still opens it. Phase 2
+  still to do: tabs to the bottom, reference below the fold.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —

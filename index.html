@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-3jrQJQU857KiIG0/RFQAcnDl4+/lJODK+0Xq3/0PnaI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tYEtE0kpLDDuqS/6ySsctSCJyRRL2qqbyqNi3qi8et4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1592,7 +1592,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v84";
+const BUILD = "v85";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -3005,7 +3005,7 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
 
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
-function HorizonHero({ loc, now, live, glance, bortle }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
@@ -3090,6 +3090,7 @@ function HorizonHero({ loc, now, live, glance, bortle }) {
         ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H },
         'aria-hidden': 'true'
       }),
+      header && React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
       React.createElement('div', {
         // Changes on its own as twilight advances, rarely enough that
         // announcing it is useful rather than noisy.
@@ -3107,6 +3108,7 @@ function HorizonHero({ loc, now, live, glance, bortle }) {
         }, glance.sub)
       )
     ),
+    panel || null,
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight })
@@ -3404,8 +3406,6 @@ function RealtimeTwilight({ redMode } = {}) {
     }
     @media (max-width:520px){
       .rtbtn{font-size:12px;padding:9px 14px}
-      .rt-locbar .rt-spacer{display:none}
-      .rt-locname{flex:1 1 100%}
       .rt-sky{min-height:240px}
       .rt-readouts{gap:12px !important}
       .rt-readouts>div{flex:1 1 30% !important;min-width:0 !important}
@@ -3422,97 +3422,60 @@ function RealtimeTwilight({ redMode } = {}) {
   const pageBg = redMode
     ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
     : PAGE_BG;
-  return React.createElement("div", {
-    style: {
-      minHeight: "100vh",
-      width: "100%",
-      overflowX: "hidden",
-      position: "relative",
-      // Own stacking context, so the star field's z-index -1 stays above
-      // this background instead of dropping behind it.
-      isolation: "isolate",
-      background: pageBg,
-      color: C.ink,
-      fontFamily: "var(--font-body)",
-      padding: "clamp(14px,3.5vw,40px)"
-    }
-  }, React.createElement("style", null, css),
+  // The place, as the header of the painting: tap it to change it. The
+  // panel it opens sits right under the painting, where the tap was.
+  const togglePicker = () => {
+    const open = !pickerOpen;
+    setPickerOpen(open);
+    if (!open) { setResults([]); setQuery(""); setSearchMsg(""); }
+  };
+  const placeHeader = React.createElement("div", null,
+    React.createElement("button", {
+      onClick: togglePicker,
+      "aria-expanded": pickerOpen,
+      "aria-controls": "rt-place-panel",
+      title: "Change location",
+      className: "rt-place",
+      style: {
+        display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "4px 0",
+        background: "transparent", border: "none", cursor: "pointer", color: C.ink,
+        fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: "clamp(20px,4.4vw,26px)",
+        letterSpacing: "-0.015em", lineHeight: 1.1, textAlign: "left",
+        textShadow: "0 1px 10px rgba(3,5,12,.85)"
+      }
+    }, loc.name,
+      React.createElement("svg", { "aria-hidden": "true", width: 14, height: 14, viewBox: "0 0 14 14", style: { flexShrink: 0, transform: pickerOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } },
+        React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
+    ),
+    React.createElement("div", {
+      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
+    }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
+      timeZone: loc.tz, hour: "numeric", minute: "2-digit", hourCycle: h24 ? "h23" : "h12"
+    }).format(new Date(now)), geoMsg && !pickerOpen ? " \xB7 " + geoMsg : "")
+  );
+  const placePanel = pickerOpen && React.createElement("div", {
+    id: "rt-place-panel",
+    style: { maxWidth: 1080, margin: "0 auto 22px", paddingBottom: 18, borderBottom: `1px solid ${C.line}` }
+  },
   React.createElement("div", {
-    className: "tw-stars",
-    "aria-hidden": "true",
-    style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: -1 }
-  }, bgStars.map((s, i) => React.createElement("div", {
-    key: i,
-    style: {
-      position: "absolute",
-      top: `${s.top}%`,
-      left: `${s.left}%`,
-      width: s.s,
-      height: s.s,
-      borderRadius: "50%",
-      background: "#dfe6ff",
-      opacity: s.o,
-      animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
-    }
-  }))),
-  React.createElement(HorizonHero, { loc, now, live, glance, bortle }),
-  React.createElement("header", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto 22px"
-    }
-  }, React.createElement("h1", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontWeight: 600,
-      fontSize: "clamp(20px,4.4vw,28px)",
-      lineHeight: 1.1,
-      margin: 0,
-      letterSpacing: "-0.015em"
-    }
-  }, loc.name), React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 12.5,
-      color: C.inkDim,
-      marginTop: 5,
-      fontVariantNumeric: "tabular-nums"
-    }
-  }, Math.abs(loc.lat).toFixed(2), "\xB0 ", loc.lat >= 0 ? "N" : "S", " \xB7 ", Math.abs(loc.lon).toFixed(2), "\xB0 ", loc.lon >= 0 ? "E" : "W", "  \xB7  ", fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
-    timeZone: loc.tz,
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: h24 ? "h23" : "h12"
-  }).format(new Date(now))), React.createElement("div", {
+    style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" }
+  }, Math.abs(loc.lat).toFixed(2), "\xB0 ", loc.lat >= 0 ? "N" : "S", " \xB7 ", Math.abs(loc.lon).toFixed(2), "\xB0 ", loc.lon >= 0 ? "E" : "W"),
+  React.createElement("div", {
     className: "rt-locbar",
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 14
-    }
+    style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 12 }
   }, React.createElement("button", {
     className: "rtbtn solid",
     onClick: useMyLocation
   }, "Use my location"), React.createElement("button", {
-    className: "rtbtn",
-    onClick: () => { const open = !pickerOpen; setPickerOpen(open); if (!open) { setResults([]); setQuery(""); setSearchMsg(""); } }
-  }, "Set location \u25BE"), React.createElement("button", {
     className: "rtbtn" + (saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? " solid" : ""),
     onClick: toggleSave,
     title: "Save this location"
-  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "Saved" : "Save")), geoMsg && React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 11,
-      color: C.inkDim,
-      marginTop: 8
-    }
+  }, saved.some(s => s.lat === loc.lat && s.lon === loc.lon) ? "Saved" : "Save")),
+  geoMsg && React.createElement("div", {
+    style: { fontFamily: "var(--font-ui)", fontSize: 11, color: C.inkDim, marginTop: 8 }
   }, geoMsg),
   saved.length > 0 && React.createElement("div", {
-    style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }
+    style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }
   },
     React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", alignSelf: "center" } }, "Saved:"),
     ...saved.map((s, i) =>
@@ -3523,11 +3486,7 @@ function RealtimeTwilight({ redMode } = {}) {
       }, s.name)
     )
   ),
-  pickerOpen && React.createElement("div", {
-    style: {
-      marginTop: 12
-    }
-  }, React.createElement("div", {
+  React.createElement("div", { style: { marginTop: 14 } }, React.createElement("div", {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 10,
@@ -3598,7 +3557,41 @@ function RealtimeTwilight({ redMode } = {}) {
       background: "rgba(255,255,255,0.03)",
       cursor: "pointer"
     }
-  }, p.label))))),
+  }, p.label)))));
+  return React.createElement("div", {
+    style: {
+      minHeight: "100vh",
+      width: "100%",
+      overflowX: "hidden",
+      position: "relative",
+      // Own stacking context, so the star field's z-index -1 stays above
+      // this background instead of dropping behind it.
+      isolation: "isolate",
+      background: pageBg,
+      color: C.ink,
+      fontFamily: "var(--font-body)",
+      padding: "clamp(14px,3.5vw,40px)"
+    }
+  }, React.createElement("style", null, css),
+  React.createElement("div", {
+    className: "tw-stars",
+    "aria-hidden": "true",
+    style: { position: "absolute", inset: 0, pointerEvents: "none", zIndex: -1 }
+  }, bgStars.map((s, i) => React.createElement("div", {
+    key: i,
+    style: {
+      position: "absolute",
+      top: `${s.top}%`,
+      left: `${s.left}%`,
+      width: s.s,
+      height: s.s,
+      borderRadius: "50%",
+      background: "#dfe6ff",
+      opacity: s.o,
+      animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
+    }
+  }))),
+  React.createElement(HorizonHero, { loc, now, live, glance, bortle, header: placeHeader, panel: placePanel }),
   // The verdict, the Moon and the planets are in the horizon view above;
   // what it doesn't carry is the clear-and-dark score and how faint a star
   // the sky allows.
