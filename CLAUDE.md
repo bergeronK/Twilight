@@ -343,7 +343,13 @@ things a syntax check cannot see:
   physical postures described in words) and *self-consistency* tests (aim
   lands at centre; nothing behind the phone is drawn; roll invariance). See
   the pipeline section for why the split matters. Also drives the shipped
-  `viewQ` / `aimNow` / `aimAzC` / `view` / `basis` expressions.
+  `viewQ` / `aimNow` / `aimAzC` / `view` / `basis` expressions, and runs
+  the **Align** button's `alignHere` from source with exactly the names in
+  scope. That handler read `aimAz`, which the quaternion rewrite removed, so
+  every tap of Align threw and replaced the app with the error screen from
+  2026-09-15 until a user pressed it in the field. **A button handler inside
+  a component is code no test executes unless one is written to** — when a
+  rewrite removes a variable, grep for it, and run handlers via `declSource`.
 - **`fusion.test.js`** — `fuseOrientation` against simulated devices with a
   known true pose: Android gyro+compass, compass-only, magnetometer jitter,
   iOS tipping past vertical, the representation switch at gamma = ±90. Ends

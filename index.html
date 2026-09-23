@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2dCfDQhh6lQlZM+UT6shaE7pzJcUFmAzkZvNS0AdF9I=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-gKbyboyQy5fXblwGBW+yUpi78PVloBMyVGhSNV9+bKI=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-VF9opq2dGefg7TAQZb1wmEykX1oQrVhDF1HviRo66V8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -159,6 +159,12 @@
     b.textContent = 'Twilight hit an error:';
     d.appendChild(b);
     d.appendChild(document.createTextNode('\n\n' + String((e && (e.stack || e.message)) || e)));
+    // A way out. Without it the only escape was closing the app.
+    var btn = document.createElement('button');
+    btn.textContent = 'Reload Twilight';
+    btn.style.cssText = 'display:block;margin-top:18px;padding:10px 18px;font:600 15px system-ui,sans-serif;color:#160f00;background:#e8b563;border:0;border-radius:9px;cursor:pointer';
+    btn.onclick = function(){ location.reload(); };
+    d.appendChild(btn);
     r.appendChild(d);
   }
   window.onerror = function(msg, src, line, col, error){ showError(error || msg); return true; };
@@ -1569,7 +1575,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v76";
+const BUILD = "v77";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -5943,7 +5949,7 @@ function StarFinder({ redMode } = {}) {
   // kept in agreement, they are computed from the same object.
   // What to tell someone looking at Sky View about north, if anything.
   const northMsg = !orient ? null
-    : orient.abs && !orient.trusted ? "North is a first guess \u2014 lower the phone flat for a moment to confirm it."
+    : orient.abs && !orient.trusted ? "North is a first guess \u2014 raise the phone toward the sky to confirm it."
     : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 raise the phone toward the sky."
     : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
     : null;
@@ -6006,9 +6012,13 @@ function StarFinder({ redMode } = {}) {
   const calWanted = needsCal || compassQuality === 'bad' || showCalHelp;
   // Stellarium's "screen calibration" trick: point at the body by eye, tap
   // once, and the residual magnetometer error is cancelled for every body.
+  // aimTurn is how far the corrected view is from the body right now, so
+  // adding it to the correction already applied lands the view on the body.
+  // (This read `aimAz`, which the quaternion rewrite removed; every tap of
+  // Align threw from 2026-09-15 until this was found in the field.)
   const alignHere = () => {
-    if (!aimTarget || aimAz === null) return;
-    prefStore.setAimOffset(aimTarget.az - aimAz);
+    if (aimTurn === null) return;
+    prefStore.setAimOffset(aimOffset + aimTurn);
     setNeedsCal(false);
     setShowCalHelp(false);
   };
