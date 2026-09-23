@@ -78,11 +78,15 @@ Three tabs, one `index.html`, no build step:
 - **`scripts/verify-build.js`**: CI build guard — asserts exactly 5 inline
   scripts, syntax-checks them, and asserts the CSP hashes match. Runs in
   `.github/workflows/build-guard.yml` on every push/PR.
-- **Console horizon view (redesign direction A, preview)** — the Console's
-  new first screen: a painted panorama of this location's sky now, the
-  verdict over it, tonight as one ribbon, three facts. **Behind a flag until
-  it replaces the old top**: `?preview=horizon` turns it on and remembers
-  (`tw_preview_horizon`), `?preview=off` clears it. Nothing in the painting
+- **Console horizon view (redesign direction A)** — the Console's first
+  screen: a painted panorama of this location's sky now, the verdict over
+  it, tonight as one ribbon, three facts. **The default since 2026-09-23**
+  (before that it sat behind `?preview=horizon`; the flag is gone and the
+  old `tw_preview_horizon` key is cleared on load). It replaced the old top's
+  italic verdict line and its Moon and Planets-up figures, which it repeats;
+  the location header, the "Sky tonight" score and "Faintest star visible"
+  follow it, then everything else as before. The hero carries the verdict's
+  `aria-live` status now. Nothing in the painting
   is invented — `skyColors(sunAlt)` gives the gradient, the stars drawn are
   those brighter than `live.mag` (the app's own faintest-visible estimate,
   Moon and light pollution included), and Moon, Sun and planets sit at their
@@ -671,7 +675,8 @@ that and is kept for its design detail):**
 (2026-09-23)** — iOS (iPhone + iPad), Android phone + feature graphic, and
 the PWA's `screenshot-narrow.png` / `screenshot-wide.png`, which
 `store-assets/generate.js` now also writes (they had no generator before).
-They show the default Console, not the `?preview=horizon` one. The Android
+The Console shots were retaken when the horizon view became the default
+(same day). The Android
 phone shots (360 px CSS) have no header wordmark: below 385 px the app hides
 it so the header can't overflow, so that is the real app, not a bug.
 
