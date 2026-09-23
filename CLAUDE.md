@@ -92,7 +92,7 @@ Three tabs, one `index.html`, no build step:
   tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
   `panoX`/`panoY`; `drawHorizonScene` paints. Phase 2, not built: location
   into a tappable header, tabs to the bottom, reference below the fold.
-- **Ephemeris: real time zones and the painted day (2026-09-22).** The tab
+- **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
   got wrong times until they noticed. It now opens on **today, at the Console's
@@ -504,11 +504,21 @@ sample points all happened to miss the pole (Bennett's formula reaches ~337°
 of bogus correction near h = -4.36, not at the -4.4 singularity). A green
 test is not evidence until you have seen it go red.
 
-## Testing without a real browser session
+## Running the app locally
 
-No local dev server is preconfigured. Working pattern: `python3 -m http.server
-8137 --directory /path/to/repo` (detached via `setsid ... &`, since plain
-backgrounding gets reaped), then drive it with Playwright
+**In the Claude desktop app** (the owner's Windows machine) the preview
+server is committed: `.claude/launch.json` defines `twilight-static`, which
+serves the repo root with `python -m http.server 8137 --bind 127.0.0.1`.
+Start it by name with the Browser pane's preview tools, not from a shell, so
+the app can track and stop it. A static server is all the app needs, since
+there is no build step, and binding to loopback keeps it off the local
+network. Nothing there is counted as a visit: `pingVisitorCounter` returns
+unless the hostname is `twilyte.info`.
+
+**In a Linux sandbox** (where earlier sessions ran) nothing is preconfigured.
+Working pattern: `python3 -m http.server 8137 --directory /path/to/repo`
+(detached via `setsid ... &`, since plain backgrounding gets reaped), then
+drive it with Playwright
 (`/opt/node22/lib/node_modules/playwright`, Chromium at
 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`). The sandbox's network
 policy blocks `api.open-meteo.com` and the visitor-counter Worker directly —
