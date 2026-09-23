@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-REwPe2vBSt1egMIDaiXxRC2aH1x3eDNzsvAIQpkJMFE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6B62UW8g13o4A6G8OQCwKmKPx/UAgSLFQH23/BnpP8E=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -125,6 +125,8 @@
   .boot { color: var(--ink-dim); font-size: 13px; }
   .err { color: #e7b3a3; font-size: 12px; white-space: pre-wrap; }
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes skyIn{from{opacity:0}to{opacity:1}}
+  @keyframes wordsIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
   /* ---- accessibility ---- */
   /* Visible to screen readers, not to the eye. Used for guidance that would
@@ -1313,7 +1315,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v99";
+const BUILD = "v100";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3218,7 +3220,65 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris, mw, lat, l
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
 const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past each side
-function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
+/* The first-run welcome: the Console's painting of this place's sky, full
+   screen, filling in as it loads, with one line and a way in. Drawn by the
+   same painter from the same scene as the hero beneath it, which is already
+   laid out, so dismissing it just fades it away onto the dashboard. Shown
+   once (tw_welcomed). `line` is the words, `onDone(pick)` closes it; `pick`
+   opens the place picker for someone whose sky this isn't. */
+function welcomeLine(loc, locating) {
+  if (locating) return 'Finding your sky\u2026';
+  const place = !loc || loc.name === 'Your location' ? 'you' : loc.name.split(',')[0];
+  return `This is the sky over ${place} right now.`;
+}
+function WelcomeSky({ o, line, onDone }) {
+  const cvRef = useRef(null), btnRef = useRef(null);
+  const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const r = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', r);
+    if (btnRef.current) btnRef.current.focus();
+    const esc = e => { if (e.key === 'Escape') close(false); };
+    window.addEventListener('keydown', esc);
+    return () => { window.removeEventListener('resize', r); window.removeEventListener('keydown', esc); };
+  }, []);
+  useEffect(() => {
+    const cv = cvRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(size.w * dpr); cv.height = Math.round(size.h * dpr);
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // The horizon a little below the middle, so the words sit on the ground.
+    drawHorizonScene(g, size.w, Math.round(size.h * 0.9), Object.assign({}, o, { reserve: null }));
+  }, [o, size.w, size.h]);
+  const close = pick => { setLeaving(true); setTimeout(() => onDone(pick), 450); };
+  // Into <body> directly: the tab content's own layering (its fade-in) would
+  // otherwise keep this under the bottom tab bar, whatever its z-index.
+  return ReactDOM.createPortal(React.createElement('div', {
+    role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome to Twilyte',
+    style: { position: 'fixed', inset: 0, zIndex: 1000, background: '#05070f', opacity: leaving ? 0 : 1, transition: 'opacity .45s ease' }
+  },
+    React.createElement('canvas', { ref: cvRef, className: 'hz-sky', 'aria-hidden': 'true',
+      style: { position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'skyIn 1.8s ease both' } }),
+    React.createElement('div', { style: { position: 'absolute', left: 24, top: 'calc(18px + env(safe-area-inset-top))', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--accent-hi)', animation: 'wordsIn .8s ease .3s both' } }, '\u2726 Twilyte'),
+    React.createElement('div', {
+      style: { position: 'absolute', left: 24, right: 24, bottom: 'calc(40px + env(safe-area-inset-bottom))', maxWidth: 560, margin: '0 auto', animation: 'wordsIn .9s ease 1s both' }
+    },
+      React.createElement('p', { 'aria-live': 'polite', style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(30px, 7.5vw, 44px)', lineHeight: 1.08, color: C.ink, margin: '0 0 22px', textWrap: 'balance' } }, line),
+      React.createElement('button', {
+        ref: btnRef, onClick: () => close(false),
+        style: { display: 'inline-flex', alignItems: 'center', gap: 10, padding: '13px 22px', borderRadius: 999, border: 0, cursor: 'pointer', background: 'var(--accent)', color: 'var(--on-accent)', fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 650 }
+      }, 'Show me tonight', React.createElement('span', { 'aria-hidden': 'true' }, '\u2192')),
+      React.createElement('button', {
+        onClick: () => close(true),
+        style: { display: 'block', marginTop: 14, padding: 0, border: 0, background: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13.5, color: 'rgba(238,241,250,.7)', textDecoration: 'underline', textUnderlineOffset: 3 }
+      }, 'Not here? Choose your place')
+    )
+  ), document.body);
+}
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -3478,6 +3538,14 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
       )
     ),
     panel || null,
+    intro && React.createElement(WelcomeSky, {
+      line: welcomeLine(loc, locating), onDone: onIntroDone,
+      o: {
+        sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
+        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      }
+    }),
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
@@ -3521,6 +3589,10 @@ function RealtimeTwilight({ redMode } = {}) {
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  // First visit only, and only when arriving on the Console itself.
+  const [intro, setIntro] = useState(() => {
+    try { return !localStorage.getItem('tw_welcomed') && !new URLSearchParams(window.location.search).get('tab'); } catch (e) { return false; }
+  });
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [searchMsg, setSearchMsg] = useState("");
@@ -3950,7 +4022,15 @@ function RealtimeTwilight({ redMode } = {}) {
       animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
     }
   }))),
-  React.createElement(HorizonHero, { loc, now, live, glance, bortle, header: placeHeader, panel: placePanel }),
+  React.createElement(HorizonHero, {
+    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
+    intro, locating: geoMsg === "Locating\u2026",
+    onIntroDone: pick => {
+      setIntro(false);
+      try { localStorage.setItem('tw_welcomed', '1'); } catch (e) {}
+      if (pick) setPickerOpen(true);
+    }
+  }),
   // The verdict, the Moon and the planets are in the horizon view above;
   // what it doesn't carry is the clear-and-dark score and how faint a star
   // the sky allows.

@@ -67,6 +67,7 @@ async function capture(browser, tab, outPath, after, device) {
     localStorage.setItem('tw_loc', JSON.stringify({ lat: 44.2601, lon: -72.5806, name: "Stowe, VT", tz: "America/New_York" }));
     localStorage.setItem('tw_bortle_mode', 'auto');
     localStorage.setItem('tw_hint', '1'); // dismiss the onboarding banner for a cleaner shot
+    localStorage.setItem('tw_welcomed', '1'); // and skip the first-run welcome
   });
   await page.route('**/api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkForecast()) }));
   await page.clock.install({ time: tonight });
