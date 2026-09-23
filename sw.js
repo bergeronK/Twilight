@@ -1,4 +1,4 @@
-const CACHE = 'twilight-v101';
+const CACHE = 'twilight-v102';
 const ASSETS = [
   '/',
   '/index.html',
@@ -73,6 +73,33 @@ self.addEventListener('fetch', event => {
       }).catch(() => cached);
 
       return cached || fetchPromise;
+    })
+  );
+});
+
+// Clear-and-dark alerts (alerts/ Worker). The payload is the notification:
+// { title, body, tag, url }. A new one with the same tag replaces the last,
+// so a day never stacks up two "tonight" alerts.
+self.addEventListener('push', event => {
+  let m = {};
+  try { m = event.data ? event.data.json() : {}; } catch (e) {}
+  event.waitUntil(self.registration.showNotification(m.title || 'Twilyte', {
+    body: m.body || '',
+    tag: m.tag || 'twilyte',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: m.url || '/' }
+  }));
+});
+
+// A tap opens Twilyte, or brings an open copy forward.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) if (new URL(c.url).origin === self.location.origin && 'focus' in c) return c.focus();
+      return self.clients.openWindow(url);
     })
   );
 });

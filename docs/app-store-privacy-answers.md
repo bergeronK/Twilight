@@ -16,6 +16,15 @@ keeps a salted hash of the requester's IP address for 24 hours, but the apps
 never do (below), so the counter is not part of either store's answers. See
 `/privacy.html` for the human-readable version of this same information.
 
+### Clear-sky alerts are website-only too — nothing to declare for them
+
+The alerts row (`ClearAlerts` in `index.html`) renders nothing when
+`window.Capacitor` is present (`alertsSupport` returns `'native'`), and the
+apps don't register `sw.js`, so they never subscribe or contact the alerts
+Worker. If alerts ever come to the apps (native push through APNs/Firebase),
+the stored place and push token become Location (coarse) and Identifiers
+(device ID) declarations, linked to no identity, used for App Functionality.
+
 ### The visit counter is website-only — nothing to declare for it
 
 `pingVisitorCounter` in `index.html` returns immediately when

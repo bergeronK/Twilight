@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gON9aYO7l+htbMl6lWzjhBm9l0rKM9/ziz56ZDxGvWo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HZ6d9u4H0vHj+WLI58f0HCBeYcXorhN85LoZFv3hLBk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1315,7 +1315,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v101";
+const BUILD = "v102";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2584,6 +2584,116 @@ function skyStripEl(wxScore, loc, h24) {
       React.createElement("span", null, fmtH(hours[hours.length - 1].t))
     )
   );
+}
+/* Clear-and-dark alerts: a web push notification around 4 PM on days when
+   tonight scores 78 or more (the score's own "clear & dark") at the Console's
+   place. The alerts Worker (alerts/ in the repo) keeps the subscription, the
+   place to 0.1°, its time zone and 12/24-hour choice, and scores tonight with
+   a copy of clearDarkScore generated from this file.
+   Website only, like the visit counter: the native apps don't show it. Hidden
+   until ALERTS_LIVE, which waits on the Worker being deployed; ?alerts=1 shows
+   it anyway, to try a fresh deploy before turning it on for everyone. */
+const ALERTS_URL = "https://twilyte-alerts.ken-b39.workers.dev";
+const ALERTS_LIVE = false;
+// What this browser can do: 'ok'; 'install' (iPhone or iPad Safari, which
+// only allows web push to an app added to the Home Screen); 'blocked'
+// (notifications refused for this site); 'native'; or 'none'.
+function alertsSupport(w) {
+  if (w.Capacitor) return 'native';
+  const nav = w.navigator || {};
+  if (!('serviceWorker' in nav) || !('PushManager' in w) || !('Notification' in w)) {
+    const ios = /iPhone|iPad|iPod/.test(nav.userAgent || '') || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+    const installed = nav.standalone === true || (w.matchMedia && w.matchMedia('(display-mode: standalone)').matches);
+    return ios && !installed ? 'install' : 'none';
+  }
+  return w.Notification.permission === 'denied' ? 'blocked' : 'ok';
+}
+function b64uBytes(s) {
+  const b = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+// What the Worker is told, and what this browser remembers it told it.
+const alertsPlace = (loc, h24) => ({ lat: Math.round(loc.lat * 10) / 10, lon: Math.round(loc.lon * 10) / 10, tz: loc.tz, h24: !!h24 });
+const samePlace = (a, b) => !!a && !!b && a.lat === b.lat && a.lon === b.lon && a.tz === b.tz && a.h24 === b.h24;
+function readAlerts(w) {
+  try { return JSON.parse(w.localStorage.getItem('tw_alerts') || 'null'); } catch (e) { return null; }
+}
+function saveAlerts(w, v) {
+  try { v ? w.localStorage.setItem('tw_alerts', JSON.stringify(v)) : w.localStorage.removeItem('tw_alerts'); } catch (e) {}
+}
+async function alertsPost(w, path, body) {
+  const r = await w.fetch(ALERTS_URL + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error('alerts ' + r.status);
+}
+/* Turn alerts on (or tell the Worker about a new place, hello = false).
+   Asking for permission comes first, while the tap still counts as the
+   user's: Safari refuses a request made after other awaits. */
+async function alertsOn(w, loc, h24, hello) {
+  if (hello && (await w.Notification.requestPermission()) !== 'granted') return 'denied';
+  const reg = await w.navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const k = await (await w.fetch(ALERTS_URL + '/key')).json();
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(k.key) });
+  }
+  const place = alertsPlace(loc, h24);
+  await alertsPost(w, '/subscribe', Object.assign({ sub: sub.toJSON(), hello: !!hello }, place));
+  saveAlerts(w, place);
+  return 'on';
+}
+async function alertsOff(w) {
+  saveAlerts(w, null);
+  const reg = await w.navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return 'off';
+  const endpoint = sub.endpoint;
+  await sub.unsubscribe();
+  await alertsPost(w, '/unsubscribe', { endpoint }).catch(() => {});
+  return 'off';
+}
+// The row itself: hook-free, so components.test-style stubs can render it.
+function AlertsRow({ support, on, busy, msg, place, h24, onToggle }) {
+  const four = h24 ? "16:00" : "4 PM";
+  const note = support === 'install'
+    ? "On iPhone and iPad, add Twilyte to your Home Screen first (Share, then Add to Home Screen), then turn alerts on from there."
+    : support === 'blocked'
+      ? "Notifications are blocked for this site. Allow them in your browser’s settings to get alerts."
+      : on
+        ? `On for ${place}. Twilyte will tell you around ${four} on days when tonight looks clear and dark.`
+        : `A notification around ${four} on days when tonight looks clear and dark here.`;
+  return React.createElement("div", {
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }
+  },
+    React.createElement("div", { style: { flex: "1 1 240px", minWidth: 0 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13.5, fontWeight: 550, color: C.ink } }, "Tell me when it’s clear"),
+      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim, marginTop: 3, lineHeight: 1.45 } }, note),
+      msg && React.createElement("div", { role: "status", style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.brass, marginTop: 4 } }, msg)
+    ),
+    support === 'ok' && React.createElement("button", {
+      className: "rtbtn", onClick: onToggle, disabled: busy, "aria-pressed": on,
+      style: { fontSize: 13, padding: "9px 16px", flexShrink: 0 }
+    }, busy ? "One moment…" : on ? "Turn off" : "Turn on")
+  );
+}
+function ClearAlerts({ loc, h24 }) {
+  const support = useMemo(() => alertsSupport(window), []);
+  const [on, setOn] = useState(() => !!readAlerts(window));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  // A new place (or clock) while alerts are on: tell the Worker, quietly.
+  useEffect(() => {
+    if (!on || support !== 'ok' || samePlace(readAlerts(window), alertsPlace(loc, h24))) return;
+    alertsOn(window, loc, h24, false).catch(() => {});
+  }, [on, support, loc.lat, loc.lon, loc.tz, h24]);
+  if (support === 'native' || support === 'none') return null;
+  const onToggle = () => {
+    setBusy(true); setMsg("");
+    (on ? alertsOff(window) : alertsOn(window, loc, h24, true)).then(r => {
+      setOn(r === 'on');
+      if (r === 'denied') setMsg("Twilyte needs permission to send notifications. Nothing was turned on.");
+    }).catch(() => setMsg("Alerts couldn’t be changed just now. Try again in a moment.")).then(() => setBusy(false));
+  };
+  return React.createElement(AlertsRow, { support, on, busy, msg, h24, place: !loc.name ? "this place" : loc.name === "Your location" ? "where you are" : loc.name.split(",")[0], onToggle });
 }
 // Pro multi-night planner: the next 7 nights ranked by their clear-and-dark
 // score, with the pick of the week flagged. Hidden when Pro is off or no
@@ -4051,6 +4161,7 @@ function RealtimeTwilight({ redMode } = {}) {
     )
   ),
   skyStripEl(wxScore, loc, h24),
+  (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
   weekPlannerEl(wxWeek, loc, h24, pro),
   // Details: what the first screen doesn't say. The older sky panel's
   // picture, its "Right now" verdict, its faintest-star figure and its Moon
