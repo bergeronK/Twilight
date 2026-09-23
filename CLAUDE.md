@@ -92,6 +92,25 @@ Three tabs, one `index.html`, no build step:
   tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
   `panoX`/`panoY`; `drawHorizonScene` paints. Phase 2, not built: location
   into a tappable header, tabs to the bottom, reference below the fold.
+- **Ephemeris: real time zones and the painted day (2026-09-22).** The tab
+  used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
+  "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
+  got wrong times until they noticed. It now opens on **today, at the Console's
+  saved place (`tw_loc`), in that place's IANA zone**; `zoneOffsets(tz, Y, Mo,
+  D)` gives the offset for the date shown (read at local noon; standard = the
+  smaller of the January and July offsets, so both hemispheres work; never
+  "std + 60" — Lord Howe's DST is 30 min). Typing coordinates, the offset, Auto
+  or the DST toggle switches to manual (`tz = null`), carrying the current
+  offset over so nothing jumps; "Use my location" uses the device's zone. A
+  place/date bar with ‹ Today › (`shiftDate`) sits under the title; on a phone
+  the form moves below the results (CSS `order`). The chart's flat bands are
+  replaced by the day's actual sky (`daySkyStops` → an SVG gradient of
+  `skyColors` along the day), stars where the Sun is well down, the Moon's
+  track (`moonDayTrack`, parallax-corrected) and a "now" line. The CSV month
+  export gives **each day its own offset** — it applied one to the whole month,
+  so every day after a DST change was an hour out. Not done yet: the chart is
+  small on a phone (an 820×380 viewBox scaled to ~340 px), and there is no
+  city search here as there is on the Console.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the
@@ -402,6 +421,11 @@ things a syntax check cannot see:
   The stub tracks `translate`/`save`/`restore`, or the Moon disc — drawn in
   its own frame — reads as painted at the corner. This is how to test a
   canvas painter here; no browser needed.
+- **`ephemeris.test.js`** — `zoneOffsets` across both hemispheres, a
+  changeover day each way, a half-hour zone and Lord Howe's 30-minute DST;
+  `shiftDate` across month, year and leap boundaries; `daySkyStops`; the
+  Moon track; and the month export's `monthRows` run from source across
+  March's DST change, since the whole-month offset was the bug.
 - **`moon-parallax.test.js`** — `moonTopo` against the standard relation
   sin p = sin HP · cos h (derived differently from its vector shift), the
   Moon's geocentric altitude at moonset against Meeus's h0 = 0.7275·HP −
