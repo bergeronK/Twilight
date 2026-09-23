@@ -3,7 +3,10 @@
 Screenshots for app store listings. These are submission artifacts, not
 served by the site — separate from `screenshot-narrow.png` /
 `screenshot-wide.png` at the repo root, which are the PWA install-prompt
-images referenced by `manifest.json`.
+images referenced by `manifest.json`. `generate.js` writes those two as well
+(Console, 390 × 844 at 2x and 1280 × 800 at 1x, the sizes the manifest
+declares); they are in `sw.js`'s precache list, so bump `CACHE` when they
+change.
 
 ## `ios/`
 

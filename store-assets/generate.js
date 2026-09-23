@@ -152,6 +152,12 @@ if (require.main === module) (async () => {
   await capture(browser, 'stars', path.join(OUT, 'ipad-13-02-stars.png'), null, IPAD);
   await capture(browser, 'ephemeris', path.join(OUT, 'ipad-13-03-ephemeris.png'), null, IPAD);
   await capture(browser, 'stars', path.join(OUT, 'ipad-13-04-skyview.png'), openSkyView, IPAD);
+  // The PWA install-prompt screenshots at the repo root. Sizes must match
+  // manifest.json's "screenshots" entries: 780x1688 (narrow) and 1280x800
+  // (wide). They are in sw.js's precache list, so bump CACHE when they change.
+  const ROOT = path.join(__dirname, '..');
+  await capture(browser, 'console', path.join(ROOT, 'screenshot-narrow.png'), null, { w: 390, h: 844, dsr: 2, mobile: true });
+  await capture(browser, 'console', path.join(ROOT, 'screenshot-wide.png'), null, { w: 1280, h: 800, dsr: 1, mobile: false });
   await browser.close();
   console.log('done');
 })().catch(e => { console.error(e); process.exit(1); });
