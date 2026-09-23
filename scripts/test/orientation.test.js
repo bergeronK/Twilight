@@ -306,3 +306,57 @@ test('the live view uses the corrected rotation untouched', () => {
   assert.strictEqual(view.q, q, 'Sky View must draw with the very object Aim Assist read');
   assert.strictEqual(view.sa, 180);
 });
+
+// ---------------------------------------------------------------- Align
+
+/*
+ * The "Align to <body>" button, run from source. alignHere lives inside
+ * StarFinder and only runs on a tap, so no test had ever executed it — and
+ * it read `aimAz`, a variable the quaternion rewrite removed, so every tap
+ * threw and took the whole app down from 2026-09-15 until a user pressed it
+ * in the field. Evaluated here with exactly the names in scope, a stale
+ * reference throws instead of passing.
+ */
+const alignScope = extra => {
+  const scope = Object.assign({
+    aimTurn: null, aimOffset: 0,
+    prefStore: { setAimOffset: v => { scope.stored = v; } },
+    setNeedsCal: () => {}, setShowCalHelp: () => {}
+  }, extra);
+  const fn = new Function('aimTurn', 'aimOffset', 'prefStore', 'setNeedsCal', 'setShowCalHelp',
+    declSource('alignHere') + '\nreturn alignHere;')(scope.aimTurn, scope.aimOffset, scope.prefStore, scope.setNeedsCal, scope.setShowCalHelp);
+  return { run: fn, scope };
+};
+const norm180 = a => ((a % 360) + 540) % 360 - 180;
+const turnTo = (targetAz, aimAzC) => norm180(targetAz - aimAzC);   // the shipped aimTurn
+
+test('Align runs without throwing, using only what is in scope', () => {
+  const a = alignScope({ aimTurn: 12, aimOffset: 3 });
+  assert.doesNotThrow(() => a.run());
+  assert.strictEqual(a.scope.stored, 15);
+});
+
+test('Align with no target does nothing', () => {
+  const a = alignScope({ aimTurn: null, aimOffset: 7 });
+  a.run();
+  assert.strictEqual(a.scope.stored, undefined);
+});
+
+test('one tap of Align lands the view on the body, whatever was applied before', () => {
+  // Through the shipped wiring: the correction feeds viewQ, viewQ gives
+  // aimAzC, and after Align the view must read the body's bearing.
+  const rand = rng(424242);
+  for (let i = 0; i < 2000; i++) {
+    const q = O.quatFromEuler(rand() * 360, 40 + rand() * 100, rand() * 40 - 20);
+    const decl = rand() * 40 - 20, offset = rand() * 60 - 30, magnetic = rand() < 0.5;
+    const corr = (magnetic ? decl : 0) + offset;
+    const target = rand() * 360;
+    const before = shipped({ q }, corr, 0).aimAzC;
+    const a = alignScope({ aimTurn: turnTo(target, before), aimOffset: offset });
+    a.run();
+    // prefStore normalises the stored offset into (-180, 180].
+    const newOffset = norm180(a.scope.stored);
+    const after = shipped({ q }, (magnetic ? decl : 0) + newOffset, 0).aimAzC;
+    assert.ok(angErr(after, target) < 1e-6, `case ${i}: after Align the view reads ${after.toFixed(3)}, body is at ${target.toFixed(3)}`);
+  }
+});
