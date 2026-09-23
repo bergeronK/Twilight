@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HykZ/dpfXCfRFWGweI3dk7JnIn9i+Y+IwJBoPyJ+G1M=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ecsw/9Irpja/rCdVczO9GKazDgaWBiSg7CtcW5+nCgs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -645,18 +645,6 @@ function moonTopo(m) {
 // Topocentric altitude for scanCrossings: rise and set are when the Moon
 // appears to cross the horizon, not when the Earth's centre would see it do so.
 const moonAltSeen = (d, la, lo) => moonTopo(moonState(d, la, lo)).alt;
-function moonName(age) {
-  const a = age % 29.53;
-  if (a < 1.85) return "New";
-  if (a < 5.5) return "Waxing crescent";
-  if (a < 9.2) return "First quarter";
-  if (a < 12.9) return "Waxing gibbous";
-  if (a < 16.6) return "Full";
-  if (a < 20.3) return "Waning gibbous";
-  if (a < 23.99) return "Last quarter";
-  if (a < 27.7) return "Waning crescent";
-  return "New";
-}
 function scanCrossings(startMs, endMs, lat, lonE, altFn, thresholds, stepMin = 2) {
   const step = stepMin * 60000;
   let prev = null,
@@ -1607,30 +1595,8 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v87";
+const BUILD = "v88";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
-const PHASE_META = {
-  day: {
-    name: "Daylight",
-    color: "#7fa9d8"
-  },
-  civil: {
-    name: "Civil Twilight",
-    color: "#e08a3c"
-  },
-  naut: {
-    name: "Nautical Twilight",
-    color: "#5a7fb0"
-  },
-  astro: {
-    name: "Astronomical Twilight",
-    color: "#2b3358"
-  },
-  night: {
-    name: "Astronomical Night",
-    color: "#1a1f38"
-  }
-};
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
   if (alt > -6) return "civil";
@@ -3379,7 +3345,6 @@ function RealtimeTwilight({ redMode } = {}) {
       open: false
     } : null;
   }, [day, now]);
-  const moonNext = useMemo(() => day.moonEv.find(e => e.t > now), [day, now]);
   const nextSunEv = useMemo(() => day.sunEv.find(e => e.t > now), [day, now]);
   const planets = useMemo(() => {
     const names = ["Venus","Jupiter","Mars","Saturn","Mercury"];
@@ -3403,10 +3368,7 @@ function RealtimeTwilight({ redMode } = {}) {
     a.click();
     URL.revokeObjectURL(url);
   };
-  const meta = PHASE_META[live.phase];
-  const horizonY = 64;
   const countdown = win ? win.open ? win.e - now : win.s - now : 0;
-  const sunY = Math.max(6, Math.min(96, horizonY - live.alt * 1.15));
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -3424,15 +3386,10 @@ function RealtimeTwilight({ redMode } = {}) {
     .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi)}
     .rtbtn.solid{background:var(--btn-fill);border-color:rgba(210,160,77,.4);color:var(--accent-hi);font-weight:550}
     .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
-    .rt-sky{min-height:380px}
     @media (max-width:780px){
-      .rt-grid{grid-template-columns:1fr !important}
-      .rt-grid>div:last-child{border-left:none !important;border-top:1px solid ${C.line}}
-      .rt-sky{min-height:300px}
     }
     @media (max-width:520px){
       .rtbtn{font-size:12px;padding:9px 14px}
-      .rt-sky{min-height:240px}
       .rt-readouts{gap:12px !important}
       .rt-readouts>div{flex:1 1 30% !important;min-width:0 !important}
       .rt-ziprow input{flex:1 1 auto;width:auto !important}
@@ -3639,197 +3596,24 @@ function RealtimeTwilight({ redMode } = {}) {
   ),
   skyStripEl(wxScore, loc, h24),
   weekPlannerEl(wxWeek, loc, h24, pro),
+  // Details: what the first screen doesn't say. The older sky panel's
+  // picture, its "Right now" verdict, its faintest-star figure and its Moon
+  // line repeated the horizon view and the facts above, so they are gone;
+  // the countdown to the next twilight stage, Sun height, how much of the
+  // horizon is visible, and the sextant window were only here, so they stay.
   React.createElement("section", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto",
-      borderTop: `1px solid ${C.line}`,
-      padding: "20px 0"
-    }
-  }, React.createElement("div", {
-    className: "rt-grid",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)",
-      borderRadius: 12,
-      overflow: "hidden",
-      border: `1px solid ${C.line}`
-    }
-  }, React.createElement("div", {
-    className: "rt-sky",
-    style: {
-      position: "relative",
-      background: `linear-gradient(${live.sky.s} 0%, ${live.sky.m} 45%, ${live.sky.h} ${horizonY}%, #05070d ${horizonY}%, #02040a 100%)`,
-      overflow: "hidden",
-      transition: "background 1s linear"
-    }
-  }, React.createElement("div", {
-    style: {
-      position: "absolute",
-      left: "50%",
-      top: `${horizonY}%`,
-      width: 480,
-      height: 320,
-      transform: "translate(-50%,-100%)",
-      background: `radial-gradient(60% 80% at 50% 100%, rgba(255,170,80,${Math.max(0, 0.5 - live.dep / 14).toFixed(3)}), transparent 70%)`,
-      pointerEvents: "none"
-    }
-  }), STARS.map((s, i) => {
-    const vis = s.m <= live.mag,
-      ramp = Math.max(0, Math.min(1, live.mag - s.m + 0.6));
-    const bright = Math.max(0.15, 1 - (s.m + 1.5) / 7.5),
-      o = vis ? ramp * bright : 0,
-      size = vis ? 1.3 + bright * 3.2 : 0;
-    return React.createElement("div", {
-      key: i,
-      className: "twk",
-      style: {
-        position: "absolute",
-        left: `${s.x}%`,
-        top: `${s.y / 58 * horizonY}%`,
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: "#fff",
-        boxShadow: `0 0 ${size * 2.2}px rgba(255,250,235,${o})`,
-        "--o": o,
-        "--d": `${2.4 + i % 5 * 0.7}s`,
-        transition: "opacity .8s,width .8s,height .8s"
-      }
-    });
-  }), STARS.filter(s => s.n && s.m <= live.mag && Math.abs(s.m - live.mag) < 0.6).slice(0, 3).map((s, i) => React.createElement("div", {
-    key: i,
-    style: {
-      position: "absolute",
-      left: `${s.x}%`,
-      top: `${s.y / 58 * horizonY}%`,
-      transform: "translate(8px,-50%)",
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      color: C.brassHi,
-      textShadow: "0 0 6px #000",
-      whiteSpace: "nowrap"
-    }
-  }, s.n, " ", React.createElement("span", {
-    style: {
-      color: C.inkDim
-    }
-  }, "m", s.m.toFixed(1)))), React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: `${horizonY}%`,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "linear-gradient(#04060c,#010204)"
-    }
-  }), React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: `${horizonY}%`,
-      left: 0,
-      right: 0,
-      height: 2,
-      transform: "translateY(-1px)",
-      background: `linear-gradient(90deg,transparent,rgba(220,225,235,${live.hv.toFixed(2)}),transparent)`,
-      boxShadow: `0 0 8px rgba(200,210,230,${(live.hv * 0.7).toFixed(2)})`
-    }
-  }), React.createElement("div", {
-    style: {
-      position: "absolute",
-      top: `${horizonY}%`,
-      right: 14,
-      transform: "translateY(8px)",
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 1,
-      color: live.hv > 0.1 ? "#bcd0e6" : "#5a6478"
-    }
-  }, live.hv > 0.55 ? "HORIZON: SHARP" : live.hv > 0.1 ? "HORIZON: FAINT, STILL USABLE" : "HORIZON: OUT OF SIGHT"), React.createElement("div", {
-    style: {
-      position: "absolute",
-      left: 14,
-      top: `${sunY}%`,
-      transform: "translateY(-50%)",
-      display: "flex",
-      alignItems: "center",
-      gap: 7,
-      transition: "top 1s linear"
-    }
-  }, React.createElement("div", {
-    style: {
-      width: 15,
-      height: 15,
-      borderRadius: "50%",
-      background: "radial-gradient(circle at 35% 30%,#ffe6a8,#e0902c)",
-      boxShadow: `0 0 14px rgba(255,170,70,${Math.max(.1, 0.7 - live.dep / 16)})`
-    }
-  }), React.createElement("span", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      color: C.brass
-    }
-  }, "\u2609 ", live.alt >= 0 ? "+" : "", live.alt.toFixed(1), "\xB0")), live.m.alt > 0 && React.createElement("div", {
-    style: {
-      position: "absolute",
-      right: 16,
-      top: `${Math.max(6, Math.min(58, horizonY - live.m.alt * 1.15))}%`,
-      transform: "translateY(-50%)",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, React.createElement("span", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      color: "#cdd6e4"
-    }
-  }, Math.round(live.m.illum * 100), "%"), React.createElement("div", {
-    style: {
-      width: 14,
-      height: 14,
-      borderRadius: "50%",
-      background: "#e8ecf4",
-      boxShadow: `0 0 12px rgba(220,228,245,${(live.m.illum * 0.8).toFixed(2)})`,
-      opacity: 0.45 + live.m.illum * 0.55
-    }
-  }))), React.createElement("div", {
-    style: {
-      padding: "22px 22px 24px",
-      borderLeft: `1px solid ${C.line}`,
-      background: "var(--surface)"
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10.5,
-      fontWeight: 600,
-      letterSpacing: "0.07em",
-      color: C.inkFaint,
-      textTransform: "uppercase"
-    }
-  }, "Right now"), React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontWeight: 600,
-      fontSize: 27,
-      letterSpacing: "-0.015em",
-      color: meta.color,
-      lineHeight: 1.08,
-      margin: "6px 0 2px"
-    }
-  }, meta.name), React.createElement("div", {
-    style: {
-      color: C.inkDim,
-      fontSize: 13.5,
-      minHeight: 34
-    }
-  }, live.phase === "day" ? "The sun is still up. Wait for dusk before taking sights." : live.phase === "civil" ? "Only the brightest planets and stars are out yet, but the horizon is razor-sharp. The sextant window is coming." : live.phase === "naut" ? "The horizon and the navigation stars are both visible — this is the moment to take your sights." : live.phase === "astro" ? "The horizon is fading into the sky-glow, and the sky is dark enough for faint objects." : "Full darkness — the best hours of the night for faint objects. The sea horizon has gone, so sextant sights aren't possible now."),
+    "aria-labelledby": "rt-details",
+    style: { maxWidth: 1080, margin: "10px auto 0", borderTop: `1px solid ${C.line}`, padding: "22px 0 20px" }
+  },
+  React.createElement("h2", {
+    id: "rt-details",
+    style: { fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 24, lineHeight: 1.1, margin: "0 0 14px", color: C.ink }
+  }, "Details"),
+  React.createElement("div", { className: "rt-detail-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "18px 32px", alignItems: "start" } },
+    React.createElement("div", null,
   nextSunEv && React.createElement("div", {
     style: {
-      marginTop: 14
+      marginTop: 4
     }
   },
     React.createElement("div", {
@@ -3851,14 +3635,11 @@ function RealtimeTwilight({ redMode } = {}) {
     label: "Sun height",
     value: `${live.alt >= 0 ? "+" : ""}${live.alt.toFixed(1)}°`
   }), React.createElement(RO, {
-    label: "Faintest star",
-    value: `${live.mag <= -9 ? "—" : (live.mag >= 0 ? "+" : "") + live.mag.toFixed(1)}`,
-    accent: live.mag >= 3 ? C.brassHi : C.ink
-  }), React.createElement(RO, {
     label: "Horizon visible",
     value: `${(live.hv * 100).toFixed(0)}%`,
     accent: live.hv > 0.1 ? "#bcd0e6" : "#6a7488"
-  })), React.createElement("div", {
+  }))),
+    React.createElement("div", {
     style: {
       marginTop: 18,
       padding: "14px 16px 16px",
@@ -3908,47 +3689,8 @@ function RealtimeTwilight({ redMode } = {}) {
       color: C.inkDim,
       marginTop: 6
     }
-  }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight.")),
-  React.createElement("div", {
-    style: { marginTop: 14, display: "flex", alignItems: "center", gap: 12, fontSize: 13, color: C.ink }
-  },
-    React.createElement("svg", {
-      width: 36, height: 36, viewBox: "-18 -18 36 36",
-      style: { flexShrink: 0, filter: `drop-shadow(0 0 6px rgba(200,215,245,${(live.m.illum * 0.7).toFixed(2)}))` }
-    },
-      React.createElement("circle", { r: 18, fill: "#0d1020" }),
-      (() => {
-        const R = 18;
-        const illum = live.m.illum;
-        const age = live.m.age;
-        if (illum < 0.01) return null;
-        if (illum > 0.99) return React.createElement("circle", { r: R, fill: "#c8d4ea" });
-        const isWaxing = age < 14.76;
-        const elong = age / 29.53 * 360;
-        const rx = Math.abs(Math.cos(elong * Math.PI / 180)) * R;
-        let path;
-        if (isWaxing) {
-          const sw = elong < 90 ? 0 : 1;
-          path = `M 0,${-R} A ${R},${R} 0 0,1 0,${R} A ${rx.toFixed(2)},${R} 0 0,${sw} 0,${-R} Z`;
-        } else {
-          const wa = 360 - elong;
-          const rxW = Math.abs(Math.cos(wa * Math.PI / 180)) * R;
-          const sw = wa < 90 ? 1 : 0;
-          path = `M 0,${-R} A ${R},${R} 0 0,0 0,${R} A ${rxW.toFixed(2)},${R} 0 0,${sw} 0,${-R} Z`;
-        }
-        return React.createElement("path", { d: path, fill: "#c8d4ea" });
-      })()
-    ),
-    React.createElement("span", { style: { color: C.inkDim } },
-      moonName(live.m.age), " \xB7 ", Math.round(live.m.illum * 100), "% lit \xB7 ",
-      live.m.alt > 0
-        ? React.createElement(React.Fragment, null, live.m.alt.toFixed(0), "\xB0 up in the ", compass16(live.m.az),
-            live.moonPen > 0.3 ? React.createElement("span", { style: { color: "#c97a5a" } }, " \u2014 washing out faint stars") : "")
-        : moonNext
-          ? React.createElement(React.Fragment, null, moonNext.dir === "up" ? "rises" : "sets", " ", fmtT(moonNext.t, loc.tz))
-          : "below horizon"
-    )
-  )))),
+  }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight."))
+  )),
   (planets.length > 0 || live.m.alt > 0) && React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
@@ -6903,7 +6645,7 @@ function TwilightApp() {
         --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
       }
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
-      .tw-stars,.rt-sky,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
+      .tw-stars,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
     installPrompt && !installDismissed && React.createElement("div", {
       style: {

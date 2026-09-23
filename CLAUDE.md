@@ -108,7 +108,14 @@ Three tabs, one `index.html`, no build step:
   so they stay in the header there; `aria-current="page"` marks the active
   one, and `#root` gets bottom padding so the footer clears the bar. That
   also retired the ≤384 px rule that hid the wordmark (the tabs were what
-  overflowed the header). Phase 2 still to do: reference below the fold.
+  overflowed the header). **Reference below the fold** (2026-09-23,
+  option B of three the owner was offered): after the week planner a
+  "Details" heading groups the look-up material. The older sky panel's
+  picture, "Right now" verdict, faintest-star figure and Moon line are gone
+  (all repeated the horizon view and facts); what only it had stays, flat:
+  the next-twilight countdown, Sun height, horizon visible, and the sextant
+  window with its calendar button. Then "Above the horizon now", the twilight
+  schedule, the band notes and the almanac, unchanged. Phase 2 is done.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
