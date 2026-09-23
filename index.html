@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/e7JrQ3dKj1y0t6AvoAB4ZHG5mtmzQ5pMEN3kuBi4+s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-G199RAM0KOyfoyPYUQ9jowiwNtqDey4GKWytqdg7nS4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -2042,9 +2042,12 @@ function hzRandom(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 // A Moon disc at its phase, lit on the right unless `litLeft`.
-function drawMoonDisc(g, x, y, r, illum, litLeft) {
+function drawMoonDisc(g, x, y, r, illum, litLeft, angle) {
   g.save();
   g.translate(x, y);
+  // On the horizon painting the Sun is left or right of the Moon; on the
+  // round sky chart it can be in any direction, so the whole disc turns.
+  if (angle) g.rotate(angle);
   if (litLeft) g.scale(-1, 1);
   g.fillStyle = '#1d2029'; // earthshine: the dark side is faint, never black
   g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill();
@@ -2783,6 +2786,205 @@ function NightFacts({ plan, now, fmt, illum, planets }) {
   );
   return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } },
     cell('Darkest', darkest, true), cell('Moon', moon), cell('Planets', pl));
+}
+
+/* ---- Star Finder sky chart ----
+   The whole sky above you on one disc: zenith at the centre, horizon at the
+   rim. Stereographic, like a planisphere, because it keeps constellation
+   shapes — an equidistant disc (what the old 57-dot dial used) squashes
+   figures near the horizon into unrecognisable arcs.
+
+   North is at the top and EAST IS ON THE LEFT. That is the convention for a
+   chart you hold up and compare with the sky, and it is the mirror of the
+   old compass dial, which was a plan view with east on the right. The
+   cardinal letters are drawn on the rim so it can't be read the wrong way. */
+function chartXY(az, alt, R) {
+  if (!(alt >= 0)) return null; // below the horizon, or not a number
+  const r = R * Math.tan((90 - Math.min(90, alt)) / 2 * D2R);
+  return { x: -r * sin(az), y: -r * cos(az) };
+}
+/* Paints the chart. `d`: { stars: [{az, alt, mag, name, nav}], lines:
+   [{pts: [{az, alt}]}], planets: [{name, az, alt}], moon: {az, alt, illum},
+   sunAz, fix: [{name, az, alt}], polaris: {az, alt} | null, labelMag }.
+   Returns nothing; everything is drawn relative to the disc's centre. */
+function drawSkyChart(g, size, d) {
+  const R = size / 2 - 17, cx = size / 2, cy = size / 2;
+  const P = (az, alt) => { const p = chartXY(az, alt, R); return p && { x: cx + p.x, y: cy + p.y }; };
+
+  const face = g.createRadialGradient(cx, cy, 0, cx, cy, R);
+  face.addColorStop(0, '#0d1428'); face.addColorStop(1, '#070a16');
+  g.fillStyle = face;
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+
+  // Altitude circles at 30° and 60°, so a height can be read off the chart.
+  g.strokeStyle = 'rgba(238,241,250,.13)';
+  g.lineWidth = 1;
+  [30, 60].forEach(alt => {
+    const r = R * Math.tan((90 - alt) / 2 * D2R);
+    g.setLineDash([2, 4]);
+    g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+  });
+  g.setLineDash([]);
+
+  g.save();
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
+
+  // Constellation lines under everything, as in Sky View.
+  if (d.lines) {
+    g.strokeStyle = 'rgba(138,164,232,.34)';
+    g.lineWidth = 1;
+    g.lineCap = 'round';
+    d.lines.forEach(path => {
+      for (let i = 1; i < path.pts.length; i++) {
+        const a = P(path.pts[i - 1].az, path.pts[i - 1].alt), b = P(path.pts[i].az, path.pts[i].alt);
+        if (!a || !b) continue;
+        g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+      }
+    });
+  }
+  // Stars, faintest first so the bright ones win any overlap.
+  d.stars.forEach(s => {
+    const p = P(s.az, s.alt);
+    if (!p) return;
+    g.globalAlpha = Math.max(0.32, Math.min(1, 1.05 - s.mag * 0.12));
+    g.fillStyle = '#eef2ff';
+    g.beginPath(); g.arc(p.x, p.y, Math.max(0.7, 2.6 - s.mag * 0.42), 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+
+  // The three stars of the recommended fix, and the triangle they cut. The
+  // shape is the point: a thin sliver is a weak fix however bright the stars.
+  const fixPts = (d.fix || []).map(s => P(s.az, s.alt)).filter(Boolean);
+  if (fixPts.length === 3) {
+    g.strokeStyle = 'rgba(232,181,99,.45)';
+    g.setLineDash([4, 4]);
+    g.lineWidth = 1;
+    g.beginPath();
+    fixPts.forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y));
+    g.closePath(); g.stroke();
+    g.setLineDash([]);
+  }
+  (d.fix || []).forEach(s => {
+    const p = P(s.az, s.alt);
+    if (!p) return;
+    g.strokeStyle = '#e8b563'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(p.x, p.y, 7, 0, 7); g.stroke();
+    g.fillStyle = '#e8b563';
+    g.beginPath(); g.arc(p.x, p.y, 2.6, 0, 7); g.fill();
+  });
+
+  (d.planets || []).forEach(pl => {
+    const p = P(pl.az, pl.alt);
+    if (!p) return;
+    g.fillStyle = '#f0c98a';
+    g.beginPath(); g.arc(p.x, p.y, 4, 0, 7); g.fill();
+  });
+  if (d.moon) {
+    const p = P(d.moon.az, d.moon.alt);
+    if (p) {
+      // Point the lit limb at the Sun: toward the Sun's own place on the
+      // chart, or toward its bearing on the rim when it is below the horizon.
+      const sp = P(d.sunAz, 0);
+      const ang = sp ? Math.atan2(sp.y - p.y, sp.x - p.x) : 0;
+      drawMoonDisc(g, p.x, p.y, 9, d.moon.illum, false, ang);
+    }
+  }
+  g.restore();
+
+  // Labels: the fix stars, the planets, and any star bright enough to name
+  // without burying the chart in text.
+  g.font = '600 11px Inter, system-ui, sans-serif';
+  g.textBaseline = 'middle';
+  const placed = [];
+  // Crowded labels are dropped rather than overlapped — except the fix
+  // stars, which are what the chart exists to show and are named whatever
+  // sits next to them.
+  const label = (text, p, color, gap, force) => {
+    if (!force && placed.some(q => Math.abs(q.x - p.x) < 54 && Math.abs(q.y - p.y) < 13)) return;
+    const flip = p.x + gap + g.measureText(text).width > size - 4;
+    g.textAlign = flip ? 'right' : 'left';
+    g.fillStyle = color;
+    g.fillText(text, flip ? p.x - gap : p.x + gap, p.y);
+    placed.push({ x: p.x, y: p.y });
+  };
+  (d.fix || []).forEach(s => { const p = P(s.az, s.alt); if (p) label(s.name, p, '#e8b563', 10, true); });
+  (d.planets || []).forEach(pl => { const p = P(pl.az, pl.alt); if (p) label(pl.name, p, 'rgba(240,201,138,.9)', 7); });
+  if (d.moon) { const p = P(d.moon.az, d.moon.alt); if (p) label('Moon', p, 'rgba(238,242,255,.85)', 12); }
+  d.stars.forEach(s => {
+    if (!s.nav || !s.name || s.mag > (d.labelMag === undefined ? 1.6 : d.labelMag)) return;
+    const p = P(s.az, s.alt);
+    if (p) label(s.name, p, 'rgba(238,242,255,.66)', 6);
+  });
+  if (d.polaris) {
+    const p = P(d.polaris.az, d.polaris.alt);
+    if (p) label('Polaris', p, 'rgba(238,242,255,.66)', 6);
+  }
+
+  // The rim last, over everything, with the cardinal points outside it.
+  g.strokeStyle = 'rgba(210,160,77,.45)';
+  g.lineWidth = 1;
+  g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  g.font = '600 12px Inter, system-ui, sans-serif';
+  g.textAlign = 'center';
+  [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'W']].forEach(([az, name]) => {
+    g.fillStyle = 'rgba(232,181,99,.9)';
+    g.fillText(name, cx - (R + 9) * sin(az), cy - (R + 9) * cos(az));
+  });
+  g.font = '600 9.5px Inter, system-ui, sans-serif';
+  g.fillStyle = 'rgba(238,241,250,.45)';
+  [[45, 'NE'], [135, 'SE'], [225, 'SW'], [315, 'NW']].forEach(([az, name]) => {
+    g.fillText(name, cx - (R + 9) * sin(az), cy - (R + 9) * cos(az));
+  });
+  // Zenith mark: a cross, not a dot, so it is never mistaken for a star.
+  g.strokeStyle = 'rgba(238,241,250,.3)';
+  g.beginPath();
+  g.moveTo(cx - 5, cy); g.lineTo(cx + 5, cy);
+  g.moveTo(cx, cy - 5); g.lineTo(cx, cy + 5);
+  g.stroke();
+}
+
+/* The sky chart as it appears in the Stars tab: a square canvas that fills
+   its column, redrawn each minute. Data comes from StarFinder, which already
+   computes everything it needs. */
+function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const [size, setSize] = useState(320);
+  useEffect(() => {
+    const el = wrapRef.current;
+    const measure = () => {
+      const w = el && el.getBoundingClientRect().width;
+      if (w) setSize(Math.round(Math.max(240, Math.min(420, w))));
+    };
+    measure();
+    let ro = null;
+    if (el && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(el); }
+    window.addEventListener('resize', measure);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, []);
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(size * dpr); cv.height = Math.round(size * dpr);
+    cv.style.width = size + 'px'; cv.style.height = size + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, size, size);
+    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris });
+  }, [size, stars, lines, planets, moon, sunAz, fix, polaris]);
+  return React.createElement('div', { ref: wrapRef, style: { flex: '1 1 300px', maxWidth: 420, minWidth: 0 } },
+    React.createElement('canvas', {
+      ref: canvasRef, className: 'hz-sky',
+      style: { display: 'block', margin: '0 auto', width: size, height: size },
+      role: 'img',
+      'aria-label': 'The sky above you: zenith at the centre, horizon at the rim, north at the top and east on the left. ' +
+        (fix.length === 3 ? `The three stars of the recommended fix are ${fix.map(s => s.name).join(', ')}.` : '')
+    }),
+    React.createElement('div', {
+      style: { fontFamily: 'var(--font-ui)', fontSize: 11, color: C.inkFaint, textAlign: 'center', marginTop: 8, lineHeight: 1.5 }
+    }, 'The whole sky at once — overhead at the centre, horizon at the rim. Hold it up and face south: east is on the left, as it is above you.')
+  );
 }
 
 /* The top of the Console in the horizon preview: the painted sky with the
@@ -5446,6 +5648,9 @@ function StarFinder({ redMode } = {}) {
   // No seconds are shown here; star altitudes drift <0.25°/min, so a 30s tick
   // keeps positions fresh without recomputing 59 stars every second.
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
+  // The chart places ~2,500 stars, line vertices and bodies. Once a minute is
+  // plenty: the sky turns a quarter of a degree in that time.
+  const minuteKey = Math.floor(now / 60000);
   const useMyLocation = () => {
     if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
@@ -5544,19 +5749,21 @@ function StarFinder({ redMode } = {}) {
   // Fetched the first time Sky View is opened — no reason to spend the
   // request on visitors who only use the star table.
   const [starCatalog, setStarCatalog] = useState(null);
+  // Fetched when the Stars tab opens: the chart below draws them, and Sky
+  // View then has them ready.
   useEffect(() => {
-    if (!skyOpen || starCatalog) return;
+    if (starCatalog) return;
     let live = true;
     loadStarCatalog().then(c => { if (live) setStarCatalog(c); });
     return () => { live = false; };
-  }, [skyOpen, starCatalog]);
+  }, [starCatalog]);
   const [constLines, setConstLines] = useState(null);
   useEffect(() => {
-    if (!skyOpen || constLines) return;
+    if (constLines) return;
     let live = true;
     loadConstellationLines().then(c => { if (live) setConstLines(c); });
     return () => { live = false; };
-  }, [skyOpen, constLines]);
+  }, [constLines]);
   // Shared by Aim Assist and Sky View. Must be reached synchronously from a
   // tap: iOS only grants motion access during a real user gesture.
   const ensureSensors = async () => {
@@ -5839,27 +6046,41 @@ function StarFinder({ redMode } = {}) {
   let fixMinSep = 360;
   for (let i = 0; i < fixStars.length; i++) for (let j = i + 1; j < fixStars.length; j++) { let d = Math.abs(fixStars[i].az - fixStars[j].az) % 360; if (d > 180) d = 360 - d; fixMinSep = Math.min(fixMinSep, d); }
   const fixQual = fixStars.length < 3 ? "" : fixMinSep >= 60 ? "well spread" : fixMinSep >= 35 ? "fair spread" : "poorly spread · bearings too close";
-  // Polar sky dial: azimuth around the rim, altitude as radius (horizon at edge, zenith centre).
-  const D2Rl = Math.PI / 180, DR = 86;
-  const dialStars = navStars.map(s => {
-    const r = DR * (90 - Math.max(0, Math.min(90, s.alt))) / 90;
-    return { name: s.name, mag: s.mag, fix: fixNames.has(s.name), x: 100 + r * Math.sin(s.az * D2Rl), y: 100 - r * Math.cos(s.az * D2Rl) };
+  // Everything the chart draws. Recomputed each minute with the rest of the
+  // tab; the catalogue and constellation lines arrive asynchronously, so the
+  // chart starts with the 57 navigational stars and fills in.
+  const chartStars = useMemo(() => {
+    const dt = new Date(now);
+    const out = NAV_STARS.map(st => {
+      const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, dt);
+      return { name: st[0], mag: st[3], alt: p.alt, az: p.az, nav: true };
+    });
+    (starCatalog || []).forEach(st => {
+      const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, dt);
+      out.push({ name: st.name, mag: st.mag, alt: p.alt, az: p.az });
+    });
+    return out.filter(st => st.alt > -1).sort((a, b) => b.mag - a.mag);
+  }, [minuteKey, loc.lat, loc.lon, starCatalog]);
+  const chartLines = useMemo(() => {
+    if (!constLines || !constLines.length) return [];
+    const dt = new Date(now);
+    return constLines.map(c => ({
+      pts: c.pts.map(v => { const p = starHcZn(v.ra, v.dec, loc.lat, loc.lon, dt); return { az: p.az, alt: p.alt }; })
+    }));
+  }, [minuteKey, loc.lat, loc.lon, constLines]);
+  const chartPlanets = useMemo(() => {
+    const dt = new Date(now);
+    return ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury']
+      .map(n => ({ name: n, ...(planetAltAz(n, dt, loc.lat, loc.lon) || {}) }))
+      .filter(p => p.alt > 0);
+  }, [minuteKey, loc.lat, loc.lon]);
+  const chartMoon = useMemo(() => moonState(new Date(now), loc.lat, loc.lon), [minuteKey, loc.lat, loc.lon]);
+  const chartSunAz = useMemo(() => sunHcZn(new Date(now), loc.lat, loc.lon).az, [minuteKey, loc.lat, loc.lon]);
+  const skyChart = React.createElement(SkyChart, {
+    stars: chartStars, lines: chartLines, planets: chartPlanets,
+    moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
+    fix: fixStars, polaris: showPolaris ? polaris : null
   });
-  const compassDial = React.createElement("svg", {
-    width: 184, height: 184, viewBox: "0 0 200 200", "aria-hidden": "true", style: { flexShrink: 0, display: "block", margin: "0 auto" }
-  },
-    React.createElement("circle", { cx: 100, cy: 100, r: DR, fill: "rgba(255,255,255,0.02)", stroke: C.line, strokeWidth: 1 }),
-    React.createElement("circle", { cx: 100, cy: 100, r: DR * 2 / 3, fill: "none", stroke: C.line, strokeWidth: 0.6, strokeDasharray: "2 4" }),
-    React.createElement("circle", { cx: 100, cy: 100, r: DR / 3, fill: "none", stroke: C.line, strokeWidth: 0.6, strokeDasharray: "2 4" }),
-    ...[["N", 100, 13], ["E", 188, 104], ["S", 100, 196], ["W", 12, 104]].map(c =>
-      React.createElement("text", { key: c[0], x: c[1], y: c[2], fill: C.inkDim, fontSize: 10, fontFamily: "var(--font-ui)", textAnchor: "middle" }, c[0])),
-    ...dialStars.filter(s => s.fix).map(s => React.createElement("circle", { key: "r" + s.name, cx: s.x.toFixed(1), cy: s.y.toFixed(1), r: 6, fill: "none", stroke: "var(--accent-hi)", strokeWidth: 1, opacity: 0.55 })),
-    ...dialStars.map(s => React.createElement("circle", {
-      key: s.name, cx: s.x.toFixed(1), cy: s.y.toFixed(1),
-      r: s.fix ? 3.3 : (s.mag < 1 ? 2.4 : s.mag < 2 ? 1.9 : 1.4),
-      fill: s.fix ? "var(--accent-hi)" : "#cdd6ee", opacity: s.fix ? 1 : 0.62
-    }))
-  );
   const polarisBox = showPolaris && React.createElement("div", {
     style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 16 }
   },
@@ -5908,7 +6129,7 @@ function StarFinder({ redMode } = {}) {
     navStars.length === 0
       ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No navigational stars above the horizon right now.")
       : React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 22, alignItems: "flex-start" } },
-          compassDial,
+          skyChart,
           React.createElement("div", { style: { flex: "1 1 300px", minWidth: 0 } },
             fixCallout,
             starTable
