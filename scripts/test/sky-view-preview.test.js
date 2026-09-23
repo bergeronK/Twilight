@@ -81,3 +81,12 @@ test('Sky View and its preview are drawn by the one painter', () => {
   assert.match(declSource('StarFinder'), /initialAz: previewFacing/);
   assert.match(declSource('StarFinder'), /facing: previewFacing/);
 });
+
+test("Sky View carries Aim Assist's Align, where the error is seen", () => {
+  // Field report, build v100: the drawn Moon sat ~6° left of the real one on
+  // an iPhone, the phone compass's own error. The correction existed only on
+  // the Stars tab; Sky View must offer the same one, wired to the same
+  // handler, and only when it can mean something (sensors live, a target).
+  assert.match(declSource('StarFinder'), /align: \{ onAlign: alignHere, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
+  assert.match(declSource('SkyDome'), /live && target && align && React\.createElement/);
+});

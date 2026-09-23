@@ -395,8 +395,14 @@ test('north-gate tuning is sensible', () => {
  * 331" while the phone pointed at az 149.
  */
 const IPHONE = [
-  { name: 'raised to the Moon, offset had been confirmed', alpha: 333.2, beta: 113.6, gamma: 4.7, heading: 154, moonAz: 149.2 },
-  { name: 'raised to the Moon, offset was a first guess', alpha: 12, beta: 114, gamma: -3.1, heading: 166, moonAz: 147.5 }
+  { name: 'raised to the Moon, offset had been confirmed', alpha: 333.2, beta: 113.6, gamma: 4.7, heading: 154, moonAz: 149.2, alt: 24 },
+  { name: 'raised to the Moon, offset was a first guess', alpha: 12, beta: 114, gamma: -3.1, heading: 166, moonAz: 147.5, alt: 24 },
+  // Build v100, 2026-09-23 ~22:40 UTC at 42.11, -72.54 (declination 13.3° W),
+  // the Moon just risen at az 120 alt 12: drawn 6° left of the real one. Read
+  // as magnetic north (declination applied) it would be 7° out the other way,
+  // so this sample, like the confirmed one above, supports iOS giving true
+  // north; the residual is the phone's compass, which Align corrects.
+  { name: 'Moon just risen, v100', alpha: 321.8, beta: 102.4, gamma: -4.3, heading: 125, moonAz: 120, alt: 12 }
 ];
 
 for (const r of IPHONE) {
@@ -410,7 +416,7 @@ for (const r of IPHONE) {
     // being pinned here is that the view is not reversed.
     assert.ok(angErr(aim.az, r.moonAz) < 25,
       `view az ${aim.az.toFixed(0)} vs Moon ${r.moonAz} — off by ${angErr(aim.az, r.moonAz).toFixed(0)}deg`);
-    assert.ok(Math.abs(aim.alt - 24) < 1.5, `altitude ${aim.alt.toFixed(1)} should match the readout's 24`);
+    assert.ok(Math.abs(aim.alt - r.alt) < 1.5, `altitude ${aim.alt.toFixed(1)} should match the readout's ${r.alt}`);
   });
 }
 
