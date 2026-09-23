@@ -100,8 +100,13 @@ Three tabs, one `index.html`, no build step:
   under the painting with coordinates, Use my location, Save, saved places
   and the city search (the old block of those below the painting is gone).
   `HorizonHero` takes them as `header` and `panel` props; `pickerOpen` is the
-  panel's state, and a failed first geolocation still opens it. Phase 2
-  still to do: tabs to the bottom, reference below the fold.
+  panel's state, and a failed first geolocation still opens it. **Tabs sit
+  in a bar along the bottom at ≤780 px** (2026-09-23): the same three buttons
+  inside `<nav class="tw-tabs">`, which is `display:contents` on wide screens
+  so they stay in the header there; `aria-current="page"` marks the active
+  one, and `#root` gets bottom padding so the footer clears the bar. That
+  also retired the ≤384 px rule that hid the wordmark (the tabs were what
+  overflowed the header). Phase 2 still to do: reference below the fold.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -682,9 +687,8 @@ that and is kept for its design detail):**
 the PWA's `screenshot-narrow.png` / `screenshot-wide.png`, which
 `store-assets/generate.js` now also writes (they had no generator before).
 The Console shots were retaken when the horizon view became the default
-(same day). The Android
-phone shots (360 px CSS) have no header wordmark: below 385 px the app hides
-it so the header can't overflow, so that is the real app, not a bug.
+(same day), and the phone shots again when the tabs moved to the bottom
+(iPad and the wide PWA shot are over 780 px, so unchanged).
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
