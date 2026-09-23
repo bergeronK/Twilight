@@ -115,9 +115,9 @@ function page(city, slug) {
 </head>
 <body>
 <main>
-  <a class="brand" href="/" aria-label="Twilight home">
+  <a class="brand" href="/" aria-label="Twilyte home">
     <svg width="15" height="15" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0l1.7 5.3L14 7l-5.3 1.7L7 14 5.3 8.7 0 7l5.3-1.7z" fill="#d2a04d"/></svg>
-    Twilight
+    Twilyte
   </a>
   <div class="kicker">Twilight times</div>
   <h1>${p}</h1>
@@ -140,7 +140,7 @@ function page(city, slug) {
   <p class="explain">Times shown are computed live for ${p} (${city.lat.toFixed(2)}°, ${city.lon.toFixed(2)}°) using the Sun's position for today's date, and use your local time zone (${city.tz.replace('_', ' ')}) automatically, including daylight saving where applicable.</p>
 
   <footer>
-    Part of <a href="/">Twilight</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. See twilight times, sun/moon/planet positions, and a clear-and-dark observing score for any location. <a href="/twilight-times/">More cities</a> · <a href="/privacy.html">Privacy</a>
+    Part of <a href="/">Twilyte</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. See twilight times, sun/moon/planet positions, and a clear-and-dark observing score for any location. <a href="/twilight-times/">More cities</a> · <a href="/privacy.html">Privacy</a>
   </footer>
 </main>
 <script src="twilight-calc.js" defer></script>
@@ -169,7 +169,7 @@ function hubPage(cities) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Twilight Times by City — Twilight</title>
+<title>Twilight Times by City — Twilyte</title>
 <meta name="description" content="Today's civil, nautical, and astronomical twilight times for cities around the world." />
 <link rel="canonical" href="https://twilyte.info/twilight-times/" />
 <link rel="icon" type="image/png" sizes="512x512" href="../icon-512.png" />
@@ -197,15 +197,15 @@ function hubPage(cities) {
 </head>
 <body>
 <main>
-  <a class="brand" href="/" aria-label="Twilight home">
+  <a class="brand" href="/" aria-label="Twilyte home">
     <svg width="15" height="15" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 0l1.7 5.3L14 7l-5.3 1.7L7 14 5.3 8.7 0 7l5.3-1.7z" fill="#d2a04d"/></svg>
-    Twilight
+    Twilyte
   </a>
   <h1>Twilight times by city</h1>
   <p class="lede">Today's civil, nautical, and astronomical dawn &amp; dusk for a curated set of cities. Don't see yours? Open the <a href="/">full app</a> for any location.</p>
 ${sections}
   <footer>
-    Part of <a href="/">Twilight</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. <a href="/privacy.html">Privacy</a>
+    Part of <a href="/">Twilyte</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. <a href="/privacy.html">Privacy</a>
   </footer>
 </main>
 </body>

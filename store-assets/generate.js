@@ -78,7 +78,7 @@ async function capture(browser, tab, outPath, after, device) {
   await page.waitForTimeout(2600);
   // Belt and braces: confirm the app actually mounted, so a CSP break or a
   // JS error can't be captured as a blank/placeholder screenshot either.
-  const mounted = await page.evaluate(() => !/Starting Twilight/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
+  const mounted = await page.evaluate(() => !/Starting Twilyte/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
   if (!mounted) throw new Error('app did not render — stale CSP hashes? run scripts/verify-build.js');
   if (after) await after(page);
   await page.screenshot({ path: outPath });

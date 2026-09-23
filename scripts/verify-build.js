@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /*
- * Build guard for the Twilight single-file PWA.
+ * Build guard for the Twilyte single-file PWA.
  *
  * The page ships a strict Content-Security-Policy with no 'unsafe-inline' for
  * scripts: every executable inline <script> must be allow-listed by its

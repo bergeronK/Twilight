@@ -110,7 +110,7 @@ if (o !== buf.length) throw new Error('size mismatch: wrote ' + o + ' of ' + buf
 
 fs.writeFileSync(path.join(root, 'stars.bin'), buf);
 fs.writeFileSync(path.join(root, 'stars.LICENSE.txt'),
-`stars.bin — background star catalogue for Twilight's Sky View
+`stars.bin — background star catalogue for Twilyte's Sky View
 
 Derived from the HYG database (https://github.com/astronexus/HYG-Database),
 compiled by David Nash from the Hipparcos, Yale Bright Star and Gliese
@@ -122,7 +122,7 @@ itself licensed:
     Creative Commons Attribution-ShareAlike 4.0 International
     https://creativecommons.org/licenses/by-sa/4.0/
 
-This licence applies to stars.bin only. Twilight's own source is unaffected.
+This licence applies to stars.bin only. Twilyte's own source is unaffected.
 
 Contents: stars to visual magnitude ${MAG_LIMIT.toFixed(1)}, excluding the 57
 navigational stars already carried in index.html. Regenerate with

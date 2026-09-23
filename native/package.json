@@ -2,7 +2,7 @@
   "name": "twilight-native",
   "version": "1.0.0",
   "private": true,
-  "description": "Capacitor native shell (iOS/Android) for the Twilight PWA. The web app itself lives one directory up; `npm run sync` stages it into www/ and updates the native projects.",
+  "description": "Capacitor native shell (iOS/Android) for the Twilyte PWA. The web app itself lives one directory up; `npm run sync` stages it into www/ and updates the native projects.",
   "scripts": {
     "sync": "node sync-web.js && npx cap sync",
     "sync:web": "node sync-web.js && npx cap copy",

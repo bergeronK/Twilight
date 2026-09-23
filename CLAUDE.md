@@ -1,7 +1,21 @@
-# Twilight — project memory
+# Twilyte — project memory
 
 Single-file PWA for stargazing / celestial navigation, live at **twilyte.info**
-(GitHub Pages, repo `bergeronK/twilight`). This file is read automatically at
+(GitHub Pages, repo `bergeronK/twilight`).
+
+**The app is called Twilyte** (owner decision, 2026-09-22), matching the
+domain; it was "Twilight" until then. The rule when touching copy: **Twilyte
+is the product, twilight is the sky.** The wordmark, titles, metadata, native
+app names, privacy policy and any sentence where the app speaks as itself say
+Twilyte. Civil/nautical/astronomical twilight, "Twilight Ephemeris", "A
+Twilight Almanac", "Twilight Times in <city>" (the search phrase the city
+pages exist for) and every almanac fact are about the phenomenon and stay.
+Internal names (`RealtimeTwilight`, `TwilightBands`, `twilight-times/`
+paths, `tw_*` keys, the `twilight-counter` Worker, `sw.js`'s cache name)
+were deliberately left alone: users never see them, and renaming URLs or
+storage keys would break links and saved settings. The GitHub repo is still
+`bergeronK/Twilight`; renaming it is the owner's call (GitHub redirects the
+old URL, and `/privacy.html` links to it). This file is read automatically at
 the start of every Claude Code session in this repo — keep it current so a
 fresh session (or a Cowork session) never has to re-derive project state.
 
@@ -22,7 +36,7 @@ Three tabs, one `index.html`, no build step:
   `<script type="application/ld+json">` is non-executable and not counted).
 - **Strict CSP** via `<meta http-equiv>` with **SHA-256 hashes** of those 5
   scripts. Edit any inline script → hashes go stale → CSP silently blocks
-  the app ("Starting Twilight…" hang, no console error). **Always run the
+  the app ("Starting Twilyte…" hang, no console error). **Always run the
   hash-recompute step before committing** (see Build workflow below).
 - **Design tokens**: all color/type driven by `:root` CSS custom properties
   + a `C` object that mirrors them for JS. Two independent color systems:
@@ -637,6 +651,15 @@ that and is kept for its design detail):**
   `TWILIGHT-VISITORS` namespace (delete the hash keys, never `__total__`).
   Until then `/privacy.html`'s "kept 24 hours" isn't true of those entries.
   Deleting stored data is the owner's call.
+- **Store and install screenshots still show the old name.**
+  `store-assets/ios/*`, `store-assets/android/phone-*` and the PWA's
+  `screenshot-narrow.png` / `screenshot-wide.png` show the header wordmark
+  "Twilight", and they also predate the planet fix, the star chart and the
+  painted Console. Regenerate with `node store-assets/generate.js` and
+  `node store-assets/generate-android.js` (Playwright; the generators were
+  updated for the new boot text). The social card and Play feature graphic
+  *were* regenerated — `store-assets/og-image.html` now sources the card,
+  calibrated against the old image to within a pixel before the name changed.
 - Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
   here until the owner has one available.
 
