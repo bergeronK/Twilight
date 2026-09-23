@@ -46,6 +46,18 @@ Three tabs, one `index.html`, no build step:
     cool navy-to-blue-black radial gradient, deliberately independent of the
     warm tokens so panels stay warm while the page's negative space reads
     as night sky. Shared across all three tabs.
+  - **Inter loads in two parts** (2026-09-24): `fonts/inter-latin.woff2`
+    (141 KB; both axes and every OpenType feature, made by
+    `scripts/subset-inter.sh` with fonttools) is preloaded and covers what
+    the app writes; `fonts/inter-var.woff2` (352 KB) is a second face whose
+    `unicode-range` is exactly Inter's other glyphs, so it's fetched only for
+    e.g. a Cyrillic place name. Throttled phone profile (1.6 Mbps, 4× CPU):
+    fonts and painting ready 7.0 s → 4.8 s, 1,092 → 888 KB. **Any new
+    character outside the core range pulls the full font on every visit and
+    looks no different**: `load.test.js` checks every character in
+    `index.html`, `facts.json` and the constellation names (it caught the
+    fullwidth ＋ of "Add to calendar"). The tab icon is `favicon-64.png`
+    (5 KB), not the 79 KB `icon-512.png`.
   - Typography: Inter for everything functional (labels, numerals, UI, body);
     Cormorant Garamond reserved only for the wordmark and "voice" moments
     (verdict lines, almanac headings) — never for data or controls.
@@ -67,7 +79,13 @@ Three tabs, one `index.html`, no build step:
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
 - **Service worker** (`sw.js`): network-first navigations, stale-while-revalidate
-  assets. `CACHE` version string must be bumped on every asset-affecting change.
+  assets, **this site's own files only** (2026-09-24). It used to cache every
+  GET, other sites' too, so each forecast shown was the one fetched the time
+  before (stale-while-revalidate answers from the cache first), often hours
+  old, and the visit count lagged. Offline, the Console falls back to its own
+  saved forecast (`tw_wx_*`: `wxCacheUse` says 'fresh' under an hour, 'stale'
+  up to a day, used only when a fetch fails, and the score's line says
+  "forecast from 3 hours ago", `staleNote`). `CACHE` version string must be bumped on every asset-affecting change.
   Skips registration entirely when `window.Capacitor` is present (native shell
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
@@ -695,6 +713,12 @@ things a syntax check cannot see:
   `edgePoint`, a picked constellation drawn amber and named once, and at
   source level that `aimTarget` resolves Sky View's picks and is declared
   after what it reads.
+- **`load.test.js`** — first load and offline: the two Inter faces (core
+  = `subset-inter.sh`'s range, no overlap, same in the city pages,
+  preloaded, the core precached not the full font), no shipped character in
+  the full font's range, the small tab icon, `sw.js` run against a fake scope
+  leaving other origins to the network, `wxCacheUse`/`staleNote`, and the
+  Console's offline fallback at source level.
 - **`share-card.test.js`** — the share picture carries place, time,
   label, verdict, highlight and address; the painting is drawn scaled;
   long names and verdicts wrap inside the margins and clear the address;
