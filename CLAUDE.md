@@ -222,6 +222,18 @@ Three tabs, one `index.html`, no build step:
   share files (phones), otherwise downloads `twilyte-tonight.png`. Inside
   the native apps it goes through the same web share, untested on a device.
   `share-card.test.js`.
+- **First-run welcome (2026-09-23).** On a first visit to the Console
+  (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
+  with the same painting the hero draws, from the same scene, fading in as
+  it loads and repainting when the location arrives, with one line
+  (`welcomeLine`: "Finding your sky…", then "This is the sky over <place>
+  right now.", "you" for a device location), a "Show me tonight" button and
+  "Not here? Choose your place", which opens the place picker. Closing
+  writes `tw_welcomed` and fades it onto the dashboard already laid out
+  beneath. It is a portal into `<body>`: the tab content's fade-in makes a
+  stacking context that kept a fixed overlay under the bottom tab bar
+  whatever its z-index. Escape closes it. **The store screenshot generators
+  set `tw_welcomed`**, or every shot would be the welcome. `welcome.test.js`.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -648,6 +660,9 @@ things a syntax check cannot see:
   label, verdict, highlight and address; the painting is drawn scaled;
   long names and verdicts wrap inside the margins and clear the address;
   no highlight line without one; `wrapText` never splits a word.
+- **`welcome.test.js`** — `welcomeLine`'s words, and at source level the
+  "once" wiring (flag written on close, deep links skip it, "Not here?"
+  opens the picker), the portal, and both store generators setting the flag.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
