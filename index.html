@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-h9aL3C5i47uQyvKX5i7eJly+sVKzC5uykpiSWiy4aMc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6RIiK7abUgb1OEoglj2vgkt06jjmOzNA1wXQ8H9AVaU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1301,7 +1301,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v96";
+const BUILD = "v97";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4262,6 +4262,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const [offset, setOffset] = useState(-5); // manual standard offset, hours — only used when tz is null
   const [dst, setDst] = useState(true);
   const [icalMode, setIcalMode] = useState("stargazing");
+  // The place/date form, folded away under the place name until asked for.
+  const [formOpen, setFormOpen] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
   const [hoverX, setHoverX] = useState(null);
   const [query, setQuery] = useState("");
@@ -4291,6 +4293,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const goToday = () => setDateStr(dateKey(Date.now(), tz || deviceTz));
   const isToday = dateStr === dateKey(Date.now(), tz || deviceTz);
   const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && Y && Mo && D;
+  // With nothing valid to show, the form is the only useful thing: open it.
+  useEffect(() => { if (!valid) setFormOpen(true); }, [valid]);
   useEffect(() => {
     const el = svgRef.current && svgRef.current.parentElement;
     if (!el) return;
@@ -4699,8 +4703,14 @@ function TwilightEphemeris({ redMode } = {}) {
     style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, margin: "18px 0 6px" }
   },
     React.createElement("div", { style: { minWidth: 0 } },
-      React.createElement("div", { style: { font: "600 17px var(--font-ui)", color: ink } },
-        placeName || (valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0` : "Enter a place")),
+      // The place is the way to change it, as on the Console: tap for the
+      // search, coordinates, date and time zone.
+      React.createElement("button", {
+        onClick: () => setFormOpen(o => !o), "aria-expanded": formOpen, "aria-controls": "te-form",
+        style: { display: "inline-flex", alignItems: "baseline", gap: 8, padding: 0, border: 0, background: "none", cursor: "pointer", font: "650 clamp(22px,5vw,30px) var(--font-ui)", color: ink, letterSpacing: "-0.01em", textAlign: "left" }
+      },
+        placeName || (valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0` : "Enter a place"),
+        React.createElement("span", { "aria-hidden": "true", style: { fontSize: "0.6em", color: dim, transform: formOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } }, "\u25BE")),
       React.createElement("div", { style: { font: "13px var(--font-ui)", color: dim, marginTop: 3, fontVariantNumeric: "tabular-nums" } },
         dateLabel, dayLen != null ? ` \u00B7 ${Math.floor(dayLen / 60)} h ${pad2(dayLen % 60)} m of daylight` : "")),
     React.createElement("div", { style: { display: "flex", gap: 6 } },
@@ -4729,10 +4739,10 @@ function TwilightEphemeris({ redMode } = {}) {
         ::selection{background:var(--accent);color:var(--on-accent)}
         .te-wrap{max-width:1180px;margin:0 auto;padding:40px 22px 64px}
         .te-grid{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:22px;align-items:start}
+        .te-grid.te-solo{grid-template-columns:1fr}
         @media (max-width:780px){
           .te-wrap{padding:26px 14px 52px}
           .te-grid{grid-template-columns:1fr}
-          .te-grid > section:first-child{order:2}
           .te-chart{padding:18px 0 8px !important}
         }
       `), /*#__PURE__*/React.createElement("div", {
@@ -4770,27 +4780,65 @@ function TwilightEphemeris({ redMode } = {}) {
     style: {
       ...labelSt
     }
-  }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
-    style: {
-      margin: "6px 0 0",
-      fontFamily: "var(--font-display)",
-      fontWeight: 700,
-      fontSize: "clamp(26px,5.4vw,50px)",
-      lineHeight: 1,
-      letterSpacing: "-.01em",
-      color: ink
-    }
-  }, "Twilight Ephemeris"), dayBar, /*#__PURE__*/React.createElement("p", {
-    style: {
-      margin: "12px 0 0",
-      maxWidth: 640,
-      color: dim,
-      fontSize: 16,
-      lineHeight: 1.55
-    }
-  }, "Precise civil, nautical, and astronomical dawn & dusk for any coordinate and date, with the Sun\u2019s track across the horizon and month-long exports for stargazing or navigation.")), /*#__PURE__*/React.createElement("div", {
-    className: "te-grid"
+  }, React.createElement("h1", { style: { margin: 0, font: "inherit", letterSpacing: "inherit" } }, "Twilight Ephemeris")), dayBar), /*#__PURE__*/React.createElement("div", {
+    className: "te-grid" + (formOpen ? "" : " te-solo")
   }, /*#__PURE__*/React.createElement("section", {
+    style: {
+      ...panel,
+      padding: 20,
+      order: 3,
+      gridColumn: "1 / -1"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...labelSt,
+      marginBottom: 10
+    }
+  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: icalMode,
+    onChange: e => setIcalMode(e.target.value),
+    style: {
+      ...inputSt,
+      marginTop: 0,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "stargazing"
+  }, "iCal: stargazing \u2014 dark windows"), /*#__PURE__*/React.createElement("option", {
+    value: "navigation"
+  }, "iCal: navigation \u2014 nautical twilight"), /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "iCal: all phase markers"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: exportICS,
+    disabled: !valid,
+    style: {
+      ...btn,
+      background: "var(--accent)",
+      color: "var(--on-accent)",
+      opacity: valid ? 1 : 0.4
+    }
+  }, "\u2193 iCal"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportCSV,
+    disabled: !valid,
+    style: {
+      ...btn,
+      background: "rgba(120,140,200,.16)",
+      color: ink,
+      border: "1px solid rgba(120,140,200,.28)",
+      opacity: valid ? 1 : 0.4
+    }
+  }, "\u2193 CSV"))), formOpen && /*#__PURE__*/React.createElement("section", {
+    id: "te-form",
     style: {
       ...panel,
       padding: 20
@@ -4903,61 +4951,7 @@ function TwilightEphemeris({ redMode } = {}) {
       color: dim,
       fontFamily: "var(--font-ui)"
     }
-  }, "Active offset \xB7 ", tzLabel))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 20,
-      paddingTop: 18,
-      borderTop: "1px solid rgba(120,140,200,.14)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...labelSt,
-      marginBottom: 10
-    }
-  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("select", {
-    value: icalMode,
-    onChange: e => setIcalMode(e.target.value),
-    style: {
-      ...inputSt,
-      marginTop: 0,
-      cursor: "pointer"
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "stargazing"
-  }, "iCal: stargazing \u2014 dark windows"), /*#__PURE__*/React.createElement("option", {
-    value: "navigation"
-  }, "iCal: navigation \u2014 nautical twilight"), /*#__PURE__*/React.createElement("option", {
-    value: "all"
-  }, "iCal: all phase markers"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: exportICS,
-    disabled: !valid,
-    style: {
-      ...btn,
-      background: "var(--accent)",
-      color: "var(--on-accent)",
-      opacity: valid ? 1 : 0.4
-    }
-  }, "\u2193 iCal"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCSV,
-    disabled: !valid,
-    style: {
-      ...btn,
-      background: "rgba(120,140,200,.16)",
-      color: ink,
-      border: "1px solid rgba(120,140,200,.28)",
-      opacity: valid ? 1 : 0.4
-    }
-  }, "\u2193 CSV")))), /*#__PURE__*/React.createElement("section", {
+  }, "Active offset \xB7 ", tzLabel)))), /*#__PURE__*/React.createElement("section", {
     style: {
       display: "grid",
       gap: 22
@@ -5353,6 +5347,195 @@ function pingVisitorCounter(show) {
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
+/* Sky View's picture, for one view: `o` is { basis, fov, cam, bodies, lines,
+   names, showLines, targetName, mw, lat, lst, mwRef (a ref to reuse the
+   Milky Way's canvas across frames), clearTop/clearBottom (px kept free of
+   constellation names for the overlay's controls), reticle }. Drawn by the
+   full-screen overlay on every sensor event, and once a minute by the Stars
+   tab's preview, so the two cannot drift apart. */
+function drawSkyView(g, w, h, o) {
+  const { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst } = o;
+  const dir = b => toScreen(basis, b.az, b.alt);
+  const proj = d => skyProject(d, w, h, fov);
+
+  if (!cam) {
+    // Sky gradient, darkest overhead — reads as depth without competing
+    // with the bodies for attention.
+    const up = proj(toScreen(basis, 0, 90));
+    const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
+    grad.addColorStop(0, '#05070f');
+    grad.addColorStop(1, '#0b1020');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+    // The Milky Way, faintly, as on the Stars tab's chart; sampled every
+    // 10 px and drawn scaled up. Not over the camera, which shows the real
+    // one or doesn't. Below the horizon it fades out with the stars.
+    if (mw && lst !== undefined) {
+      const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
+      const field = milkyWayField(mw, cols, rows, (i, j) => {
+        const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
+        d.w = d.alt >= 0 ? 0.34 : 0.1;
+        return d;
+      }, lat, lst);
+      if (o.mwRef) o.mwRef.current = milkyWayImage(field, cols, rows, '170,186,228', o.mwRef.current);
+      g.drawImage(o.mwRef ? o.mwRef.current : milkyWayImage(field, cols, rows, '170,186,228'), 0, 0, cols * 10, rows * 10);
+    }
+  }
+
+  // Horizon + cardinal marks: the anchor that tells you the view is real.
+  g.lineWidth = 1;
+  g.strokeStyle = cam ? 'rgba(210,160,77,.55)' : 'rgba(210,160,77,.35)';
+  g.beginPath();
+  let started = false;
+  for (let a = 0; a <= 360; a += 2) {
+    const p = proj(toScreen(basis, a, 0));
+    if (!p) { started = false; continue; }
+    if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
+  }
+  g.stroke();
+  // Canvas font strings don't resolve CSS custom properties — name the
+  // family outright rather than reaching for --font-ui here.
+  g.font = '600 12px Inter, system-ui, sans-serif';
+  g.fillStyle = 'rgba(210,160,77,.8)';
+  g.textAlign = 'center';
+  for (let a = 0; a < 360; a += 45) {
+    const p = proj(toScreen(basis, a, 0));
+    if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
+  }
+
+  // Constellation lines, under every body. Faint and cool against the warm
+  // horizon, so they give the sky its shapes without competing with the
+  // stars; stronger over the camera image, which is brighter than the
+  // painted sky. Fainter constellations (d3-celestial rank 2, 3) recede.
+  if (showLines && lines && lines.length) {
+    const segs = constellationSegments(lines, (az, alt) => proj(toScreen(basis, az, alt)), 4);
+    const base = cam ? 0.5 : 0.34;
+    g.lineWidth = 1;
+    g.lineCap = 'round';
+    segs.forEach(sg => {
+      if (Math.max(sg.x1, sg.x2) < -20 || Math.min(sg.x1, sg.x2) > w + 20 ||
+          Math.max(sg.y1, sg.y2) < -20 || Math.min(sg.y1, sg.y2) > h + 20) return;
+      const a = base * (sg.rank <= 1 ? 1 : sg.rank === 2 ? 0.8 : 0.62) * (sg.below ? 0.3 : 1);
+      g.strokeStyle = 'rgba(138,164,232,' + a.toFixed(3) + ')';
+      g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+    });
+    // A faint dot at every vertex. Where the catalogue has the star, it is
+    // drawn over this and hides it; where it doesn't (about 3% of vertices,
+    // stars fainter than stars.bin's magnitude-5 cut, mostly in dim
+    // southern constellations), the line still visibly ends on a star.
+    g.fillStyle = 'rgba(238,242,255,.4)';
+    lines.forEach(path => path.pts.forEach(v => {
+      const p = proj(toScreen(basis, v.az, v.alt));
+      if (!p || p.x < -4 || p.x > w + 4 || p.y < -4 || p.y > h + 4) return;
+      g.globalAlpha = v.alt < 0 ? 0.3 : 1;
+      g.beginPath(); g.arc(p.x, p.y, 0.8, 0, 7); g.fill();
+    }));
+    g.globalAlpha = 1;
+    // Names, spaced out, in small capitals the colour of the lines: they
+    // label the figures without reading as bodies. Drawn under the bodies,
+    // so a star's own label always wins.
+    if (names && names.length) {
+      const spots = constellationLabelSpots(names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, o.clearTop === undefined ? 72 : o.clearTop, o.clearBottom === undefined ? 76 : o.clearBottom);
+      g.font = '500 10.5px Inter, system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      spots.forEach(sp => {
+        const a = (cam ? 0.8 : 0.62) * (sp.rank <= 1 ? 1 : sp.rank === 2 ? 0.82 : 0.66);
+        g.fillStyle = 'rgba(160,182,240,' + a.toFixed(3) + ')';
+        const t = sp.name.toUpperCase().split('').join('\u2009'), half = g.measureText(t).width / 2 + 6;
+        // A name near the edge is pulled in whole rather than cut off.
+        g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
+      });
+      g.textBaseline = 'alphabetic';
+    }
+  }
+
+  // Bodies, faintest first so bright ones win any overlap.
+  const drawn = [];
+  // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
+  // ones without a per-frame sort of ~1600 entries.
+  bodies.forEach(bd => {
+    const d = dir(bd), p = proj(d);
+    if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
+    const isTarget = bd.name === targetName;
+    let r, fill, dim = 1;
+    if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
+    else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
+    else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
+    else {
+      // Magnitude -> radius/opacity. With a full catalogue the faint end
+      // has to actually recede, or 1500 stars all render as identical dots
+      // and the constellations stop being readable.
+      r = Math.max(0.7, 4.6 - bd.mag * 0.72);
+      fill = bd.color || '#eef2ff';
+      dim = Math.max(0.34, Math.min(1, 1.06 - bd.mag * 0.1));
+    }
+    // Below the horizon the Earth is in the way. Still drawn, so the view
+    // stays continuous as you sweep down past the skyline, but dimmed so
+    // it never reads as something you could actually go and look at.
+    g.globalAlpha = bd.alt < 0 ? dim * 0.22 : dim;
+    if (bd.kind === 'sun' || bd.kind === 'moon') {
+      const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
+      glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = glow;
+      g.beginPath(); g.arc(p.x, p.y, r * 3, 0, 7); g.fill();
+    }
+    if (bd.kind === 'star' && bd.alt >= 0) { starGlow(g, p.x, p.y, r * 0.6, bd.mag, bd.color); g.globalAlpha = dim; }
+    if (bd.kind === 'moon' && bd.illum !== undefined) {
+      // The Moon at its phase, lit toward the Sun, its face the right way
+      // up for where it is: directions taken through the view itself.
+      const P = (az, alt) => proj(toScreen(basis, az, alt));
+      const sun = bodies.find(b => b.kind === 'sun');
+      drawMoonDisc(g, p.x, p.y, r, bd.illum, false,
+        sun ? bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, sun.az, sun.alt)) : 0,
+        lat === undefined ? undefined : bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, 0, lat)));
+    } else {
+      g.fillStyle = fill;
+      g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
+    }
+    if (isTarget) {
+      g.strokeStyle = '#e8b563'; g.lineWidth = 2;
+      g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
+    }
+    // Label the working set (Sun/Moon/planets/nav stars) plus any catalogue
+    // star bright enough to be worth naming unprompted. Labelling all ~1600
+    // would bury the view in text; everything else is identifiable by tap.
+    // o.keepClear: {w, h} top-left and a bottom band (px) where overlaid
+    // text sits, as on the Stars tab's preview; names there are left off.
+    const kc = o.keepClear;
+    const hidden = kc && ((p.y < kc.h && p.x < kc.w) || p.y > h - kc.bottom);
+    if (!hidden && (isTarget || bd.kind !== 'star' || bd.nav || (bd.name && bd.mag <= 2.6))) {
+      if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
+        g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
+        g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
+        // Flip the label to the other side rather than let it run off the
+        // edge — near the rim is exactly where you're about to turn toward.
+        const gap = isTarget ? r + 17 : r + 6; // clear the target ring
+        const flip = p.x + gap + g.measureText(bd.name).width > w - 6;
+        g.textAlign = flip ? 'right' : 'left';
+        // Bodies just outside the frame still get labelled (they're about
+        // to come into view), so the anchor itself has to be clamped —
+        // flipping alone leaves the text hanging off the edge.
+        const ax = flip ? Math.min(p.x - gap, w - 6) : Math.max(p.x + gap, 6);
+        g.fillText(bd.name, ax, p.y + 4);
+        drawn.push({ x: p.x, y: p.y });
+      }
+    }
+    g.globalAlpha = 1;
+  });
+
+  if (o.reticle === false) return;
+  // Centre reticle — the "you are pointing here" mark.
+  g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 1;
+  g.beginPath(); g.arc(w / 2, h / 2, 16, 0, 7); g.stroke();
+  g.beginPath();
+  g.moveTo(w / 2 - 26, h / 2); g.lineTo(w / 2 - 20, h / 2);
+  g.moveTo(w / 2 + 20, h / 2); g.lineTo(w / 2 + 26, h / 2);
+  g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
+  g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
+  g.stroke();
+}
 /* Where a point of Sky View's screen looks: the inverse of toScreen and
    skyProject, as {az, alt}. */
 function screenDir(basis, px, py, w, h, fov) {
@@ -5361,7 +5544,73 @@ function screenDir(basis, px, py, w, h, fov) {
   const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
   return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
 }
-function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst }) {
+/* The Stars tab's opening picture: Sky View itself, drawn with the same
+   painter, looking toward the equator 35° up (where the Console's painting
+   faces too), redrawn once a minute. The whole picture is the button that
+   opens the real thing; the place and a short line sit over it, as the
+   Console's painting carries its place. */
+const PREVIEW_ALT = 28, PREVIEW_FOV = 64;
+function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, header }) {
+  const canvasRef = useRef(null), wrapRef = useRef(null);
+  const [width, setWidth] = useState(390);
+  useEffect(() => {
+    const el = wrapRef.current;
+    const measure = () => { const w = el && el.getBoundingClientRect().width; if (w) setWidth(Math.round(w)); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  const H = width < 560 ? 400 : 460;
+  const showLines = useSkyLines();
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(width * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = width + 'px'; cv.style.height = H + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, width, H);
+    const aimed = viewBasis(quatFromEuler((360 - facing) % 360, 90 + PREVIEW_ALT, 0), 0);
+    drawSkyView(g, width, H, {
+      basis: aimed, fov: PREVIEW_FOV, cam: false, bodies, lines, names, showLines, targetName: null,
+      mw, lat, lst, clearTop: 150, clearBottom: 120, reticle: false,
+      keepClear: { w: 240, h: 150, bottom: 120 }
+    });
+  }, [width, H, bodies, lines, names, showLines, mw, lat, lst, facing]);
+  const pad = 'clamp(14px,3.5vw,40px)';
+  return React.createElement('div', {
+    ref: wrapRef,
+    style: { position: 'relative', height: H, overflow: 'hidden', margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 22px` }
+  },
+    React.createElement('canvas', {
+      ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H, cursor: 'pointer' },
+      onClick: onOpen, 'aria-hidden': 'true'
+    }),
+    // Soft fades at the top and bottom, so the text over the sky reads and
+    // the picture settles into the page, as the Console's painting does.
+    React.createElement('div', { 'aria-hidden': 'true', style: { position: 'absolute', inset: 0, pointerEvents: 'none',
+      background: 'linear-gradient(180deg, rgba(5,7,15,.55) 0%, rgba(5,7,15,0) 26%, rgba(5,7,15,0) 62%, rgba(5,7,15,.9) 100%)' } }),
+    React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+    React.createElement('div', {
+      style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto', pointerEvents: 'none' }
+    },
+      React.createElement('button', {
+        onClick: onOpen,
+        style: {
+          pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 18px',
+          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(210,160,77,.55)',
+          background: 'rgba(12,14,22,.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          color: 'var(--accent-hi)', fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600
+        }
+      }, React.createElement('span', { 'aria-hidden': 'true' }, '✦'), 'Open Sky View', React.createElement('span', { 'aria-hidden': 'true' }, '→')),
+      React.createElement('p', {
+        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(238,241,250,.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
+      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your phone to see the rest, labelled.')
+    )
+  );
+}
+function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst, initialAz }) {
   const canvasRef = useRef(null);
   const mwCanvas = useRef(null);
   const videoRef = useRef(null);
@@ -5372,7 +5621,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   // projection has to be computed for.
   const wrapRef = useRef(null);
   // Drag-to-look, used whenever the sensors aren't driving the view.
-  const [manual, setManual] = useState({ az: 180, alt: 35 });
+  const [manual, setManual] = useState({ az: initialAz === undefined ? 180 : initialAz, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
   const showLines = useSkyLines();
@@ -5461,181 +5710,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
 
-    const dir = b => toScreen(basis, b.az, b.alt);
-    const proj = d => skyProject(d, w, h, fov);
-
-    if (!cam) {
-      // Sky gradient, darkest overhead — reads as depth without competing
-      // with the bodies for attention.
-      const up = proj(toScreen(basis, 0, 90));
-      const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
-      grad.addColorStop(0, '#05070f');
-      grad.addColorStop(1, '#0b1020');
-      g.fillStyle = grad;
-      g.fillRect(0, 0, w, h);
-      // The Milky Way, faintly, as on the Stars tab's chart; sampled every
-      // 10 px and drawn scaled up. Not over the camera, which shows the real
-      // one or doesn't. Below the horizon it fades out with the stars.
-      if (mw && lst !== undefined) {
-        const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
-        const field = milkyWayField(mw, cols, rows, (i, j) => {
-          const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
-          d.w = d.alt >= 0 ? 0.34 : 0.1;
-          return d;
-        }, lat, lst);
-        mwCanvas.current = milkyWayImage(field, cols, rows, '170,186,228', mwCanvas.current);
-        g.drawImage(mwCanvas.current, 0, 0, cols * 10, rows * 10);
-      }
-    }
-
-    // Horizon + cardinal marks: the anchor that tells you the view is real.
-    g.lineWidth = 1;
-    g.strokeStyle = cam ? 'rgba(210,160,77,.55)' : 'rgba(210,160,77,.35)';
-    g.beginPath();
-    let started = false;
-    for (let a = 0; a <= 360; a += 2) {
-      const p = proj(toScreen(basis, a, 0));
-      if (!p) { started = false; continue; }
-      if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
-    }
-    g.stroke();
-    // Canvas font strings don't resolve CSS custom properties — name the
-    // family outright rather than reaching for --font-ui here.
-    g.font = '600 12px Inter, system-ui, sans-serif';
-    g.fillStyle = 'rgba(210,160,77,.8)';
-    g.textAlign = 'center';
-    for (let a = 0; a < 360; a += 45) {
-      const p = proj(toScreen(basis, a, 0));
-      if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
-    }
-
-    // Constellation lines, under every body. Faint and cool against the warm
-    // horizon, so they give the sky its shapes without competing with the
-    // stars; stronger over the camera image, which is brighter than the
-    // painted sky. Fainter constellations (d3-celestial rank 2, 3) recede.
-    if (showLines && lines && lines.length) {
-      const segs = constellationSegments(lines, (az, alt) => proj(toScreen(basis, az, alt)), 4);
-      const base = cam ? 0.5 : 0.34;
-      g.lineWidth = 1;
-      g.lineCap = 'round';
-      segs.forEach(sg => {
-        if (Math.max(sg.x1, sg.x2) < -20 || Math.min(sg.x1, sg.x2) > w + 20 ||
-            Math.max(sg.y1, sg.y2) < -20 || Math.min(sg.y1, sg.y2) > h + 20) return;
-        const a = base * (sg.rank <= 1 ? 1 : sg.rank === 2 ? 0.8 : 0.62) * (sg.below ? 0.3 : 1);
-        g.strokeStyle = 'rgba(138,164,232,' + a.toFixed(3) + ')';
-        g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
-      });
-      // A faint dot at every vertex. Where the catalogue has the star, it is
-      // drawn over this and hides it; where it doesn't (about 3% of vertices,
-      // stars fainter than stars.bin's magnitude-5 cut, mostly in dim
-      // southern constellations), the line still visibly ends on a star.
-      g.fillStyle = 'rgba(238,242,255,.4)';
-      lines.forEach(path => path.pts.forEach(v => {
-        const p = proj(toScreen(basis, v.az, v.alt));
-        if (!p || p.x < -4 || p.x > w + 4 || p.y < -4 || p.y > h + 4) return;
-        g.globalAlpha = v.alt < 0 ? 0.3 : 1;
-        g.beginPath(); g.arc(p.x, p.y, 0.8, 0, 7); g.fill();
-      }));
-      g.globalAlpha = 1;
-      // Names, spaced out, in small capitals the colour of the lines: they
-      // label the figures without reading as bodies. Drawn under the bodies,
-      // so a star's own label always wins.
-      if (names && names.length) {
-        const spots = constellationLabelSpots(names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, 72, 76);
-        g.font = '500 10.5px Inter, system-ui, sans-serif';
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        spots.forEach(sp => {
-          const a = (cam ? 0.8 : 0.62) * (sp.rank <= 1 ? 1 : sp.rank === 2 ? 0.82 : 0.66);
-          g.fillStyle = 'rgba(160,182,240,' + a.toFixed(3) + ')';
-          const t = sp.name.toUpperCase().split('').join('\u2009'), half = g.measureText(t).width / 2 + 6;
-          // A name near the edge is pulled in whole rather than cut off.
-          g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
-        });
-        g.textBaseline = 'alphabetic';
-      }
-    }
-
-    // Bodies, faintest first so bright ones win any overlap.
-    const drawn = [];
-    // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
-    // ones without a per-frame sort of ~1600 entries.
-    bodies.forEach(bd => {
-      const d = dir(bd), p = proj(d);
-      if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
-      const isTarget = bd.name === targetName;
-      let r, fill, dim = 1;
-      if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
-      else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
-      else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
-      else {
-        // Magnitude -> radius/opacity. With a full catalogue the faint end
-        // has to actually recede, or 1500 stars all render as identical dots
-        // and the constellations stop being readable.
-        r = Math.max(0.7, 4.6 - bd.mag * 0.72);
-        fill = bd.color || '#eef2ff';
-        dim = Math.max(0.34, Math.min(1, 1.06 - bd.mag * 0.1));
-      }
-      // Below the horizon the Earth is in the way. Still drawn, so the view
-      // stays continuous as you sweep down past the skyline, but dimmed so
-      // it never reads as something you could actually go and look at.
-      g.globalAlpha = bd.alt < 0 ? dim * 0.22 : dim;
-      if (bd.kind === 'sun' || bd.kind === 'moon') {
-        const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
-        glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = glow;
-        g.beginPath(); g.arc(p.x, p.y, r * 3, 0, 7); g.fill();
-      }
-      if (bd.kind === 'star' && bd.alt >= 0) { starGlow(g, p.x, p.y, r * 0.6, bd.mag, bd.color); g.globalAlpha = dim; }
-      if (bd.kind === 'moon' && bd.illum !== undefined) {
-        // The Moon at its phase, lit toward the Sun, its face the right way
-        // up for where it is: directions taken through the view itself.
-        const P = (az, alt) => proj(toScreen(basis, az, alt));
-        const sun = bodies.find(b => b.kind === 'sun');
-        drawMoonDisc(g, p.x, p.y, r, bd.illum, false,
-          sun ? bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, sun.az, sun.alt)) : 0,
-          lat === undefined ? undefined : bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, 0, lat)));
-      } else {
-        g.fillStyle = fill;
-        g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
-      }
-      if (isTarget) {
-        g.strokeStyle = '#e8b563'; g.lineWidth = 2;
-        g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
-      }
-      // Label the working set (Sun/Moon/planets/nav stars) plus any catalogue
-      // star bright enough to be worth naming unprompted. Labelling all ~1600
-      // would bury the view in text; everything else is identifiable by tap.
-      if (isTarget || bd.kind !== 'star' || bd.nav || (bd.name && bd.mag <= 2.6)) {
-        if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
-          g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
-          g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
-          // Flip the label to the other side rather than let it run off the
-          // edge — near the rim is exactly where you're about to turn toward.
-          const gap = isTarget ? r + 17 : r + 6; // clear the target ring
-          const flip = p.x + gap + g.measureText(bd.name).width > w - 6;
-          g.textAlign = flip ? 'right' : 'left';
-          // Bodies just outside the frame still get labelled (they're about
-          // to come into view), so the anchor itself has to be clamped —
-          // flipping alone leaves the text hanging off the edge.
-          const ax = flip ? Math.min(p.x - gap, w - 6) : Math.max(p.x + gap, 6);
-          g.fillText(bd.name, ax, p.y + 4);
-          drawn.push({ x: p.x, y: p.y });
-        }
-      }
-      g.globalAlpha = 1;
-    });
-
-    // Centre reticle — the "you are pointing here" mark.
-    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 1;
-    g.beginPath(); g.arc(w / 2, h / 2, 16, 0, 7); g.stroke();
-    g.beginPath();
-    g.moveTo(w / 2 - 26, h / 2); g.lineTo(w / 2 - 20, h / 2);
-    g.moveTo(w / 2 + 20, h / 2); g.lineTo(w / 2 + 26, h / 2);
-    g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
-    g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
-    g.stroke();
+    drawSkyView(g, w, h, { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst, mwRef: mwCanvas });
   }, [bodies, lines, names, showLines, basis, size, cam, targetName, fov, mw, lat, lst]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
@@ -6685,43 +6760,28 @@ function StarFinder({ redMode } = {}) {
           diagBlock
         )
   );
-  // Sky View is the one thing on this tab you'd reach for standing outside in
-  // the dark, so it goes directly under the header rather than below the star
-  // table and the whole sight-reduction form. A filled, tappable card is
-  // consistent with the "box only if actionable" rule — the entire card is
-  // the control.
-  const skyLauncher = React.createElement("button", {
-    onClick: openSky,
-    style: {
-      display: "flex", alignItems: "center", gap: 14, width: "100%", maxWidth: 1080,
-      margin: "0 auto 20px", padding: "14px 16px", borderRadius: 12, cursor: "pointer",
-      textAlign: "left", border: "1px solid rgba(210,160,77,.38)", background: "var(--btn-fill)"
-    }
-  },
-    React.createElement("span", { "aria-hidden": "true", style: { fontSize: 20, lineHeight: 1, color: "var(--accent-hi)" } }, "✦"),
-    React.createElement("span", { style: { flex: 1, minWidth: 0 } },
-      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: "var(--accent-hi)" } }, "Open Sky View"),
-      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-body)", fontSize: 12.5, color: C.inkDim, marginTop: 2, lineHeight: 1.4 } },
-        "Point your phone at the sky and see what's there, labelled.")
-    ),
-    React.createElement("span", { "aria-hidden": "true", style: { fontFamily: "var(--font-ui)", fontSize: 17, color: "var(--accent-hi)", flexShrink: 0 } }, "→")
-  );
+  // Which way the preview (and Sky View, without sensors) first looks: toward
+  // the equator, as the Console's painting does.
+  const previewFacing = loc.lat >= 0 ? 180 : 0;
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
   const pageBg = PAGE_BG;
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
-    React.createElement("header", { style: { maxWidth: 1080, margin: "0 auto 18px" } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "Celestial Navigation"),
-      React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "clamp(26px,5.4vw,44px)", lineHeight: 1.02, margin: "6px 0 12px", letterSpacing: "-0.01em" } }, "Star Finder"),
-      React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 } },
-        React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 15, color: C.ink } }, loc.name),
-        React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "var(--btn-fill)", color: "var(--accent-hi)" } }, "Use my location"),
-        geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim } }, geoMsg)
+    React.createElement(SkyViewPreview, {
+      bodies: skyBodies, lines: constellationPaths, names: constellationNames,
+      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
+      facing: previewFacing, onOpen: openSky,
+      header: React.createElement("header", null,
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Star Finder"),
+        React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
+          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
+          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
+        )
       )
-    ),
-    skyLauncher,
+    }),
     starFinderPanel,
     navigatorPanel,
     aimPanel,
@@ -6739,6 +6799,7 @@ function StarFinder({ redMode } = {}) {
       viewQ,
       diag,
       onClose: () => setSkyOpen(false),
+      initialAz: previewFacing,
       sensorMsg: aimStatusMsg
     })
   );

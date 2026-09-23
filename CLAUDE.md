@@ -180,6 +180,22 @@ Three tabs, one `index.html`, no build step:
   halo in their own colour. Applied on the painting (still and twinkling),
   the chart and Sky View. HYG gives Betelgeuse B-V 1.50, not the textbook
   1.85; it is still orange.
+- **Ephemeris and Stars open like the Console (2026-09-23).** Stars leads
+  with `SkyViewPreview`: Sky View itself, full-bleed, looking toward the
+  equator 28° up (`previewFacing`, which is also where the overlay starts
+  without sensors, via `SkyDome`'s `initialAz`), redrawn once a minute; the
+  place, "Use my location" and an "Open Sky View" button sit over it, and
+  the whole picture opens the overlay. It replaced the Star Finder title
+  block and the launcher card. To share the drawing, Sky View's painter came
+  out of `SkyDome`'s effect as `drawSkyView(g, w, h, o)`, with `keepClear`
+  (body names left off under overlaid text), `clearTop`/`clearBottom` for
+  constellation names, and `reticle: false`. Ephemeris: the place name is
+  the button that opens the form (search, coordinates, date, UTC offset,
+  DST), folded away by default (`formOpen`; open anyway when nothing valid
+  is entered), so the chart follows the header straight away; "Twilight
+  Ephemeris" is now the small eyebrow and the tagline is gone. The month
+  export is its own section after the results (grid `order: 3`, full width),
+  visible with the form closed. `sky-view-preview.test.js`.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -592,6 +608,10 @@ things a syntax check cannot see:
   the chart's horizon; the real `stars.bin` colours (Betelgeuse and Antares
   orange, Rigel blue-white, Sirius white, 99%+ of stars coloured); faint
   stars white; halos only on the brightest.
+- **`sky-view-preview.test.js`** — `drawSkyView` with the preview's
+  `keepClear` (names under the overlaid text left off, stars still drawn)
+  and `reticle: false`, and a source check that `SkyDome` and
+  `SkyViewPreview` both draw through it and start facing the same way.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
