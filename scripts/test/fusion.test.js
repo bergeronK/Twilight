@@ -119,16 +119,17 @@ test('relative only: the view is shown but claims no north', () => {
 });
 
 test('iOS: the view stays right as the phone tips back past vertical', () => {
-  // The regression this design exists for. The heading tracks the top of the
-  // device, which reverses direction past vertical; the camera does not.
+  // The regression this design exists for. Measured on an iPhone: the
+  // reported heading is the bearing of the camera, which does not reverse as
+  // the phone tips past vertical — the top of the device does.
   const offset = -137;
   let s = O.FUSION_INIT;
-  for (const beta of [10, 40, 80, 100, 120, 135, 150, 165]) {
+  for (const beta of [40, 80, 100, 120, 135, 150]) {
     const truth = O.quatFromEuler(30, beta, 0);
-    const heading = topHeading(truth);
+    const heading = O.aimOf(truth).az;
     s = run(repeat(60, { kind: 'heading', q: relOf(truth, offset), heading, trueNorth: true }), s);
     const e = aimErr(s, truth);
-    assert.ok(e.az < 1e-6, `beta ${beta}: view off by ${e.az.toFixed(3)} deg (top heading ${heading.toFixed(0)})`);
+    assert.ok(e.az < 1e-6, `beta ${beta}: view off by ${e.az.toFixed(3)} deg (camera heading ${heading.toFixed(0)})`);
   }
 });
 
@@ -150,33 +151,36 @@ test('iOS: upright from the first sample still gets a usable north', () => {
   assert.strictEqual(O.fusedView(s).magnetic, false, 'iOS heading is treated as true north');
 });
 
-test('iOS: while upright, an unreliable top heading does not disturb an estimate', () => {
-  const truth = O.quatFromEuler(30, 45, 0);
-  let s = run(repeat(60, { kind: 'heading', q: relOf(truth, 12), heading: topHeading(truth), trueNorth: true }));
+test('iOS: a heading read while the phone lies flat is ignored', () => {
+  // Flat, the camera points at the ground and its bearing is meaningless, so
+  // whatever the compass says there must not move an estimate already held.
+  const truth = O.quatFromEuler(30, 80, 0);
+  let s = run(repeat(60, { kind: 'heading', q: relOf(truth, 12), heading: O.aimOf(truth).az, trueNorth: true }));
   const yaw = s.yaw;
-  // Upright: the top points at the sky and its "heading" is noise.
-  const upright = O.quatFromEuler(30, 90, 0);
-  s = run(repeat(60, { kind: 'heading', q: relOf(upright, 12), heading: 311, trueNorth: true }), s);
-  assert.ok(angErr(s.yaw, yaw) < 1e-9, `the estimate drifted from ${yaw} to ${s.yaw} on garbage headings`);
+  const flat = O.quatFromEuler(30, 8, 0);
+  s = run(repeat(60, { kind: 'heading', q: relOf(flat, 12), heading: 311, trueNorth: true }), s);
+  assert.ok(angErr(s.yaw, yaw) < 1e-9, `the estimate drifted from ${yaw} to ${s.yaw} on a flat-phone heading`);
 });
 
-test('iOS: a session that starts already looking up guesses nothing', () => {
-  // Face-down, which axis the heading belongs to is exactly what cannot be
-  // known — so nothing is guessed, and the view says it is finding north.
-  const truth = O.quatFromEuler(20, 140, 0);
-  let s = run([{ kind: 'heading', q: relOf(truth, 33), heading: 123, trueNorth: true }]);
-  assert.strictEqual(O.fusedView(s).abs, false, 'no north should be claimed face-down');
+test('iOS: a session that starts flat claims no north until the phone is raised', () => {
+  // Flat, the camera bearing is undefined, so nothing is claimed and the
+  // view says it is still finding north.
+  const flatStart = O.quatFromEuler(20, 6, 0);
+  let s = run([{ kind: 'heading', q: relOf(flatStart, 33), heading: 123, trueNorth: true }]);
+  assert.strictEqual(O.fusedView(s).abs, false, 'no north should be claimed with the phone flat');
   assert.strictEqual(s.northKind, 'heading');
-  // Lowering the phone establishes it.
-  const flat = O.quatFromEuler(20, 30, 0);
-  s = run(repeat(5, { kind: 'heading', q: relOf(flat, 33), heading: topHeading(flat), trueNorth: true }), s);
+  // Raising it establishes north.
+  const flat = O.quatFromEuler(20, 100, 0);
+  s = run(repeat(5, { kind: 'heading', q: relOf(flat, 33), heading: O.aimOf(flat).az, trueNorth: true }), s);
   const v = O.fusedView(s);
   assert.strictEqual(v.abs, true);
   assert.strictEqual(v.trusted, true);
   assert.ok(aimErr(s, flat).az < 1e-9);
-  // And raising it again keeps it, whatever the heading says up there.
-  s = run(repeat(60, { kind: 'heading', q: relOf(truth, 33), heading: 271, trueNorth: true }), s);
-  assert.ok(aimErr(s, truth).az < 1e-9, 'face-down headings must not move a confirmed north');
+  // And lowering it flat again keeps it, whatever the compass says down there.
+  const backDown = O.quatFromEuler(20, 6, 0);
+  s = run(repeat(60, { kind: 'heading', q: relOf(backDown, 33), heading: 271, trueNorth: true }), s);
+  s = run(repeat(1, { kind: 'heading', q: relOf(flat, 33), heading: O.aimOf(flat).az, trueNorth: true }), s);
+  assert.ok(aimErr(s, flat).az < 1e-9, 'a flat-phone heading must not move a confirmed north');
 });
 
 test('iOS: the north estimate keeps following the compass', () => {
@@ -305,20 +309,12 @@ function sweep(headingOf, seed = 3) {
 }
 const camHeading = q => O.aimOf(q).az;
 
-test('iPhone: raising the phone to the sky does not throw north round', () => {
-  // The reported bug: pointing up, the view jumped and lost its bearing, and
-  // came back on lowering. Reproduced when the heading follows the camera
-  // once the screen faces down — trusting it there turned north by 180.
-  const worst = sweep((q, b) => (b > 90 ? camHeading(q) : topHeading(q)));
+test('iPhone: raising and lowering the phone does not throw north round', () => {
+  // The reported bug, now with the heading the iPhone actually reports: the
+  // bearing of the camera, in every posture. Sweeping up and down with 6
+  // degrees of compass noise, the view must hold its bearing throughout.
+  const worst = sweep(q => camHeading(q));
   assert.ok(worst < 4, `raising and lowering the phone put the view ${worst.toFixed(1)} deg out`);
-});
-
-test('iPhone: the same holds if the heading follows the top of the phone', () => {
-  assert.ok(sweep(q => topHeading(q)) < 4);
-});
-
-test('iPhone: the same holds if the heading is garbage while facing down', () => {
-  assert.ok(sweep((q, b, rand) => (b > 90 ? rand() * 360 : topHeading(q))) < 4);
 });
 
 test('iPhone: an unusable heading (negative accuracy) is ignored', () => {
@@ -369,20 +365,62 @@ test('a large change that persists is adopted, after a delay, in one step', () =
   assert.ok(angErr(s.yaw, 260) < 1e-6, `a persistent change should be taken whole, got ${s.yaw}`);
 });
 
-test('a trusted reading replaces an untrusted first guess at once', () => {
-  // Upright with no estimate, the camera axis is only a guess. The first
-  // face-up reading must win outright, even if the guess was far off.
+test('the first usable heading is taken whole, not eased into', () => {
+  // With no estimate at all, the first heading the phone can be believed
+  // about must land the view immediately — a user who raises the phone and
+  // waits should not watch the sky slide into place.
   const upright = O.quatFromEuler(0, 90, 0);
-  let s = run([{ kind: 'heading', q: relOf(upright, 0), heading: 170, trueNorth: true }]);
-  assert.strictEqual(O.fusedView(s).trusted, false);
-  const flat = O.quatFromEuler(0, 20, 0);
-  s = O.fuseOrientation(s, { kind: 'heading', q: relOf(flat, 0), heading: topHeading(flat), trueNorth: true });
+  const s = run([{ kind: 'heading', q: relOf(upright, 0), heading: camHeading(upright), trueNorth: true }]);
   assert.strictEqual(O.fusedView(s).trusted, true);
-  assert.ok(aimErr(s, flat).az < 1e-9);
+  assert.ok(aimErr(s, upright).az < 1e-9);
 });
 
 test('north-gate tuning is sensible', () => {
   assert.ok(O.NORTH_FACE_UP > 0 && O.NORTH_FACE_UP < 0.5);
   assert.ok(O.NORTH_JUMP_DEG >= 30 && O.NORTH_JUMP_DEG <= 90);
   assert.ok(O.NORTH_JUMP_SAMPLES >= 20 && O.NORTH_JUMP_SAMPLES <= 120);
+});
+
+// ---------------------------------------------------- readings from a real iPhone
+/*
+ * Two Sensor details readouts sent from an iPhone on 2026-09-22, both with
+ * the phone's camera on the Moon, whose true bearing was ~149 and ~148 (the
+ * app's own moonState for 42.10, -72.45 at the time). These are the only
+ * hardware evidence there has ever been for which axis iOS's compass heading
+ * belongs to, and they settle it: read as the camera's bearing the view lands
+ * within ordinary magnetometer error, read as the top of the phone it lands
+ * some 180 degrees away.
+ *
+ * The first reading is the bug report itself — the app said "aimed at az
+ * 331" while the phone pointed at az 149.
+ */
+const IPHONE = [
+  { name: 'raised to the Moon, offset had been confirmed', alpha: 333.2, beta: 113.6, gamma: 4.7, heading: 154, moonAz: 149.2 },
+  { name: 'raised to the Moon, offset was a first guess', alpha: 12, beta: 114, gamma: -3.1, heading: 166, moonAz: 147.5 }
+];
+
+for (const r of IPHONE) {
+  test(`iPhone reading (${r.name}): the view lands on the Moon`, () => {
+    const rel = O.quatFromEuler(r.alpha, r.beta, r.gamma);
+    const s = run(repeat(40, { kind: 'heading', q: rel, heading: r.heading, trueNorth: true, acc: 10 }));
+    const v = O.fusedView(s);
+    assert.strictEqual(v.abs, true, 'a raised phone should establish north');
+    const aim = O.aimOf(v.q);
+    // The compass itself is only good to a couple of tens of degrees; what is
+    // being pinned here is that the view is not reversed.
+    assert.ok(angErr(aim.az, r.moonAz) < 25,
+      `view az ${aim.az.toFixed(0)} vs Moon ${r.moonAz} — off by ${angErr(aim.az, r.moonAz).toFixed(0)}deg`);
+    assert.ok(Math.abs(aim.alt - 24) < 1.5, `altitude ${aim.alt.toFixed(1)} should match the readout's 24`);
+  });
+}
+
+test('iPhone reading: reading the heading as the top of the phone reverses the view', () => {
+  // Why the app drew the sky behind the observer: this is the old rule, run
+  // on the same sample, and it must be seen to fail.
+  const r = IPHONE[0];
+  const rel = O.quatFromEuler(r.alpha, r.beta, r.gamma);
+  const topYaw = topHeading(rel) - r.heading;
+  const aimAz = ((O.vecAz(O.quatRotate(rel, [0, 0, -1])) - topYaw) % 360 + 360) % 360;
+  assert.ok(angErr(aimAz, r.moonAz) > 170,
+    `the old rule should be ~180 deg out here, it was ${angErr(aimAz, r.moonAz).toFixed(0)}`);
 });

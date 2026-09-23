@@ -89,12 +89,12 @@ test('iOS: the compass heading supplies north, and is not double-corrected', () 
 });
 
 test('iOS: tipping back to look at the sky keeps the bearing', () => {
-  // The heading reported is the bearing of the top of the device, which
-  // reverses as the phone tips past vertical. The camera's bearing does not.
+  // Measured on an iPhone: the heading is the bearing of the camera, and so
+  // does not reverse as the phone tips past vertical.
   const L = makeListener();
-  for (const beta of [20, 50, 110, 140]) {
+  for (const beta of [50, 110, 140]) {
     const truth = O.quatFromEuler(300, beta, 0);          // camera faces 60 once raised
-    const heading = O.vecAz(O.quatRotate(truth, [0, 1, 0]));
+    const heading = O.aimOf(truth).az;
     // Relative alpha is offset from true by an arbitrary 75.
     for (let i = 0; i < 80; i++) {
       L.tick(20);

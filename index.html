@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-G199RAM0KOyfoyPYUQ9jowiwNtqDey4GKWytqdg7nS4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-I5UrnowgK6lNZe/gGZ0HgY7S7RJWpLjDF3wlbwMaMlc=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2dCfDQhh6lQlZM+UT6shaE7pzJcUFmAzkZvNS0AdF9I=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilight — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1566,7 +1566,10 @@ const C = {
 // Keep in step with sw.js's CACHE. Surfaced in the sensor-diagnostics panel
 // so a bug report says which build it came from — a stale service worker
 // looks exactly like a fix that didn't work.
-const BUILD = "v56";
+// Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
+// it came from. It sat at v56 for weeks while the app moved on, which made
+// every field report ambiguous.
+const BUILD = "v76";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 const PHASE_META = {
   day: {
@@ -2292,31 +2295,28 @@ function yawBetween(abs, rel) {
 }
 
 /* iOS supplies a heading, not a rotation, and does not say which device axis
-   it belongs to. With the screen facing up, every sensible definition agrees:
-   it is the bearing of the top of the phone. Once the phone tips back past
-   vertical to look at the sky, they stop agreeing — the top of the phone now
-   points away from the stars, and on a real iPhone the reported heading
-   behaves as if it follows the camera instead. Trusting it there turned north
-   180 degrees round whenever the phone was raised to the sky, and back again
-   when lowered.
+   it belongs to. Two readings of it are possible: the bearing of the top of
+   the phone, or of its back — where the camera looks. They agree only while
+   the phone is upright, and are 180 degrees apart once it tips back to face
+   the sky, which is the whole point of the feature.
 
-   So a heading is used only while the screen faces up and the top is clearly
-   horizontal. Otherwise the estimate is held: the gyro keeps the view right,
-   and the relative stream drifts slowly enough that holding costs nothing
-   noticeable between glances down.
+   MEASURED ON AN iPHONE (2026-09-22, alpha/beta/gamma 333.2/113.6/4.7,
+   webkitCompassHeading 154, camera on the Moon at true bearing 149): reading
+   it as the back of the phone lands the view within 5 degrees; reading it as
+   the top lands it 180 degrees away. The app read it as the top, held that
+   offset while the phone was raised, and drew the sky behind the observer.
+   Aim Assist's own readout said "aimed at az 331" while the phone pointed at
+   az 149 — the tilt was right the whole time, only the bearing was reversed.
 
-   Returns { yaw, trusted } or null. With no estimate at all and the phone
-   upright, the camera axis is used as an untrusted first guess, replaced the
-   moment the phone faces up. Face-down with no estimate, nothing is guessed. */
+   So: the heading is the bearing of the camera axis, trusted whenever that
+   axis is far enough from vertical to have a bearing at all. Held when the
+   phone lies flat, where the camera points at the ground and its bearing
+   means nothing; the gyro carries the view until it is raised again.
+
+   Returns { yaw, trusted } or null. */
 function yawFromHeading(rel, heading) {
-  const top = quatRotate(rel, [0, 1, 0]);
-  const face = quatRotate(rel, [0, 0, 1]);
-  if (face[2] >= NORTH_FACE_UP && vecHoriz(top) >= NORTH_MIN_HORIZ) {
-    return { yaw: vecAz(top) - heading, trusted: true };
-  }
-  if (Math.abs(face[2]) < NORTH_FACE_UP) {
-    return { yaw: vecAz(quatRotate(rel, [0, 0, -1])) - heading, trusted: false, guessOnly: true };
-  }
+  const cam = quatRotate(rel, [0, 0, -1]);
+  if (vecHoriz(cam) >= NORTH_MIN_HORIZ) return { yaw: vecAz(cam) - heading, trusted: true };
   return null;
 }
 
@@ -2344,7 +2344,7 @@ function fuseOrientation(s, sample) {
       // iOS marks an unusable heading with a negative accuracy.
       const usable = Number.isFinite(sample.heading) && !(typeof sample.acc === 'number' && sample.acc < 0);
       const h = usable ? yawFromHeading(q, sample.heading) : null;
-      if (h && !(h.guessOnly && out.yaw !== null)) Object.assign(out, updateNorth(out, h.yaw, h.trusted));
+      if (h) Object.assign(out, updateNorth(out, h.yaw, h.trusted));
     }
     out.fresh = switching || !s.att;
     return out;
@@ -5944,7 +5944,7 @@ function StarFinder({ redMode } = {}) {
   // What to tell someone looking at Sky View about north, if anything.
   const northMsg = !orient ? null
     : orient.abs && !orient.trusted ? "North is a first guess \u2014 lower the phone flat for a moment to confirm it."
-    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 lower the phone flat for a moment."
+    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 raise the phone toward the sky."
     : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
     : null;
   const viewQ = useMemo(
@@ -6352,7 +6352,7 @@ function StarFinder({ redMode } = {}) {
     ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
       : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
     ["North source", !orient || !orient.northKind ? "\u2014"
-      : orient.northKind === 'heading' ? "compass heading (used only with the screen facing up)" : "absolute orientation"],
+      : orient.northKind === 'heading' ? "compass heading (read off the back of the phone)" : "absolute orientation"],
     ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
     // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".
     ["Declination", Math.abs(decl.deg).toFixed(1) + "\u00b0 " + (decl.deg >= 0 ? "E" : "W") + (decl.stale ? " \u00b7 model out of date" : "")],
