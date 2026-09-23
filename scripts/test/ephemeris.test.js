@@ -58,7 +58,13 @@ test('daySkyStops: the day painted with the Console’s own sky colours', () => 
   for (let i = 1; i < stops.length; i++) assert.ok(stops[i].at > stops[i - 1].at, 'stops must ascend');
   const lum = hex => [1, 3, 5].reduce((s, i) => s + parseInt(hex.slice(i, i + 2), 16), 0);
   const noon = stops.find(s => Math.abs(s.at - 0.5) < 0.006), midnight = stops[0];
-  assert.strictEqual(noon.color, m.skyColors(50).m, 'the colour is skyColors at that altitude');
+  assert.strictEqual(noon.color, m.skyColors(50).s, 'the colour is skyColors\u2019 overhead colour at that altitude');
+  // Each colour fills a full-height column, so none may be a warm horizon
+  // tone: the middle band's dusk pinks painted a magenta stripe down the chart.
+  for (const st of stops) {
+    const [r, , b] = [1, 3, 5].map(i => parseInt(st.color.slice(i, i + 2), 16));
+    assert.ok(b >= r, `a warm column at ${(st.at * 24).toFixed(1)}h: ${st.color}`);
+  }
   assert.ok(lum(noon.color) > 3 * lum(midnight.color), 'noon is far brighter than midnight');
 });
 
