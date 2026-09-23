@@ -78,9 +78,11 @@ if (o !== size) throw new Error(`wrote ${o} bytes, expected ${size}`);
 fs.writeFileSync(path.join(root, 'constellations.bin'), buf);
 fs.writeFileSync(
   path.join(root, 'constellations.LICENSE.txt'),
-  'constellations.bin is derived from data/constellations.lines.json in\n' +
+  'constellations.bin is derived from data/constellations.lines.json, and\n' +
+  'constellation-names.json from data/constellations.json, in\n' +
   'd3-celestial (https://github.com/ofrohn/d3-celestial), commit\n' +
-  '7e720a3de062059d4c5400a379146a601d9010e0, by scripts/generate-constellation-lines.js.\n' +
+  '7e720a3de062059d4c5400a379146a601d9010e0, by scripts/generate-constellation-lines.js\n' +
+  'and scripts/generate-constellation-names.js.\n' +
   'It is redistributed under the original licence, reproduced below.\n\n' +
   fs.readFileSync(licence, 'utf8').replace(/\r\n/g, '\n').trimEnd() + '\n'
 );
