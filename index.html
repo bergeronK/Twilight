@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ecsw/9Irpja/rCdVczO9GKazDgaWBiSg7CtcW5+nCgs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-nMKAH4cWXwed/6jUXclqRht6yX1LUjShImqOmK722mU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -1595,7 +1595,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v88";
+const BUILD = "v89";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4358,8 +4358,11 @@ function TwilightEphemeris({ redMode } = {}) {
     padR = 18,
     padT = 16,
     padB = 30;
-  const topAlt = curve ? Math.min(90, Math.max(12, Math.ceil(curve.maxAlt) + 4)) : 12;
-  const botAlt = -25;
+  // A fixed scale, horizon to overhead: the top used to be the day's highest
+  // Sun plus 4 degrees, so every curve nearly touched it and a 20-degree
+  // winter noon looked as high as a 70-degree summer one.
+  const topAlt = 90;
+  const botAlt = -24;
   const X = m => padL + m / 1440 * (W - padL - padR);
   const Yc = a => padT + (topAlt - a) / (topAlt - botAlt) * (H - padT - padB);
   const bandClip = (a1, a2) => {
@@ -4926,6 +4929,16 @@ function TwilightEphemeris({ redMode } = {}) {
     height: H - padT - padB
   }))), /*#__PURE__*/React.createElement("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: "url(#daysky)" }),
   /*#__PURE__*/React.createElement("rect", { x: padL, y: padT, width: W - padL - padR, height: H - padT - padB, fill: "url(#dayshade)" }),
+  // Below the horizon is not sky: dark ground, with the twilight bands (how
+  // far down the Sun is) tinted faintly so their labels have something to name.
+  React.createElement("rect", { x: padL, y: Yc(0), width: W - padL - padR, height: H - padB - Yc(0), fill: "#05070e" }),
+  bands.filter(b => b.a1 <= 0).map((b, i) => {
+    const { y, h } = bandClip(b.a1, b.a2);
+    return React.createElement("rect", { key: "g" + i, x: padL, y, width: W - padL - padR, height: h, fill: b.fill, opacity: 0.32 });
+  }),
+  [30, 60, 90].map(a => React.createElement("g", { key: "u" + a },
+    React.createElement("line", { x1: padL, x2: W - padR, y1: Yc(a), y2: Yc(a), stroke: "rgba(220,228,255,.16)", strokeWidth: 1, strokeDasharray: "2 5" }),
+    React.createElement("text", { x: padL - 7, y: Yc(a) + (a === 90 ? 8 : 3), textAnchor: "end", style: { font: "10px var(--font-ui)", fill: dim } }, a, "\xB0"))),
   nightStars, [0, -6, -12, -18].map(a => /*#__PURE__*/React.createElement("g", {
     key: a
   }, /*#__PURE__*/React.createElement("line", {
@@ -4966,7 +4979,7 @@ function TwilightEphemeris({ redMode } = {}) {
       y,
       h
     } = bandClip(b.a1, b.a2);
-    if (h < 13) return null;
+    if (h < 13 || b.a1 > 0) return null;
     return /*#__PURE__*/React.createElement("text", {
       key: i,
       x: W - padR - 5,
