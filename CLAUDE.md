@@ -78,6 +78,20 @@ Three tabs, one `index.html`, no build step:
   tested: `nightSpan`, `nightPlan`, `moonNote`, `heroLabel`, `heroFacing`,
   `panoX`/`panoY`; `drawHorizonScene` paints. Phase 2, not built: location
   into a tappable header, tabs to the bottom, reference below the fold.
+- **Star Finder sky chart** — the whole sky on one disc at the top of the
+  Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
+  (`chartXY`), because an equidistant disc squashes constellations near the
+  horizon into unrecognisable arcs. **North up, EAST ON THE LEFT** — the
+  convention for a chart held up against the sky, and the mirror of the old
+  dial, which was a plan view; cardinal letters on the rim keep it
+  unambiguous, and `star-chart.test.js` pins the handedness. Draws the full
+  `stars.bin` catalogue, constellation lines, planets, the Moon at its phase
+  with the lit limb turned toward the Sun (`drawMoonDisc` gained an angle for
+  this), Polaris, and the recommended three-star fix as rings joined by a
+  dashed triangle so the cut can be judged by shape. The catalogue and lines
+  now load when the Stars tab opens rather than when Sky View does. Recomputed
+  once a minute (`minuteKey`): ~2,500 positions is too much for the tab's 30 s
+  tick.
 - **Visit counter** — the "N visits" total in the header. Two halves:
   - **Client, `pingVisitorCounter(show)` in `index.html`.** Pings the Worker
     at most once per `COUNTER_WINDOW_MS` (24h), tracked in `tw_counted_at`,
@@ -347,6 +361,14 @@ things a syntax check cannot see:
   for Boston on 2026-09-22 against the Ephemeris times — and note the trap it
   found: the app's *morning* figures on a date are that morning's, while
   tonight's sunrise is tomorrow's, about a minute later in late September.
+- **`star-chart.test.js`** — Star Finder's chart. `chartXY`'s handedness and
+  stereographic radii, and `drawSkyChart` driven against a **recording
+  stand-in for the canvas context**: what it labels, that nothing below the
+  horizon is drawn, that nothing lands outside the disc, that the fix stars
+  are ringed and joined, and that the Moon's lit limb turns toward the Sun.
+  The stub tracks `translate`/`save`/`restore`, or the Moon disc — drawn in
+  its own frame — reads as painted at the corner. This is how to test a
+  canvas painter here; no browser needed.
 - **`planets.test.js`** — `planetAltAz` against dated events rather than
   against itself: at published oppositions (Saturn 2024-09-08 and 2025-09-21,
   Jupiter 2024-12-07 and 2026-01-10, Mars 2025-01-16) each planet must be
