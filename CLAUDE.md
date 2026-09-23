@@ -196,6 +196,26 @@ Three tabs, one `index.html`, no build step:
   Ephemeris" is now the small eyebrow and the tagline is gone. The month
   export is its own section after the results (grid `order: 3`, full width),
   visible with the form closed. `sky-view-preview.test.js`.
+- **Sky View's Find (2026-09-23).** A **Find** button in Sky View's top bar
+  lists what's up now (`findList`): the Moon and planets (brightest first),
+  named stars of magnitude 1.5 or brighter, and rank-1 constellations 10°+
+  up at their label point, each with plain words for where
+  (`whereWords`: "low in the south-east", "almost overhead"). **Never the
+  Sun**: nobody should be steered into looking at it. Picking one sets the
+  shared target (`onPick`, the same one a tap sets, and Aim Assist's). Then
+  the bottom line says how to get there (`findGuide`: "Turn left 45° and
+  tilt up 18°."; turn left out under 3° or when looking 80°+ up; "That's
+  Orion, in the ring." within 4°, which buzzes once on Android and is said
+  once to a screen reader), and off screen an arrow sits at the edge
+  (`edgePoint`) with the name just inside. A constellation target is drawn
+  in amber even with Lines off, named once, above the ring. The list is the
+  top bar's last row (flex-basis 100%), so it sits under the buttons however
+  they wrap. **`aimTarget` in StarFinder now resolves anything Sky View can
+  pick** (`findTarget`: planets, catalogue stars, constellations). It used to
+  know only the Sun, the Moon and the navigation stars, so tapping Jupiter
+  left Aim Assist and Sky View's Align with nothing. That meant moving
+  `skyBodies` and the constellation memos above it: a `useMemo` reading a
+  later `const` throws on render. `find.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -710,6 +730,14 @@ things a syntax check cannot see:
   2026-06-09 named brighter first, Saturn at its best at opposition and not
   three months on, nothing when the Sun never sets, ≤4 items in rank order
   across a year of nights, and the list rendered with a stub React.
+- **`find.test.js`** — Sky View's Find: `whereWords`, `findList` (only
+  what's up, never the Sun, the order), `findGuide` against physical
+  postures (facing south, west is right; across north the short way; near
+  the zenith only tilt), the edge arrow agreeing with the words across the
+  whole sky (computed separately: azimuth arithmetic vs the projection),
+  `edgePoint`, a picked constellation drawn amber and named once, and at
+  source level that `aimTarget` resolves Sky View's picks and is declared
+  after what it reads.
 - **`share-card.test.js`** — the share picture carries place, time,
   label, verdict, highlight and address; the painting is drawn scaled;
   long names and verdicts wrap inside the margins and clear the address;

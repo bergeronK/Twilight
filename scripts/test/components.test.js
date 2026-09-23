@@ -23,7 +23,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { declSource } = require('./extract.js');
+const { declSource, extract } = require('./extract.js');
 
 // Minimal React stand-in: records the tree instead of rendering it.
 const React = {
@@ -116,6 +116,7 @@ test('every band row carries a key', () => {
 // ---------------------------------------------------------------- Sky View
 
 const O = require('./orient-lib.js');
+const FIND = extract(['compassWord', 'whereWords', 'findList', 'findTarget', 'findGuide', 'edgePoint', 'screenDir', 'D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'vecAz', 'sepAltAz', 'atan2', 'COMPASS_WORDS', 'PLANET_ORDER', 'theName', 'capFirst']);
 const hooks = {
   useState: v => [typeof v === 'function' ? v() : v, () => {}],
   useRef: v => ({ current: v === undefined ? null : v }),
@@ -137,7 +138,9 @@ function renderSkyDome(props) {
     toScreen: O.toScreen, skyProject: O.skyProject, atan2: O.atan2,
     // Only reached from the canvas effect, which the stubbed useEffect never
     // runs; supplied so the build finds every name SkyDome closes over.
-    constellationSegments: () => []
+    constellationSegments: () => [],
+    // Find: the real helpers, so the guide line and list render as shipped.
+    ...FIND
   });
   return SkyDome(Object.assign({
     bodies: [{ name: 'Moon', az: 120, alt: 30, kind: 'moon', mag: -12 }],
@@ -308,7 +311,7 @@ test('Sky View puts a north warning above everything else', () => {
   const tree = renderSkyDome({ diag: diagProp(false), northMsg: msg });
   const text = textOf(tree);
   assert.ok(text.includes(msg), 'the north message should be shown');
-  assert.ok(text.indexOf(msg) < text.indexOf('Moon ·'), 'and before the target line');
+  assert.ok(text.indexOf(msg) < text.indexOf('The Moon is 30° up'), 'and before the target line');
 });
 
 test('Sky View shows no north warning when north is settled', () => {
