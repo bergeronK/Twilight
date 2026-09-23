@@ -667,6 +667,14 @@ that and is kept for its design detail):**
   Constellation *names* are the obvious next step: `constellations.json` in
   the same repo, same licence, has names and label positions.
 
+**Store and install screenshots regenerated with the Twilyte name
+(2026-09-23)** — iOS (iPhone + iPad), Android phone + feature graphic, and
+the PWA's `screenshot-narrow.png` / `screenshot-wide.png`, which
+`store-assets/generate.js` now also writes (they had no generator before).
+They show the default Console, not the `?preview=horizon` one. The Android
+phone shots (360 px CSS) have no header wordmark: below 385 px the app hides
+it so the header can't overflow, so that is the real app, not a bug.
+
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
@@ -690,15 +698,6 @@ that and is kept for its design detail):**
   `TWILIGHT-VISITORS` namespace (delete the hash keys, never `__total__`).
   Until then `/privacy.html`'s "kept 24 hours" isn't true of those entries.
   Deleting stored data is the owner's call.
-- **Store and install screenshots still show the old name.**
-  `store-assets/ios/*`, `store-assets/android/phone-*` and the PWA's
-  `screenshot-narrow.png` / `screenshot-wide.png` show the header wordmark
-  "Twilight", and they also predate the planet fix, the star chart and the
-  painted Console. Regenerate with `node store-assets/generate.js` and
-  `node store-assets/generate-android.js` (Playwright; the generators were
-  updated for the new boot text). The social card and Play feature graphic
-  *were* regenerated — `store-assets/og-image.html` now sources the card,
-  calibrated against the old image to within a pixel before the name changed.
 - Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
   here until the owner has one available.
 
