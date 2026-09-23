@@ -125,6 +125,77 @@ Three tabs, one `index.html`, no build step:
   4 px; a city (Bortle 5+) shows after dark as a warm light dome over the
   horizon and lights on the ground. Rectangles of any size read as a bar
   chart. `horizon-scene.test.js` pins all of this with a recording canvas.
+  **The painting moves (2026-09-23).** Three canvases: the still sky
+  (`drawHorizonScene` with `part: 'sky'`, redrawn once a second as before),
+  a moving layer (`drawSkyMotion`: stars brighter than `TWINKLE_MAG` 2.5
+  twinkle, strongest low down, never over the painted Moon; meteors), and the
+  ground (`part: 'ground'`, drawn `HERO_BLEED` px past each side) sliding up
+  to 10 px as the phone tilts, from plain `deviceorientation` — the painting
+  never asks iOS for motion access, so there it only moves once Sky View has.
+  **Meteors come at real rates**: `meteorRate` is each shower's ZHR (nine
+  IMO showers in `METEOR_SHOWERS`) times the sine of its radiant's height,
+  plus 8 sporadics an hour, cut by 2.2 per magnitude of limiting magnitude
+  below 6.5, nothing before the Sun is 12° down; `newMeteor` flies shower
+  meteors straight out from their radiant. On an ordinary night that is one
+  every ten minutes or more; at a Perseid peak about one a minute. Don't
+  speed it up. One `requestAnimationFrame` loop at ~30 fps, asleep when the
+  hero is off screen, the tab hidden, or nothing moves (daytime, no tilt).
+  `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
+  before. `sky-motion.test.js` covers the rates, directions, twinkle and
+  the layer split.
+- **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
+  grid of its brightness (0..250, run-length coded), built by
+  `scripts/generate-milky-way.js` from d3-celestial's `mw.json` (five nested
+  isophotes) at the same pinned commit as the constellations; same BSD
+  licence file, which now names it, and the footer credit says so. Loaded by
+  `loadMilkyWay`; sampled by `milkyWayField(mw, cols, rows, dirAt, lat, lst)`
+  through each view's inverse projection (`horizToEq`; the painting's
+  panorama; `chartDir` for the chart; `screenDir` for Sky View), turned into a
+  small image and drawn scaled up, which is what makes it a soft glow. **On
+  the Console it is honest**: `milkyWayVisibility(live.mag)` — all of it at
+  limiting magnitude 6.25+, none at 5.2 (Bortle 7, a big Moon, twilight) —
+  and it dims toward the horizon. **On the chart and in Sky View it is
+  always drawn, faintly**, as charts show it (they show every star too); not
+  over Sky View's camera image. `milky-way.test.js` checks the data against
+  the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of
+  the glow within 20° of the plane) and each inverse against its projection.
+- **The Moon's face and the stars' colours (2026-09-23).** `drawMoonDisc(g,
+  x, y, r, illum, litLeft, angle, north)` draws the near side's maria
+  (`MOON_MARIA`: IAU centres and sizes, Procellarum and Frigoris as patches,
+  Tycho and Copernicus bright) foreshortened toward the limb, the lit side
+  turned to the Sun (`angle`; `litLeft` is now a half turn, never a mirror,
+  which would flip the face) and lunar north to `north`, so the Moon is the
+  right way up for where it is: upright on the meridian from the north,
+  upside down from the south, tipped at moonrise. Directions come from
+  `skyBearing` (0 toward the zenith, 90 toward increasing azimuth) mapped
+  into each view: the painting's own stretch, `bearingOnScreen` through the
+  chart's and Sky View's projections. Sky View's Moon, a flat grey disc
+  before, is now the same disc. **Star colours**: `stars.bin` gained a
+  trailing `"CI"` section, B-V ×50 for every star and then for each of
+  `NAV_STARS` in order (the catalogue entry each replaced), appended so the
+  old reader still works; the generator reproduced the old file byte for
+  byte first. `starColor(ci, mag)` maps B-V to Mitchell Charity's
+  spectral-class colours and fades to white below about magnitude 4, where
+  the eye sees none; `starGlow` gives stars of magnitude 1.5 and brighter a
+  halo in their own colour. Applied on the painting (still and twinkling),
+  the chart and Sky View. HYG gives Betelgeuse B-V 1.50, not the textbook
+  1.85; it is still orange.
+- **Ephemeris and Stars open like the Console (2026-09-23).** Stars leads
+  with `SkyViewPreview`: Sky View itself, full-bleed, looking toward the
+  equator 28° up (`previewFacing`, which is also where the overlay starts
+  without sensors, via `SkyDome`'s `initialAz`), redrawn once a minute; the
+  place, "Use my location" and an "Open Sky View" button sit over it, and
+  the whole picture opens the overlay. It replaced the Star Finder title
+  block and the launcher card. To share the drawing, Sky View's painter came
+  out of `SkyDome`'s effect as `drawSkyView(g, w, h, o)`, with `keepClear`
+  (body names left off under overlaid text), `clearTop`/`clearBottom` for
+  constellation names, and `reticle: false`. Ephemeris: the place name is
+  the button that opens the form (search, coordinates, date, UTC offset,
+  DST), folded away by default (`formOpen`; open anyway when nothing valid
+  is entered), so the chart follows the header straight away; "Twilight
+  Ephemeris" is now the small eyebrow and the tagline is gone. The month
+  export is its own section after the results (grid `order: 3`, full width),
+  visible with the form closed. `sky-view-preview.test.js`.
 - **Ephemeris: real time zones and the painted day (2026-09-22, #84).** The tab
   used to open on a hard-coded New York solstice (2026-06-21) with a hand-set
   "UTC-5 +DST", so anyone elsewhere — or anyone after a daylight-saving change —
@@ -519,6 +590,28 @@ things a syntax check cannot see:
   no straight quotes) and `drawFact` played over whole rounds with the deck
   stored as JSON between visits: no repeat within a round, never the same
   fact twice running, additions and removals, junk in storage.
+- **`sky-motion.test.js`** — the moving painting: shower activity across
+  the year boundary, `meteorRate` against ZHR × sin(radiant height) at the
+  2026 Perseid peak, the limiting-magnitude cut, none by day or with the
+  radiant down, shower meteors flying out from the radiant, twinkle
+  strongest low, no star drawn over the Moon, and sky + ground layers
+  together drawing exactly what the still picture draws.
+- **`milky-way.test.js`** — `milkyway.bin` against the galaxy (Sagittarius
+  brightest, galactic poles empty, glow near the plane, Cygnus in and
+  Orion's belt out), `horizToEq` against `starHcZn`, `chartDir` and
+  `screenDir` against their projections, the visibility thresholds, and
+  that the painting draws the band under the stars and not in a bright sky.
+- **`moon-and-colours.test.js`** — the Moon's north up on the meridian from
+  the north, down from the south, tipped left rising in the south-east;
+  `drawMoonDisc`'s rotations (Sun, then north, then back); maria where they
+  are (Crisium east, Imbrium north-west, Tycho south); `bearingOnScreen` at
+  the chart's horizon; the real `stars.bin` colours (Betelgeuse and Antares
+  orange, Rigel blue-white, Sirius white, 99%+ of stars coloured); faint
+  stars white; halos only on the brightest.
+- **`sky-view-preview.test.js`** — `drawSkyView` with the preview's
+  `keepClear` (names under the overlaid text left off, stars still drawn)
+  and `reticle: false`, and a source check that `SkyDome` and
+  `SkyViewPreview` both draw through it and start facing the same way.
 - **`console-copy.test.js`** — `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.

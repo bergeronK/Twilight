@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2Z3nSuq5U/OMqCTmlHyavFEzbawyQZBGI6oHBsr7hC4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6RIiK7abUgb1OEoglj2vgkt06jjmOzNA1wXQ8H9AVaU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
@@ -796,6 +796,17 @@ function loadStarCatalog() {
             name
           };
         }
+        // Colour indices, appended after the names ("CI"): B-V for each
+        // star, then for each of NAV_STARS in order, x50, -128 unknown.
+        if (p + 3 <= buf.byteLength && dv.getUint8(p) === 67 && dv.getUint8(p + 1) === 73) {
+          p += 2;
+          const ci = v => v === -128 ? null : v / 50;
+          for (let i = 0; i < n; i++) out[i].ci = ci(dv.getInt8(p + i));
+          p += n;
+          const nn = dv.getUint8(p);
+          out.navCi = [];
+          for (let i = 0; i < nn && p + 1 + i < buf.byteLength; i++) out.navCi.push(ci(dv.getInt8(p + 1 + i)));
+        }
         return out;
       })
       // Sky View is fully usable on the nav stars alone, so a missing or
@@ -803,6 +814,26 @@ function loadStarCatalog() {
       .catch(() => []);
   }
   return starCatalogPromise;
+}
+
+/* A star's colour from its B-V index, as the eye sees it: the spectral-class
+   colours of Mitchell Charity's "What color are the stars?" (O blue-white
+   through M orange), placed at each class's typical B-V. Faint stars fade to
+   white, because below about magnitude 4 the eye sees no colour at all;
+   unknown is white. */
+const STAR_CI = [[-0.33, 155, 176, 255], [-0.15, 170, 191, 255], [0, 202, 215, 255],
+  [0.35, 248, 247, 255], [0.6, 255, 244, 234], [1.15, 255, 210, 161], [1.6, 255, 204, 111]];
+function starColor(ci, mag) {
+  let c = [238, 242, 255];
+  if (typeof ci === 'number' && isFinite(ci)) {
+    const t = STAR_CI, x = Math.max(t[0][0], Math.min(t[t.length - 1][0], ci));
+    let k = 0;
+    while (k < t.length - 2 && x > t[k + 1][0]) k++;
+    const f = (x - t[k][0]) / (t[k + 1][0] - t[k][0]);
+    const sat = Math.max(0, Math.min(1, (4.5 - mag) / 3));
+    c = c.map((w, j) => w + (t[k][j + 1] + f * (t[k + 1][j + 1] - t[k][j + 1]) - w) * sat);
+  }
+  return `rgb(${c.map(Math.round).join(',')})`;
 }
 
 /* ---- Constellation lines for Sky View (constellations.bin) ----
@@ -847,6 +878,78 @@ function loadConstellationLines() {
 /* Constellation names and where to write them, from the same d3-celestial
    commit as the lines: [id, name, rank, ra, dec], ra/dec in degrees.
    Decoration like the lines, so a failure is an empty list. */
+/* ---- The Milky Way (milkyway.bin) ----
+   How bright the Milky Way is across the whole sky, as a 1° grid (0..250,
+   250 = its brightest star clouds), built by scripts/generate-milky-way.js
+   from d3-celestial's mw.json (BSD 3-Clause; constellations.LICENSE.txt).
+   Decoration: a failed load is null and nothing is drawn. */
+let milkyWayPromise = null;
+function loadMilkyWay() {
+  if (!milkyWayPromise) {
+    milkyWayPromise = fetch('milkyway.bin')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.arrayBuffer(); })
+      .then(buf => decodeMilkyWay(new Uint8Array(buf)))
+      .catch(() => null);
+  }
+  return milkyWayPromise;
+}
+function decodeMilkyWay(u) {
+  const W = u[0] | u[1] << 8, H = u[2] | u[3] << 8, v = new Uint8Array(W * H);
+  let k = 0;
+  for (let i = 4; i + 1 < u.length && k < v.length; i += 2) v.fill(u[i], k, k += u[i + 1]);
+  if (k !== W * H) return null;
+  return { W, H, v };
+}
+// Brightness at RA/Dec (degrees), 0..1, smoothed between cells.
+function mwLevel(mw, ra, dec) {
+  const x = rev(ra) - 0.5, y = dec + 89.5;
+  const i0 = Math.floor(x), j0 = Math.max(0, Math.min(mw.H - 2, Math.floor(y)));
+  const fx = x - i0, fy = Math.max(0, Math.min(1, y - j0));
+  const at = (i, j) => mw.v[j * mw.W + ((i % mw.W) + mw.W) % mw.W];
+  const top = at(i0, j0 + 1) * (1 - fx) + at(i0 + 1, j0 + 1) * fx;
+  const bot = at(i0, j0) * (1 - fx) + at(i0 + 1, j0) * fx;
+  return (bot * (1 - fy) + top * fy) / 250;
+}
+// The other way from starHcZn: a point on the sky to RA/Dec, given the local
+// sidereal time `lst` in degrees.
+function horizToEq(az, alt, lat, lst) {
+  const dec = asin(sin(lat) * sin(alt) + cos(lat) * cos(alt) * cos(az));
+  const ha = atan2(-sin(az) * cos(alt), cos(lat) * sin(alt) - sin(lat) * cos(alt) * cos(az));
+  return { ra: rev(lst - ha), dec };
+}
+/* The Milky Way sampled over a grid of cells, for any view: `dirAt(i, j)`
+   says where on the sky cell (i, j) looks, as {az, alt, w} (w an optional
+   weight) or null for none. Returns cols * rows levels, 0..1. */
+function milkyWayField(mw, cols, rows, dirAt, lat, lst) {
+  const out = new Float32Array(cols * rows);
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    const d = dirAt(i, j);
+    if (!d) continue;
+    const e = horizToEq(d.az, d.alt, lat, lst);
+    out[j * cols + i] = mwLevel(mw, e.ra, e.dec) * (d.w === undefined ? 1 : d.w);
+  }
+  return out;
+}
+/* How much of the Milky Way a limiting magnitude lets you see, 0..1: all of
+   it under a properly dark sky (6.25 and up; the app's darkest is 6.3), none
+   at 5.2 — a bright suburb, a big Moon, or twilight. Bortle 5 (5.9) shows it
+   washed out, Bortle 6 (5.4) barely. */
+const milkyWayVisibility = lm => Math.max(0, Math.min(1, (lm - 5.2) / 1.05));
+// A field as a small image, to be drawn scaled up: the browser's smoothing
+// turns the cells into a soft glow. Browser only; `rgb` "r,g,b".
+function milkyWayImage(field, cols, rows, rgb, reuse) {
+  const c = reuse || document.createElement('canvas');
+  if (c.width !== cols) c.width = cols;
+  if (c.height !== rows) c.height = rows;
+  const g = c.getContext('2d'), img = g.createImageData(cols, rows);
+  const [r, gg, b] = rgb.split(',').map(Number);
+  for (let k = 0; k < field.length; k++) {
+    img.data[4 * k] = r; img.data[4 * k + 1] = gg; img.data[4 * k + 2] = b;
+    img.data[4 * k + 3] = Math.round(255 * Math.min(1, field[k]));
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
 let constellationNamesPromise = null;
 function loadConstellationNames() {
   if (!constellationNamesPromise) {
@@ -1198,7 +1301,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v93";
+const BUILD = "v97";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -1662,40 +1765,105 @@ function hzRandom(seed) {
   let s = seed >>> 0 || 1;
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
-// A Moon disc at its phase, lit on the right unless `litLeft`.
-function drawMoonDisc(g, x, y, r, illum, litLeft, angle) {
+/* The near side's maria and two bright ray craters, for drawing the Moon as
+   it looks: [selenographic lat, lon (east +), radius in degrees, strength].
+   Positions and sizes from the IAU names' published centres and diameters,
+   rounded; Oceanus Procellarum and Mare Frigoris, which are not round, are
+   a few overlapping patches. Negative strength is a bright crater. */
+const MOON_MARIA = [
+  [33, -16, 17, .5], [28, 17, 10, .5], [8, 31, 12, .5], [17, 59, 8, .55],
+  [-8, 51, 11, .42], [-15, 35, 5, .42], [25, -55, 14, .42], [3, -50, 15, .42],
+  [-10, -38, 9, .38], [-21, -17, 11, .38], [-24, -39, 6, .45], [13, 4, 4, .38],
+  [-10, -23, 5, .32], [7, -31, 7, .32],
+  [56, -22, 6, .32], [56, 0, 6, .32], [56, 22, 6, .32],
+  [-43, -11, 3, -.5], [10, -20, 2.5, -.35]
+];
+/* Which way an object B lies from A on the sky, as a bearing: 0 toward the
+   zenith, 90 toward increasing azimuth. Both in degrees of az/alt. */
+function skyBearing(azA, altA, azB, altB) {
+  const dA = azB - azA;
+  return atan2(sin(dA) * cos(altB), cos(altA) * sin(altB) - sin(altA) * cos(altB) * cos(dA));
+}
+/* The canvas direction, in radians, of bearing `th` (skyBearing's sense)
+   from a body at az/alt, under any projection P(az, alt) -> {x, y} | null:
+   a short step along the bearing, projected. Steps back the other way when
+   the step falls off the projection (the chart stops at the horizon). */
+function bearingOnScreen(P, az, alt, th) {
+  const p0 = P(az, alt);
+  if (!p0) return 0;
+  for (const s of [0.3, -0.3]) {
+    const p1 = P(az + s * sin(th) / Math.max(0.02, cos(alt)), Math.min(89.9, alt + s * cos(th)));
+    if (p1 && (p1.x !== p0.x || p1.y !== p0.y)) return Math.atan2(p1.y - p0.y, p1.x - p0.x) + (s < 0 ? Math.PI : 0);
+  }
+  return 0;
+}
+/* A Moon disc at its phase. The lit limb faces `angle` (radians, canvas
+   coordinates; 0 is right, and `litLeft` adds a half turn), and the maria
+   are drawn with the Moon's north toward `north` (radians, canvas; up, -π/2,
+   when not given), so the face is the right way up for where it is in the
+   sky: tipped at moonrise, upside down from the southern hemisphere. */
+function drawMoonDisc(g, x, y, r, illum, litLeft, angle, north) {
   g.save();
   g.translate(x, y);
-  // On the horizon painting the Sun is left or right of the Moon; on the
-  // round sky chart it can be in any direction, so the whole disc turns.
-  if (angle) g.rotate(angle);
-  if (litLeft) g.scale(-1, 1);
   g.fillStyle = '#1d2029'; // earthshine: the dark side is faint, never black
   g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill();
+  const turn = (angle || 0) + (litLeft ? Math.PI : 0);
+  // The lit part, built facing +x and turned toward the Sun.
+  g.rotate(turn);
   const k = 2 * illum - 1; // -1 new, 0 quarter, 1 full
   g.beginPath();
   g.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
   g.ellipse(0, 0, Math.max(0.001, Math.abs(k) * r), r, 0, Math.PI / 2, -Math.PI / 2, k < 0);
   g.closePath();
   g.clip();
-  const body = g.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.1);
-  body.addColorStop(0, '#f6f4ec'); body.addColorStop(1, '#bdb9ad');
+  const body = g.createRadialGradient(r * 0.3, 0, r * 0.1, 0, 0, r * 1.1);
+  body.addColorStop(0, '#f6f4ec'); body.addColorStop(1, '#c9c5b9');
   g.fillStyle = body; g.fillRect(-r, -r, 2 * r, 2 * r);
-  [[-0.25, -0.3, 0.28], [0.12, -0.18, 0.22], [-0.05, 0.15, 0.3], [0.3, 0.28, 0.16], [-0.35, 0.25, 0.14]].forEach(([dx, dy, s]) => {
-    const mg = g.createRadialGradient(dx * r, dy * r, 0, dx * r, dy * r, s * r);
-    mg.addColorStop(0, 'rgba(120,118,112,.38)'); mg.addColorStop(1, 'rgba(120,118,112,0)');
-    g.fillStyle = mg; g.beginPath(); g.arc(dx * r, dy * r, s * r, 0, 7); g.fill();
+  // The face, turned so its north points north on the sky.
+  g.rotate((north === undefined ? -Math.PI / 2 : north) + Math.PI / 2 - turn);
+  MOON_MARIA.forEach(([la, lo, rad, a]) => {
+    const px = cos(la) * sin(lo), py = -sin(la);
+    const c = Math.acos(Math.max(-1, Math.min(1, cos(la) * cos(lo)))); // from the disc's centre
+    const rr = rad * 1.35 * D2R * r; // a little wider than the named edge, so neighbours merge as they do
+    const mg = g.createRadialGradient(px * r, py * r, 0, px * r, py * r, rr);
+    const col = a < 0 ? '255,255,250' : '96,96,104', s0 = Math.abs(a);
+    mg.addColorStop(0, `rgba(${col},${(s0 * 0.8).toFixed(3)})`); mg.addColorStop(0.55, `rgba(${col},${(s0 * 0.66).toFixed(3)})`); mg.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = mg;
+    g.beginPath();
+    // Foreshortened toward the limb: squeezed along the line to the centre.
+    g.ellipse(px * r, py * r, Math.max(0.3, rr * Math.cos(c)), rr, Math.atan2(py, px), 0, 7);
+    g.fill();
   });
+  // Softer toward the terminator, where the Sun is low on the lunar surface.
+  g.rotate(turn - ((north === undefined ? -Math.PI / 2 : north) + Math.PI / 2));
+  const shade = g.createLinearGradient(-r, 0, r, 0);
+  shade.addColorStop(0, `rgba(20,20,26,${(0.08 + 0.4 * (1 - illum)).toFixed(3)})`); shade.addColorStop(0.6, 'rgba(20,20,26,0)');
+  g.fillStyle = shade; g.fillRect(-r, -r, 2 * r, 2 * r);
   g.restore();
 }
 /* Paints the hero. `o`: { sky: live.sky, sunAlt, sun: {az, alt}, moon:
    {az, alt, illum}, facing, stars: [{az, alt, mag}], planets: [{name, az,
-   alt}], bortle, lat, lon }. */
+   alt}], bortle, lat, lon }.
+   `o.part` splits it for the moving painting: 'sky' is everything above the
+   ground, 'ground' the ridge, town lights, fade and compass points, drawn
+   `o.bleed` px past both sides so it can slide under tilt. Without a part
+   it paints the whole still picture, as it does for reduced motion. */
+// Where the painting draws the Moon, if it does: {x, y, r} in px.
+function heroMoonDisc(w, hy, moon, facing) {
+  if (!moon || moon.alt <= -0.5) return null;
+  const f = panoX(moon.az, facing, HZ_SPAN);
+  if (f === null) return null;
+  return { x: f * w, y: panoY(Math.max(0, moon.alt), hy), r: Math.max(12, Math.min(22, w * 0.036)) };
+}
 function drawHorizonScene(g, w, h, o) {
   const hy = Math.round(h * 0.62); // the horizon; ground and text sit below
   const X = az => { const f = panoX(az, o.facing, HZ_SPAN); return f === null ? null : f * w; };
   const Y = alt => panoY(alt, hy);
   const night = o.sunAlt < -6;
+  if (o.part !== 'ground') drawHorizonSky(g, w, h, o, hy, X, Y, night);
+  if (o.part !== 'sky') drawHorizonGround(g, w, h, o, hy, X);
+}
+function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
 
   const sky = g.createLinearGradient(0, 0, 0, hy);
   sky.addColorStop(0, o.sky.s); sky.addColorStop(0.55, o.sky.m); sky.addColorStop(1, o.sky.h);
@@ -1722,13 +1890,21 @@ function drawHorizonScene(g, w, h, o) {
       g.fillStyle = '#fff4d6'; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
     }
   }
+  // The Milky Way, a soft band under the stars, as bright as the sky allows.
+  if (o.mw && o.mw.alpha > 0) {
+    g.globalAlpha = o.mw.alpha;
+    g.drawImage(o.mw.img, 0, 0, w, hy);
+    g.globalAlpha = 1;
+  }
   // Stars: only those bright enough to see from here right now.
   o.stars.forEach(s => {
     const x = X(s.az);
     if (x === null) return;
+    const r = Math.max(0.55, 2.2 - s.mag * 0.34);
+    starGlow(g, x, Y(s.alt), r, s.mag, s.color);
     g.globalAlpha = Math.max(0.3, Math.min(1, 1.05 - s.mag * 0.13));
-    g.fillStyle = '#eef2ff';
-    g.beginPath(); g.arc(x, Y(s.alt), Math.max(0.55, 2.2 - s.mag * 0.34), 0, 7); g.fill();
+    g.fillStyle = s.color || '#eef2ff';
+    g.beginPath(); g.arc(x, Y(s.alt), r, 0, 7); g.fill();
   });
   g.globalAlpha = 1;
 
@@ -1758,21 +1934,23 @@ function drawHorizonScene(g, w, h, o) {
     g.fillStyle = '#f0c98a'; g.beginPath(); g.arc(x, y, 3.6, 0, 7); g.fill();
     label(p.name, x, y, 9);
   });
-  if (o.moon.alt > -0.5) {
-    const x = X(o.moon.az);
-    if (x !== null) {
-      const y = Y(Math.max(0, o.moon.alt)), r = Math.max(12, Math.min(22, w * 0.036));
-      if (night) {
-        const halo = g.createRadialGradient(x, y, r * 0.8, x, y, r * (2 + 4 * o.moon.illum));
-        halo.addColorStop(0, `rgba(232,230,223,${(0.08 + 0.22 * o.moon.illum).toFixed(3)})`);
-        halo.addColorStop(1, 'rgba(232,230,223,0)');
-        g.fillStyle = halo; g.beginPath(); g.arc(x, y, r * (2 + 4 * o.moon.illum), 0, 7); g.fill();
-      }
-      // The lit limb faces the Sun.
-      const toSun = ((o.sun.az - o.moon.az + 540) % 360) - 180;
-      drawMoonDisc(g, x, y, r, o.moon.illum, toSun < 0);
-      label('Moon', x, y, r + 7);
+  const md = heroMoonDisc(w, hy, o.moon, o.facing);
+  if (md) {
+    const { x, y, r } = md;
+    if (night) {
+      const halo = g.createRadialGradient(x, y, r * 0.8, x, y, r * (2 + 4 * o.moon.illum));
+      halo.addColorStop(0, `rgba(232,230,223,${(0.08 + 0.22 * o.moon.illum).toFixed(3)})`);
+      halo.addColorStop(1, 'rgba(232,230,223,0)');
+      g.fillStyle = halo; g.beginPath(); g.arc(x, y, r * (2 + 4 * o.moon.illum), 0, 7); g.fill();
     }
+    // The lit limb faces the Sun and the face's north the celestial pole,
+    // both as directions on this painting, which stretches azimuth by
+    // w/HZ_SPAN px a degree and altitude by (hy - 22)/75.
+    const onCanvas = th => Math.atan2(-cos(th) * (hy - 22) / 75, sin(th) / Math.max(0.05, cos(o.moon.alt)) * w / HZ_SPAN);
+    drawMoonDisc(g, x, y, r, o.moon.illum, false,
+      onCanvas(skyBearing(o.moon.az, o.moon.alt, o.sun.az, o.sun.alt)),
+      onCanvas(skyBearing(o.moon.az, o.moon.alt, 0, o.lat)));
+    label('Moon', x, y, r + 7);
   }
   // A town's light, after dark: a warm dome over the horizon, which is how
   // city light looks from outside it, stronger the brighter the sky.
@@ -1782,6 +1960,9 @@ function drawHorizonScene(g, w, h, o) {
     dome.addColorStop(0, 'rgba(214,150,84,0)'); dome.addColorStop(1, `rgba(214,150,84,${a.toFixed(3)})`);
     g.fillStyle = dome; g.fillRect(0, hy - hy * 0.45, w, hy * 0.45 + 2);
   }
+}
+function drawHorizonGround(g, w, h, o, hy, X) {
+  const b = o.bleed || 0;
   // Ground: a low ridge with a soft treeline along it, the same every visit
   // for the same place. One shape everywhere; a city shows as its light, not
   // as buildings. (Buildings were tried twice: rectangles of any size read
@@ -1789,27 +1970,27 @@ function drawHorizonScene(g, w, h, o) {
   const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
   g.fillStyle = '#05070d';
   g.beginPath();
-  g.moveTo(0, h);
+  g.moveTo(-b, h);
   let tree = 0;
-  for (let x = 0; x <= w; x += 3) {
+  for (let x = -b; x <= w + b; x += 3) {
     const ridge = 5 + 6 * Math.sin(x / w * 4 + o.lon) + 3.5 * Math.sin(x / w * 11 + o.lat);
     tree = tree * 0.55 + rnd() * 6 * 0.45; // smoothed, so the edge is soft, not jagged
     g.lineTo(x, hy - ridge - tree);
   }
-  g.lineTo(w, h);
+  g.lineTo(w + b, h);
   g.closePath();
   g.fill();
   if (o.bortle >= 6 && o.sunAlt < -2) {
     // Lights in the town, on the ground rather than floating in the sky.
-    for (let i = 0; i < w / 6; i++) {
+    for (let i = 0; i < (w + 2 * b) / 6; i++) {
       g.fillStyle = `rgba(232,181,99,${(0.18 + rnd() * 0.4).toFixed(2)})`;
-      g.fillRect(rnd() * w, hy + 1 + rnd() * 9, 1.4, 1.4);
+      g.fillRect(rnd() * (w + 2 * b) - b, hy + 1 + rnd() * 9, 1.4, 1.4);
     }
   }
   // Settle into the page below, so the text over the ground stays readable.
   const fade = g.createLinearGradient(0, hy - 30, 0, h);
   fade.addColorStop(0, 'rgba(5,7,15,0)'); fade.addColorStop(0.45, 'rgba(5,7,15,.78)'); fade.addColorStop(1, 'rgba(5,7,15,.98)');
-  g.fillStyle = fade; g.fillRect(0, hy - 30, w, h - hy + 30);
+  g.fillStyle = fade; g.fillRect(-b, hy - 30, w + 2 * b, h - hy + 30 + b);
 
   // Compass points last, over the ground: drawn before it, the skyline hid
   // them, and without them the painting is a pretty picture of nowhere.
@@ -1824,6 +2005,139 @@ function drawHorizonScene(g, w, h, o) {
     g.fillStyle = 'rgba(238,241,250,.62)';
     g.fillText(compass16(az), x, hy + 21);
   }
+}
+/* ---- The painting in motion ----
+   Stars brighter than TWINKLE_MAG twinkle, on a canvas of their own over the
+   still sky (which is only redrawn once a second); fainter ones stay put.
+   Twinkling is the air, not the star, so it is strongest low down, where the
+   light crosses the most air, and planets, whose discs average it out, are
+   left steady. The rate is chosen to look calm, not measured. */
+const TWINKLE_MAG = 2.5;
+function twinkleAmp(alt) {
+  const z = 1 - Math.min(Math.max(alt, 0), 60) / 60;
+  return 0.1 + 0.4 * z * z;
+}
+// A brightness factor around 1 for star `seed` at time t (seconds): three
+// unrelated sines per star, so no two stars pulse together.
+function twinkle(seed, t, alt) {
+  const a = seed * 12.9898;
+  const n = 0.5 * Math.sin(t * (2.1 + (seed % 7) * 0.31) + a)
+    + 0.3 * Math.sin(t * (4.7 + (seed % 5) * 0.53) + a * 1.7)
+    + 0.2 * Math.sin(t * 9.3 + a * 2.3);
+  return 1 + twinkleAmp(alt) * n;
+}
+/* The major annual showers, from the International Meteor Organization's
+   working list: [name, month, day of peak (UT, fractional), ZHR, radiant RA,
+   radiant Dec (degrees), spread either side of the peak in days]. */
+const METEOR_SHOWERS = [
+  ['Quadrantids', 1, 3.5, 110, 230, 49, 0.6],
+  ['Lyrids', 4, 22.5, 18, 271, 34, 1],
+  ['Eta Aquariids', 5, 6, 50, 338, -1, 3],
+  ['Southern Delta Aquariids', 7, 30, 25, 340, -16, 4],
+  ['Perseids', 8, 12.5, 100, 48, 58, 2.5],
+  ['Orionids', 10, 21, 20, 95, 16, 3],
+  ['Leonids', 11, 17.5, 15, 152, 22, 1],
+  ['Geminids', 12, 14, 150, 112, 33, 1],
+  ['Ursids', 12, 22, 10, 217, 76, 0.7]
+];
+const SPORADIC_HR = 8; // background meteors an hour under a perfect sky
+// How active a shower is on `date`, 0 to 1 (1 at its peak).
+function showerActivity(sh, date) {
+  const y = date.getUTCFullYear();
+  let best = 0;
+  for (const yy of [y - 1, y, y + 1]) {
+    const dd = (date - (Date.UTC(yy, sh[1] - 1, 1) + (sh[2] - 1) * 86400000)) / 86400000;
+    best = Math.max(best, Math.exp(-dd * dd / (2 * sh[6] * sh[6])));
+  }
+  return best;
+}
+/* Meteors an hour a watcher here would actually see, reckoned the standard
+   way: each shower's ZHR times the sine of its radiant's height, plus the
+   sporadic background, all cut by the sky's faintest visible star (each
+   magnitude lost below 6.5 costs a factor of about 2.2). None before
+   nautical dusk ends. -> { total, parts: [{ sh, hr, radiant }] }, sh null for
+   the sporadics. At real rates most minutes show none; that is the point. */
+function meteorRate(date, lat, lon, lm, sunAlt) {
+  if (!(sunAlt <= -12) || !(lm > 0)) return { total: 0, parts: [] };
+  const k = Math.pow(2.2, Math.min(0, lm - 6.5));
+  const parts = [{ sh: null, hr: SPORADIC_HR * k, radiant: null }];
+  METEOR_SHOWERS.forEach(sh => {
+    const act = showerActivity(sh, date);
+    if (act < 0.01) return;
+    const radiant = starHcZn(sh[4], sh[5], lat, lon, date);
+    if (radiant.alt <= 0) return;
+    parts.push({ sh, hr: sh[3] * act * Math.sin(radiant.alt * D2R) * k, radiant });
+  });
+  return { total: parts.reduce((a, p) => a + p.hr, 0), parts };
+}
+/* One meteor for the painting, from `rate` (meteorRate's result). A shower
+   meteor flies straight away from its radiant, which is how a shower is
+   recognised in the sky; a sporadic one goes any way. Positions in px. */
+function newMeteor(rand, rate, w, hy, facing) {
+  let pick = rand() * rate.total, part = rate.parts[0];
+  for (const p of rate.parts) { if (pick < p.hr) { part = p; break; } pick -= p.hr; }
+  const x = w * (0.06 + 0.88 * rand()), y = panoY(18 + rand() * 50, hy);
+  let dx, dy;
+  if (part.radiant) {
+    const d = ((part.radiant.az - facing + 540) % 360) - 180;
+    dx = x - (0.5 + d / HZ_SPAN) * w;
+    dy = y - (hy - (part.radiant.alt / 75) * (hy - 22));
+  } else {
+    const a = rand() * 2 * Math.PI;
+    dx = Math.cos(a); dy = Math.sin(a);
+  }
+  const n = Math.hypot(dx, dy) || 1;
+  return { x, y, dx: dx / n, dy: dy / n, len: 60 + rand() * 110, dur: 0.35 + rand() * 0.55, b: 0.55 + rand() * 0.45, shower: part.sh ? part.sh[0] : null };
+}
+/* A soft halo round the brightest stars (magnitude 1.5 and brighter), in
+   the star's own colour: how a bright star looks to the eye, and what makes
+   Sirius read as Sirius. `color` is starColor's "rgb(r,g,b)". */
+function starGlow(g, x, y, r, mag, color, alpha) {
+  if (!(mag < 1.5)) return;
+  const R = r * (3 + (1.5 - mag) * 1.4);
+  const rgb = (color || 'rgb(238,242,255)').slice(4, -1);
+  const gl = g.createRadialGradient(x, y, 0, x, y, R);
+  gl.addColorStop(0, `rgba(${rgb},${(0.32 * (alpha === undefined ? 1 : alpha)).toFixed(3)})`);
+  gl.addColorStop(1, `rgba(${rgb},0)`);
+  g.globalAlpha = 1;
+  g.fillStyle = gl;
+  g.beginPath(); g.arc(x, y, R, 0, 7); g.fill();
+}
+/* The moving layer: twinkling stars and any meteor in flight at time t (s).
+   `o`: { stars: [{az, alt, mag, seed}], facing, moon, meteors: [{..., t0}] }.
+   A star under the painted Moon is not drawn: the disc is drawn larger than
+   life, and a star twinkling on top of it would give the game away. */
+function drawSkyMotion(g, w, h, o, t) {
+  g.clearRect(0, 0, w, h);
+  const hy = Math.round(h * 0.62);
+  const md = heroMoonDisc(w, hy, o.moon, o.facing);
+  o.stars.forEach(s => {
+    const f = panoX(s.az, o.facing, HZ_SPAN);
+    if (f === null) return;
+    const x = f * w, y = panoY(s.alt, hy);
+    if (md && Math.hypot(x - md.x, y - md.y) < md.r + 2) return;
+    const k = twinkle(s.seed, t, s.alt);
+    const a = Math.max(0, Math.min(1, (1.05 - s.mag * 0.13) * k));
+    const r = Math.max(0.55, 2.2 - s.mag * 0.34) * (0.85 + 0.15 * k);
+    starGlow(g, x, y, r, s.mag, s.color, a);
+    g.globalAlpha = a;
+    g.fillStyle = s.color || '#eef2ff';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
+  g.lineCap = 'round';
+  o.meteors.forEach(m => {
+    const age = (t - m.t0) / m.dur;
+    if (age < 0 || age > 1) return;
+    const headX = m.x + m.dx * age * m.len, headY = m.y + m.dy * age * m.len;
+    const tail = Math.min(age, 0.45) * m.len;
+    const tx = headX - m.dx * tail, ty = headY - m.dy * tail;
+    const gr = g.createLinearGradient(tx, ty, headX, headY);
+    gr.addColorStop(0, 'rgba(238,242,255,0)');
+    gr.addColorStop(1, `rgba(238,242,255,${(Math.sin(Math.PI * age) * m.b).toFixed(3)})`);
+    g.strokeStyle = gr; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(tx, ty); g.lineTo(headX, headY); g.stroke();
+  });
 }
 /* Two granularities on purpose, not a duplication to merge: the sextant
    window is a planning number where seconds are noise, while the next-event
@@ -2473,6 +2787,10 @@ function drawSkyChart(g, size, d) {
   g.save();
   g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
 
+  // The Milky Way under everything, as a chart shows it: always, faintly,
+  // whatever tonight's sky allows (the chart shows every star, too).
+  if (d.mw) g.drawImage(d.mw, cx - R, cy - R, 2 * R, 2 * R);
+
   // Constellation lines under everything, as in Sky View.
   if (d.lines) {
     g.strokeStyle = 'rgba(138,164,232,.34)';
@@ -2490,9 +2808,11 @@ function drawSkyChart(g, size, d) {
   d.stars.forEach(s => {
     const p = P(s.az, s.alt);
     if (!p) return;
+    const r = Math.max(0.7, 2.6 - s.mag * 0.42);
+    starGlow(g, p.x, p.y, r, s.mag, s.color);
     g.globalAlpha = Math.max(0.32, Math.min(1, 1.05 - s.mag * 0.12));
-    g.fillStyle = '#eef2ff';
-    g.beginPath(); g.arc(p.x, p.y, Math.max(0.7, 2.6 - s.mag * 0.42), 0, 7); g.fill();
+    g.fillStyle = s.color || '#eef2ff';
+    g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
   });
   g.globalAlpha = 1;
 
@@ -2530,7 +2850,10 @@ function drawSkyChart(g, size, d) {
       // chart, or toward its bearing on the rim when it is below the horizon.
       const sp = P(d.sunAz, 0);
       const ang = sp ? Math.atan2(sp.y - p.y, sp.x - p.x) : 0;
-      drawMoonDisc(g, p.x, p.y, 9, d.moon.illum, false, ang);
+      // Its face turned with lunar north toward the celestial pole.
+      const north = d.lat === undefined ? undefined
+        : bearingOnScreen(P, d.moon.az, d.moon.alt, skyBearing(d.moon.az, d.moon.alt, 0, d.lat));
+      drawMoonDisc(g, p.x, p.y, 9, d.moon.illum, false, ang, north);
     }
   }
   g.restore();
@@ -2590,10 +2913,24 @@ function drawSkyChart(g, size, d) {
 /* The sky chart as it appears in the Stars tab: a square canvas that fills
    its column, redrawn each minute. Data comes from StarFinder, which already
    computes everything it needs. */
-function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
+/* Where on the sky a point of the chart disc looks: the inverse of chartXY,
+   for a disc of radius R centred at the origin. Null outside the disc. */
+function chartDir(x, y, R) {
+  const r = Math.hypot(x, y);
+  if (r > R) return null;
+  return { az: rev(atan2(-x, -y)), alt: 90 - 2 * Math.atan(r / R) * R2D };
+}
+function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris, mw, lat, lst }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [size, setSize] = useState(320);
+  // The Milky Way across the disc, 96 cells a side, drawn scaled to fit.
+  const mwImg = useMemo(() => {
+    if (!mw || typeof document === 'undefined') return null;
+    const N = 96;
+    const field = milkyWayField(mw, N, N, (i, j) => chartDir((i + 0.5) / N * 2 - 1, (j + 0.5) / N * 2 - 1, 1), lat, lst);
+    return milkyWayImage(field.map(v => v * 0.34), N, N, '170,186,228');
+  }, [mw, lat, Math.round(lst * 4)]);
   useEffect(() => {
     const el = wrapRef.current;
     const measure = () => {
@@ -2615,8 +2952,8 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, size, size);
-    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris });
-  }, [size, stars, lines, planets, moon, sunAz, fix, polaris]);
+    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris, mw: mwImg, lat });
+  }, [size, stars, lines, planets, moon, sunAz, fix, polaris, mwImg, lat]);
   return React.createElement('div', { ref: wrapRef, style: { flex: '1 1 300px', maxWidth: 420, minWidth: 0 } },
     React.createElement('canvas', {
       ref: canvasRef, className: 'hz-sky',
@@ -2633,15 +2970,24 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris }) {
 
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
+const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past each side
 function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
   const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const groundRef = useRef(null);
+  // Reduced motion gets the still picture, drawn whole on one canvas.
+  const [still] = useState(() => {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
+  });
   const headerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
+  const [mw, setMw] = useState(null);
   useEffect(() => {
     let alive = true;
     loadStarCatalog().then(c => { if (alive) setCatalog(c); });
+    loadMilkyWay().then(m => { if (alive) setMw(m); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {
@@ -2677,13 +3023,14 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     const d = new Date(now);
     const stars = [];
     if (live.alt < -3) {
-      const add = (ra, dec, mag) => {
+      const add = (ra, dec, mag, ci) => {
         if (mag > live.mag) return;
         const p = starHcZn(ra, dec, loc.lat, loc.lon, d);
-        if (p.alt > 0) stars.push({ az: p.az, alt: p.alt, mag });
+        if (p.alt > 0) stars.push({ az: p.az, alt: p.alt, mag, seed: Math.round(ra * 101 + (dec + 90) * 37) % 997, color: starColor(ci, mag) });
       };
-      NAV_STARS.forEach(s => add(s[1] * 15, s[2], s[3]));
-      (catalog || []).forEach(s => add(s.ra, s.dec, s.mag));
+      const navCi = (catalog && catalog.navCi) || [];
+      NAV_STARS.forEach((s, i) => add(s[1] * 15, s[2], s[3], navCi[i]));
+      (catalog || []).forEach(s => add(s.ra, s.dec, s.mag, s.ci));
     }
     return {
       sun: sunHcZn(d, loc.lat, loc.lon),
@@ -2694,12 +3041,37 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
   const H = width < 560 ? 380 : 420;
+  const facing = heroFacing(loc.lat, live.m);
+  // The Milky Way over the painting, once a minute, only when the sky is dark
+  // enough to show some of it. Sampled every 4 px and drawn scaled up; it
+  // fades toward the horizon, where the extra air dims it.
+  const mwVis = milkyWayVisibility(live.mag);
+  const mwPaint = useMemo(() => {
+    if (!mw || !(mwVis > 0) || typeof document === 'undefined') return null;
+    const hy = Math.round(H * 0.62), cols = Math.ceil(width / 4), rows = Math.ceil(hy / 4);
+    const lst = rev(gmst(new Date(now)) + loc.lon);
+    const field = milkyWayField(mw, cols, rows, (i, j) => {
+      const alt = (hy - (j + 0.5) * hy / rows) / (hy - 22) * 75;
+      return { az: facing + ((i + 0.5) / cols - 0.5) * HZ_SPAN, alt, w: Math.max(0, Math.min(1, (alt + 2) / 22)) };
+    }, loc.lat, lst);
+    return milkyWayImage(field, cols, rows, '205,214,236');
+  }, [mw, mwVis > 0, minute, width, H, facing, loc.lat, loc.lon]);
+  // Meteors to expect this minute, for the moving layer.
+  const rate = useMemo(() => meteorRate(new Date(now), loc.lat, loc.lon, live.mag, live.alt),
+    [minute, loc.lat, loc.lon, Math.round(live.mag * 4), Math.round(live.alt)]);
+  // What the animation loop reads each frame; refreshed every render, so the
+  // loop itself never restarts.
+  const motion = useRef(null);
+  motion.current = { stars: scene.stars.filter(s => s.mag <= TWINKLE_MAG), facing, moon: live.m, rate, w: width, H };
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.round(width * dpr); cv.height = Math.round(H * dpr);
-    cv.style.width = width + 'px'; cv.style.height = H + 'px';
+    const size = (c, w, h) => {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      c.style.width = w + 'px'; c.style.height = h + 'px';
+    };
+    size(cv, width, H);
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Where the place-name header actually sits over the painting, so body
@@ -2711,22 +3083,114 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel }) {
       const hb = rg.getBoundingClientRect(), cb = cv.getBoundingClientRect();
       if (hb.width) reserve = { w: hb.right - cb.left + 10, h: hb.bottom - cb.top + 6 };
     }
-    drawHorizonScene(g, width, H, {
+    const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
-      facing: heroFacing(loc.lat, live.m), stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve
-    });
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name]);
+      facing, stars: scene.stars, planets: scene.planets,
+      bortle, lat: loc.lat, lon: loc.lon, reserve,
+      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+    };
+    const gc = groundRef.current;
+    if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
+    // Moving: the bright stars leave the still sky for the twinkling layer,
+    // and the ground goes on its own canvas so it can slide under tilt.
+    drawHorizonScene(g, width, H, Object.assign({}, o, { part: 'sky', stars: scene.stars.filter(s => s.mag > TWINKLE_MAG) }));
+    size(gc, width + 2 * HERO_BLEED, H + HERO_BLEED);
+    const g2 = gc.getContext('2d');
+    g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
+    drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
+    if (animRef.current) size(animRef.current, width, H);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint]);
+
+  /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
+     the ground sliding a few px as the phone tilts, like a view through a
+     window. One loop for the life of the hero; it sleeps when the painting
+     is off screen, the tab is hidden, or there is nothing to move. On iOS,
+     tilt only arrives once motion access has been granted (Sky View asks);
+     the painting never asks for it. */
+  useEffect(() => {
+    const cv = animRef.current, gd = groundRef.current, wrap = wrapRef.current;
+    if (still || !cv || !gd) return;
+    let raf = 0, timer = 0, last = 0, onScreen = true, meteors = [];
+    const tilt = { x: 0, y: 0, tx: 0, ty: 0, h0: null, v0: null };
+    const clamp = v => Math.max(-HERO_BLEED, Math.min(HERO_BLEED, v));
+    const onOrient = e => {
+      if (e.beta == null || e.gamma == null) return;
+      const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+      const side = Math.abs(ang) === 90;
+      const h = side ? e.beta * Math.sign(ang) : e.gamma, v = side ? -e.gamma * Math.sign(ang) : e.beta;
+      if (tilt.h0 === null) { tilt.h0 = h; tilt.v0 = v; }
+      // The resting pose drifts toward however the phone is held, so the
+      // ground recentres instead of staying pushed to one side.
+      tilt.h0 += (h - tilt.h0) * 0.01; tilt.v0 += (v - tilt.v0) * 0.01;
+      tilt.tx = clamp(-(h - tilt.h0) * 0.5);
+      tilt.ty = clamp(-(v - tilt.v0) * 0.35);
+      schedule();
+    };
+    const frame = ts => {
+      raf = 0;
+      const m = motion.current, t = ts / 1000;
+      tilt.x += (tilt.tx - tilt.x) * 0.1; tilt.y += (tilt.ty - tilt.y) * 0.1;
+      gd.style.transform = `translate3d(${tilt.x.toFixed(2)}px,${tilt.y.toFixed(2)}px,0)`;
+      if (ts - last >= 33) { // ~30 frames a second is plenty for a twinkle
+        const dt = last ? Math.min(0.25, (ts - last) / 1000) : 0;
+        last = ts;
+        if (m.rate.total > 0 && Math.random() < m.rate.total / 3600 * dt) {
+          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, Math.round(m.H * 0.62), m.facing), { t0: t }));
+        }
+        meteors = meteors.filter(x => t - x.t0 < x.dur);
+        const dpr = cv.width / m.w;
+        const g = cv.getContext('2d');
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawSkyMotion(g, m.w, m.H, { stars: m.stars, facing: m.facing, moon: m.moon, meteors }, t);
+      }
+      schedule();
+    };
+    const schedule = () => {
+      if (raf || timer || !onScreen || document.hidden) return;
+      const m = motion.current;
+      const moving = m.stars.length || meteors.length || m.rate.total > 0 ||
+        Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
+      if (moving) raf = requestAnimationFrame(frame);
+      else {
+        // Daytime, no tilt: clear what was drawn, then check back in a second.
+        if (last) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); last = 0; }
+        timer = setTimeout(() => { timer = 0; schedule(); }, 1000);
+      }
+    };
+    const onVis = () => schedule();
+    let io = null;
+    if (wrap && typeof IntersectionObserver === 'function') {
+      io = new IntersectionObserver(es => { onScreen = es[0].isIntersecting; schedule(); });
+      io.observe(wrap);
+    }
+    window.addEventListener('deviceorientation', onOrient);
+    document.addEventListener('visibilitychange', onVis);
+    schedule();
+    return () => {
+      cancelAnimationFrame(raf); clearTimeout(timer);
+      if (io) io.disconnect();
+      window.removeEventListener('deviceorientation', onOrient);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [still]);
 
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement(React.Fragment, null,
     React.createElement('div', {
       ref: wrapRef,
-      style: { position: 'relative', height: H, margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 18px` }
+      style: { position: 'relative', height: H, overflow: 'hidden', margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 18px` }
     },
       React.createElement('canvas', {
         ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H },
         'aria-hidden': 'true'
+      }),
+      !still && React.createElement('canvas', {
+        ref: animRef, className: 'hz-sky', 'aria-hidden': 'true',
+        style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }
+      }),
+      !still && React.createElement('canvas', {
+        ref: groundRef, className: 'hz-sky', 'aria-hidden': 'true',
+        style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
       }),
       header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
       React.createElement('div', {
@@ -3798,6 +4262,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const [offset, setOffset] = useState(-5); // manual standard offset, hours — only used when tz is null
   const [dst, setDst] = useState(true);
   const [icalMode, setIcalMode] = useState("stargazing");
+  // The place/date form, folded away under the place name until asked for.
+  const [formOpen, setFormOpen] = useState(false);
   const [geoMsg, setGeoMsg] = useState("");
   const [hoverX, setHoverX] = useState(null);
   const [query, setQuery] = useState("");
@@ -3827,6 +4293,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const goToday = () => setDateStr(dateKey(Date.now(), tz || deviceTz));
   const isToday = dateStr === dateKey(Date.now(), tz || deviceTz);
   const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && Y && Mo && D;
+  // With nothing valid to show, the form is the only useful thing: open it.
+  useEffect(() => { if (!valid) setFormOpen(true); }, [valid]);
   useEffect(() => {
     const el = svgRef.current && svgRef.current.parentElement;
     if (!el) return;
@@ -4235,8 +4703,14 @@ function TwilightEphemeris({ redMode } = {}) {
     style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, margin: "18px 0 6px" }
   },
     React.createElement("div", { style: { minWidth: 0 } },
-      React.createElement("div", { style: { font: "600 17px var(--font-ui)", color: ink } },
-        placeName || (valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0` : "Enter a place")),
+      // The place is the way to change it, as on the Console: tap for the
+      // search, coordinates, date and time zone.
+      React.createElement("button", {
+        onClick: () => setFormOpen(o => !o), "aria-expanded": formOpen, "aria-controls": "te-form",
+        style: { display: "inline-flex", alignItems: "baseline", gap: 8, padding: 0, border: 0, background: "none", cursor: "pointer", font: "650 clamp(22px,5vw,30px) var(--font-ui)", color: ink, letterSpacing: "-0.01em", textAlign: "left" }
+      },
+        placeName || (valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0` : "Enter a place"),
+        React.createElement("span", { "aria-hidden": "true", style: { fontSize: "0.6em", color: dim, transform: formOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } }, "\u25BE")),
       React.createElement("div", { style: { font: "13px var(--font-ui)", color: dim, marginTop: 3, fontVariantNumeric: "tabular-nums" } },
         dateLabel, dayLen != null ? ` \u00B7 ${Math.floor(dayLen / 60)} h ${pad2(dayLen % 60)} m of daylight` : "")),
     React.createElement("div", { style: { display: "flex", gap: 6 } },
@@ -4265,10 +4739,10 @@ function TwilightEphemeris({ redMode } = {}) {
         ::selection{background:var(--accent);color:var(--on-accent)}
         .te-wrap{max-width:1180px;margin:0 auto;padding:40px 22px 64px}
         .te-grid{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:22px;align-items:start}
+        .te-grid.te-solo{grid-template-columns:1fr}
         @media (max-width:780px){
           .te-wrap{padding:26px 14px 52px}
           .te-grid{grid-template-columns:1fr}
-          .te-grid > section:first-child{order:2}
           .te-chart{padding:18px 0 8px !important}
         }
       `), /*#__PURE__*/React.createElement("div", {
@@ -4306,27 +4780,65 @@ function TwilightEphemeris({ redMode } = {}) {
     style: {
       ...labelSt
     }
-  }, "Observatory \xB7 Solar Almanac"), /*#__PURE__*/React.createElement("h1", {
-    style: {
-      margin: "6px 0 0",
-      fontFamily: "var(--font-display)",
-      fontWeight: 700,
-      fontSize: "clamp(26px,5.4vw,50px)",
-      lineHeight: 1,
-      letterSpacing: "-.01em",
-      color: ink
-    }
-  }, "Twilight Ephemeris"), dayBar, /*#__PURE__*/React.createElement("p", {
-    style: {
-      margin: "12px 0 0",
-      maxWidth: 640,
-      color: dim,
-      fontSize: 16,
-      lineHeight: 1.55
-    }
-  }, "Precise civil, nautical, and astronomical dawn & dusk for any coordinate and date, with the Sun\u2019s track across the horizon and month-long exports for stargazing or navigation.")), /*#__PURE__*/React.createElement("div", {
-    className: "te-grid"
+  }, React.createElement("h1", { style: { margin: 0, font: "inherit", letterSpacing: "inherit" } }, "Twilight Ephemeris")), dayBar), /*#__PURE__*/React.createElement("div", {
+    className: "te-grid" + (formOpen ? "" : " te-solo")
   }, /*#__PURE__*/React.createElement("section", {
+    style: {
+      ...panel,
+      padding: 20,
+      order: 3,
+      gridColumn: "1 / -1"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...labelSt,
+      marginBottom: 10
+    }
+  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("select", {
+    value: icalMode,
+    onChange: e => setIcalMode(e.target.value),
+    style: {
+      ...inputSt,
+      marginTop: 0,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "stargazing"
+  }, "iCal: stargazing \u2014 dark windows"), /*#__PURE__*/React.createElement("option", {
+    value: "navigation"
+  }, "iCal: navigation \u2014 nautical twilight"), /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "iCal: all phase markers"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: exportICS,
+    disabled: !valid,
+    style: {
+      ...btn,
+      background: "var(--accent)",
+      color: "var(--on-accent)",
+      opacity: valid ? 1 : 0.4
+    }
+  }, "\u2193 iCal"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportCSV,
+    disabled: !valid,
+    style: {
+      ...btn,
+      background: "rgba(120,140,200,.16)",
+      color: ink,
+      border: "1px solid rgba(120,140,200,.28)",
+      opacity: valid ? 1 : 0.4
+    }
+  }, "\u2193 CSV"))), formOpen && /*#__PURE__*/React.createElement("section", {
+    id: "te-form",
     style: {
       ...panel,
       padding: 20
@@ -4439,61 +4951,7 @@ function TwilightEphemeris({ redMode } = {}) {
       color: dim,
       fontFamily: "var(--font-ui)"
     }
-  }, "Active offset \xB7 ", tzLabel))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 20,
-      paddingTop: 18,
-      borderTop: "1px solid rgba(120,140,200,.14)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...labelSt,
-      marginBottom: 10
-    }
-  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("select", {
-    value: icalMode,
-    onChange: e => setIcalMode(e.target.value),
-    style: {
-      ...inputSt,
-      marginTop: 0,
-      cursor: "pointer"
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "stargazing"
-  }, "iCal: stargazing \u2014 dark windows"), /*#__PURE__*/React.createElement("option", {
-    value: "navigation"
-  }, "iCal: navigation \u2014 nautical twilight"), /*#__PURE__*/React.createElement("option", {
-    value: "all"
-  }, "iCal: all phase markers"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
-      gap: 10
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: exportICS,
-    disabled: !valid,
-    style: {
-      ...btn,
-      background: "var(--accent)",
-      color: "var(--on-accent)",
-      opacity: valid ? 1 : 0.4
-    }
-  }, "\u2193 iCal"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCSV,
-    disabled: !valid,
-    style: {
-      ...btn,
-      background: "rgba(120,140,200,.16)",
-      color: ink,
-      border: "1px solid rgba(120,140,200,.28)",
-      opacity: valid ? 1 : 0.4
-    }
-  }, "\u2193 CSV")))), /*#__PURE__*/React.createElement("section", {
+  }, "Active offset \xB7 ", tzLabel)))), /*#__PURE__*/React.createElement("section", {
     style: {
       display: "grid",
       gap: 22
@@ -4889,8 +5347,272 @@ function pingVisitorCounter(show) {
 // Default vertical field of view, close to a typical phone's rear camera.
 // Adjustable per-device because no web API reports the real lens FOV.
 const SKY_FOV_DEFAULT = 63;
-function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag }) {
+/* Sky View's picture, for one view: `o` is { basis, fov, cam, bodies, lines,
+   names, showLines, targetName, mw, lat, lst, mwRef (a ref to reuse the
+   Milky Way's canvas across frames), clearTop/clearBottom (px kept free of
+   constellation names for the overlay's controls), reticle }. Drawn by the
+   full-screen overlay on every sensor event, and once a minute by the Stars
+   tab's preview, so the two cannot drift apart. */
+function drawSkyView(g, w, h, o) {
+  const { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst } = o;
+  const dir = b => toScreen(basis, b.az, b.alt);
+  const proj = d => skyProject(d, w, h, fov);
+
+  if (!cam) {
+    // Sky gradient, darkest overhead — reads as depth without competing
+    // with the bodies for attention.
+    const up = proj(toScreen(basis, 0, 90));
+    const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
+    grad.addColorStop(0, '#05070f');
+    grad.addColorStop(1, '#0b1020');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+    // The Milky Way, faintly, as on the Stars tab's chart; sampled every
+    // 10 px and drawn scaled up. Not over the camera, which shows the real
+    // one or doesn't. Below the horizon it fades out with the stars.
+    if (mw && lst !== undefined) {
+      const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
+      const field = milkyWayField(mw, cols, rows, (i, j) => {
+        const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
+        d.w = d.alt >= 0 ? 0.34 : 0.1;
+        return d;
+      }, lat, lst);
+      if (o.mwRef) o.mwRef.current = milkyWayImage(field, cols, rows, '170,186,228', o.mwRef.current);
+      g.drawImage(o.mwRef ? o.mwRef.current : milkyWayImage(field, cols, rows, '170,186,228'), 0, 0, cols * 10, rows * 10);
+    }
+  }
+
+  // Horizon + cardinal marks: the anchor that tells you the view is real.
+  g.lineWidth = 1;
+  g.strokeStyle = cam ? 'rgba(210,160,77,.55)' : 'rgba(210,160,77,.35)';
+  g.beginPath();
+  let started = false;
+  for (let a = 0; a <= 360; a += 2) {
+    const p = proj(toScreen(basis, a, 0));
+    if (!p) { started = false; continue; }
+    if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
+  }
+  g.stroke();
+  // Canvas font strings don't resolve CSS custom properties — name the
+  // family outright rather than reaching for --font-ui here.
+  g.font = '600 12px Inter, system-ui, sans-serif';
+  g.fillStyle = 'rgba(210,160,77,.8)';
+  g.textAlign = 'center';
+  for (let a = 0; a < 360; a += 45) {
+    const p = proj(toScreen(basis, a, 0));
+    if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
+  }
+
+  // Constellation lines, under every body. Faint and cool against the warm
+  // horizon, so they give the sky its shapes without competing with the
+  // stars; stronger over the camera image, which is brighter than the
+  // painted sky. Fainter constellations (d3-celestial rank 2, 3) recede.
+  if (showLines && lines && lines.length) {
+    const segs = constellationSegments(lines, (az, alt) => proj(toScreen(basis, az, alt)), 4);
+    const base = cam ? 0.5 : 0.34;
+    g.lineWidth = 1;
+    g.lineCap = 'round';
+    segs.forEach(sg => {
+      if (Math.max(sg.x1, sg.x2) < -20 || Math.min(sg.x1, sg.x2) > w + 20 ||
+          Math.max(sg.y1, sg.y2) < -20 || Math.min(sg.y1, sg.y2) > h + 20) return;
+      const a = base * (sg.rank <= 1 ? 1 : sg.rank === 2 ? 0.8 : 0.62) * (sg.below ? 0.3 : 1);
+      g.strokeStyle = 'rgba(138,164,232,' + a.toFixed(3) + ')';
+      g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
+    });
+    // A faint dot at every vertex. Where the catalogue has the star, it is
+    // drawn over this and hides it; where it doesn't (about 3% of vertices,
+    // stars fainter than stars.bin's magnitude-5 cut, mostly in dim
+    // southern constellations), the line still visibly ends on a star.
+    g.fillStyle = 'rgba(238,242,255,.4)';
+    lines.forEach(path => path.pts.forEach(v => {
+      const p = proj(toScreen(basis, v.az, v.alt));
+      if (!p || p.x < -4 || p.x > w + 4 || p.y < -4 || p.y > h + 4) return;
+      g.globalAlpha = v.alt < 0 ? 0.3 : 1;
+      g.beginPath(); g.arc(p.x, p.y, 0.8, 0, 7); g.fill();
+    }));
+    g.globalAlpha = 1;
+    // Names, spaced out, in small capitals the colour of the lines: they
+    // label the figures without reading as bodies. Drawn under the bodies,
+    // so a star's own label always wins.
+    if (names && names.length) {
+      const spots = constellationLabelSpots(names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, o.clearTop === undefined ? 72 : o.clearTop, o.clearBottom === undefined ? 76 : o.clearBottom);
+      g.font = '500 10.5px Inter, system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      spots.forEach(sp => {
+        const a = (cam ? 0.8 : 0.62) * (sp.rank <= 1 ? 1 : sp.rank === 2 ? 0.82 : 0.66);
+        g.fillStyle = 'rgba(160,182,240,' + a.toFixed(3) + ')';
+        const t = sp.name.toUpperCase().split('').join('\u2009'), half = g.measureText(t).width / 2 + 6;
+        // A name near the edge is pulled in whole rather than cut off.
+        g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
+      });
+      g.textBaseline = 'alphabetic';
+    }
+  }
+
+  // Bodies, faintest first so bright ones win any overlap.
+  const drawn = [];
+  // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
+  // ones without a per-frame sort of ~1600 entries.
+  bodies.forEach(bd => {
+    const d = dir(bd), p = proj(d);
+    if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
+    const isTarget = bd.name === targetName;
+    let r, fill, dim = 1;
+    if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
+    else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
+    else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
+    else {
+      // Magnitude -> radius/opacity. With a full catalogue the faint end
+      // has to actually recede, or 1500 stars all render as identical dots
+      // and the constellations stop being readable.
+      r = Math.max(0.7, 4.6 - bd.mag * 0.72);
+      fill = bd.color || '#eef2ff';
+      dim = Math.max(0.34, Math.min(1, 1.06 - bd.mag * 0.1));
+    }
+    // Below the horizon the Earth is in the way. Still drawn, so the view
+    // stays continuous as you sweep down past the skyline, but dimmed so
+    // it never reads as something you could actually go and look at.
+    g.globalAlpha = bd.alt < 0 ? dim * 0.22 : dim;
+    if (bd.kind === 'sun' || bd.kind === 'moon') {
+      const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
+      glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = glow;
+      g.beginPath(); g.arc(p.x, p.y, r * 3, 0, 7); g.fill();
+    }
+    if (bd.kind === 'star' && bd.alt >= 0) { starGlow(g, p.x, p.y, r * 0.6, bd.mag, bd.color); g.globalAlpha = dim; }
+    if (bd.kind === 'moon' && bd.illum !== undefined) {
+      // The Moon at its phase, lit toward the Sun, its face the right way
+      // up for where it is: directions taken through the view itself.
+      const P = (az, alt) => proj(toScreen(basis, az, alt));
+      const sun = bodies.find(b => b.kind === 'sun');
+      drawMoonDisc(g, p.x, p.y, r, bd.illum, false,
+        sun ? bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, sun.az, sun.alt)) : 0,
+        lat === undefined ? undefined : bearingOnScreen(P, bd.az, bd.alt, skyBearing(bd.az, bd.alt, 0, lat)));
+    } else {
+      g.fillStyle = fill;
+      g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
+    }
+    if (isTarget) {
+      g.strokeStyle = '#e8b563'; g.lineWidth = 2;
+      g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
+    }
+    // Label the working set (Sun/Moon/planets/nav stars) plus any catalogue
+    // star bright enough to be worth naming unprompted. Labelling all ~1600
+    // would bury the view in text; everything else is identifiable by tap.
+    // o.keepClear: {w, h} top-left and a bottom band (px) where overlaid
+    // text sits, as on the Stars tab's preview; names there are left off.
+    const kc = o.keepClear;
+    const hidden = kc && ((p.y < kc.h && p.x < kc.w) || p.y > h - kc.bottom);
+    if (!hidden && (isTarget || bd.kind !== 'star' || bd.nav || (bd.name && bd.mag <= 2.6))) {
+      if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
+        g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
+        g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
+        // Flip the label to the other side rather than let it run off the
+        // edge — near the rim is exactly where you're about to turn toward.
+        const gap = isTarget ? r + 17 : r + 6; // clear the target ring
+        const flip = p.x + gap + g.measureText(bd.name).width > w - 6;
+        g.textAlign = flip ? 'right' : 'left';
+        // Bodies just outside the frame still get labelled (they're about
+        // to come into view), so the anchor itself has to be clamped —
+        // flipping alone leaves the text hanging off the edge.
+        const ax = flip ? Math.min(p.x - gap, w - 6) : Math.max(p.x + gap, 6);
+        g.fillText(bd.name, ax, p.y + 4);
+        drawn.push({ x: p.x, y: p.y });
+      }
+    }
+    g.globalAlpha = 1;
+  });
+
+  if (o.reticle === false) return;
+  // Centre reticle — the "you are pointing here" mark.
+  g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 1;
+  g.beginPath(); g.arc(w / 2, h / 2, 16, 0, 7); g.stroke();
+  g.beginPath();
+  g.moveTo(w / 2 - 26, h / 2); g.lineTo(w / 2 - 20, h / 2);
+  g.moveTo(w / 2 + 20, h / 2); g.lineTo(w / 2 + 26, h / 2);
+  g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
+  g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
+  g.stroke();
+}
+/* Where a point of Sky View's screen looks: the inverse of toScreen and
+   skyProject, as {az, alt}. */
+function screenDir(basis, px, py, w, h, fov) {
+  const f = (h / 2) / Math.tan((fov / 2) * D2R);
+  const sx = (px - w / 2) / f, sy = -(py - h / 2) / f, b = basis;
+  const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
+  return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
+}
+/* The Stars tab's opening picture: Sky View itself, drawn with the same
+   painter, looking toward the equator 35° up (where the Console's painting
+   faces too), redrawn once a minute. The whole picture is the button that
+   opens the real thing; the place and a short line sit over it, as the
+   Console's painting carries its place. */
+const PREVIEW_ALT = 28, PREVIEW_FOV = 64;
+function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, header }) {
+  const canvasRef = useRef(null), wrapRef = useRef(null);
+  const [width, setWidth] = useState(390);
+  useEffect(() => {
+    const el = wrapRef.current;
+    const measure = () => { const w = el && el.getBoundingClientRect().width; if (w) setWidth(Math.round(w)); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  const H = width < 560 ? 400 : 460;
+  const showLines = useSkyLines();
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(width * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = width + 'px'; cv.style.height = H + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, width, H);
+    const aimed = viewBasis(quatFromEuler((360 - facing) % 360, 90 + PREVIEW_ALT, 0), 0);
+    drawSkyView(g, width, H, {
+      basis: aimed, fov: PREVIEW_FOV, cam: false, bodies, lines, names, showLines, targetName: null,
+      mw, lat, lst, clearTop: 150, clearBottom: 120, reticle: false,
+      keepClear: { w: 240, h: 150, bottom: 120 }
+    });
+  }, [width, H, bodies, lines, names, showLines, mw, lat, lst, facing]);
+  const pad = 'clamp(14px,3.5vw,40px)';
+  return React.createElement('div', {
+    ref: wrapRef,
+    style: { position: 'relative', height: H, overflow: 'hidden', margin: `calc(-1 * ${pad}) calc(-1 * ${pad}) 22px` }
+  },
+    React.createElement('canvas', {
+      ref: canvasRef, className: 'hz-sky', style: { display: 'block', width: '100%', height: H, cursor: 'pointer' },
+      onClick: onOpen, 'aria-hidden': 'true'
+    }),
+    // Soft fades at the top and bottom, so the text over the sky reads and
+    // the picture settles into the page, as the Console's painting does.
+    React.createElement('div', { 'aria-hidden': 'true', style: { position: 'absolute', inset: 0, pointerEvents: 'none',
+      background: 'linear-gradient(180deg, rgba(5,7,15,.55) 0%, rgba(5,7,15,0) 26%, rgba(5,7,15,0) 62%, rgba(5,7,15,.9) 100%)' } }),
+    React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+    React.createElement('div', {
+      style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto', pointerEvents: 'none' }
+    },
+      React.createElement('button', {
+        onClick: onOpen,
+        style: {
+          pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 18px',
+          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(210,160,77,.55)',
+          background: 'rgba(12,14,22,.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          color: 'var(--accent-hi)', fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600
+        }
+      }, React.createElement('span', { 'aria-hidden': 'true' }, '✦'), 'Open Sky View', React.createElement('span', { 'aria-hidden': 'true' }, '→')),
+      React.createElement('p', {
+        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(238,241,250,.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
+      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your phone to see the rest, labelled.')
+    )
+  );
+}
+function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst, initialAz }) {
   const canvasRef = useRef(null);
+  const mwCanvas = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
@@ -4899,7 +5621,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   // projection has to be computed for.
   const wrapRef = useRef(null);
   // Drag-to-look, used whenever the sensors aren't driving the view.
-  const [manual, setManual] = useState({ az: 180, alt: 35 });
+  const [manual, setManual] = useState({ az: initialAz === undefined ? 180 : initialAz, alt: 35 });
   const dragRef = useRef(null);
   const fov = useSkyFov();
   const showLines = useSkyLines();
@@ -4988,158 +5710,8 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
 
-    const dir = b => toScreen(basis, b.az, b.alt);
-    const proj = d => skyProject(d, w, h, fov);
-
-    if (!cam) {
-      // Sky gradient, darkest overhead — reads as depth without competing
-      // with the bodies for attention.
-      const up = proj(toScreen(basis, 0, 90));
-      const grad = g.createLinearGradient(0, up ? Math.max(-h, Math.min(2 * h, up.y)) : 0, 0, h);
-      grad.addColorStop(0, '#05070f');
-      grad.addColorStop(1, '#0b1020');
-      g.fillStyle = grad;
-      g.fillRect(0, 0, w, h);
-    }
-
-    // Horizon + cardinal marks: the anchor that tells you the view is real.
-    g.lineWidth = 1;
-    g.strokeStyle = cam ? 'rgba(210,160,77,.55)' : 'rgba(210,160,77,.35)';
-    g.beginPath();
-    let started = false;
-    for (let a = 0; a <= 360; a += 2) {
-      const p = proj(toScreen(basis, a, 0));
-      if (!p) { started = false; continue; }
-      if (!started) { g.moveTo(p.x, p.y); started = true; } else g.lineTo(p.x, p.y);
-    }
-    g.stroke();
-    // Canvas font strings don't resolve CSS custom properties — name the
-    // family outright rather than reaching for --font-ui here.
-    g.font = '600 12px Inter, system-ui, sans-serif';
-    g.fillStyle = 'rgba(210,160,77,.8)';
-    g.textAlign = 'center';
-    for (let a = 0; a < 360; a += 45) {
-      const p = proj(toScreen(basis, a, 0));
-      if (p && p.x > -40 && p.x < w + 40) g.fillText(compass16(a), p.x, p.y + 18);
-    }
-
-    // Constellation lines, under every body. Faint and cool against the warm
-    // horizon, so they give the sky its shapes without competing with the
-    // stars; stronger over the camera image, which is brighter than the
-    // painted sky. Fainter constellations (d3-celestial rank 2, 3) recede.
-    if (showLines && lines && lines.length) {
-      const segs = constellationSegments(lines, (az, alt) => proj(toScreen(basis, az, alt)), 4);
-      const base = cam ? 0.5 : 0.34;
-      g.lineWidth = 1;
-      g.lineCap = 'round';
-      segs.forEach(sg => {
-        if (Math.max(sg.x1, sg.x2) < -20 || Math.min(sg.x1, sg.x2) > w + 20 ||
-            Math.max(sg.y1, sg.y2) < -20 || Math.min(sg.y1, sg.y2) > h + 20) return;
-        const a = base * (sg.rank <= 1 ? 1 : sg.rank === 2 ? 0.8 : 0.62) * (sg.below ? 0.3 : 1);
-        g.strokeStyle = 'rgba(138,164,232,' + a.toFixed(3) + ')';
-        g.beginPath(); g.moveTo(sg.x1, sg.y1); g.lineTo(sg.x2, sg.y2); g.stroke();
-      });
-      // A faint dot at every vertex. Where the catalogue has the star, it is
-      // drawn over this and hides it; where it doesn't (about 3% of vertices,
-      // stars fainter than stars.bin's magnitude-5 cut, mostly in dim
-      // southern constellations), the line still visibly ends on a star.
-      g.fillStyle = 'rgba(238,242,255,.4)';
-      lines.forEach(path => path.pts.forEach(v => {
-        const p = proj(toScreen(basis, v.az, v.alt));
-        if (!p || p.x < -4 || p.x > w + 4 || p.y < -4 || p.y > h + 4) return;
-        g.globalAlpha = v.alt < 0 ? 0.3 : 1;
-        g.beginPath(); g.arc(p.x, p.y, 0.8, 0, 7); g.fill();
-      }));
-      g.globalAlpha = 1;
-      // Names, spaced out, in small capitals the colour of the lines: they
-      // label the figures without reading as bodies. Drawn under the bodies,
-      // so a star's own label always wins.
-      if (names && names.length) {
-        const spots = constellationLabelSpots(names, (az, alt) => proj(toScreen(basis, az, alt)), w, h, 90, 72, 76);
-        g.font = '500 10.5px Inter, system-ui, sans-serif';
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        spots.forEach(sp => {
-          const a = (cam ? 0.8 : 0.62) * (sp.rank <= 1 ? 1 : sp.rank === 2 ? 0.82 : 0.66);
-          g.fillStyle = 'rgba(160,182,240,' + a.toFixed(3) + ')';
-          const t = sp.name.toUpperCase().split('').join('\u2009'), half = g.measureText(t).width / 2 + 6;
-          // A name near the edge is pulled in whole rather than cut off.
-          g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
-        });
-        g.textBaseline = 'alphabetic';
-      }
-    }
-
-    // Bodies, faintest first so bright ones win any overlap.
-    const drawn = [];
-    // `bodies` arrives sorted faintest-first, so bright stars overdraw faint
-    // ones without a per-frame sort of ~1600 entries.
-    bodies.forEach(bd => {
-      const d = dir(bd), p = proj(d);
-      if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
-      const isTarget = bd.name === targetName;
-      let r, fill, dim = 1;
-      if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
-      else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
-      else if (bd.kind === 'planet') { r = 5.5; fill = '#f0c98a'; }
-      else {
-        // Magnitude -> radius/opacity. With a full catalogue the faint end
-        // has to actually recede, or 1500 stars all render as identical dots
-        // and the constellations stop being readable.
-        r = Math.max(0.7, 4.6 - bd.mag * 0.72);
-        fill = '#eef2ff';
-        dim = Math.max(0.34, Math.min(1, 1.06 - bd.mag * 0.1));
-      }
-      // Below the horizon the Earth is in the way. Still drawn, so the view
-      // stays continuous as you sweep down past the skyline, but dimmed so
-      // it never reads as something you could actually go and look at.
-      g.globalAlpha = bd.alt < 0 ? dim * 0.22 : dim;
-      if (bd.kind === 'sun' || bd.kind === 'moon') {
-        const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 3);
-        glow.addColorStop(0, bd.kind === 'sun' ? 'rgba(255,210,127,.5)' : 'rgba(232,230,223,.35)');
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = glow;
-        g.beginPath(); g.arc(p.x, p.y, r * 3, 0, 7); g.fill();
-      }
-      g.fillStyle = fill;
-      g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
-      if (isTarget) {
-        g.strokeStyle = '#e8b563'; g.lineWidth = 2;
-        g.beginPath(); g.arc(p.x, p.y, r + 10, 0, 7); g.stroke();
-      }
-      // Label the working set (Sun/Moon/planets/nav stars) plus any catalogue
-      // star bright enough to be worth naming unprompted. Labelling all ~1600
-      // would bury the view in text; everything else is identifiable by tap.
-      if (isTarget || bd.kind !== 'star' || bd.nav || (bd.name && bd.mag <= 2.6)) {
-        if (!drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) {
-          g.font = (isTarget ? '600 ' : '500 ') + '12px Inter, system-ui, sans-serif';
-          g.fillStyle = isTarget ? '#e8b563' : 'rgba(238,242,255,.72)';
-          // Flip the label to the other side rather than let it run off the
-          // edge — near the rim is exactly where you're about to turn toward.
-          const gap = isTarget ? r + 17 : r + 6; // clear the target ring
-          const flip = p.x + gap + g.measureText(bd.name).width > w - 6;
-          g.textAlign = flip ? 'right' : 'left';
-          // Bodies just outside the frame still get labelled (they're about
-          // to come into view), so the anchor itself has to be clamped —
-          // flipping alone leaves the text hanging off the edge.
-          const ax = flip ? Math.min(p.x - gap, w - 6) : Math.max(p.x + gap, 6);
-          g.fillText(bd.name, ax, p.y + 4);
-          drawn.push({ x: p.x, y: p.y });
-        }
-      }
-      g.globalAlpha = 1;
-    });
-
-    // Centre reticle — the "you are pointing here" mark.
-    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 1;
-    g.beginPath(); g.arc(w / 2, h / 2, 16, 0, 7); g.stroke();
-    g.beginPath();
-    g.moveTo(w / 2 - 26, h / 2); g.lineTo(w / 2 - 20, h / 2);
-    g.moveTo(w / 2 + 20, h / 2); g.lineTo(w / 2 + 26, h / 2);
-    g.moveTo(w / 2, h / 2 - 26); g.lineTo(w / 2, h / 2 - 20);
-    g.moveTo(w / 2, h / 2 + 20); g.lineTo(w / 2, h / 2 + 26);
-    g.stroke();
-  }, [bodies, lines, names, showLines, basis, size, cam, targetName, fov]);
+    drawSkyView(g, w, h, { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst, mwRef: mwCanvas });
+  }, [bodies, lines, names, showLines, basis, size, cam, targetName, fov, mw, lat, lst]);
 
   // Off-screen target arrow: without it, a target behind you just isn't there
   // and the view looks broken rather than merely pointed the wrong way.
@@ -5436,6 +6008,12 @@ function StarFinder({ redMode } = {}) {
     loadStarCatalog().then(c => { if (live) setStarCatalog(c); });
     return () => { live = false; };
   }, [starCatalog]);
+  const [milkyWay, setMilkyWay] = useState(null);
+  useEffect(() => {
+    let live = true;
+    loadMilkyWay().then(m => { if (live) setMilkyWay(m); });
+    return () => { live = false; };
+  }, []);
   const [constLines, setConstLines] = useState(null);
   useEffect(() => {
     if (constLines) return;
@@ -5654,20 +6232,21 @@ function StarFinder({ redMode } = {}) {
   const skyBodies = useMemo(() => {
     const d = new Date(now), out = [];
     const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
-    const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12 });
+    const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12, illum: mo.illum });
     ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
       const r = planetAltAz(p, d, loc.lat, loc.lon);
       if (r) out.push({ name: p, az: r.az, alt: r.alt, kind: 'planet', mag: -2 });
     });
     // nav: true marks the app's working set — always labelled, and the only
     // stars the sight-reduction and aim tools know about.
-    NAV_STARS.forEach(st => {
+    const navCi = (starCatalog && starCatalog.navCi) || [];
+    NAV_STARS.forEach((st, i) => {
       const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, d);
-      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3], nav: true });
+      out.push({ name: st[0], az: p.az, alt: p.alt, kind: 'star', mag: st[3], nav: true, color: starColor(navCi[i], st[3]) });
     });
     (starCatalog || []).forEach(st => {
       const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, d);
-      out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag });
+      out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag, color: starColor(st.ci, st.mag) });
     });
     // Sorted faintest-first once here rather than per frame, so the draw loop
     // gets correct overlap (bright on top) without re-sorting ~1600 entries
@@ -5746,13 +6325,14 @@ function StarFinder({ redMode } = {}) {
   // chart starts with the 57 navigational stars and fills in.
   const chartStars = useMemo(() => {
     const dt = new Date(now);
-    const out = NAV_STARS.map(st => {
+    const navCi = (starCatalog && starCatalog.navCi) || [];
+    const out = NAV_STARS.map((st, i) => {
       const p = starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, dt);
-      return { name: st[0], mag: st[3], alt: p.alt, az: p.az, nav: true };
+      return { name: st[0], mag: st[3], alt: p.alt, az: p.az, nav: true, color: starColor(navCi[i], st[3]) };
     });
     (starCatalog || []).forEach(st => {
       const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, dt);
-      out.push({ name: st.name, mag: st.mag, alt: p.alt, az: p.az });
+      out.push({ name: st.name, mag: st.mag, alt: p.alt, az: p.az, color: starColor(st.ci, st.mag) });
     });
     return out.filter(st => st.alt > -1).sort((a, b) => b.mag - a.mag);
   }, [minuteKey, loc.lat, loc.lon, starCatalog]);
@@ -5774,7 +6354,8 @@ function StarFinder({ redMode } = {}) {
   const skyChart = React.createElement(SkyChart, {
     stars: chartStars, lines: chartLines, planets: chartPlanets,
     moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
-    fix: fixStars, polaris: showPolaris ? polaris : null
+    fix: fixStars, polaris: showPolaris ? polaris : null,
+    mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(now)) + loc.lon)
   });
   const polarisBox = showPolaris && React.createElement("div", {
     style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 16 }
@@ -6179,47 +6760,33 @@ function StarFinder({ redMode } = {}) {
           diagBlock
         )
   );
-  // Sky View is the one thing on this tab you'd reach for standing outside in
-  // the dark, so it goes directly under the header rather than below the star
-  // table and the whole sight-reduction form. A filled, tappable card is
-  // consistent with the "box only if actionable" rule — the entire card is
-  // the control.
-  const skyLauncher = React.createElement("button", {
-    onClick: openSky,
-    style: {
-      display: "flex", alignItems: "center", gap: 14, width: "100%", maxWidth: 1080,
-      margin: "0 auto 20px", padding: "14px 16px", borderRadius: 12, cursor: "pointer",
-      textAlign: "left", border: "1px solid rgba(210,160,77,.38)", background: "var(--btn-fill)"
-    }
-  },
-    React.createElement("span", { "aria-hidden": "true", style: { fontSize: 20, lineHeight: 1, color: "var(--accent-hi)" } }, "✦"),
-    React.createElement("span", { style: { flex: 1, minWidth: 0 } },
-      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: "var(--accent-hi)" } }, "Open Sky View"),
-      React.createElement("span", { style: { display: "block", fontFamily: "var(--font-body)", fontSize: 12.5, color: C.inkDim, marginTop: 2, lineHeight: 1.4 } },
-        "Point your phone at the sky and see what's there, labelled.")
-    ),
-    React.createElement("span", { "aria-hidden": "true", style: { fontFamily: "var(--font-ui)", fontSize: 17, color: "var(--accent-hi)", flexShrink: 0 } }, "→")
-  );
+  // Which way the preview (and Sky View, without sensors) first looks: toward
+  // the equator, as the Console's painting does.
+  const previewFacing = loc.lat >= 0 ? 180 : 0;
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
   const pageBg = PAGE_BG;
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
-    React.createElement("header", { style: { maxWidth: 1080, margin: "0 auto 18px" } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "Celestial Navigation"),
-      React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontWeight: 600, fontSize: "clamp(26px,5.4vw,44px)", lineHeight: 1.02, margin: "6px 0 12px", letterSpacing: "-0.01em" } }, "Star Finder"),
-      React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 } },
-        React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 15, color: C.ink } }, loc.name),
-        React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "var(--btn-fill)", color: "var(--accent-hi)" } }, "Use my location"),
-        geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim } }, geoMsg)
+    React.createElement(SkyViewPreview, {
+      bodies: skyBodies, lines: constellationPaths, names: constellationNames,
+      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
+      facing: previewFacing, onOpen: openSky,
+      header: React.createElement("header", null,
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Star Finder"),
+        React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
+          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
+          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
+        )
       )
-    ),
-    skyLauncher,
+    }),
     starFinderPanel,
     navigatorPanel,
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
+      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       bodies: skyBodies,
       lines: constellationPaths,
       names: constellationNames,
@@ -6232,6 +6799,7 @@ function StarFinder({ redMode } = {}) {
       viewQ,
       diag,
       onClose: () => setSkyOpen(false),
+      initialAz: previewFacing,
       sensorMsg: aimStatusMsg
     })
   );
@@ -6627,7 +7195,7 @@ function TwilightApp() {
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
-        " (CC BY-SA 4.0) · Constellation lines and names: ",
+        " (CC BY-SA 4.0) · Constellation lines and names, Milky Way: ",
         React.createElement("a", { href: "https://github.com/ofrohn/d3-celestial", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "d3-celestial"),
         " © Olaf Frohn (",
         React.createElement("a", { href: "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
