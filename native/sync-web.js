@@ -25,10 +25,12 @@ const FILES = [
   'facts.json',
   // BSD 3-Clause: binary redistribution must carry the notice with it.
   'constellations.LICENSE.txt',
+  'favicon-64.png',
   'icon-192.png',
   'icon-512.png',
   'icon-512-maskable.png',
   'apple-touch-icon.png',
+  'fonts/inter-latin.woff2',
   'fonts/inter-var.woff2',
   'fonts/cormorant.woff2',
   'fonts/cormorant-i.woff2'
