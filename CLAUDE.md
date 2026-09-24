@@ -251,6 +251,18 @@ Three tabs, one `index.html`, no build step:
   left Aim Assist and Sky View's Align with nothing. That meant moving
   `skyBodies` and the constellation memos above it: a `useMemo` reading a
   later `const` throws on render. `find.test.js`.
+- **Time travel in Sky View (2026-09-24).** A **Time** button in Sky View's
+  top bar opens a slider, a day either way in 15-minute steps, on the same
+  live (or drag) view: point the phone where Jupiter will rise tonight.
+  `skyShift` (minutes) lives in `StarFinder`; `skyNow = now + skyShift`
+  feeds `skyBodies`, `constellationPaths`, `constellationNames` and Sky View's
+  `lst` (Milky Way), so Find, the guide and the edge arrow follow the time
+  shown. The chip becomes the time ("22:45", with the weekday once it isn't
+  today) and the bottom line says "The sky at 22:45, in 7 h 45 min"
+  (`timeShiftWords`) with a **Now** button. **Closing Sky View resets it**,
+  so the preview, chart and Aim Assist always show now; and **Align is not
+  offered while shifted** (`align: skyShift ? null : …`), since it compares
+  the drawn sky with the real one. `time-travel.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -759,6 +771,11 @@ things a syntax check cannot see:
   `edgePoint`, a picked constellation drawn amber and named once, and at
   source level that `aimTarget` resolves Sky View's picks and is declared
   after what it reads.
+- **`time-travel.test.js`** — `timeShiftWords`, `StarFinder`'s own
+  `skyBodies` / `constellationPaths` / `constellationNames` memos run from
+  source with `now` and `skyNow` apart (every body, line and name at
+  `skyNow`), and at source level the shifted `lst`, the reset on close, no
+  Align while shifted, and the preview left on now.
 - **`ephemeris-extras.test.js`** — golden and blue hours against geometry
   that doesn't depend on the code: 40 and 8 minutes at the equator on an
   equinox, longer at a slant; windows that can't happen far north in

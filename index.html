@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-FD3TQFCOFi2MY2hje7WsGpEyptLCl9SfrMHjgujYPTw=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-nQCFAqvffKAFY2tYwXxBUsY6OnflXwNuQTO20c6EdBI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1324,7 +1324,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v109";
+const BUILD = "v113";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -6177,13 +6177,23 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
     )
   );
 }
-function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst, initialAz, align }) {
+// How far the time shown is from now, in words: "in 3 h 15 min", "45 min
+// ago", "now".
+function timeShiftWords(min) {
+  if (!min) return 'now';
+  const a = Math.abs(min), h = Math.floor(a / 60), m = a % 60;
+  const span = (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
+  return min > 0 ? 'in ' + span : span + ' ago';
+}
+function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick, onClose, sensorMsg, northMsg, diag, mw, lat, lst, initialAz, align, time }) {
   const canvasRef = useRef(null);
   const mwCanvas = useRef(null);
   const videoRef = useRef(null);
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
   const [findOpen, setFindOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const shifted = !!(time && time.shift);
   const [size, setSize] = useState({ w: 360, h: 640 });
   // The overlay whose box the canvas fills, and therefore the box the
   // projection has to be computed for.
@@ -6409,6 +6419,10 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         onClick: () => { setFindOpen(v => !v); if (diag && diag.open) diag.onToggle(); }, 'aria-expanded': findOpen,
         style: { ...chip, ...(findOpen ? chipOn : {}) }
       }, 'Find'),
+      time && React.createElement('button', {
+        onClick: () => setTimeOpen(v => !v), 'aria-expanded': timeOpen,
+        style: { ...chip, ...(timeOpen || shifted ? chipOn : {}) }
+      }, shifted ? time.label : 'Time'),
       diag && React.createElement('button', {
         onClick: () => { setFindOpen(false); diag.onToggle(); }, 'aria-expanded': diag.open,
         style: { ...chip, ...(diag.open ? chipOn : {}) }
@@ -6444,7 +6458,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             it.name,
             React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
         ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
-          'Nothing bright is up right now. Try again after dark.')
+          shifted ? 'Nothing bright is up at that time.' : 'Nothing bright is up right now. Try again after dark.')
       )
     ),
     // Sensor readout. Capped in height so the centre reticle stays visible —
@@ -6492,6 +6506,23 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), style: { ...chip, padding: '6px 12px' } }, 'Reset')
       ),
       camErr ? camErr + ' ' : '',
+      /* Time travel: where things will be (or were), up to a day either way,
+         on the same live view, so the phone can be pointed at where Jupiter
+         rises tonight. Find and the guide follow the time shown. */
+      time && (timeOpen || shifted) && React.createElement('div', {
+        ...keepTap,
+        style: { display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }
+      },
+        React.createElement('span', { style: { fontSize: 12.5, color: shifted ? '#e8b563' : '#eef2ff', minWidth: 170 }, 'aria-live': 'polite' },
+          (shifted ? 'The sky at ' : 'The sky now, ') + time.label + (shifted ? ', ' + timeShiftWords(time.shift) : '')),
+        timeOpen && React.createElement('input', {
+          type: 'range', min: -1440, max: 1440, step: 15, value: time.shift,
+          'aria-label': 'Time shown, in minutes from now', 'aria-valuetext': time.label + ', ' + timeShiftWords(time.shift),
+          onChange: e => time.onShift(+e.target.value),
+          style: { flex: '1 1 220px', maxWidth: 360, accentColor: '#e8b563' }
+        }),
+        shifted && React.createElement('button', { onClick: () => time.onShift(0), style: { ...chip, padding: '6px 12px' } }, 'Now')
+      ),
       // A north warning takes precedence: until north is settled, what is
       // drawn cannot be trusted, and that matters more than the target line.
       live && northMsg && React.createElement('div', { style: { color: '#e8b563', marginBottom: 4 } }, northMsg),
@@ -6575,6 +6606,11 @@ function StarFinder({ redMode } = {}) {
   // The chart places ~2,500 stars, line vertices and bodies. Once a minute is
   // plenty: the sky turns a quarter of a degree in that time.
   const minuteKey = Math.floor(now / 60000);
+  // Sky View's time travel: minutes ahead of (or behind) now. Only Sky View
+  // offers it, and closing Sky View brings it back to now, so the preview,
+  // the chart and Aim Assist always show the sky as it is.
+  const [skyShift, setSkyShift] = useState(0);
+  const skyNow = now + skyShift * 60000;
   const useMyLocation = () => {
     if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
@@ -6860,7 +6896,7 @@ function StarFinder({ redMode } = {}) {
   // Everything Sky View can draw. Kept a little below the horizon so the
   // horizon line has something on both sides of it.
   const skyBodies = useMemo(() => {
-    const d = new Date(now), out = [];
+    const d = new Date(skyNow), out = [];
     const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
     const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12, illum: mo.illum });
     ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].forEach(p => {
@@ -6882,22 +6918,22 @@ function StarFinder({ redMode } = {}) {
     // gets correct overlap (bright on top) without re-sorting ~1600 entries
     // on every sensor event.
     return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
-  }, [now, loc.lat, loc.lon, starCatalog]);
+  }, [skyNow, loc.lat, loc.lon, starCatalog]);
   // Constellation vertices to alt/az once per clock tick, like the catalogue
   // above, so the draw loop only projects.
   const constellationPaths = useMemo(() => {
     if (!constLines || !constLines.length) return [];
-    const d = new Date(now);
+    const d = new Date(skyNow);
     return constLines.map(c => ({
       id: c.id, rank: c.rank,
       pts: c.pts.map(v => { const p = starHcZn(v.ra, v.dec, loc.lat, loc.lon, d); return { az: p.az, alt: p.alt }; })
     }));
-  }, [now, loc.lat, loc.lon, constLines]);
+  }, [skyNow, loc.lat, loc.lon, constLines]);
   const constellationNames = useMemo(() => {
     if (!constNames || !constNames.length) return [];
-    const d = new Date(now);
+    const d = new Date(skyNow);
     return constNames.map(c => { const p = starHcZn(c.ra, c.dec, loc.lat, loc.lon, d); return { id: c.id, name: c.name, rank: c.rank, az: p.az, alt: p.alt }; });
-  }, [now, loc.lat, loc.lon, constNames]);
+  }, [skyNow, loc.lat, loc.lon, constNames]);
   const aimTarget = useMemo(() => {
     if (!aimTargetName) return null;
     if (aimTargetName === 'Sun') { const p = sunHcZn(new Date(now), loc.lat, loc.lon); return { name: 'Sun', alt: p.alt, az: p.az }; }
@@ -7468,7 +7504,12 @@ function StarFinder({ redMode } = {}) {
     navigatorPanel,
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
-      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
+      mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000 + skyShift * 60000)) + loc.lon),
+      time: {
+        shift: skyShift, onShift: setSkyShift,
+        // A day either way crosses midnight, so the day is named when it isn't today.
+        label: (dateKey(skyNow, loc.tz) !== dateKey(now, loc.tz) ? new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'short' }).format(new Date(skyNow)) + ' ' : '') + fmtT(skyNow, loc.tz)
+      },
       bodies: skyBodies,
       lines: constellationPaths,
       names: constellationNames,
@@ -7480,9 +7521,11 @@ function StarFinder({ redMode } = {}) {
       northMsg,
       viewQ,
       diag,
-      onClose: () => setSkyOpen(false),
+      onClose: () => { setSkyOpen(false); setSkyShift(0); },
       initialAz: previewFacing,
-      align: { onAlign: alignHere, onReset: () => prefStore.setAimOffset(0), offset: aimOffset },
+      // Align compares the drawn sky with the real one, which only means
+      // something while the drawn sky is now.
+      align: skyShift ? null : { onAlign: alignHere, onReset: () => prefStore.setAimOffset(0), offset: aimOffset },
       sensorMsg: aimStatusMsg
     })
   );
