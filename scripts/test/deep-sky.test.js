@@ -20,7 +20,7 @@ const byId = Object.fromEntries(DSO.map(r => [r[0], r]));
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS16', 'compass16',
   'quatAxis', 'quatMul', 'quatFromEuler', 'quatRotate', 'vecAz', 'viewBasis', 'toScreen', 'skyProject', 'screenDir',
-  'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'DSO_KIND', 'dsoLabel', 'findList',
+  'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'DSO_KIND', 'dsoLabel', 'PLANET_MAG', 'findLimit', 'findList',
   'theName', 'capFirst', 'findGuide',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
   'drawMoonDisc', 'starGlow', 'drawDeepSky', 'drawSkyView']);
@@ -76,6 +76,39 @@ test('Find offers the ones worth going out for, and says what they are', () => {
   assert.strictEqual(g.items[0].where, 'star cluster, low in the east');
 });
 
+test('in twilight only the brightest clusters are offered, and none by day', () => {
+  const sun = alt => ({ name: 'Sun', kind: 'sun', az: 280, alt, mag: -26 });
+  const deep = [body('Andromeda Galaxy', 'M31', 's', 3.4, 80, 60, 190), body('Pleiades', 'M45', 'oc', 1.2, 70, 30, 110)];
+  const group = alt => (m.findList([sun(alt)].concat(deep), []).find(x => x.title === 'Galaxies, nebulae and clusters') || { items: [] }).items.map(i => i.name);
+  assert.deepStrictEqual(group(-20), ['Pleiades', 'Andromeda Galaxy']);
+  assert.deepStrictEqual(group(-9), ['Pleiades'], 'nautical twilight: the Pleiades, not yet a galaxy');
+  assert.deepStrictEqual(group(-4), []);
+  assert.deepStrictEqual(group(10), []);
+});
+
+test('a galaxy’s name steps round a constellation’s', () => {
+  const draw = boxes => { const c = ctx(); m.drawDeepSky(c.g, body('Triangulum Galaxy', 'M33', 's', 5.7, 0, 40, 60), { x: 200, y: 300 }, false, 844, 63, null, 390, [], boxes); return c.texts; };
+  const free = draw([]);
+  assert.ok(free.length === 1 && free[0].y > 300, 'below the outline when there’s room');
+  const under = draw([{ x1: 150, x2: 250, y1: free[0].y - 7, y2: free[0].y + 7 }]);
+  assert.ok(under.length === 1 && under[0].y < 300, 'above it when a constellation’s name is below');
+  const both = draw([{ x1: 150, x2: 250, y1: free[0].y - 7, y2: free[0].y + 7 }, { x1: 150, x2: 250, y1: 260, y2: 300 }]);
+  assert.strictEqual(both.length, 0, 'left off when both are taken');
+});
+
+test('Sky View passes the constellation names it wrote to the galaxy labels', () => {
+  const basis = m.viewBasis(m.quatFromEuler(360 - 80, 90 + 55, 0), 0);
+  const scene = withName => {
+    const c = ctx();
+    m.drawSkyView(c.g, 390, 844, { basis, fov: 63, cam: false, lines: [{ id: 'Tri', rank: 1, pts: [{ az: 70, alt: 40 }, { az: 71, alt: 41 }] }], showLines: true, reticle: false,
+      names: withName ? [{ id: 'Tri', name: 'Triangulum', rank: 1, az: 80, alt: 55 }] : [],
+      bodies: [body('Triangulum Galaxy', 'M33', 's', 5.7, 80, 56.27, 20)] });
+    return c.texts.find(t => t.t === 'Triangulum Galaxy');
+  };
+  const alone = scene(false), crowded = scene(true);
+  assert.ok(alone && crowded && crowded.y < alone.y - 20, `moved above: ${alone && alone.y} -> ${crowded && crowded.y}`);
+});
+
 test('the guide says "the" where English does', () => {
   assert.strictEqual(m.theName('Andromeda Galaxy'), 'the Andromeda Galaxy');
   assert.strictEqual(m.theName('Orion Nebula'), 'the Orion Nebula');
@@ -92,7 +125,7 @@ function ctx() {
   const g = {
     strokeStyle: '', fillStyle: '', lineWidth: 1, font: '', textAlign: '', textBaseline: '', globalAlpha: 1, lineCap: '',
     createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }),
-    measureText: t => ({ width: t.length * 6 }), fillText(t) { texts.push({ t, color: this.fillStyle }); },
+    measureText: t => ({ width: t.length * 6 }), fillText(t, x, y) { texts.push({ t, x, y, color: this.fillStyle }); },
     setLineDash(d) { dash = d; },
     ellipse(x, y, rx, ry) { shapes.push({ kind: 'ellipse', rx, ry, dash: dash.slice(), color: this.strokeStyle }); },
     arc(x, y, r) { shapes.push({ kind: 'arc', r, dash: dash.slice(), color: this.strokeStyle }); },

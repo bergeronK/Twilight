@@ -17,7 +17,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst',
   'tzOffset', 'zoneOffsets', 'shiftDate', 'hx', 'toHex', 'lerpC', 'skyColors', 'daySkyStops',
-  'moonState', 'moonTopo', 'moonAltSeen', 'moonDayTrack']);
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonDayTrack']);
 
 test('zoneOffsets: the offset a real zone has on the date, daylight saving included', () => {
   const cases = [
