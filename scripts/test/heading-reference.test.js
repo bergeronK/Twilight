@@ -53,6 +53,9 @@ function makeListener() {
     fusedView: O.fusedView,
     Date: { now: () => clock.now }
   };
+  // The fusion-and-publish step the handler hands each sample to (shared
+  // with the iPhone app's CoreMotion stream), built from source the same way.
+  deps.publish = new Function(...Object.keys(deps), declSource('publish') + '\nreturn publish;')(...Object.values(deps));
   const names = Object.keys(deps);
   const fn = new Function(...names, declSource('orientHandler') + '\nreturn orientHandler;')(
     ...names.map(n => deps[n])

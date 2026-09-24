@@ -251,6 +251,32 @@ Three tabs, one `index.html`, no build step:
   left Aim Assist and Sky View's Align with nothing. That meant moving
   `skyBodies` and the constellation memos above it: a `useMemo` reading a
   later `const` throws on render. `find.test.js`.
+- **Time travel in Sky View (2026-09-24).** A **Time** button in Sky View's
+  top bar opens a slider, a day either way in 15-minute steps, on the same
+  live (or drag) view: point the phone where Jupiter will rise tonight.
+  `skyShift` (minutes) lives in `StarFinder`; `skyNow = now + skyShift`
+  feeds `skyBodies`, `constellationPaths`, `constellationNames` and Sky View's
+  `lst` (Milky Way), so Find, the guide and the edge arrow follow the time
+  shown. The chip becomes the time ("22:45", with the weekday once it isn't
+  today) and the bottom line says "The sky at 22:45, in 7 h 45 min"
+  (`timeShiftWords`) with a **Now** button. **Closing Sky View resets it**,
+  so the preview, chart and Aim Assist always show now; and **Align is not
+  offered while shifted** (`align: skyShift ? null : …`), since it compares
+  the drawn sky with the real one. `time-travel.test.js`.
+- **Galaxies, nebulae and clusters (2026-09-24).** `deep-sky.json` (4.3 KB,
+  all 110 Messier objects, `[id, name, type, mag, ra, dec, size′]`), built by
+  `scripts/generate-deep-sky.js` from d3-celestial's `messier.json` at the
+  same pinned commit as the constellations (BSD; the licence file names it);
+  30 common names, with `NAMES` overrides where d3-celestial's are odd.
+  Loaded when the Stars tab opens (`loadDeepSky`), added to `skyBodies` as
+  `kind: 'dso'`. `drawDeepSky` draws each at its real angular size (4 px
+  minimum): galaxies as tilted ellipses, clusters dashed, nebulae solid, in
+  violet; only named objects of magnitude 6 or brighter are labelled (no
+  catalogue numbers across the sky) unless picked, when it goes amber.
+  Find gains a "Galaxies, nebulae and clusters" group: magnitude 6 or
+  brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
+  east"). `theName` says "the Andromeda Galaxy". Not on the Console's
+  painting or the chart. `deep-sky.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -533,6 +559,22 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   picked, and nothing said so. Now, with sensors live and nothing picked,
   Sky View's bottom offers **Align on the Moon** when it's up (picks it),
   otherwise "Tap a bright star or planet you can see, then Align."
+- **The iPhone app reads CoreMotion (2026-09-24, v111; unbuilt).** In the
+  Capacitor app, Sky View's orientation comes from CoreMotion's fused
+  attitude in the true-north frame, the source native sky apps use, via
+  `TwilyteMotionPlugin` in `native/ios/App/App/AppDelegate.swift` (JS
+  `TwilyteMotion`; registered by `TwilyteBridgeViewController`, which the
+  storyboard now names). `nativeMotion()` finds it (iOS only); the effect
+  then skips the browser's events and feeds `{kind:'abs'}` samples through
+  the same `publish` step. `iosAttitudeToEnu(r, g, dir)` converts the
+  matrix and **uses gravity to decide which way round it goes** rather than
+  trusting the docs (a wrong guess mirrors every bearing). One band of
+  compass directions can't be told apart by gravity, so the decision waits
+  until the phone turns out of it and is then kept. Sensor details shows
+  "iOS CoreMotion" and the frame. **Never built or run on a device**: no
+  Mac here. `native-motion.test.js` (W3C matrix written out independently,
+  CoreMotion simulated both ways, a physical "camera east" pose, Swift and
+  JS names in step) and `native/README.md` for the device check.
 - **(Superseded) iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
   A third iPhone reading (42.11, -72.54, declination 13.3° W; Moon at az 120,
   alt 12; `webkitCompassHeading` 125) drew the Moon 6° left of the real one.
@@ -802,6 +844,16 @@ things a syntax check cannot see:
   `edgePoint`, a picked constellation drawn amber and named once, and at
   source level that `aimTarget` resolves Sky View's picks and is declared
   after what it reads.
+- **`time-travel.test.js`** — `timeShiftWords`, `StarFinder`'s own
+  `skyBodies` / `constellationPaths` / `constellationNames` memos run from
+  source with `now` and `skyNow` apart (every body, line and name at
+  `skyNow`), and at source level the shifted `lst`, the reset on close, no
+  Align while shifted, and the preview left on now.
+- **`deep-sky.test.js`** — `deep-sky.json` against published J2000
+  positions (M31, M42, M45, M13, M57, M1, M44 within 0.5°), not its own
+  contents; Find's group (faint, low, order, the kind's words); the drawing
+  with a recording canvas (size from arcminutes, ellipse, dashes, no catalogue
+  numbers written, amber when picked); and that the file ships.
 - **`ephemeris-extras.test.js`** — golden and blue hours against geometry
   that doesn't depend on the code: 40 and 8 minutes at the equator on an
   equinox, longer at a slant; windows that can't happen far north in

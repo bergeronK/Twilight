@@ -87,6 +87,6 @@ test("Sky View carries Aim Assist's Align, where the error is seen", () => {
   // an iPhone, the phone compass's own error. The correction existed only on
   // the Stars tab; Sky View must offer the same one, wired to the same
   // handler, and only when it can mean something (sensors live, a target).
-  assert.match(declSource('StarFinder'), /align: \{ onAlign: alignHere, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
+  assert.match(declSource('StarFinder'), /align: skyShift \? null : \{ onAlign: alignHere, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
   assert.match(declSource('SkyDome'), /live && target && align && React\.createElement/);
 });
