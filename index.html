@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ig0NFh9XRjHeY8EJsMK6qFyiiumdOZZeoJLgeDGK8lk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-IJ887kqMK8q79tnpW9WQPbxQ5oTFBXss+72rOibAkDY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -876,11 +876,13 @@ function auroraReach(mlat, kp) {
 function auroraTonight(plan, lat, lon, rows, fmt) {
   if (!plan || !rows || !rows.length) return null;
   const mlat = geomagLat(lat, lon, new Date(plan.start));
-  let best = null;
+  let best = null, dark = null;
   for (let t = plan.start; t <= plan.end; t += 15 * 60000) {
     if (sunAltitude(new Date(t), lat, lon) > -12) continue;
+    if (dark === null) dark = t;
     const row = rows.find(r => t >= r.t && t < r.t + 3 * 3600000);
-    if (row && (!best || row.kp > best.kp)) best = { kp: row.kp, t };
+    // From the block's start, or from dark if it began before then.
+    if (row && (!best || row.kp > best.kp)) best = { kp: row.kp, t: Math.max(row.t, dark) };
   }
   if (!best) return null;
   const reach = auroraReach(mlat, best.kp);

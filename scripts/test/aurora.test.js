@@ -100,7 +100,7 @@ test('tonight’s chance, from the dark hours only', () => {
   // A storm at 06 UTC, 2 AM in Boston: in the dark.
   const a = m.auroraTonight(plan, lat, lon, rows(from, 2, [Date.UTC(2026, 8, 25, 6), 6.67]), fmt);
   assert.strictEqual(a.reach, 'low');
-  assert.ok(a.t >= Date.UTC(2026, 8, 25, 6) && a.t < Date.UTC(2026, 8, 25, 9));
+  assert.strictEqual(a.t, Date.UTC(2026, 8, 25, 6), 'from the start of the block');
   assert.strictEqual(a.south, false);
   assert.strictEqual(m.auroraTonight(plan, lat, lon, rows(from, 2, [Date.UTC(2026, 8, 25, 6), 8.33]), fmt).reach, 'overhead');
   // The same storm at 18 UTC, 2 PM, is in daylight: nothing.
@@ -109,6 +109,9 @@ test('tonight’s chance, from the dark hours only', () => {
   // is 12° down (7:40): nothing.
   assert.strictEqual(m.auroraTonight(plan, lat, lon, [{ t: Date.UTC(2026, 8, 24, 20, 30), kp: 8.33 }], fmt), null);
   // Hobart, under the southern oval's reach.
+  // A storm all evening: from when it gets dark, not from sunset.
+  const ev = m.auroraTonight(plan, lat, lon, rows(from, 7), fmt);
+  assert.ok(m.sunAltitude(new Date(ev.t), lat, lon) <= -12 && m.sunAltitude(new Date(ev.t - 15 * 60000), lat, lon) > -12, fmt(ev.t));
   const hp = planFor('2026-09-24T10:00:00Z', -42.88, 147.33);
   const h = m.auroraTonight(hp, -42.88, 147.33, rows(from, 7), fmt);
   assert.ok(h && h.south && h.reach !== null, JSON.stringify(h));
