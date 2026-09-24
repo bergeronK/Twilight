@@ -4,6 +4,7 @@ const ASSETS = [
   '/index.html',
   '/privacy.html',
   '/manifest.json',
+  '/favicon-64.png',
   '/icon-192.png',
   '/icon-512.png',
   '/icon-512-maskable.png',
@@ -17,7 +18,7 @@ const ASSETS = [
   '/constellation-names.json',
   '/milkyway.bin',
   '/facts.json',
-  '/fonts/inter-var.woff2',
+  '/fonts/inter-latin.woff2',
   '/fonts/cormorant.woff2',
   '/fonts/cormorant-i.woff2'
 ];
@@ -43,6 +44,12 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const req = event.request;
+  // Only this site's own files. Other origins (the Open-Meteo forecast and
+  // geocoder, the visit counter) go straight to the network: served from
+  // this cache first, as stale-while-revalidate does, every forecast shown
+  // was the one fetched the time before, often hours old, and the visit
+  // count lagged a day. The app keeps its own forecast copy for offline use.
+  if (new URL(req.url).origin !== self.location.origin) return;
   const isDoc = req.mode === 'navigate' ||
     (req.headers.get('accept') || '').includes('text/html');
 

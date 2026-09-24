@@ -46,6 +46,18 @@ Three tabs, one `index.html`, no build step:
     cool navy-to-blue-black radial gradient, deliberately independent of the
     warm tokens so panels stay warm while the page's negative space reads
     as night sky. Shared across all three tabs.
+  - **Inter loads in two parts** (2026-09-24): `fonts/inter-latin.woff2`
+    (141 KB; both axes and every OpenType feature, made by
+    `scripts/subset-inter.sh` with fonttools) is preloaded and covers what
+    the app writes; `fonts/inter-var.woff2` (352 KB) is a second face whose
+    `unicode-range` is exactly Inter's other glyphs, so it's fetched only for
+    e.g. a Cyrillic place name. Throttled phone profile (1.6 Mbps, 4× CPU):
+    fonts and painting ready 7.0 s → 4.8 s, 1,092 → 888 KB. **Any new
+    character outside the core range pulls the full font on every visit and
+    looks no different**: `load.test.js` checks every character in
+    `index.html`, `facts.json` and the constellation names (it caught the
+    fullwidth ＋ of "Add to calendar"). The tab icon is `favicon-64.png`
+    (5 KB), not the 79 KB `icon-512.png`.
   - Typography: Inter for everything functional (labels, numerals, UI, body);
     Cormorant Garamond reserved only for the wordmark and "voice" moments
     (verdict lines, almanac headings) — never for data or controls.
@@ -63,11 +75,34 @@ Three tabs, one `index.html`, no build step:
     magnitude*, *Bortle*, *cut* and *marine horizon* do not belong on the
     Console, which is where a casual stargazer lands first. Reference
     sentence for the intended register: *"Dark skies and the Moon is down."*
+- **Accessibility (2026-09-24)**: axe-core reports no violations on any tab
+  or in Sky View (run it with Playwright and `bypassCSP: true`; axe is on
+  npm). What that took, and what to keep:
+  - `--ink-faint` is `#888174`, 4.6:1 on the lightest panel. `#7d766a` was
+    4.3, under AA, despite its "AA-safe" comment.
+  - Every input and select has an `aria-label`. The labels on screen are
+    `div`s above the fields, which look like labels but aren't.
+  - Landmarks: one `header`, one `main`, one `footer`. The tip and install
+    banners are named regions, and the place name is the Console's `h1`.
+  - The focus ring is `!important`: inline `outline: none` on some fields
+    beat it.
+  - Sky View is a named modal dialog. Focus goes to Back when it opens and
+    returns when it closes, and Escape closes it. Its canvas is an `img`
+    whose label says where it looks and what's in frame
+    (`skyViewSummary`).
+  - The Ephemeris chart is an `img` with the day in words (`daySummary`).
+  - Segmented buttons carry `aria-pressed`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
 - **Service worker** (`sw.js`): network-first navigations, stale-while-revalidate
-  assets. `CACHE` version string must be bumped on every asset-affecting change.
+  assets, **this site's own files only** (2026-09-24). It used to cache every
+  GET, other sites' too, so each forecast shown was the one fetched the time
+  before (stale-while-revalidate answers from the cache first), often hours
+  old, and the visit count lagged. Offline, the Console falls back to its own
+  saved forecast (`tw_wx_*`: `wxCacheUse` says 'fresh' under an hour, 'stale'
+  up to a day, used only when a fetch fails, and the score's line says
+  "forecast from 3 hours ago", `staleNote`). `CACHE` version string must be bumped on every asset-affecting change.
   Skips registration entirely when `window.Capacitor` is present (native shell
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
@@ -714,6 +749,17 @@ things a syntax check cannot see:
   full Moon (rises with sunset, sets with sunrise), the Moon's height at the
   minute given, the next day's later rise, and a month with a moonless day.
   The CSV and the photography iCal are run from source.
+- **`accessibility.test.js`** — `--ink-faint` against every surface
+  token by the WCAG formula, every input/select named (a source scan, so a
+  screen no one visits is covered too), the landmarks and Console `h1`, the
+  `!important` focus ring, Sky View's dialog wiring, and the words of
+  `skyViewSummary` and `daySummary`.
+- **`load.test.js`** — first load and offline: the two Inter faces (core
+  = `subset-inter.sh`'s range, no overlap, same in the city pages,
+  preloaded, the core precached not the full font), no shipped character in
+  the full font's range, the small tab icon, `sw.js` run against a fake scope
+  leaving other origins to the network, `wxCacheUse`/`staleNote`, and the
+  Console's offline fallback at source level.
 - **`share-card.test.js`** — the share picture carries place, time,
   label, verdict, highlight and address; the painting is drawn scaled;
   long names and verdicts wrap inside the margins and clear the address;
