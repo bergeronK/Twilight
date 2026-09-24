@@ -71,7 +71,12 @@ test('only features in low sunlight, on the side facing us, most worth seeing fi
   const wan = m.terminatorFeatures(m.moonLibration(Date.UTC(2026, 9, 1, 1)), 5);
   assert.ok(wan.length && wan.every(f => !f.rising), JSON.stringify(wan));
   // A feature behind the limb is not offered even in low sun.
-  assert.strictEqual(m.terminatorFeatures({ colong: 272, sunLat: 0, l: -8, b: 0 }).find(f => f.name === 'Langrenus'), undefined);
+  // (No real libration takes a listed feature that far, so the tilt here
+  // is made up: Langrenus, in morning sun 5° up, 91° from the disc's middle.)
+  const far = { colong: 304, sunLat: 0, l: -30, b: 0 };
+  assert.ok(Math.abs(m.moonSunAlt(far, 61.04, -8.86).alt - 4.9) < 0.2);
+  assert.strictEqual(m.terminatorFeatures(far, 30).find(f => f.name === 'Langrenus'), undefined);
+  assert.ok(m.terminatorFeatures({ ...far, l: 0 }, 30).find(f => f.name === 'Langrenus'), 'but offered when it faces us');
 });
 
 test('the tilt in words, only when it’s enough to notice', () => {
