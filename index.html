@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-1STm5f+LvUKBgwWJLvjABSFyjCLUGkEnDvit9VI7fg0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KKejUOldQ4Dq1W86JGVVujO4/PDDHVjCPMtW6elqjQo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -547,6 +547,256 @@ function sunHcZn(date, lat, lonE) {
   const alt = 90 - acos(Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad));
   const az = rev(R2D * Math.atan2(Math.sin(haRad), Math.cos(haRad) * Math.sin(latRad) - Math.tan(decl) * Math.cos(latRad)) + 180);
   return { alt, az };
+}
+/* ---- The space station ---- */
+/* SGP4, near-Earth only (periods under 225 minutes: the space station's is
+   92), after Vallado et al. 2006 "Revisiting Spacetrack Report #3", WGS-72
+   constants as the elements are fitted with. Positions in the TEME frame,
+   km, minutes after the element set's epoch. */
+const SGP4_RE = 6378.135, SGP4_XKE = 60 / Math.sqrt(SGP4_RE ** 3 / 398600.8);
+const SGP4_J2 = 0.001082616, SGP4_J3 = -0.00000253881, SGP4_J4 = -0.00000165597, SGP4_J3OJ2 = SGP4_J3 / SGP4_J2;
+// The two lines of an element set, as CelesTrak serves them.
+function parseTle(l1, l2) {
+  const num = (s, a, b) => parseFloat(s.slice(a, b));
+  const expo = s => { s = s.trim(); if (!s) return 0; const m = s.match(/^([+-]?)(\d+)([+-]\d)$/); return m ? (m[1] === '-' ? -1 : 1) * parseFloat('0.' + m[2]) * Math.pow(10, +m[3]) : 0; };
+  const yy = num(l1, 18, 20), year = yy < 57 ? 2000 + yy : 1900 + yy, doy = num(l1, 20, 32);
+  const epochMs = Date.UTC(year, 0, 1) + (doy - 1) * 86400000;
+  const d2r = Math.PI / 180;
+  return {
+    epochMs, bstar: expo(l1.slice(53, 61)),
+    inclo: num(l2, 8, 16) * d2r, nodeo: num(l2, 17, 25) * d2r, ecco: parseFloat('0.' + l2.slice(26, 33).trim()),
+    argpo: num(l2, 34, 42) * d2r, mo: num(l2, 43, 51) * d2r, no: num(l2, 52, 63) / (1440 / (2 * Math.PI))
+  };
+}
+function sgp4Init(el) {
+  const { ecco, inclo, bstar } = el, x2o3 = 2 / 3;
+  const eccsq = ecco * ecco, omeosq = 1 - eccsq, rteosq = Math.sqrt(omeosq);
+  const cosio = Math.cos(inclo), cosio2 = cosio * cosio, sinio = Math.sin(inclo);
+  const ak = Math.pow(SGP4_XKE / el.no, x2o3);
+  const d1 = 0.75 * SGP4_J2 * (3 * cosio2 - 1) / (rteosq * omeosq);
+  let del = d1 / (ak * ak);
+  const adel = ak * (1 - del * del - del * (1 / 3 + 134 * del * del / 81));
+  del = d1 / (adel * adel);
+  const no = el.no / (1 + del), ao = Math.pow(SGP4_XKE / no, x2o3);
+  const po = ao * omeosq, con42 = 1 - 5 * cosio2, con41 = -con42 - cosio2 - cosio2, posq = po * po, rp = ao * (1 - ecco);
+  if (2 * Math.PI / no >= 225) throw new Error('deep-space orbit: not supported');
+  const s = { ...el, no, con41, cosio, sinio, x1mth2: 1 - cosio2, x7thm1: 7 * cosio2 - 1 };
+  s.isimp = rp < 220 / SGP4_RE + 1 ? 1 : 0;
+  let sfour = 78 / SGP4_RE + 1, qzms24 = Math.pow((120 - 78) / SGP4_RE, 4);
+  const perige = (rp - 1) * SGP4_RE;
+  if (perige < 156) {
+    sfour = perige < 98 ? 20 : perige - 78;
+    qzms24 = Math.pow((120 - sfour) / SGP4_RE, 4);
+    sfour = sfour / SGP4_RE + 1;
+  }
+  const pinvsq = 1 / posq, tsi = 1 / (ao - sfour);
+  s.eta = ao * ecco * tsi;
+  const etasq = s.eta * s.eta, eeta = ecco * s.eta, psisq = Math.abs(1 - etasq);
+  const coef = qzms24 * Math.pow(tsi, 4), coef1 = coef / Math.pow(psisq, 3.5);
+  const cc2 = coef1 * no * (ao * (1 + 1.5 * etasq + eeta * (4 + etasq)) + 0.375 * SGP4_J2 * tsi / psisq * con41 * (8 + 3 * etasq * (8 + etasq)));
+  s.cc1 = bstar * cc2;
+  const cc3 = ecco > 1e-4 ? -2 * coef * tsi * SGP4_J3OJ2 * no * sinio / ecco : 0;
+  s.cc4 = 2 * no * coef1 * ao * omeosq * (s.eta * (2 + 0.5 * etasq) + ecco * (0.5 + 2 * etasq) - SGP4_J2 * tsi / (ao * psisq) *
+    (-3 * con41 * (1 - 2 * eeta + etasq * (1.5 - 0.5 * eeta)) + 0.75 * s.x1mth2 * (2 * etasq - eeta * (1 + etasq)) * Math.cos(2 * el.argpo)));
+  s.cc5 = 2 * coef1 * ao * omeosq * (1 + 2.75 * (etasq + eeta) + eeta * etasq);
+  const cosio4 = cosio2 * cosio2, temp1 = 1.5 * SGP4_J2 * pinvsq * no, temp2 = 0.5 * temp1 * SGP4_J2 * pinvsq, temp3 = -0.46875 * SGP4_J4 * pinvsq * pinvsq * no;
+  s.mdot = no + 0.5 * temp1 * rteosq * con41 + 0.0625 * temp2 * rteosq * (13 - 78 * cosio2 + 137 * cosio4);
+  s.argpdot = -0.5 * temp1 * con42 + 0.0625 * temp2 * (7 - 114 * cosio2 + 395 * cosio4) + temp3 * (3 - 36 * cosio2 + 49 * cosio4);
+  const xhdot1 = -temp1 * cosio;
+  s.nodedot = xhdot1 + (0.5 * temp2 * (4 - 19 * cosio2) + 2 * temp3 * (3 - 7 * cosio2)) * cosio;
+  s.omgcof = bstar * cc3 * Math.cos(el.argpo);
+  s.xmcof = ecco > 1e-4 ? -x2o3 * coef * bstar / eeta : 0;
+  s.nodecf = 3.5 * omeosq * xhdot1 * s.cc1;
+  s.t2cof = 1.5 * s.cc1;
+  s.xlcof = -0.25 * SGP4_J3OJ2 * sinio * (3 + 5 * cosio) / (Math.abs(cosio + 1) > 1.5e-12 ? 1 + cosio : 1.5e-12);
+  s.aycof = -0.5 * SGP4_J3OJ2 * sinio;
+  s.delmo = Math.pow(1 + s.eta * Math.cos(el.mo), 3);
+  s.sinmao = Math.sin(el.mo);
+  if (!s.isimp) {
+    const cc1sq = s.cc1 * s.cc1;
+    s.d2 = 4 * ao * tsi * cc1sq;
+    const temp = s.d2 * tsi * s.cc1 / 3;
+    s.d3 = (17 * ao + sfour) * temp;
+    s.d4 = 0.5 * temp * ao * tsi * (221 * ao + 31 * sfour) * s.cc1;
+    s.t3cof = s.d2 + 2 * cc1sq;
+    s.t4cof = 0.25 * (3 * s.d3 + s.cc1 * (12 * s.d2 + 10 * cc1sq));
+    s.t5cof = 0.2 * (3 * s.d4 + 12 * s.cc1 * s.d3 + 6 * s.d2 * s.d2 + 15 * cc1sq * (2 * s.d2 + cc1sq));
+  }
+  return s;
+}
+// Position (km, TEME) t minutes after epoch, or null once it has decayed.
+function sgp4At(s, t) {
+  const twopi = 2 * Math.PI, x2o3 = 2 / 3;
+  const xmdf = s.mo + s.mdot * t, argpdf = s.argpo + s.argpdot * t, nodedf = s.nodeo + s.nodedot * t;
+  let argpm = argpdf, mm = xmdf;
+  const t2 = t * t;
+  let nodem = nodedf + s.nodecf * t2, tempa = 1 - s.cc1 * t, tempe = s.bstar * s.cc4 * t, templ = s.t2cof * t2;
+  if (!s.isimp) {
+    const delomg = s.omgcof * t, delm = s.xmcof * (Math.pow(1 + s.eta * Math.cos(xmdf), 3) - s.delmo), temp = delomg + delm;
+    mm = xmdf + temp; argpm = argpdf - temp;
+    const t3 = t2 * t, t4 = t3 * t;
+    tempa = tempa - s.d2 * t2 - s.d3 * t3 - s.d4 * t4;
+    tempe = tempe + s.bstar * s.cc5 * (Math.sin(mm) - s.sinmao);
+    templ = templ + s.t3cof * t3 + t4 * (s.t4cof + t * s.t5cof);
+  }
+  let nm = s.no, em = s.ecco;
+  const inclm = s.inclo;
+  if (nm <= 0) return null;
+  const am = Math.pow(SGP4_XKE / nm, x2o3) * tempa * tempa;
+  nm = SGP4_XKE / Math.pow(am, 1.5);
+  em = em - tempe;
+  if (em >= 1 || em < -0.001) return null;
+  if (em < 1e-6) em = 1e-6;
+  mm = mm + s.no * templ;
+  let xlm = mm + argpm + nodem;
+  nodem = nodem >= 0 ? nodem % twopi : -(-nodem % twopi);
+  argpm = argpm % twopi; xlm = xlm % twopi;
+  mm = ((xlm - argpm - nodem) % twopi + twopi) % twopi;
+  const sinip = Math.sin(inclm), cosip = Math.cos(inclm);
+  const axnl = em * Math.cos(argpm), temp0 = 1 / (am * (1 - em * em)), aynl = em * Math.sin(argpm) + temp0 * s.aycof;
+  const xl = mm + argpm + nodem + temp0 * s.xlcof * axnl;
+  const u = ((xl - nodem) % twopi + twopi) % twopi;
+  let eo1 = u, tem5 = 9999.9, ktr = 1, sineo1 = 0, coseo1 = 0;
+  while (Math.abs(tem5) >= 1e-12 && ktr <= 10) {
+    sineo1 = Math.sin(eo1); coseo1 = Math.cos(eo1);
+    tem5 = 1 - coseo1 * axnl - sineo1 * aynl;
+    tem5 = (u - aynl * coseo1 + axnl * sineo1 - eo1) / tem5;
+    if (Math.abs(tem5) >= 0.95) tem5 = tem5 > 0 ? 0.95 : -0.95;
+    eo1 += tem5; ktr++;
+  }
+  const ecose = axnl * coseo1 + aynl * sineo1, esine = axnl * sineo1 - aynl * coseo1, el2 = axnl * axnl + aynl * aynl;
+  const pl = am * (1 - el2);
+  if (pl < 0) return null;
+  const rl = am * (1 - ecose), betal = Math.sqrt(1 - el2), temp = esine / (1 + betal);
+  const sinu = am / rl * (sineo1 - aynl - axnl * temp), cosu = am / rl * (coseo1 - axnl + aynl * temp);
+  let su = Math.atan2(sinu, cosu);
+  const sin2u = (cosu + cosu) * sinu, cos2u = 1 - 2 * sinu * sinu;
+  const temp1 = 0.5 * SGP4_J2 / pl, temp2 = temp1 / pl;
+  const mrt = rl * (1 - 1.5 * temp2 * betal * s.con41) + 0.5 * temp1 * s.x1mth2 * cos2u;
+  su = su - 0.25 * temp2 * s.x7thm1 * sin2u;
+  const xnode = nodem + 1.5 * temp2 * cosip * sin2u, xinc = inclm + 1.5 * temp2 * cosip * sinip * cos2u;
+  const sinsu = Math.sin(su), cossu = Math.cos(su), snod = Math.sin(xnode), cnod = Math.cos(xnode), sini = Math.sin(xinc), cosi = Math.cos(xinc);
+  const xmx = -snod * cosi, xmy = cnod * cosi;
+  if (mrt < 1) return null;
+  const k = mrt * SGP4_RE;
+  return [k * (xmx * sinsu + cnod * cossu), k * (xmy * sinsu + snod * cossu), k * sini * sinsu];
+}
+// Greenwich sidereal time for SGP4's frame (Vallado), radians.
+function gstimeRad(ms) {
+  const tut1 = (ms / 86400000 + 2440587.5 - 2451545) / 36525;
+  const temp = -6.2e-6 * tut1 ** 3 + 0.093104 * tut1 * tut1 + (876600 * 3600 + 8640184.812866) * tut1 + 67310.54841;
+  return (((temp * Math.PI / 180 / 240) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+}
+// The Sun's direction, unit vector in the same equatorial frame: Meeus's
+// short formula, a hundredth of a degree, plenty for shadow and phase.
+function issSunDir(ms) {
+  const n = ms / 86400000 + 2440587.5 - 2451545, L = 280.460 + 0.9856474 * n, g = (357.528 + 0.9856003 * n) * D2R;
+  const lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * D2R, eps = (23.439 - 4e-7 * n) * D2R;
+  return [Math.cos(lam), Math.cos(eps) * Math.sin(lam), Math.sin(eps) * Math.sin(lam)];
+}
+/* Where the station is from one place at ms: altitude, azimuth, range
+   (km), whether sunlight reaches it (outside the Earth's shadow, taken as
+   a cylinder) and how bright it is (−1.3 at 1,000 km half lit, the usual
+   figure, scaled by distance and a diffusely reflecting sphere's phase). */
+function issLook(sat, ms, lat, lon) {
+  const r = sgp4At(sat, (ms - sat.epochMs) / 60000);
+  if (!r) return null;
+  const th = gstimeRad(ms), c = Math.cos(th), s = Math.sin(th);
+  const x = c * r[0] + s * r[1], y = -s * r[0] + c * r[1], z = r[2];
+  const f = 1 / 298.257223563, e2 = f * (2 - f), la = lat * D2R, lo = lon * D2R;
+  const N = 6378.137 / Math.sqrt(1 - e2 * Math.sin(la) ** 2);
+  const ox = N * Math.cos(la) * Math.cos(lo), oy = N * Math.cos(la) * Math.sin(lo), oz = N * (1 - e2) * Math.sin(la);
+  const dx = x - ox, dy = y - oy, dz = z - oz, range = Math.hypot(dx, dy, dz);
+  const south = Math.sin(la) * Math.cos(lo) * dx + Math.sin(la) * Math.sin(lo) * dy - Math.cos(la) * dz;
+  const east = -Math.sin(lo) * dx + Math.cos(lo) * dy;
+  const up = Math.cos(la) * Math.cos(lo) * dx + Math.cos(la) * Math.sin(lo) * dy + Math.sin(la) * dz;
+  const alt = Math.asin(up / range) * R2D, az = rev(Math.atan2(east, -south) * R2D);
+  // Shadow and phase in the inertial frame, where the Sun's direction is.
+  const sd = issSunDir(ms), along = r[0] * sd[0] + r[1] * sd[1] + r[2] * sd[2];
+  const perp = Math.hypot(r[0] - along * sd[0], r[1] - along * sd[1], r[2] - along * sd[2]);
+  const lit = along > 0 || perp > 6378.137;
+  const oi = [c * ox - s * oy, s * ox + c * oy, oz]; // observer back into the inertial frame
+  const toObs = [oi[0] - r[0], oi[1] - r[1], oi[2] - r[2]];
+  const cosPh = (toObs[0] * sd[0] + toObs[1] * sd[1] + toObs[2] * sd[2]) / range;
+  const ph = Math.acos(Math.max(-1, Math.min(1, cosPh)));
+  const F = (Math.sin(ph) + (Math.PI - ph) * Math.cos(ph)) / Math.PI;
+  const mag = -1.3 + 5 * Math.log10(range / 1000) - 2.5 * Math.log10(Math.max(1e-4, F * Math.PI));
+  return { alt, az, range, lit, mag };
+}
+/* The station's visible passes between t0 and t1: above 10°, in sunlight,
+   with the sky here at least in nautical twilight (Sun 6° down). Each is
+   when it appears and where, its highest point, where it goes (setting, or
+   fading into the Earth's shadow) and how bright it gets. */
+function issPasses(sat, t0, t1, lat, lon) {
+  const out = [], vis = (t, L) => L && L.alt >= 10 && L.lit && sunAltitude(new Date(t), lat, lon) <= -6;
+  let t = t0;
+  while (t < t1) {
+    const L = issLook(sat, t, lat, lon);
+    if (!L) break;
+    if (L.alt < 0) { t += L.alt < -30 ? 300000 : 60000; continue; }
+    // Up: walk the pass in 10-second steps, noting the visible stretch.
+    let a = null, b = null, top = null, endWhy = 'sets', brightest = Infinity, ended = false;
+    let u = t;
+    for (; u < t + 1800000; u += 10000) {
+      const P = issLook(sat, u, lat, lon);
+      if (!P || P.alt < 0) break;
+      if (vis(u, P)) {
+        if (!a) a = { t: u, az: P.az, alt: P.alt };
+        if (!ended) b = { t: u, az: P.az, alt: P.alt };
+        if (!top || P.alt > top.alt) top = { t: u, az: P.az, alt: P.alt };
+        brightest = Math.min(brightest, P.mag);
+      } else if (a && !ended) {
+        ended = true;
+        endWhy = !P.lit ? 'shadow' : P.alt < 10 ? 'sets' : 'twilight';
+      }
+    }
+    if (a && b.t - a.t >= 30000) out.push({ start: a, top, end: b, endWhy, mag: brightest });
+    t = u + 60000;
+  }
+  return out;
+}
+/* The station's orbit from CelesTrak (the public element sets, no key, no
+   account): fetched at most every 12 hours and kept in tw_iss_tle. A
+   failed fetch falls back to what's kept while it's under a week old; past
+   that the predictions drift by minutes and none are made. The request
+   carries nothing about the user, not even the place. */
+const ISS_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE';
+async function loadIssTle(now = Date.now(), fetchFn = typeof fetch !== 'undefined' ? fetch : null, store = typeof localStorage !== 'undefined' ? localStorage : null) {
+  let kept = null;
+  try { kept = JSON.parse(store.getItem('tw_iss_tle') || 'null'); } catch (e) {}
+  if (!kept || typeof kept.l1 !== 'string' || typeof kept.l2 !== 'string' || !(kept.at > 0)) kept = null;
+  if (kept && now - kept.at < 12 * 3600000) return kept;
+  try {
+    const r = await fetchFn(ISS_TLE_URL);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const lines = (await r.text()).split(/\r?\n/).map(l => l.trimEnd());
+    const l1 = lines.find(l => /^1 25544/.test(l)), l2 = lines.find(l => /^2 25544/.test(l));
+    if (!l1 || !l2 || l1.length < 69 || l2.length < 69) throw new Error('no element set');
+    const got = { l1, l2, at: now };
+    try { store.setItem('tw_iss_tle', JSON.stringify(got)); } catch (e) {}
+    return got;
+  } catch (e) {
+    return kept;
+  }
+}
+// Ready to predict from, or null: unreadable, or over a week old.
+function issSatFrom(tle, now = Date.now()) {
+  if (!tle) return null;
+  try {
+    const s = sgp4Init(parseTle(tle.l1, tle.l2));
+    return now - s.epochMs < 7 * 86400000 && now - s.epochMs > -86400000 ? s : null;
+  } catch (e) { return null; }
+}
+// A pass in words. `fmt(t)` gives a local time.
+function issWords(p, fmt) {
+  const top = Math.round(p.top.alt);
+  const end = p.endWhy === 'shadow' ? `fades into the Earth’s shadow in the ${compassWord(p.end.az)} at ${fmt(p.end.t)}`
+    : p.endWhy === 'twilight' ? `is lost in the brightening sky in the ${compassWord(p.end.az)} by ${fmt(p.end.t)}`
+    : `sinks toward the ${compassWord(p.end.az)} by ${fmt(p.end.t)}`;
+  const bright = p.mag <= -3 ? 'Brighter than any star, and steady: a plane blinks, the station doesn’t.'
+    : p.mag <= -1.5 ? 'As bright as the brightest stars, moving steadily.'
+    : 'A steady, moving star, fainter than the brightest.';
+  return `From ${fmt(p.start.t)} it rises out of the ${compassWord(p.start.az)}, climbs to ${top}°${top >= 75 ? ', almost overhead,' : ''} and ${end}. ${bright}`;
 }
 /* ---- Planetary visibility ---- */
 function planetAltAz(planetName, date, lat, lonE) {
@@ -1566,7 +1816,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v119";
+const BUILD = "v120";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3106,7 +3356,7 @@ const HIGHLIGHT_DSO = [
   ['the Beehive Cluster', 130.1, 19.67, 3.7, 'a hazy patch that binoculars turn into a swarm of stars'],
   ['the Lagoon Nebula', 270.9, -24.38, 6.0, 'a glow in the Milky Way just above the spout of the Sagittarius teapot']
 ];
-function tonightHighlights(plan, lat, lon, bortle, fmt) {
+function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
   if (!plan) return [];
   const STEP = 15 * 60000, samples = [];
   for (let t = plan.start; t <= plan.end; t += STEP) {
@@ -3137,6 +3387,17 @@ function tonightHighlights(plan, lat, lon, bortle, fmt) {
     if (/^Not seen/.test(w.line)) return;
     out.push({ kind: 'eclipse', rank: -1, title: e.kind === 'penumbral' ? 'A faint eclipse of the Moon tonight' : `A ${e.kind} eclipse of the Moon tonight`, detail: w.line });
   });
+
+  // The space station, when it passes over in the dark: the best pass of
+  // the night, and how many more.
+  if (iss && iss.length) {
+    const best = iss.reduce((a, p) => p.top.alt > a.top.alt ? p : a, iss[0]);
+    out.push({
+      kind: 'iss', rank: 1,
+      title: 'The space station passes over',
+      detail: issWords(best, fmt) + (iss.length > 1 ? ` ${iss.length - 1 === 1 ? 'It passes once more' : `It passes ${iss.length - 1} more times`} tonight.` : '')
+    });
+  }
 
   // Meteor showers, at the best hour's rate.
   const showers = {};
@@ -3694,9 +3955,14 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
     return nightPlan(span, sunEv, moonEv, moonAltSeen(new Date(span.start), loc.lat, loc.lon) > -0.833);
   }, [tenMin, loc.lat, loc.lon]);
+  // The space station's orbit, fetched once (kept 12 hours).
+  const [issTle, setIssTle] = useState(null);
+  useEffect(() => { let live = true; loadIssTle().then(t => { if (live) setIssTle(t); }); return () => { live = false; }; }, []);
+  const issSat = useMemo(() => issSatFrom(issTle), [issTle]);
   // What is worth going out for tonight, every ten minutes like the plan.
-  const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt),
-    [plan, loc.lat, loc.lon, bortle, loc.tz]);
+  const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt,
+    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null),
+    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
     const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
@@ -7141,6 +7407,22 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   );
 }
 
+/* The space station's next visible passes, on the Stars tab. Hook-free:
+   `passes` from issPasses (null while the orbit loads), `failed` when it
+   couldn't be had, `when(t)` gives a day and time. */
+function IssPanel({ passes, failed, when, fmt }) {
+  const head = React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'The space station');
+  const note = t => React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } }, t);
+  const body = failed ? note('Couldn’t get the station’s orbit just now. It will try again next time.')
+    : !passes ? note('Working out when it passes over…')
+    : !passes.length ? note('It doesn’t pass over in a dark enough sky from here in the next three days.')
+    : passes.map((p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
+        React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
+        React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink-dim)', marginTop: 2, maxWidth: 640 } }, issWords(p, fmt))));
+  return React.createElement('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
+    head, body,
+    React.createElement('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 10 } }, 'Orbit from CelesTrak, predicted on this device.'));
+}
 // The log in one sentence.
 function logSummary(seen) {
   const keys = Object.keys(seen), messier = keys.filter(k => /^M\d{1,3}$/.test(k)).length;
@@ -7196,6 +7478,12 @@ function StarFinder({ redMode } = {}) {
   // offers it, and closing Sky View brings it back to now, so the preview,
   // the chart and Aim Assist always show the sky as it is.
   const [skyShift, setSkyShift] = useState(0);
+  // The space station's orbit and its next visible passes from here.
+  const [issTle, setIssTle] = useState(undefined);
+  useEffect(() => { let live = true; loadIssTle().then(t => { if (live) setIssTle(t); }); return () => { live = false; }; }, []);
+  const issSat = useMemo(() => issSatFrom(issTle), [issTle]);
+  const issNext = useMemo(() => issSat ? issPasses(issSat, now, now + 3 * 86400000, loc.lat, loc.lon).slice(0, 5) : null,
+    [issSat, Math.floor(now / 600000), loc.lat, loc.lon]);
   const seen = useSeen();
   const [logOpen, setLogOpen] = useState(false);
   const skyNow = now + skyShift * 60000;
@@ -8148,6 +8436,11 @@ function StarFinder({ redMode } = {}) {
       )
     }),
     starFinderPanel,
+    React.createElement(IssPanel, {
+      passes: issNext, failed: issTle !== undefined && !issSat,
+      fmt: t => fmtT(t, loc.tz),
+      when: t => new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz)
+    }),
     React.createElement(ObservingLog, {
       seen, open: logOpen, onOpen: () => setLogOpen(o => !o), onToggle: k => seenStore.toggle(k),
       names: deepSky ? Object.fromEntries(deepSky.filter(o => o.name).map(o => [o.id, o.name])) : null

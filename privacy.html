@@ -74,6 +74,13 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     places by name. Open-Meteo does not require an account or API key and is
     not used for any purpose beyond serving that request.</li>
   </ul>
+  <p>To say when the International Space Station passes over, Twilyte also
+  fetches the station's published orbit from
+  <strong>CelesTrak</strong> (<a href="https://celestrak.org/" target="_blank" rel="noopener noreferrer">celestrak.org</a>),
+  at most every 12 hours. That request is the same for everyone: it contains
+  no location or anything else about you, and the passes are worked out on
+  your device. Like any web request it reaches CelesTrak from your IP
+  address.</p>
   <p>You can deny location access entirely and still use Twilyte by entering
   a ZIP code, searching for a place by name, or typing coordinates directly.</p>
 
@@ -102,6 +109,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <li>Your saved and current location</li>
     <li>Display preferences (12/24-hour time, red-light night mode, sky-brightness setting)</li>
     <li>Your Aim Assist compass correction, if you've set one</li>
+    <li>The space station's orbit, for up to a week, so passes can be shown offline</li>
     <li>Your observing log: what you've marked as seen, and when</li>
     <li>A short-lived cache (about an hour) of the weather forecast, to avoid
     re-fetching it constantly</li>
