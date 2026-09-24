@@ -12,7 +12,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunHcZn', 'moonState', 'moonTopo',
-  'planetAltAz', 'starHcZn', 'NAV_STARS', 'starColor', 'timeShiftWords']);
+  'planetAltAz', 'starHcZn', 'NAV_STARS', 'starColor', 'dsoLabel', 'timeShiftWords']);
 
 test('the shift in words', () => {
   assert.strictEqual(m.timeShiftWords(0), 'now');
@@ -33,7 +33,8 @@ function memo(name, deps) {
 test('Sky View’s bodies, lines and names are drawn at the time chosen', () => {
   const now = Date.UTC(2026, 8, 24, 16), skyNow = now + 6 * 3600000;
   const loc = { lat: 42.1, lon: -72.6 };
-  const deps = { useMemo: f => f(), now, skyNow, loc, starCatalog: [], ...m };
+  const deepSky = [{ id: 'M31', name: 'Andromeda Galaxy', type: 's', mag: 3.4, ra: 10.68, dec: 41.27, size: 190 }];
+  const deps = { useMemo: f => f(), now, skyNow, loc, starCatalog: [], deepSky, ...m };
   const bodies = memo('skyBodies', deps);
   const sun = bodies.find(b => b.name === 'Sun'), want = m.sunHcZn(new Date(skyNow), loc.lat, loc.lon);
   assert.ok(Math.abs(sun.alt - want.alt) < 1e-9 && Math.abs(sun.az - want.az) < 1e-9, 'the Sun where it will be');
@@ -43,6 +44,8 @@ test('Sky View’s bodies, lines and names are drawn at the time chosen', () => 
     const st = m.NAV_STARS.find(s => s[0] === sb.name);
     assert.ok(Math.abs(sb.alt - m.starHcZn(st[1] * 15, st[2], loc.lat, loc.lon, new Date(skyNow)).alt) < 1e-9, sb.name);
   }
+  const m31 = bodies.find(b => b.name === 'Andromeda Galaxy');
+  assert.ok(m31 && Math.abs(m31.alt - m.starHcZn(10.68, 41.27, loc.lat, loc.lon, new Date(skyNow)).alt) < 1e-9, 'galaxies too');
   const lines = memo('constellationPaths', { ...deps, constLines: [{ id: 'Ori', rank: 1, pts: [{ ra: 88.79, dec: 7.41 }] }] });
   assert.ok(Math.abs(lines[0].pts[0].alt - m.starHcZn(88.79, 7.41, loc.lat, loc.lon, new Date(skyNow)).alt) < 1e-9);
   const names = memo('constellationNames', { ...deps, constNames: [{ id: 'Ori', name: 'Orion', rank: 1, ra: 83.8, dec: 5 }] });

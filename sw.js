@@ -16,6 +16,7 @@ const ASSETS = [
   '/stars.bin',
   '/constellations.bin',
   '/constellation-names.json',
+  '/deep-sky.json',
   '/milkyway.bin',
   '/facts.json',
   '/fonts/inter-latin.woff2',

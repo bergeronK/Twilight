@@ -263,6 +263,20 @@ Three tabs, one `index.html`, no build step:
   so the preview, chart and Aim Assist always show now; and **Align is not
   offered while shifted** (`align: skyShift ? null : …`), since it compares
   the drawn sky with the real one. `time-travel.test.js`.
+- **Galaxies, nebulae and clusters (2026-09-24).** `deep-sky.json` (4.3 KB,
+  all 110 Messier objects, `[id, name, type, mag, ra, dec, size′]`), built by
+  `scripts/generate-deep-sky.js` from d3-celestial's `messier.json` at the
+  same pinned commit as the constellations (BSD; the licence file names it);
+  30 common names, with `NAMES` overrides where d3-celestial's are odd.
+  Loaded when the Stars tab opens (`loadDeepSky`), added to `skyBodies` as
+  `kind: 'dso'`. `drawDeepSky` draws each at its real angular size (4 px
+  minimum): galaxies as tilted ellipses, clusters dashed, nebulae solid, in
+  violet; only named objects of magnitude 6 or brighter are labelled (no
+  catalogue numbers across the sky) unless picked, when it goes amber.
+  Find gains a "Galaxies, nebulae and clusters" group: magnitude 6 or
+  brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
+  east"). `theName` says "the Andromeda Galaxy". Not on the Console's
+  painting or the chart. `deep-sky.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -792,6 +806,11 @@ things a syntax check cannot see:
   source with `now` and `skyNow` apart (every body, line and name at
   `skyNow`), and at source level the shifted `lst`, the reset on close, no
   Align while shifted, and the preview left on now.
+- **`deep-sky.test.js`** — `deep-sky.json` against published J2000
+  positions (M31, M42, M45, M13, M57, M1, M44 within 0.5°), not its own
+  contents; Find's group (faint, low, order, the kind's words); the drawing
+  with a recording canvas (size from arcminutes, ellipse, dashes, no catalogue
+  numbers written, amber when picked); and that the file ships.
 - **`ephemeris-extras.test.js`** — golden and blue hours against geometry
   that doesn't depend on the code: 40 and 8 minutes at the equator on an
   equinox, longer at a slant; windows that can't happen far north in
