@@ -402,8 +402,27 @@ const IPHONE = [
   // as magnetic north (declination applied) it would be 7° out the other way,
   // so this sample, like the confirmed one above, supports iOS giving true
   // north; the residual is the phone's compass, which Align corrects.
-  { name: 'Moon just risen, v100', alpha: 321.8, beta: 102.4, gamma: -4.3, heading: 125, moonAz: 120, alt: 12 }
+  { name: 'Moon just risen, v100', alpha: 321.8, beta: 102.4, gamma: -4.3, heading: 125, moonAz: 120, alt: 12 },
+  // Build v107, 2026-09-24 ~01:09 UTC at 42.09, -72.62: camera on the Moon,
+  // drawn "way off to the left". The Moon was at az 152.7 when 31° up.
+  { name: 'Moon at 31°, v107', alpha: 351.5, beta: 121.2, gamma: -6.4, heading: 168, moonAz: 152.7, alt: 31 }
 ];
+// Four readings, one decl: the heading minus the Moon's true bearing. Read as
+// true north they all err the same way, by about the declination; read as
+// magnetic they scatter around zero. That bias, not any one reading, is why
+// iOS is treated as magnetic (it was treated as true north until v108, when
+// there were two readings, then three, pointing less clearly).
+test('iPhone headings are magnetic: the four readings, both ways', () => {
+  const DECL = -13.3;
+  const asTrue = IPHONE.map(r => ((r.heading - r.moonAz + 540) % 360) - 180);
+  const asMag = asTrue.map(e => e + DECL);
+  const mean = a => a.reduce((x, y) => x + y) / a.length;
+  const rms = a => Math.sqrt(mean(a.map(x => x * x)));
+  assert.ok(asTrue.every(e => e > 0), 'every one errs the same way if read as true north');
+  assert.ok(mean(asTrue) > 9, `mean ${mean(asTrue).toFixed(1)} as true north`);
+  assert.ok(Math.abs(mean(asMag)) < 4, `mean ${mean(asMag).toFixed(1)} as magnetic`);
+  assert.ok(rms(asMag) < rms(asTrue) * 0.7, `rms ${rms(asMag).toFixed(1)} vs ${rms(asTrue).toFixed(1)}`);
+});
 
 for (const r of IPHONE) {
   test(`iPhone reading (${r.name}): the view lands on the Moon`, () => {
