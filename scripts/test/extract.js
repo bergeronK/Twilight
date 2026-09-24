@@ -108,7 +108,9 @@ function findDecl(src, name) {
   if (h.kind === 'fn') {
     // Skip to the opening brace of the body, then brace-match.
     const brace = src.indexOf('{', src.indexOf(')', h.at));
-    return { start: h.at, end: endOfDecl(src, brace, '}') };
+    // Keep `async`, or an `await` inside no longer parses.
+    const start = src.slice(h.at - 6, h.at) === 'async ' ? h.at - 6 : h.at;
+    return { start, end: endOfDecl(src, brace, '}') };
   }
   return { start: h.at, end: endOfDecl(src, h.at, ';') };
 }

@@ -277,6 +277,30 @@ Three tabs, one `index.html`, no build step:
   brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
   east"). `theName` says "the Andromeda Galaxy". Not on the Console's
   painting or the chart. `deep-sky.test.js`.
+- **The space station (2026-09-24).** When the ISS passes over, on the
+  Console (a highlight, rank 1, for tonight's best pass and how many more)
+  and on the Stars tab (`IssPanel`: the next visible passes in three days).
+  - **SGP4, near-Earth only** (`parseTle`, `sgp4Init`, `sgp4At`), ported
+    from Vallado's reference (the `sgp4` Python package's `propagation.py`,
+    WGS-72): matches it to a centimetre on five element sets. Deep-space
+    orbits (225+ minutes) are refused, not got wrong.
+  - `issLook(sat, ms, lat, lon)`: TEME rotated by Vallado's `gstimeRad`, the
+    observer on the WGS-84 ellipsoid, altitude/azimuth/range, sunlit or in
+    a cylindrical shadow, and magnitude (-1.3 at 1,000 km half lit, a
+    diffuse sphere's phase). `issSunDir` is its own short solar formula.
+    Within 0.01° and 0.2 km of PyEphem, shadow agreeing everywhere.
+  - `issPasses`: 10°+ up, sunlit, Sun 6°+ down, at least 30 s; start, top,
+    end and why it ends (shadow, setting, brightening sky). `issWords`.
+  - **The orbit comes from CelesTrak** (`ISS_TLE_URL`, a fixed URL with no
+    location or identifier), fetched at most every 12 h by `loadIssTle`
+    (fetch and storage injected, like `pingVisitorCounter`), kept in
+    `tw_iss_tle`, used offline for up to a week (`issSatFrom` refuses older
+    elements: minutes of drift). `connect-src` allows `https://celestrak.org`;
+    `/privacy.html` and the store answers say so. **CelesTrak's CORS could
+    not be checked from the sandbox** (its network blocks the host); if a
+    browser refuses the response, the Stars tab says it couldn't get the
+    orbit and the Console simply has no station highlight.
+  - `iss.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -818,6 +842,12 @@ things a syntax check cannot see:
   full Moon (rises with sunset, sets with sunrise), the Moon's height at the
   minute given, the next day's later rise, and a month with a moonless day.
   The CSV and the photography iCal are run from source.
+- **`iss.test.js`** — SGP4 against the `sgp4` package (five element sets,
+  a centimetre), `issLook` against PyEphem from New York (altitude,
+  azimuth, range, shadow), visible passes from New York, London and Sydney
+  against PyEphem's, none in civil twilight or daylight, `loadIssTle`'s
+  12-hour keeping, offline and junk fallbacks and week-old refusal, and the
+  words.
 - **`accessibility.test.js`** — `--ink-faint` against every surface
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the
