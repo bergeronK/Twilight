@@ -326,6 +326,20 @@ Three tabs, one `index.html`, no build step:
     browser refuses the response, the Stars tab says it couldn't get the
     orbit and the Console simply has no station highlight.
   - `iss.test.js`.
+- **Tonight on the Moon (2026-09-24).** The Ephemeris's Moon section
+  names, for 9 PM on the date shown, up to three features with the Sun 1-10°
+  above them (long shadows, still lit; `terminatorFeatures`), sunrise or
+  sunset over each with the Sun's height there, and a "Tipped toward us"
+  row when the libration is 5°+ (`librationWords`). The Console offers one
+  (`kind: 'moonfeature'`, rank 6) on a night with the Moon 5-95% lit and
+  15°+ up after dark. `moonLibration(ms)`: Meeus ch. 53, the optical
+  libration and the Sun's selenographic place (colongitude), on
+  `moonEcliptic`; within 0.06° and 0.25° of PyEphem. `MOON_FEATURES` (24)
+  is **generated**: `node scripts/generate-moon-features.js
+  MOON_nomenclature_center_pts.dbf` rewrites the line from the IAU
+  gazetteer's file (download URL in the script); the descriptions live in
+  the script's `PICKS`, and the test checks the two are in step.
+  `moon-tonight.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -935,6 +949,13 @@ things a syntax check cannot see:
   2 min and 0.004, including which side of totality's edge; the hybrids and
   gammas against NASA; and `eclipseWords` for places where the Moon sets
   mid-eclipse, is down, or barely grazes the shadow.
+- **`moon-tonight.test.js`** — `moonLibration` against PyEphem (30
+  dates), the Sun's height along the terminator (zero on it, overhead 90°
+  east), features only in low sun, facing us and in the list's order over
+  a month, first quarter's sunrise down the middle, the evening side after
+  full, a feature past the limb refused, the tilt's words, the Console
+  item on a part-lit night but not at full or new Moon, and
+  `MOON_FEATURES` in step with the generator's list.
 - **`iss.test.js`** — SGP4 against the `sgp4` package (five element sets,
   a centimetre), `issLook` against PyEphem from New York (altitude,
   azimuth, range, shadow), visible passes from New York, London and Sydney
