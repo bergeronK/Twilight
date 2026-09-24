@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/24cx0vB0uuSW7OenbF01pmqwYTbdeQiOiHczmP3BGI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-sVCQ71aQhqhqDJLizM9IJ3jv4NJXf5CDvPMpStoinhs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1324,7 +1324,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v108";
+const BUILD = "v110";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -1546,8 +1546,11 @@ function skyProject(d, w, h, fov) {
    Every azimuth this app computes is referenced to TRUE north. A phone's
    compass is not, and which one you get depends on the platform:
 
-     iOS Safari     — webkitCompassHeading is true north; the OS has already
-                      applied declination, so adding it again would double it.
+     iOS Safari     — webkitCompassHeading reads as MAGNETIC north on the
+                      evidence of four iPhone readings aimed at the Moon
+                      (fusion.test.js, IPHONE): read as true north they all
+                      err the same way, +11 deg on average, about the local
+                      declination (13.3 W); read as magnetic, -2 deg.
      Android Chrome — deviceorientationabsolute yaw comes from the rotation
                       vector, which is referenced to MAGNETIC north. Nothing
                       in the platform corrects it.
@@ -6618,6 +6621,21 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         align.offset !== 0 && React.createElement('button', { onClick: align.onReset, style: { ...chip, padding: '6px 12px' } },
           'Reset ' + (align.offset > 0 ? '+' : '\u2212') + Math.abs(align.offset).toFixed(0) + '\u00b0')
       ),
+      // Before anything is picked, Align has nothing to measure against, and
+      // it was invisible: a field test found the Moon 14° off and no way to
+      // fix it. Offer the Moon (the one thing everyone can find) or say how.
+      live && !target && align && React.createElement('div', {
+        ...keepTap,
+        style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }
+      },
+        React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.6)' } },
+          bodies.some(b => b.kind === 'moon' && b.alt > 0)
+            ? 'Drawn sky not lining up with the real one?'
+            : 'Drawn sky not lining up? Tap a bright star or planet you can see, then Align.'),
+        bodies.some(b => b.kind === 'moon' && b.alt > 0) && React.createElement('button', {
+          onClick: () => onPick && onPick('Moon'), style: { ...chip, ...chipOn, padding: '6px 12px' }
+        }, 'Align on the Moon')
+      ),
       target
         ? React.createElement(React.Fragment, null,
             React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: found ? '#e8b563' : '#eef2ff' } }, guide.text),
@@ -6859,7 +6877,7 @@ function StarFinder({ redMode } = {}) {
     if (aimSensor !== 'granted') return;
     // Three different platforms, three different ways to get a heading:
     //   iOS Safari      — `deviceorientation` carries webkitCompassHeading
-    //                     (already true north, already declination-corrected).
+    //                     (magnetic north: see the declination notes above).
     //   Android Chrome  — plain `deviceorientation` is RELATIVE: its alpha
     //                     comes from the game rotation vector and has an
     //                     arbitrary yaw origin. True north arrives on a
@@ -6897,11 +6915,11 @@ function StarFinder({ redMode } = {}) {
       );
       let sample, acc = null;
       if (typeof e.webkitCompassHeading === 'number') {
-        // iOS: alpha is relative; the heading carries north. Treated as true
-        // north, as iOS applies declination itself — a device reading can
-        // overturn that, and Sensor details shows what was assumed.
+        // iOS: alpha is relative; the heading carries north, MAGNETIC north
+        // by four field readings (fusion.test.js, IPHONE), so declination is
+        // applied. Sensor details shows what was assumed.
         if (typeof e.webkitCompassAccuracy === 'number') acc = e.webkitCompassAccuracy;
-        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: true, acc };
+        sample = { kind: 'heading', q, heading: e.webkitCompassHeading, trueNorth: false, acc };
       } else if (e.type === 'deviceorientationabsolute' || e.absolute === true) {
         // Android's absolute stream is magnetometer-referenced: magnetic north.
         sample = { kind: 'abs', q, magnetic: true };

@@ -518,7 +518,22 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   every synthetic test agreed with the assumption because they all built
   their heading out of it.** Two of them literally constructed the heading
   from the top axis; they were rewritten, not patched.
-- **iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
+- **iOS heading reference — MAGNETIC north since build v109 (2026-09-24).**
+  A fourth reading (v107, 42.09, -72.62: camera on the Moon at true az
+  152.7, alt 31; `webkitCompassHeading` 168, "way off to the left") settled
+  it by weight of evidence. Heading minus the Moon's true bearing, over all
+  four: +4.8, +18.5, +5, +15.3. Every one errs the same way, mean +10.9,
+  about the local declination (13.3° W); read as magnetic they scatter
+  around −2.4. So iOS headings are now `trueNorth: false` and declination
+  is applied, as on Android. `fusion.test.js` pins the four readings and
+  that comparison, and `heading-reference.test.js` checks this reading end
+  to end (corrected to within 4° of the Moon). The note below is kept for
+  the history; its conclusion was reversed with more data.
+  **Align was also undiscoverable**: its row only appeared once a target was
+  picked, and nothing said so. Now, with sensors live and nothing picked,
+  Sky View's bottom offers **Align on the Moon** when it's up (picks it),
+  otherwise "Tap a bright star or planet you can see, then Align."
+- **(Superseded) iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
   A third iPhone reading (42.11, -72.54, declination 13.3° W; Moon at az 120,
   alt 12; `webkitCompassHeading` 125) drew the Moon 6° left of the real one.
   Treating iOS as magnetic and applying declination would make it 7° out the
@@ -558,9 +573,10 @@ both directions by reading the call sites in `StarFinder`.
 ## Magnetic declination
 
 Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
-and it differs by platform: iOS `webkitCompassHeading` is true north (the OS
-applies declination itself), Android `deviceorientationabsolute` yaw is
-MAGNETIC north and nothing corrects it. Uncorrected that is a fixed error of
+and on both platforms the heading is MAGNETIC north: Android's
+`deviceorientationabsolute` yaw by its definition, iOS's `webkitCompassHeading`
+by four field readings (see the pipeline section; it was assumed true north
+until v109). Nothing in either platform corrects it. Uncorrected that is a fixed error of
 the local declination — near zero in the eastern US, 15-20° in Alaska, the
 Pacific Northwest and the Southern Ocean.
 
@@ -577,9 +593,10 @@ longer covers today, so this cannot pass unnoticed.
 "Align" nudge) is applied to the quaternion as a single world-yaw rotation
 (`correctView`), producing `viewQ` — see the pipeline section above. Do not
 reintroduce a separate correction inside `SkyDome`.
-Declination is added only when the heading is absolute *and* not iOS: a
-relative heading has an arbitrary yaw origin with no north in it, so there is
-nothing for declination to correct there.
+Declination is added only when the heading is absolute (Android's absolute
+stream, or iOS's compass heading): a relative heading has an arbitrary yaw
+origin with no north in it, so there is nothing for declination to correct
+there.
 
 ## Build workflow (do this every time you edit `index.html`)
 
