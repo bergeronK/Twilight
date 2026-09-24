@@ -116,7 +116,7 @@ test('every band row carries a key', () => {
 // ---------------------------------------------------------------- Sky View
 
 const O = require('./orient-lib.js');
-const FIND = extract(['compassWord', 'whereWords', 'findList', 'findTarget', 'findGuide', 'edgePoint', 'screenDir', 'D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'vecAz', 'sepAltAz', 'atan2', 'COMPASS_WORDS', 'PLANET_ORDER', 'theName', 'capFirst']);
+const FIND = extract(['compassWord', 'whereWords', 'findList', 'findTarget', 'findGuide', 'edgePoint', 'screenDir', 'D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'vecAz', 'sepAltAz', 'atan2', 'COMPASS_WORDS', 'PLANET_ORDER', 'theName', 'capFirst', 'skyViewSummary']);
 const hooks = {
   useState: v => [typeof v === 'function' ? v() : v, () => {}],
   useRef: v => ({ current: v === undefined ? null : v }),
