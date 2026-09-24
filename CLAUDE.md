@@ -369,6 +369,29 @@ Three tabs, one `index.html`, no build step:
   steps, halved to a minute) and `moonMonth(Y, Mo, offOf)` puts each on its
   local day with that day's own offset. "Upcoming sky events" uses the same
   phases; it stepped a day at a time before. `moon-calendar.test.js`.
+- **Eclipses (2026-09-24).** An "Eclipses" section on the Ephemeris (the
+  next four, three years ahead, computed 300 ms after painting: ~100 ms of
+  arithmetic) and a lead highlight on the Console on the night of a lunar
+  eclipse (partial or total, or penumbral of magnitude 0.9+, the Moon up).
+  - `lunarEclipse(tFull)`: the Moon against the Earth's shadow by Danjon's
+    rule (`lunarShadow`), magnitudes and contacts P1 U1 U2 max U3 U4 P4.
+  - `solarEclipseGlobal(tNew)`: gamma, and total/annular decided on the
+    shadow's axis (the hybrids of 2023 and 2031 come out total, as NASA has
+    them at greatest eclipse).
+  - `solarEclipseLocal(tNew, lat, lon)` through `solarView`: vectors from the
+    Earth's centre with the observer on the **ellipsoid** at their geodetic
+    latitude. On a sphere (as `moonTopo` does it) Madrid and Reykjavik came
+    out 0.01 either side, enough to move the edge of totality past them.
+  - `sunState` is the Sun from Schlyter's theory **less 20.5″ of
+    aberration** (an eclipse is where the Sun is seen); `sunHcZn`'s short
+    formula is a few arcminutes out, a quarter of an hour at a contact.
+  - `eclipsesBetween` looks only at new and full Moons within 1.7° of the
+    ecliptic. `eclipseWords(e, lat, lon, fmt)` says what can be seen from
+    here: totality or the partial phase with times, the Moon or Sun rising or
+    setting partway, "Not seen from here", and eclipse glasses for any solar
+    eclipse. A penumbral eclipse under 0.7 "grazes the outer shadow: nothing
+    to see".
+  - `eclipses.test.js` against PyEphem and NASA's catalogue.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the
@@ -585,6 +608,19 @@ Moon's equation of centre (up to ~6°): the 11 September 2026 new Moon came
 position already used) minus the Sun's true longitude. Every principal phase
 of 2026 lands within 15 minutes of PyEphem (`moon-calendar.test.js`, its
 reference written out by script). Positions were never affected.
+
+**The Moon's position is Meeus's (2026-09-24).** `moonEcliptic(ms)` is the
+ELP-2000/82 series as Meeus gives it (Astronomical Algorithms ch. 47, the 60
+largest terms in longitude and distance, 60 in latitude, in Terrestrial Time
+with Delta T ~69 s), and `moonState` takes its longitude, latitude and
+distance from it. Within 11″ and 8 km of PyEphem; Schlyter's short series,
+used before, was 1-2′ out: invisible on screen, but it moved eclipse
+magnitudes by a few hundredths and put Oviedo outside the 2026 path of
+totality. It is also what the sextant's Moon sights reduce against. The
+tables are data from Meeus: a term typed wrong by more than about 3″ fails
+`eclipses.test.js`. **`alerts/src/sky.js` copies `moonState`**: the next time
+it is regenerated (`node scripts/generate-alerts-sky.js`), the generator
+needs `MOON_LR`, `MOON_B` and `moonEcliptic` in its list.
 
 ## Magnetic declination
 
@@ -840,6 +876,13 @@ things a syntax check cannot see:
   local day (New York's 10 September new Moon is UTC's 11th) with per-day
   offsets, the phase shape's arcs, and `MoonMonth` rendered with a stub React
   (weekday blanks, labels, a tap, waning and southern mirroring).
+- **`eclipses.test.js`** — `moonEcliptic` against PyEphem (30 dates);
+  every eclipse of 2026-2028 of the right kind; lunar greatest within 2 min
+  and magnitudes within 0.005 of Danjon's rule on PyEphem's Sun and Moon;
+  solar from Madrid, Oviedo, Reykjavik, Holyoke, Luxor and Sydney within
+  2 min and 0.004, including which side of totality's edge; the hybrids and
+  gammas against NASA; and `eclipseWords` for places where the Moon sets
+  mid-eclipse, is down, or barely grazes the shadow.
 - **`accessibility.test.js`** — `--ink-faint` against every surface
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the
