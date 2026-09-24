@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import CoreMotion
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -46,4 +47,82 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+// MARK: - Sky View orientation from CoreMotion
+
+/// Sends Sky View the phone's orientation from CoreMotion's own sensor fusion
+/// (gyroscope, accelerometer and compass, calibrated by iOS), referenced to
+/// TRUE north, the way native sky apps get it. The website has only the
+/// browser's angles plus a separate whole-degree compass heading, which is
+/// magnetic and has to be fused by hand.
+///
+/// JS name `TwilyteMotion`: `start()`, `stop()`, and an `attitude` event of
+///   r         CMAttitude.rotationMatrix, row-major (m11 m12 m13 m21 ... m33),
+///             in the reference frame X = north, Z = up
+///   g         gravity in the phone's frame (x right, y top, z out of the screen)
+///   trueNorth whether that north is true (else magnetic: no location yet)
+///   acc       magnetometer calibration: -1 uncalibrated, 0 low, 1 medium, 2 high
+/// index.html's iosAttitudeToEnu turns r and g into the app's frame, using
+/// gravity to settle which way round r goes rather than assuming it.
+@objc(TwilyteMotionPlugin)
+public class TwilyteMotionPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "TwilyteMotionPlugin"
+    public let jsName = "TwilyteMotion"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise)
+    ]
+    private let manager = CMMotionManager()
+
+    @objc func start(_ call: CAPPluginCall) {
+        guard manager.isDeviceMotionAvailable else {
+            call.reject("Device motion is not available on this device")
+            return
+        }
+        // True north needs the device's location (iOS uses it for the
+        // declination); the app asks for location anyway. Without it, fall
+        // back to magnetic north, which the web code then corrects itself.
+        let trueNorth = CMMotionManager.availableAttitudeReferenceFrames().contains(.xTrueNorthZVertical)
+        run(trueNorth: trueNorth)
+        call.resolve(["trueNorth": trueNorth])
+    }
+
+    @objc func stop(_ call: CAPPluginCall) {
+        manager.stopDeviceMotionUpdates()
+        call.resolve()
+    }
+
+    private func run(trueNorth: Bool) {
+        manager.stopDeviceMotionUpdates()
+        manager.deviceMotionUpdateInterval = 1.0 / 30.0
+        // iOS's own figure-eight calibration prompt, when the compass needs it.
+        manager.showsDeviceMovementDisplay = true
+        let frame: CMAttitudeReferenceFrame = trueNorth ? .xTrueNorthZVertical : .xMagneticNorthZVertical
+        manager.startDeviceMotionUpdates(using: frame, to: OperationQueue.main) { [weak self] motion, error in
+            guard let self = self else { return }
+            if let error = error as NSError?, trueNorth,
+               error.domain == CMErrorDomain, error.code == Int(CMErrorTrueNorthNotAvailable.rawValue) {
+                self.run(trueNorth: false)
+                return
+            }
+            guard let m = motion else { return }
+            let r = m.attitude.rotationMatrix
+            let g = m.gravity
+            self.notifyListeners("attitude", data: [
+                "r": [r.m11, r.m12, r.m13, r.m21, r.m22, r.m23, r.m31, r.m32, r.m33],
+                "g": [g.x, g.y, g.z],
+                "trueNorth": trueNorth,
+                "acc": Int(m.magneticField.accuracy.rawValue)
+            ])
+        }
+    }
+}
+
+/// The app's web view controller: Capacitor's own, plus the plugin above,
+/// registered before the page loads. Main.storyboard names this class.
+class TwilyteBridgeViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(TwilyteMotionPlugin())
+    }
 }
