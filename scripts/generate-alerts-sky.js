@@ -17,7 +17,7 @@ const path = require('path');
 const { declSource } = require('./test/extract.js');
 
 const NAMES = ['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'acos', 'jd', 'gmst',
-  'sunAltitude', 'moonState', 'scoreHours', 'summarize', 'clearDarkScore'];
+  'sunAltitude', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'scoreHours', 'summarize', 'clearDarkScore'];
 const EXPORTS = ['sunAltitude', 'moonState', 'clearDarkScore'];
 const OUT = path.join(__dirname, '..', 'alerts', 'src', 'sky.js');
 

@@ -25,32 +25,40 @@ function sunAltitude(date, lat, lonE) {
   const cosZ = Math.sin(lat * D2R) * Math.sin(decl) + Math.cos(lat * D2R) * Math.cos(decl) * Math.cos(ha * D2R);
   return 90 - acos(cosZ);
 }
+const MOON_LR = [[0,0,1,0,6288774,-20905355],[2,0,-1,0,1274027,-3699111],[2,0,0,0,658314,-2955968],[0,0,2,0,213618,-569925],[0,1,0,0,-185116,48888],[0,0,0,2,-114332,-3149],[2,0,-2,0,58793,246158],[2,-1,-1,0,57066,-152138],[2,0,1,0,53322,-170733],[2,-1,0,0,45758,-204586],[0,1,-1,0,-40923,-129620],[1,0,0,0,-34720,108743],[0,1,1,0,-30383,104755],[2,0,0,-2,15327,10321],[0,0,1,2,-12528,0],[0,0,1,-2,10980,79661],[4,0,-1,0,10675,-34782],[0,0,3,0,10034,-23210],[4,0,-2,0,8548,-21636],[2,1,-1,0,-7888,24208],[2,1,0,0,-6766,30824],[1,0,-1,0,-5163,-8379],[1,1,0,0,4987,-16675],[2,-1,1,0,4036,-12831],[2,0,2,0,3994,-10445],[4,0,0,0,3861,-11650],[2,0,-3,0,3665,14403],[0,1,-2,0,-2689,-7003],[2,0,-1,2,-2602,0],[2,-1,-2,0,2390,10056],[1,0,1,0,-2348,6322],[2,-2,0,0,2236,-9884],[0,1,2,0,-2120,5751],[0,2,0,0,-2069,0],[2,-2,-1,0,2048,-4950],[2,0,1,-2,-1773,4130],[2,0,0,2,-1595,0],[4,-1,-1,0,1215,-3958],[0,0,2,2,-1110,0],[3,0,-1,0,-892,3258],[2,1,1,0,-810,2616],[4,-1,-2,0,759,-1897],[0,2,-1,0,-713,-2117],[2,2,-1,0,-700,2354],[2,1,-2,0,691,0],[2,-1,0,-2,596,0],[4,0,1,0,549,-1423],[0,0,4,0,537,-1117],[4,-1,0,0,520,-1571],[1,0,-2,0,-487,-1739],[2,1,0,-2,-399,0],[0,0,2,-2,-381,-4421],[1,1,1,0,351,0],[3,0,-2,0,-340,0],[4,0,-3,0,330,0],[2,-1,2,0,327,0],[0,2,1,0,-323,1165],[1,1,-1,0,299,0],[2,0,3,0,294,0],[2,0,-1,-2,0,8752]];
+const MOON_B = [[0,0,0,1,5128122],[0,0,1,1,280602],[0,0,1,-1,277693],[2,0,0,-1,173237],[2,0,-1,1,55413],[2,0,-1,-1,46271],[2,0,0,1,32573],[0,0,2,1,17198],[2,0,1,-1,9266],[0,0,2,-1,8822],[2,-1,0,-1,8216],[2,0,-2,-1,4324],[2,0,1,1,4200],[2,1,0,-1,-3359],[2,-1,-1,1,2463],[2,-1,0,1,2211],[2,-1,-1,-1,2065],[0,1,-1,-1,-1870],[4,0,-1,-1,1828],[0,1,0,1,-1794],[0,0,0,3,-1749],[0,1,-1,1,-1565],[1,0,0,1,-1491],[0,1,1,1,-1475],[0,1,1,-1,-1410],[0,1,0,-1,-1344],[1,0,0,-1,-1335],[0,0,3,1,1107],[4,0,0,-1,1021],[4,0,-1,1,833],[0,0,1,-3,777],[4,0,-2,1,671],[2,0,0,-3,607],[2,0,2,-1,596],[2,-1,1,-1,491],[2,0,-2,1,-451],[0,0,3,-1,439],[2,0,2,1,422],[2,0,-3,-1,421],[2,1,-1,1,-366],[2,1,0,1,-351],[4,0,0,1,331],[2,-1,1,1,315],[2,-2,0,-1,302],[0,0,1,3,-283],[2,1,1,-1,-229],[1,1,0,-1,223],[1,1,0,1,223],[0,1,-2,-1,-220],[2,1,-1,-1,-220],[1,0,1,1,-185],[2,-1,-2,-1,181],[0,1,2,1,-177],[4,0,-2,-1,176],[4,-1,-1,-1,166],[1,0,1,-1,-164],[4,0,1,-1,132],[1,0,-1,-1,-119],[4,-1,0,-1,115],[2,-2,0,1,107]];
+function moonEcliptic(ms) {
+  const y = new Date(ms).getUTCFullYear(), dT = 69.2 + 0.2 * (y - 2025);
+  const T = ((ms + dT * 1000) / 86400000 + 2440587.5 - 2451545) / 36525;
+  const Lp = rev(218.3164477 + 481267.88123421 * T - 0.0015786 * T * T + T ** 3 / 538841 - T ** 4 / 65194000);
+  const D = rev(297.8501921 + 445267.1114034 * T - 0.0018819 * T * T + T ** 3 / 545868 - T ** 4 / 113065000);
+  const M = rev(357.5291092 + 35999.0502909 * T - 0.0001536 * T * T + T ** 3 / 24490000);
+  const Mp = rev(134.9633964 + 477198.8675055 * T + 0.0087414 * T * T + T ** 3 / 69699 - T ** 4 / 14712000);
+  const F = rev(93.2720950 + 483202.0175233 * T - 0.0036539 * T * T - T ** 3 / 3526000 + T ** 4 / 863310000);
+  const A1 = rev(119.75 + 131.849 * T), A2 = rev(53.09 + 479264.290 * T), A3 = rev(313.45 + 481266.484 * T);
+  const E = 1 - 0.002516 * T - 0.0000074 * T * T;
+  let sl = 0, sr = 0, sb = 0;
+  for (const [d, m, mp, f, l, r] of MOON_LR) {
+    const a = d * D + m * M + mp * Mp + f * F, e = m === 0 ? 1 : Math.abs(m) === 1 ? E : E * E;
+    sl += l * e * sin(a); sr += r * e * cos(a);
+  }
+  for (const [d, m, mp, f, b] of MOON_B) {
+    const a = d * D + m * M + mp * Mp + f * F, e = m === 0 ? 1 : Math.abs(m) === 1 ? E : E * E;
+    sb += b * e * sin(a);
+  }
+  sl += 3958 * sin(A1) + 1962 * sin(Lp - F) + 318 * sin(A2);
+  sb += -2235 * sin(Lp) + 382 * sin(A3) + 175 * sin(A1 - F) + 175 * sin(A1 + F) + 127 * sin(Lp - Mp) - 115 * sin(Lp + Mp);
+  return { lon: rev(Lp + sl / 1e6), lat: sb / 1e6, dist: 385000.56 + sr / 1000 };
+}
 function moonState(date, lat, lonE) {
   const d = jd(date) - 2451543.5;
   const ws = 282.9404 + 4.70935e-5 * d,
     Ms = rev(356.0470 + 0.9856002585 * d),
     Ls = rev(ws + Ms);
-  const N = rev(125.1228 - 0.0529538083 * d),
-    i = 5.1454,
-    w = rev(318.0634 + 0.1643573223 * d);
-  const e = 0.054900,
-    M = rev(115.3654 + 13.0649929509 * d);
-  const Lm = rev(N + w + M),
-    Dm = rev(Lm - Ls),
-    F = rev(Lm - N);
-  let E = M + R2D * e * sin(M) * (1 + e * cos(M));
-  for (let k = 0; k < 6; k++) E = E - (E - R2D * e * sin(E) - M) / (1 - e * cos(E));
-  const xv = 60.2666 * (cos(E) - e),
-    yv = 60.2666 * (Math.sqrt(1 - e * e) * sin(E));
-  const v = rev(atan2(yv, xv)),
-    r = Math.sqrt(xv * xv + yv * yv);
-  let xh = r * (cos(N) * cos(v + w) - sin(N) * sin(v + w) * cos(i));
-  let yh = r * (sin(N) * cos(v + w) + cos(N) * sin(v + w) * cos(i));
-  let zh = r * (sin(v + w) * sin(i));
-  let lon = rev(atan2(yh, xh)),
-    latM = atan2(zh, Math.sqrt(xh * xh + yh * yh));
-  lon += -1.274 * sin(M - 2 * Dm) + 0.658 * sin(2 * Dm) - 0.186 * sin(Ms) - 0.059 * sin(2 * M - 2 * Dm) - 0.057 * sin(M - 2 * Dm + Ms) + 0.053 * sin(M + 2 * Dm) + 0.046 * sin(2 * Dm - Ms) + 0.041 * sin(M - Ms) - 0.035 * sin(Dm) - 0.031 * sin(M + Ms) - 0.015 * sin(2 * F - 2 * Dm) + 0.011 * sin(M - 4 * Dm);
-  latM += -0.173 * sin(F - 2 * Dm) - 0.055 * sin(M - F - 2 * Dm) - 0.046 * sin(M + F - 2 * Dm) + 0.033 * sin(F + 2 * Dm) + 0.017 * sin(2 * M + F);
+  // Position from the full lunar series (moonEcliptic); Ls and Ms above
+  // are the Sun's, for the phase.
+  const me = moonEcliptic(date.getTime());
+  const lon = me.lon, latM = me.lat, r = me.dist / 6378.14; // r in Earth radii
   const ecl = 23.4393 - 3.563e-7 * d;
   const xg = cos(lon) * cos(latM),
     yg = sin(lon) * cos(latM),
@@ -63,13 +71,19 @@ function moonState(date, lat, lonE) {
   if (ha > 180) ha -= 360;
   const alt = asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(ha));
   const az = rev(atan2(sin(ha), cos(ha) * sin(lat) - Math.tan(dec * D2R) * cos(lat)) + 180);
-  const elong = rev(Lm - Ls);
+  // The phase from the TRUE longitudes: the Moon's `lon` above, the Sun's
+  // mean longitude plus its equation of centre. It used Lm - Ls, the mean
+  // ones, which is up to ~6° out (the Moon's own equation of centre), so a
+  // phase could come 13 hours early or late. Positions were never affected.
+  const elong = rev(lon - (Ls + 1.9148 * sin(Ms) + 0.0200 * sin(2 * Ms)));
   return {
     alt,
     az,
     r, // geocentric distance in Earth radii — used for semi-diameter/parallax in sight reduction
     illum: (1 - cos(elong)) / 2,
-    age: elong / 360 * 29.53
+    age: elong / 360 * 29.53,
+    eclLon: rev(lon), // ecliptic, of date: what the eclipse code works in
+    eclLat: latM
   };
 }
 function scoreHours(wx, loc, startMs, endMs) {

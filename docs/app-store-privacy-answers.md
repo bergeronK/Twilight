@@ -11,7 +11,9 @@ The underlying facts driving every answer here: no accounts, no ads, no
 analytics SDK, no cookies. The only data that leaves the device is (a)
 coordinates sent to Open-Meteo for weather/place-search, (b) — native app
 only — an anonymous RevenueCat install ID + purchase receipt for IAP
-verification. The website also sends a request to the visit counter, which
+verification. The app also fetches the space station's orbit
+from CelesTrak (a fixed URL, the same for everyone, carrying no location or
+identifier), which is not collection of user data. The website also sends a request to the visit counter, which
 keeps a salted hash of the requester's IP address for 24 hours, but the apps
 never do (below), so the counter is not part of either store's answers. See
 `/privacy.html` for the human-readable version of this same information.

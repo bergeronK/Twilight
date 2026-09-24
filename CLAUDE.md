@@ -250,7 +250,13 @@ Three tabs, one `index.html`, no build step:
   know only the Sun, the Moon and the navigation stars, so tapping Jupiter
   left Aim Assist and Sky View's Align with nothing. That meant moving
   `skyBodies` and the constellation memos above it: a `useMemo` reading a
-  later `const` throws on render. `find.test.js`.
+  later `const` throws on render. `find.test.js`. **Only what can be seen
+  now** (2026-09-24): `findLimit(sunAlt)` is the faintest magnitude the eye
+  gets with the Sun at that height (-3.5 by day, -1 to 3° down, 1.5 to 6°,
+  4 to 12°, then 6), and planets (`PLANET_MAG`, typical values), stars,
+  constellations (from nautical twilight) and deep-sky objects (a magnitude
+  brighter than that until dark) are offered against it. At 3 PM Find had
+  listed Vega, Arcturus and Orion; now it lists Venus and the Moon.
 - **Time travel in Sky View (2026-09-24).** A **Time** button in Sky View's
   top bar opens a slider, a day either way in 15-minute steps, on the same
   live (or drag) view: point the phone where Jupiter will rise tonight.
@@ -275,8 +281,51 @@ Three tabs, one `index.html`, no build step:
   catalogue numbers across the sky) unless picked, when it goes amber.
   Find gains a "Galaxies, nebulae and clusters" group: magnitude 6 or
   brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
-  east"). `theName` says "the Andromeda Galaxy". Not on the Console's
-  painting or the chart. `deep-sky.test.js`.
+  east"). `theName` says "the Andromeda Galaxy". `deep-sky.test.js`.
+  **On the chart and the Console too (2026-09-24):** the Stars chart draws
+  those of magnitude 6 or brighter (`chartDeep`, same shapes and violet,
+  enlarged 1.6x since 3° is a couple of pixels on a whole-sky disc), naming
+  the famous ones of magnitude 5 or brighter after every star's label. The
+  Console's highlights offer one showpiece a night (`HIGHLIGHT_DSO`: the
+  Andromeda Galaxy, the Orion Nebula, the Pleiades, M13, the Beehive, the
+  Lagoon, in that order) when it's 30°+ up in a sky 15°+ dark with the
+  limiting magnitude 1.5 past its own, at the first time it's within 5° of
+  its best: from a city the Pleiades, not the Andromeda Galaxy. Not on the
+  painting, which shows only what the eye would.
+- **Observing log (2026-09-24).** What you've marked as seen, in this
+  browser only: `seenStore` (external store like `prefStore`, `tw_seen` =
+  `{key: first marked, ms}`, `parseSeen` drops junk, `toggleSeen`), keyed by
+  `seenKey` (a Messier number for deep-sky, else the name). Sky View's
+  bottom line offers **I've seen it** once something is picked (never the
+  Sun); Find marks what's been seen. The Stars tab's **Your observing log**
+  (`ObservingLog`, hook-free) says how many (`logSummary`), lists the others
+  in the order seen, and opens a **Messier checklist** of all 110 toggles.
+  `/privacy.html` lists it under what's stored on the device.
+  `observing-log.test.js`.
+- **The space station (2026-09-24).** When the ISS passes over, on the
+  Console (a highlight, rank 1, for tonight's best pass and how many more)
+  and on the Stars tab (`IssPanel`: the next visible passes in three days).
+  - **SGP4, near-Earth only** (`parseTle`, `sgp4Init`, `sgp4At`), ported
+    from Vallado's reference (the `sgp4` Python package's `propagation.py`,
+    WGS-72): matches it to a centimetre on five element sets. Deep-space
+    orbits (225+ minutes) are refused, not got wrong.
+  - `issLook(sat, ms, lat, lon)`: TEME rotated by Vallado's `gstimeRad`, the
+    observer on the WGS-84 ellipsoid, altitude/azimuth/range, sunlit or in
+    a cylindrical shadow, and magnitude (-1.3 at 1,000 km half lit, a
+    diffuse sphere's phase). `issSunDir` is its own short solar formula.
+    Within 0.01° and 0.2 km of PyEphem, shadow agreeing everywhere.
+  - `issPasses`: 10°+ up, sunlit, Sun 6°+ down, at least 30 s; start, top,
+    end and why it ends (shadow, setting, brightening sky). `issWords`.
+  - **The orbit comes from CelesTrak** (`ISS_TLE_URL`, a fixed URL with no
+    location or identifier), fetched at most every 12 h by `loadIssTle`
+    (fetch and storage injected, like `pingVisitorCounter`), kept in
+    `tw_iss_tle`, used offline for up to a week (`issSatFrom` refuses older
+    elements: minutes of drift). `connect-src` allows `https://celestrak.org`;
+    `/privacy.html` and the store answers say so. **CelesTrak's CORS could
+    not be checked from the sandbox** (its network blocks the host); if a
+    browser refuses the response, the Stars tab says it couldn't get the
+    orbit and the Console simply has no station highlight.
+  - `iss.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -360,6 +409,38 @@ Three tabs, one `index.html`, no build step:
   - The CSV export gains six columns, and iCal a "photography" mode.
   - `computeDay` is untouched, so `twilight-calc.js` and the city pages
     need no port. `ephemeris-extras.test.js`.
+- **Ephemeris: the Moon this month (2026-09-24).** A calendar of the month
+  shown (`MoonMonth`, hook-free): each day's Moon at local noon as an SVG
+  phase shape (`moonPhasePath(k, r)`, lit on the right, mirrored when waning
+  or south of the equator), the principal phases' days in amber, and under
+  it New Moon / First quarter / Full Moon / Last quarter to the minute in
+  local time. A tap opens that date. `moonPhases(t0, t1)` finds them (6-hour
+  steps, halved to a minute) and `moonMonth(Y, Mo, offOf)` puts each on its
+  local day with that day's own offset. "Upcoming sky events" uses the same
+  phases; it stepped a day at a time before. `moon-calendar.test.js`.
+- **Eclipses (2026-09-24).** An "Eclipses" section on the Ephemeris (the
+  next four, three years ahead, computed 300 ms after painting: ~100 ms of
+  arithmetic) and a lead highlight on the Console on the night of a lunar
+  eclipse (partial or total, or penumbral of magnitude 0.9+, the Moon up).
+  - `lunarEclipse(tFull)`: the Moon against the Earth's shadow by Danjon's
+    rule (`lunarShadow`), magnitudes and contacts P1 U1 U2 max U3 U4 P4.
+  - `solarEclipseGlobal(tNew)`: gamma, and total/annular decided on the
+    shadow's axis (the hybrids of 2023 and 2031 come out total, as NASA has
+    them at greatest eclipse).
+  - `solarEclipseLocal(tNew, lat, lon)` through `solarView`: vectors from the
+    Earth's centre with the observer on the **ellipsoid** at their geodetic
+    latitude. On a sphere (as `moonTopo` does it) Madrid and Reykjavik came
+    out 0.01 either side, enough to move the edge of totality past them.
+  - `sunState` is the Sun from Schlyter's theory **less 20.5″ of
+    aberration** (an eclipse is where the Sun is seen); `sunHcZn`'s short
+    formula is a few arcminutes out, a quarter of an hour at a contact.
+  - `eclipsesBetween` looks only at new and full Moons within 1.7° of the
+    ecliptic. `eclipseWords(e, lat, lon, fmt)` says what can be seen from
+    here: totality or the partial phase with times, the Moon or Sun rising or
+    setting partway, "Not seen from here", and eclipse glasses for any solar
+    eclipse. A penumbral eclipse under 0.7 "grazes the outer shadow: nothing
+    to see".
+  - `eclipses.test.js` against PyEphem and NASA's catalogue.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the
@@ -612,6 +693,27 @@ camera image. Bearing is untouched. Moonrise/set shift by several minutes
 path** — it would correct parallax twice; `moon-parallax.test.js` guards
 both directions by reading the call sites in `StarFinder`.
 
+**The phase comes from the TRUE longitudes (fixed 2026-09-24).** `moonState`'s
+`illum` and `age` used `Lm - Ls`, the mean longitudes, which leaves out the
+Moon's equation of centre (up to ~6°): the 11 September 2026 new Moon came
+13 hours late, the full Moon 6. Now `lon` (the perturbed true longitude the
+position already used) minus the Sun's true longitude. Every principal phase
+of 2026 lands within 15 minutes of PyEphem (`moon-calendar.test.js`, its
+reference written out by script). Positions were never affected.
+
+**The Moon's position is Meeus's (2026-09-24).** `moonEcliptic(ms)` is the
+ELP-2000/82 series as Meeus gives it (Astronomical Algorithms ch. 47, the 60
+largest terms in longitude and distance, 60 in latitude, in Terrestrial Time
+with Delta T ~69 s), and `moonState` takes its longitude, latitude and
+distance from it. Within 11″ and 8 km of PyEphem; Schlyter's short series,
+used before, was 1-2′ out: invisible on screen, but it moved eclipse
+magnitudes by a few hundredths and put Oviedo outside the 2026 path of
+totality. It is also what the sextant's Moon sights reduce against. The
+tables are data from Meeus: a term typed wrong by more than about 3″ fails
+`eclipses.test.js`. **`alerts/src/sky.js` copies `moonState`**: the next time
+it is regenerated (`node scripts/generate-alerts-sky.js`), the generator
+needs `MOON_LR`, `MOON_B` and `moonEcliptic` in its list.
+
 ## Magnetic declination
 
 Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
@@ -853,7 +955,10 @@ things a syntax check cannot see:
   positions (M31, M42, M45, M13, M57, M1, M44 within 0.5°), not its own
   contents; Find's group (faint, low, order, the kind's words); the drawing
   with a recording canvas (size from arcminutes, ellipse, dashes, no catalogue
-  numbers written, amber when picked); and that the file ships.
+  numbers written, amber when picked); and that the file ships. A galaxy's
+  label moves above its outline when a constellation's name is below
+  (`nameBoxes`, recorded as the names are written), and is left off when
+  both are taken.
 - **`ephemeris-extras.test.js`** — golden and blue hours against geometry
   that doesn't depend on the code: 40 and 8 minutes at the equator on an
   equinox, longer at a slant; windows that can't happen far north in
@@ -861,6 +966,24 @@ things a syntax check cannot see:
   full Moon (rises with sunset, sets with sunrise), the Moon's height at the
   minute given, the next day's later rise, and a month with a moonless day.
   The CSV and the photography iCal are run from source.
+- **`moon-calendar.test.js`** — all 50 principal phases of 2026 against
+  PyEphem, illumination at new, full and the quarters, each phase on its
+  local day (New York's 10 September new Moon is UTC's 11th) with per-day
+  offsets, the phase shape's arcs, and `MoonMonth` rendered with a stub React
+  (weekday blanks, labels, a tap, waning and southern mirroring).
+- **`eclipses.test.js`** — `moonEcliptic` against PyEphem (30 dates);
+  every eclipse of 2026-2028 of the right kind; lunar greatest within 2 min
+  and magnitudes within 0.005 of Danjon's rule on PyEphem's Sun and Moon;
+  solar from Madrid, Oviedo, Reykjavik, Holyoke, Luxor and Sydney within
+  2 min and 0.004, including which side of totality's edge; the hybrids and
+  gammas against NASA; and `eclipseWords` for places where the Moon sets
+  mid-eclipse, is down, or barely grazes the shadow.
+- **`iss.test.js`** — SGP4 against the `sgp4` package (five element sets,
+  a centimetre), `issLook` against PyEphem from New York (altitude,
+  azimuth, range, shadow), visible passes from New York, London and Sydney
+  against PyEphem's, none in civil twilight or daylight, `loadIssTle`'s
+  12-hour keeping, offline and junk fallbacks and week-old refusal, and the
+  words.
 - **`accessibility.test.js`** — `--ink-faint` against every surface
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the

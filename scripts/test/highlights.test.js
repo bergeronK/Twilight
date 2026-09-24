@@ -14,10 +14,10 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunHcZn',
-  'moonState', 'moonTopo', 'moonAltSeen', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
-  'tonightHighlights', 'TonightHighlights']);
+  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights']);
 
 const STOWE = [44.26, -72.58];
 function tonight(iso, [lat, lon], bortle = 3) {
@@ -87,4 +87,37 @@ test('across a year of nights: never more than four, most important first', () =
     for (let i = 1; i < h.length; i++) assert.ok(h[i].rank >= h[i - 1].rank, `${new Date(t).toISOString()}: ${titles(h).join(' / ')}`);
   }
   assert.ok(longest >= 3, 'some nights have plenty to offer');
+});
+
+test('a galaxy or cluster when it is well placed and the sky dark enough for it', () => {
+  // Mid-October from Stowe: the Andromeda Galaxy nearly overhead.
+  const oct = tonight('2026-10-15T01:00Z', STOWE);
+  const deep = oct.find(h => h.kind === 'deep');
+  assert.strictEqual(deep.title, 'The Andromeda Galaxy is well placed');
+  assert.match(deep.detail, /^High in the \w+ around \d\d:\d\d: a faint oval glow 2\.5 million light-years away/);
+  // From a city it is too faint to be worth the trip; the Pleiades are not.
+  const city = tonight('2026-10-15T01:00Z', STOWE, 8).find(h => h.kind === 'deep');
+  assert.strictEqual(city.title, 'The Pleiades are well placed');
+  // One a night at most.
+  assert.ok(oct.filter(h => h.kind === 'deep').length === 1);
+  // From Sydney the Andromeda Galaxy never climbs past 15°: not offered.
+  assert.ok(!tonight('2026-10-15T10:00Z', [-33.87, 151.21]).some(h => /Andromeda/.test(h.title)));
+});
+
+test('an eclipse of the Moon tonight leads the list', () => {
+  const HOLYOKE = [42.2, -72.6];
+  // 3 March 2026: total, the Moon setting during totality at dawn.
+  const march = tonight('2026-03-03T01:00Z', HOLYOKE);
+  assert.strictEqual(march[0].kind, 'eclipse');
+  assert.strictEqual(march[0].title, 'A total eclipse of the Moon tonight');
+  // 28 August 2026: partial, the Moon well up.
+  const aug = tonight('2026-08-28T01:00Z', HOLYOKE);
+  assert.strictEqual(aug[0].title, 'A partial eclipse of the Moon tonight');
+  assert.match(aug[0].detail, /covers up to 9\d% of the Moon’s width/);
+  // A night later, nothing.
+  assert.ok(!tonight('2026-08-29T01:00Z', HOLYOKE).some(h => h.kind === 'eclipse'));
+  // A deep penumbral eclipse is worth a mention; a shallow one isn't.
+  const LONDON = [51.5, -0.1];
+  assert.strictEqual(tonight('2027-02-20T20:00Z', LONDON)[0].title, 'A faint eclipse of the Moon tonight');
+  assert.ok(!tonight('2027-08-16T22:00Z', [21.3, -157.9]).some(h => h.kind === 'eclipse'), 'penumbral magnitude 0.55: nothing to see');
 });
