@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-dq0RRvRuAFZnOWx1glzidJYBq7PcJcRkZI1yEsl+/yQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/cC8tyGjR/m7UiK5TgMcCasxJRiQ/AMJgl8/Hj4t168=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1434,6 +1434,60 @@ function quatAxis(x, y, z, deg) {
 const yawQ = deg => quatAxis(0, 0, 1, deg);
 function quatFromEuler(alpha, beta, gamma) {
   return quatMul(quatMul(quatAxis(0, 0, 1, alpha), quatAxis(1, 0, 0, beta)), quatAxis(0, 1, 0, gamma));
+}
+/* The rotation a 3x3 matrix describes, as the app's quaternion [x, y, z, w].
+   `m` is row-major and maps device coordinates to the world's (east, north,
+   up): its columns are the phone's own axes written in the world, which is
+   what quatRotate(q, v) does to a device vector v. */
+function quatFromMatrix(m) {
+  const [a, b, c, d, e, f, g, h, i] = m, tr = a + e + i;
+  let q;
+  if (tr > 0) { const t = Math.sqrt(tr + 1) * 2; q = [(h - f) / t, (c - g) / t, (d - b) / t, t / 4]; }
+  else if (a > e && a > i) { const t = Math.sqrt(1 + a - e - i) * 2; q = [t / 4, (b + d) / t, (c + g) / t, (h - f) / t]; }
+  else if (e > i) { const t = Math.sqrt(1 + e - a - i) * 2; q = [(b + d) / t, t / 4, (f + h) / t, (c - g) / t]; }
+  else { const t = Math.sqrt(1 + i - a - e) * 2; q = [(c + g) / t, (f + h) / t, t / 4, (d - b) / t]; }
+  const n = Math.hypot(q[0], q[1], q[2], q[3]);
+  return q.map(x => x / n);
+}
+/* The iPhone app's orientation, from CoreMotion's own sensor fusion (what
+   Stellarium and every native sky app use): CMAttitude's rotation matrix in
+   the frame X = true north, Z = up (so Y = west), and gravity in the phone's
+   frame. Returns the device-to-(east, north, up) matrix.
+
+   Which way round Apple's matrix goes (reference to device, or device to
+   reference) is not something to guess from documentation: a wrong guess
+   mirrors every bearing, and nothing looks broken until the sky is wrong.
+   Gravity settles it. The world's "up" written in the phone's frame is
+   -gravity; in the matrix it is the third column if the matrix maps the
+   reference frame to the device, the third row if the other way. Once the
+   phone is tilted far enough for the two to differ, the one that matches is
+   kept (`dir`). Until then (lying flat, where both agree) the columns are
+   read as reference-to-device, the usual reading of CMAttitude. */
+function iosAttitudeToEnu(r, g, dir) {
+  const gn = Math.hypot(g[0], g[1], g[2]) || 1, up = [-g[0] / gn, -g[1] / gn, -g[2] / gn];
+  const col = [r[2], r[5], r[8]], row = [r[6], r[7], r[8]];
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const dc = dist(col, up), dr = dist(row, up);
+  let d = dir;
+  if (!d && Math.abs(dc - dr) > 0.3) d = dc < dr ? 'refToDevice' : 'deviceToRef';
+  const way = d || 'refToDevice';
+  // Device-to-reference, D: the transpose if the matrix maps reference to device.
+  const D = way === 'refToDevice' ? [r[0], r[3], r[6], r[1], r[4], r[7], r[2], r[5], r[8]] : r.slice();
+  // Reference (north, west, up) to world (east, north, up): east = -west.
+  const m = [-D[3], -D[4], -D[5], D[0], D[1], D[2], D[6], D[7], D[8]];
+  return { m, dir: d || null };
+}
+// CoreMotion's magnetometer calibration (-1 uncalibrated ... 2 high) as the
+// ± degrees the rest of the app reads, iOS's webkitCompassAccuracy style.
+const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
+// The iPhone app's CoreMotion plugin (native/ios, AppDelegate.swift), when
+// this page is running inside it; null on the website and on Android, where
+// the browser's own absolute orientation already comes from the platform's
+// fused rotation vector.
+function nativeMotion() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteMotion || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  return c.Plugins.TwilyteMotion;
 }
 // v' = q v q*, for a unit quaternion.
 function quatRotate(q, v) {
@@ -6769,6 +6823,8 @@ function StarFinder({ redMode } = {}) {
   // Shared by Aim Assist and Sky View. Must be reached synchronously from a
   // tap: iOS only grants motion access during a real user gesture.
   const ensureSensors = async () => {
+    // The iPhone app reads CoreMotion, which needs no permission prompt.
+    if (nativeMotion()) { setAimSensor('granted'); return; }
     // Sensors are gated on a secure context; on plain HTTP the permission
     // call either throws or silently never fires an event. Say so plainly
     // rather than leaving the user on "Waiting for compass data…".
@@ -6841,6 +6897,62 @@ function StarFinder({ redMode } = {}) {
     // fusion step; see fuseOrientation for why the streams are combined
     // rather than one being chosen over the other.
     fusionRef.current = FUSION_INIT;
+    // Fusion and publishing, shared by the browser's events and the native
+    // CoreMotion stream.
+    const publish = (sample, acc) => {
+      const before = fusedView(fusionRef.current);
+      const next = fuseOrientation(fusionRef.current, sample);
+      fusionRef.current = next;
+      const fused = fusedView(next);
+      if (!fused) return;
+      // Publish at most ORIENT_MIN_MS apart — the fusion state advances on
+      // every event regardless, so a skipped publish loses nothing. A change
+      // in what the view is referenced to always publishes at once: that is
+      // the reading the user is waiting for.
+      const changed = !before || before.abs !== fused.abs || before.magnetic !== fused.magnetic || before.trusted !== fused.trusted;
+      const nowMs = Date.now();
+      if (!next.fresh && !changed && nowMs - lastEmitRef.current < ORIENT_MIN_MS) return;
+      lastEmitRef.current = nowMs;
+      setOrient({
+        q: fused.q,
+        acc,
+        // Relative with no north yet is still worth showing: tilt is fully
+        // valid, and the manual Align nudge supplies north.
+        abs: fused.abs,
+        // Whether declination applies. Only a magnetometer-referenced north
+        // does; iOS's is already true, and a relative view has none at all.
+        magnetic: fused.magnetic,
+        // Whether north has been confirmed rather than guessed. On iOS it is
+        // only confirmed with the screen facing up.
+        trusted: fused.trusted,
+        // For Sensor details.
+        frame: next.frame, yaw: next.yaw, haveRel: next.haveRel, northKind: next.northKind
+      });
+    };
+    // The iPhone app: CoreMotion's own fused, true-north orientation, the
+    // route native sky apps use, instead of the browser's angles and separate
+    // compass heading. The browser's events aren't listened to at all then.
+    const native = nativeMotion();
+    if (native) {
+      let dir = null, handle = null, stopped = false;
+      const onAttitude = d => {
+        const st = sensorStatsRef.current;
+        st.native = (st.native || 0) + 1; st.usable++;
+        if (!d || !Array.isArray(d.r) || !Array.isArray(d.g)) return;
+        const conv = iosAttitudeToEnu(d.r, d.g, dir);
+        if (conv.dir) dir = conv.dir;
+        st.nativeDir = dir; st.nativeTrueNorth = !!d.trueNorth;
+        st.last = { type: 'CoreMotion', frame: d.trueNorth ? 'true north' : 'magnetic north', dir: dir || 'undecided' };
+        publish({ kind: 'abs', q: quatFromMatrix(conv.m), magnetic: !d.trueNorth }, coreMotionAcc(d.acc));
+      };
+      Promise.resolve(native.addListener('attitude', onAttitude)).then(h => { if (stopped && h) h.remove(); else handle = h; });
+      Promise.resolve(native.start()).catch(() => setAimSensor('unsupported'));
+      return () => {
+        stopped = true;
+        if (handle) handle.remove();
+        Promise.resolve(native.stop()).catch(() => {});
+      };
+    }
     const orientHandler = e => {
       // Tally first, before any filtering: when nothing works, the useful
       // question is whether events arrive at all and what they contain.
@@ -6878,34 +6990,7 @@ function StarFinder({ redMode } = {}) {
       } else {
         sample = { kind: 'rel', q };
       }
-      const before = fusedView(fusionRef.current);
-      const next = fuseOrientation(fusionRef.current, sample);
-      fusionRef.current = next;
-      const fused = fusedView(next);
-      if (!fused) return;
-      // Publish at most ORIENT_MIN_MS apart — the fusion state advances on
-      // every event regardless, so a skipped publish loses nothing. A change
-      // in what the view is referenced to always publishes at once: that is
-      // the reading the user is waiting for.
-      const changed = !before || before.abs !== fused.abs || before.magnetic !== fused.magnetic || before.trusted !== fused.trusted;
-      const nowMs = Date.now();
-      if (!next.fresh && !changed && nowMs - lastEmitRef.current < ORIENT_MIN_MS) return;
-      lastEmitRef.current = nowMs;
-      setOrient({
-        q: fused.q,
-        acc,
-        // Relative with no north yet is still worth showing: tilt is fully
-        // valid, and the manual Align nudge supplies north.
-        abs: fused.abs,
-        // Whether declination applies. Only a magnetometer-referenced north
-        // does; iOS's is already true, and a relative view has none at all.
-        magnetic: fused.magnetic,
-        // Whether north has been confirmed rather than guessed. On iOS it is
-        // only confirmed with the screen facing up.
-        trusted: fused.trusted,
-        // For Sensor details.
-        frame: next.frame, yaw: next.yaw, haveRel: next.haveRel, northKind: next.northKind
-      });
+      publish(sample, acc);
     };
     // Fired by browsers that can tell the magnetometer has drifted. Left
     // un-cancelled on purpose: where a platform has its own calibration
@@ -7361,8 +7446,11 @@ function StarFinder({ redMode } = {}) {
      pointing then. Orientation rows come first; plumbing rows last. */
   const turnWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "right" : "left");
   const tiltWord = t => Math.abs(t).toFixed(0) + "\u00b0 " + (t >= 0 ? "up" : "down");
+  const nativeOn = !!(sensorStats && sensorStats.native);
   const diagEntries = [
     ["Fusion", !orient ? "\u2014"
+      // CoreMotion in the iPhone app: iOS's own fusion of all three sensors.
+      : nativeOn ? "iOS CoreMotion (native, gyro + compass)"
       // "Gyro + compass" is the good case; "compass only" means this device
       // sent no smooth relative stream, so the view carries magnetometer noise.
       : orient.frame === 'abs' ? "compass only"
@@ -7376,7 +7464,9 @@ function StarFinder({ redMode } = {}) {
       "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
     ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
       : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
+    nativeOn && ["CoreMotion frame", (sensorStats.nativeTrueNorth ? "true north" : "magnetic north (no location yet)") + " \u00b7 matrix " + (sensorStats.nativeDir || "direction not settled yet: turn the phone a little")],
     ["North source", !orient || !orient.northKind ? "\u2014"
+      : nativeOn ? "CoreMotion"
       : orient.northKind === 'heading' ? "compass heading (read off the back of the phone)" : "absolute orientation"],
     ["Heading reference", !orient ? "\u2014" : (orient.magnetic ? "magnetic (declination applied)" : orient.abs === false ? "arbitrary (relative)" : "true north")],
     // Magnitude plus a direction letter: "12.4° W", not "-12.4° W".

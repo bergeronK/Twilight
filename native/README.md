@@ -70,3 +70,40 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
    The purchase flow buys the first package of the current offering, so no
    product ids appear in code — pricing and product changes are RevenueCat
    dashboard operations.
+
+## Sky View orientation from CoreMotion (iOS)
+
+The iPhone app doesn't read the browser's orientation events. It reads
+CoreMotion's own fused orientation, referenced to **true north**, through a
+small plugin in `ios/App/App/AppDelegate.swift` (`TwilyteMotionPlugin`,
+JS name `TwilyteMotion`). This is how native sky apps such as Stellarium get
+their accuracy. The website can't: it has only the browser's angles plus a
+separate, whole-degree, magnetic compass heading.
+
+- **Registered** by `TwilyteBridgeViewController` (same file), which
+  `Base.lproj/Main.storyboard` names in place of `CAPBridgeViewController`.
+  Both live in `AppDelegate.swift`, so the Xcode project file needed no
+  changes.
+- **No permission prompt.** CoreMotion needs none. True north uses the
+  device's location, which the app already asks for. Without it, the plugin
+  falls back to magnetic north, and the web code applies the declination.
+- **Calibration.** iOS shows its own figure-eight prompt when the compass
+  needs it (`showsDeviceMovementDisplay`).
+- **Frame direction is checked, not assumed.** `index.html`'s
+  `iosAttitudeToEnu` uses gravity to settle which way round CoreMotion's
+  matrix goes, once the phone has turned a little from where it started.
+
+**Not yet built or run on a device**: this sandbox has no Mac. To try it:
+1. `npm run sync`.
+2. `npx cap open ios`, then build to an iPhone.
+3. Open Sky View and aim at the Moon.
+4. Open Sensor details. **Fusion** should read "iOS CoreMotion (native, gyro +
+   compass)", and **CoreMotion frame** should read "true north · matrix …"
+   once you've turned the phone a little.
+5. Send that readout. If the drawn Moon sits on the real one, it works. If
+   it's mirrored (right when it should be left), the frame direction or the
+   west axis is the suspect: `native-motion.test.js` pins both against a
+   simulated CoreMotion.
+
+Android is unchanged: the browser's `deviceorientationabsolute` already
+comes from Android's fused rotation vector.
