@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KKejUOldQ4Dq1W86JGVVujO4/PDDHVjCPMtW6elqjQo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-pE19jSbDT4+PaXOhna50VMJrVuyVagBNnOtkSQ/jn/c=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -936,6 +936,64 @@ function sunState(date) {
   // and light-time moves the Moon by under 1 arcsecond.
   return { lon: rev(atan2(yv, xv) + w - 0.005694), r: Math.sqrt(xv * xv + yv * yv), d };
 }
+/* ---- Tonight on the Moon ----
+   How the Moon is turned toward us (its libration: up to 8° either way,
+   which brings features near the edge into view or hides them) and where
+   the Sun is rising and setting on it (the colongitude), from Meeus ch. 53,
+   the optical part (the physical part is under 0.04°). Craters on the line
+   between day and night, with the Sun low on them, show long shadows and
+   are the best sight in a small telescope or binoculars. */
+const MOON_FEATURES = [["Copernicus","a great crater with terraced walls and peaks in the middle",-20.08,9.62,96],["Tycho","a sharp young crater, the hub of the bright rays at full Moon",-11.22,-43.3,85],["the Apennine Mountains","the Moon’s grandest mountain range",0.03,19.87,600],["Plato","a crater with a dark, flat floor",-9.38,51.62,101],["Clavius","one of the largest craters, with a curve of smaller ones inside",-14.73,-58.62,231],["the Bay of Rainbows","a bay whose curved mountain rim catches the sunrise",-31.67,45.01,249],["the Straight Wall","a cliff 110 km long, a thin dark line in morning light and bright in the evening",-7.7,-21.67,116],["Theophilus","a deep crater with mountains in the middle, one of a trio with Cyrillus and Catharina",26.28,-11.45,99],["Archimedes","a flat-floored crater at the edge of the Sea of Rains",-3.99,29.72,81],["Ptolemaeus","a huge, flat, walled plain, first of a chain of three with Alphonsus and Arzachel",-1.84,-9.16,154],["Gassendi","a crater on the edge of the Sea of Moisture, its floor cracked by rilles",-39.96,-17.55,111],["the Alpine Valley","a straight cleft cut through the lunar Alps",3.63,49.21,155],["Aristarchus","the brightest spot on the Moon",-47.49,23.73,40],["Posidonius","a crater on the edge of the Sea of Serenity",29.99,31.88,95],["Petavius","a big crater with a cleft running from its centre",60.78,-25.39,184],["Langrenus","a large crater near the eastern edge",61.04,-8.86,132],["Eratosthenes","the crater at the end of the Apennine Mountains",-11.32,14.47,59],["Schickard","a huge, low-walled crater near the south-west edge",-55.11,-44.38,212],["Grimaldi","the darkest floor on the Moon, near the western edge",-68.36,-5.38,235],["Kepler","a small bright crater with rays",-38.01,8.12,29],["Hipparchus","an old, worn crater near the centre",4.91,-5.36,144],["Maurolycus","a large crater in the crowded southern highlands",13.92,-41.77,115],["Proclus","a small, brilliant crater",46.89,16.09,27],["Messier","a pair of small craters with twin rays like a comet’s tail",47.65,-1.9,14]];
+function moonLibration(ms) {
+  const m = moonEcliptic(ms);
+  const y = new Date(ms).getUTCFullYear(), dT = 69.2 + 0.2 * (y - 2025);
+  const T = ((ms + dT * 1000) / 86400000 + 2440587.5 - 2451545) / 36525;
+  const F = rev(93.2720950 + 483202.0175233 * T - 0.0036539 * T * T - T ** 3 / 3526000);
+  const Om = rev(125.0445479 - 1934.1362891 * T + 0.0020754 * T * T + T ** 3 / 467441);
+  const I = 1.54242;
+  // Selenographic longitude and latitude of the point under a direction
+  // given in ecliptic coordinates.
+  const selen = (lam, bet) => {
+    const W = lam - Om;
+    const A = atan2(sin(W) * cos(bet) * cos(I) - sin(bet) * sin(I), cos(W) * cos(bet));
+    const l = rev(A - F);
+    return { l: l > 180 ? l - 360 : l, b: asin(-sin(W) * cos(bet) * sin(I) - sin(bet) * cos(I)) };
+  };
+  const earth = selen(m.lon, m.lat);
+  // The Sun seen from the Moon: its geocentric place, shifted by the
+  // Moon's distance.
+  const s = sunState(new Date(ms)), R = s.r * 149597870.7, k = m.dist / R;
+  const sun = selen(s.lon + 180 + k * R2D * cos(m.lat) * sin(s.lon - m.lon), k * m.lat);
+  return { l: earth.l, b: earth.b, colong: rev(90 - sun.l), sunLat: sun.b };
+}
+// The Sun's height above a point on the Moon (east longitude, latitude),
+// and whether it's morning there.
+function moonSunAlt(lib, lon, lat) {
+  const a = lib.colong + lon;
+  return { alt: asin(sin(lib.sunLat) * sin(lat) + cos(lib.sunLat) * cos(lat) * sin(a)), rising: cos(a) > 0 };
+}
+// Up to `n` features with the Sun 1-10° above them (long shadows, still
+// lit) on the side of the Moon facing us, most worth seeing first.
+function terminatorFeatures(lib, n = 3) {
+  return MOON_FEATURES.map(([name, what, lon, lat]) => {
+    const s = moonSunAlt(lib, lon, lat);
+    // Angle from the middle of the disc we see: past ~80° it's on the edge.
+    const off = Math.acos(Math.max(-1, Math.min(1, sin(lib.b) * sin(lat) + cos(lib.b) * cos(lat) * cos(lon - lib.l)))) * R2D;
+    return { name, what, alt: s.alt, rising: s.rising, off };
+  }).filter(f => f.alt >= 1 && f.alt <= 10 && f.off < 80).slice(0, n);
+}
+// The libration in words, when it's large enough to notice (5° or more).
+function librationWords(lib) {
+  const parts = [];
+  if (Math.abs(lib.b) >= 5) parts.push(lib.b > 0 ? 'its north edge, beyond Plato' : 'its south edge, beyond Tycho');
+  if (Math.abs(lib.l) >= 5) parts.push(lib.l > 0 ? 'the Mare Crisium side' : 'the Grimaldi side');
+  return parts.length ? `The Moon is tipped to show more than usual of ${parts.join(' and ')}.` : '';
+}
+function moonTonightWords(feats, fmtName) {
+  if (!feats.length) return '';
+  const one = f => `${f.rising ? 'Sunrise' : 'Sunset'} over ${f.name}, ${f.what}`;
+  return feats.map(one).join('. ') + '.';
+}
 // The Sun's altitude and azimuth from sunState, for the solar eclipse.
 function sunAltAzExact(date, lat, lonE) {
   const s = sunState(date), ecl = 23.4393 - 3.563e-7 * s.d;
@@ -1816,7 +1874,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v120";
+const BUILD = "v124";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3498,6 +3556,18 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
       detail: first.s.t > samples[0].t + STEP
         ? `From ${fmt(first.s.t)}, ${where(first.c.alt)} ${compass16(first.c.az)}, if you can get away from lights.`
         : `${where(first.c.alt)[0].toUpperCase() + where(first.c.alt).slice(1)} ${compass16(first.c.az)} until ${fmt(last.s.t)}, if you can get away from lights.`
+    });
+  }
+
+  // Craters on the Moon's line between day and night, when the Moon is
+  // part lit and well up after dark: the best telescope sight of the month.
+  const moonUp = samples.find(s => s.sunAlt <= -6 && s.moon.alt >= 15 && s.moon.illum > 0.05 && s.moon.illum < 0.95);
+  if (moonUp) {
+    const f = terminatorFeatures(moonLibration(moonUp.t), 1)[0];
+    if (f) out.push({
+      kind: 'moonfeature', rank: 6,
+      title: `On the Moon: ${f.rising ? 'sunrise' : 'sunset'} over ${f.name}`,
+      detail: `${f.what[0].toUpperCase() + f.what.slice(1)}, on the line between day and night, where shadows are longest. Binoculars held steady show it; a small telescope shows it well. The Moon is ${where(moonUp.moon.alt)} ${compass16(moonUp.moon.az)} at ${fmt(moonUp.t)}.`
     });
   }
 
@@ -5821,6 +5891,10 @@ function TwilightEphemeris({ redMode } = {}) {
   const moonDay = useMemo(() => valid ? moonRiseSet(latN, lonN, dayStartMs) : null, [valid, latN, lonN, dayStartMs]);
   const moonLit = valid ? Math.round(moonState(new Date(dayStartMs + 12 * 3600000), latN, lonN).illum * 100) : 0;
   const atMs = t => fmtLocal((t - Date.UTC(Y, Mo - 1, D)) / 60000, offMin);
+  // What a telescope shows on the Moon that evening, at 9 PM.
+  const moonLib = valid ? moonLibration(dayStartMs + 21 * 3600000) : null;
+  const moonFeats = moonLib ? terminatorFeatures(moonLib) : [];
+  const libWords = moonLib ? librationWords(moonLib) : '';
   // The next eclipses from this place, three years ahead. ~100 ms of
   // arithmetic, so after the page has painted, and again only when the
   // place moves by more than a few kilometres.
@@ -5875,7 +5949,11 @@ function TwilightEphemeris({ redMode } = {}) {
     ]],
     ["The Moon", [
       ["Moonrise", moonLit + "% lit today.", moonDay && moonDay.rise != null ? atMs(moonDay.rise) : "No moonrise today", "#d9d6cc"],
-      ["Moonset", "As seen from the ground, parallax included.", moonDay && moonDay.set != null ? atMs(moonDay.set) : "No moonset today", "#9d9a91"]
+      ["Moonset", "As seen from the ground, parallax included.", moonDay && moonDay.set != null ? atMs(moonDay.set) : "No moonset today", "#9d9a91"],
+      // At 9 PM: craters on the line between day and night, with long
+      // shadows, and the tilt when it's large enough to notice.
+      ...moonFeats.map(f => [(f.rising ? "Sunrise over " : "Sunset over ") + f.name, f.what[0].toUpperCase() + f.what.slice(1) + ", at 9 PM.", "Sun " + Math.round(f.alt) + "\u00B0 up", "#c9c2b0"]),
+      ...(libWords ? [["Tipped toward us", libWords, (Math.abs(moonLib.b) >= 5 ? (moonLib.b > 0 ? "N " : "S ") + Math.round(Math.abs(moonLib.b)) + "\u00B0 " : "") + (Math.abs(moonLib.l) >= 5 ? (moonLib.l > 0 ? "E " : "W ") + Math.round(Math.abs(moonLib.l)) + "\u00B0" : ""), "#9d9a91"]] : [])
     ]]
   ] : [];
   // Live sky glow for the entered location's sky right now (darkened for
