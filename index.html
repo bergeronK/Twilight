@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KBjtMn5Gva3y/OC+S6xq9S3ltRtFmqnJKaEH8B0ujc8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6k7hrJ42QwlP+GiEUq5ZFVeprvzlpk7Z1WxFvORbphw=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -6232,7 +6232,7 @@ const SKY_FOV_DEFAULT = 63;
    nebulae solid. Named only when it has a common name and is bright enough
    to find (magnitude 6 or brighter), or when it is the target, so the sky
    doesn't fill with catalogue numbers. */
-function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn) {
+function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn, nameBoxes) {
   const pxPerDeg = h / fov;
   const r = Math.max(4, Math.min(80, (bd.size / 60) * pxPerDeg / 2));
   const galaxy = bd.type === 's' || bd.type === 'e' || bd.type === 'i';
@@ -6251,13 +6251,24 @@ function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn) {
   g.font = (isTarget ? '600 ' : '500 ') + '11.5px Inter, system-ui, sans-serif';
   g.fillStyle = isTarget ? '#e8b563' : 'rgba(200,186,255,.85)';
   g.textAlign = 'center';
-  g.fillText(bd.name, Math.max(40, Math.min(w - 40, p.x)), p.y + r + 13);
+  // Below the outline, or above it where a constellation's name is already
+  // there (the Triangulum Galaxy sits right under TRIANGULUM); left off if
+  // both are taken, unless it's the one picked.
+  const lx = Math.max(40, Math.min(w - 40, p.x)), half = g.measureText(bd.name).width / 2;
+  const clash = y => (nameBoxes || []).some(b => lx + half > b.x1 && lx - half < b.x2 && y > b.y1 - 4 && y - 11 < b.y2);
+  let ly = p.y + r + 13;
+  if (clash(ly)) ly = p.y - r - 6;
+  if (clash(ly) && !isTarget) return;
+  g.fillText(bd.name, lx, ly);
   drawn.push({ x: p.x, y: p.y });
 }
 function drawSkyView(g, w, h, o) {
   const { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst } = o;
   const dir = b => toScreen(basis, b.az, b.alt);
   const proj = d => skyProject(d, w, h, fov);
+  // Where constellation names were written, so a galaxy's label can keep
+  // off them.
+  const nameBoxes = [];
 
   if (!cam) {
     // Sky gradient, darkest overhead — reads as depth without competing
@@ -6346,7 +6357,9 @@ function drawSkyView(g, w, h, o) {
         g.fillStyle = 'rgba(160,182,240,' + a.toFixed(3) + ')';
         const t = sp.name.toUpperCase().split('').join('\u2009'), half = g.measureText(t).width / 2 + 6;
         // A name near the edge is pulled in whole rather than cut off.
-        g.fillText(t, Math.max(half, Math.min(w - half, sp.x)), sp.y);
+        const cx = Math.max(half, Math.min(w - half, sp.x));
+        g.fillText(t, cx, sp.y);
+        nameBoxes.push({ x1: cx - half + 6, x2: cx + half - 6, y1: sp.y - 7, y2: sp.y + 7 });
       });
       g.textBaseline = 'alphabetic';
     }
@@ -6376,7 +6389,7 @@ function drawSkyView(g, w, h, o) {
     const d = dir(bd), p = proj(d);
     if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
     const isTarget = bd.name === targetName;
-    if (bd.kind === 'dso') { drawDeepSky(g, bd, p, isTarget, h, fov, o.keepClear, w, drawn); return; }
+    if (bd.kind === 'dso') { drawDeepSky(g, bd, p, isTarget, h, fov, o.keepClear, w, drawn, nameBoxes); return; }
     let r, fill, dim = 1;
     if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
     else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
@@ -6475,20 +6488,33 @@ function whereWords(az, alt) {
 // constellations 10°, measured at their label), in four groups. The Sun is
 // left out on purpose: nobody should be steered into looking at it.
 const PLANET_ORDER = ['Venus', 'Jupiter', 'Mars', 'Saturn', 'Mercury'];
+// Typical magnitudes, enough to say which planets show in twilight: Venus
+// even by day, Jupiter soon after sunset, the others once it's darker.
+const PLANET_MAG = { Mercury: 0, Venus: -4.2, Mars: 0.8, Jupiter: -2.3, Saturn: 0.6 };
+// The faintest thing the eye picks out with the Sun at this height, roughly:
+// Venus (and the Moon) by day, the brightest stars in civil twilight, most of
+// the constellations' stars by the end of nautical twilight.
+function findLimit(sunAlt) {
+  return sunAlt >= 0 ? -3.5 : sunAlt >= -3 ? -1 : sunAlt >= -6 ? 1.5 : sunAlt >= -12 ? 4 : 6;
+}
 function findList(bodies, names) {
   const up = b => b.alt >= 3;
   const item = b => ({ name: b.name, where: whereWords(b.az, b.alt) });
+  // Only what can be seen now: at 3 PM Find offered Vega and Arcturus.
+  const sun = bodies.find(b => b.kind === 'sun'), lim = findLimit(sun ? sun.alt : -90);
   const moon = bodies.filter(b => b.kind === 'moon' && up(b));
-  const planets = bodies.filter(b => b.kind === 'planet' && up(b))
+  const planets = bodies.filter(b => b.kind === 'planet' && up(b) && (PLANET_MAG[b.name] ?? 0) <= lim)
     .sort((a, b) => PLANET_ORDER.indexOf(a.name) - PLANET_ORDER.indexOf(b.name));
-  const stars = bodies.filter(b => b.kind === 'star' && b.name && b.mag <= 1.5 && up(b))
+  const stars = bodies.filter(b => b.kind === 'star' && b.name && b.mag <= Math.min(1.5, lim) && up(b))
     .sort((a, b) => a.mag - b.mag);
-  const cons = (names || []).filter(c => c.rank === 1 && c.alt >= 10)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // A figure needs its fainter stars, so not before nautical twilight.
+  const cons = lim >= 4 ? (names || []).filter(c => c.rank === 1 && c.alt >= 10)
+    .sort((a, b) => a.name.localeCompare(b.name)) : [];
   // Galaxies, nebulae and clusters worth finding without a telescope:
   // magnitude 6 or brighter (binoculars show them all; the brightest, the
   // eye alone under a dark sky), 15° up, clear of the worst of the haze.
-  const deep = bodies.filter(b => b.kind === 'dso' && b.mag <= 6 && b.alt >= 15)
+  // Spread-out light fades sooner than a star's, hence a magnitude in hand.
+  const deep = bodies.filter(b => b.kind === 'dso' && b.mag <= (lim >= 6 ? 6 : lim - 1) && b.alt >= 15)
     .sort((a, b) => a.mag - b.mag);
   return [
     { title: 'Moon and planets', items: moon.concat(planets).map(item) },
