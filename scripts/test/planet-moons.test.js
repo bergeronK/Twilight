@@ -79,8 +79,11 @@ test('shown now when it is up in the dark, else when it next is', () => {
   assert.ok(jt > now && jt % (15 * 60000) === 0);
   assert.ok(m.planetAltAz('Jupiter', new Date(jt), lat, lon).alt >= 10);
   assert.ok(m.planetAltAz('Jupiter', new Date(jt - 15 * 60000), lat, lon).alt < 10 || m.sunAltitude(new Date(jt - 15 * 60000), lat, lon) > -6);
-  // Noon: never "now", whatever is up.
-  assert.notStrictEqual(m.planetViewTime('Saturn', Date.UTC(2026, 8, 25, 16), lat, lon), Date.UTC(2026, 8, 25, 16));
+  // 9 AM, Jupiter high in a daylight sky: not now, but after dark.
+  const day = Date.UTC(2026, 8, 25, 13);
+  assert.ok(m.planetAltAz('Jupiter', new Date(day), lat, lon).alt > 30);
+  const later = m.planetViewTime('Jupiter', day, lat, lon);
+  assert.ok(later > day && m.sunAltitude(new Date(later), lat, lon) <= -6, new Date(later).toISOString());
 });
 
 test('the section, drawn with a stub React', () => {
@@ -104,7 +107,10 @@ test('the section, drawn with a stub React', () => {
   // drawn before the planet; the near (top) half after it.
   const sv = find(tree, n => n.type === 'svg')[1];
   assert.deepStrictEqual(sv.kids.map(k => k.type), ['path', 'ellipse', 'path']);
-  assert.match(sv.kids[0].props.d, / 0 0 0 /, 'far half sweeps under');
-  assert.match(sv.kids[2].props.d, / 0 0 1 /, 'near half sweeps over');
+  assert.match(sv.kids[0].props.d, /A 100 [\d.]+ 0 0 0 /, 'far half: the outer edge sweeps under');
+  assert.match(sv.kids[2].props.d, /A 100 [\d.]+ 0 0 1 /, 'near half: the outer edge sweeps over');
+  // Seen from the north it's the other way round.
+  const nv = find(m.PlanetViews({ jup: null, sat: { t: 2, rings: { B: 20, ring: 44, disc: 19.5 } }, when: String }), n => n.type === 'svg')[0];
+  assert.match(nv.kids[0].props.d, /A 100 [\d.]+ 0 0 1 /);
   delete global.React;
 });
