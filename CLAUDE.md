@@ -326,6 +326,19 @@ Three tabs, one `index.html`, no build step:
     browser refuses the response, the Stars tab says it couldn't get the
     orbit and the Console simply has no station highlight.
   - `iss.test.js`.
+- **Jupiter's moons and Saturn's rings (2026-09-24).** A flat section on
+  the Stars tab (`PlanetViews`, hook-free) draws each as it is now, or when
+  it is next 10°+ up with the Sun 6°+ down within 24 hours
+  (`planetViewTime`), north up and west on the right. `jupiterMoons(ms)` is
+  Meeus ch. 44's lower-accuracy method (x west-positive, y north, in Jupiter
+  radii along its equator; within 0.1 radius of PyEphem); `moonStatus` says
+  hidden, transit, or 'near' (within 0.3 radius of the edge, where the error
+  could put it either side); moons in Jupiter's *shadow* aren't worked out.
+  `saturnRings(date)` is the ring tilt B from Meeus ch. 45's pole and
+  Saturn's geocentric place (within 0.3° of PyEphem), positive showing the
+  north face. `planetAltAz` now calls `planetGeo` for its geocentric part
+  (tests that extract `planetAltAz` need `planetGeo` too).
+  `planet-moons.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -935,6 +948,12 @@ things a syntax check cannot see:
   2 min and 0.004, including which side of totality's edge; the hybrids and
   gammas against NASA; and `eclipseWords` for places where the Moon sets
   mid-eclipse, is down, or barely grazes the shadow.
+- **`planet-moons.test.js`** — Jupiter's moons against PyEphem (distance
+  from Jupiter, side, front or behind, one shared rotation for all four),
+  `moonStatus` at the disc and its edge, the ring tilt against PyEphem and
+  the 2025 edge-on and 2017 fully open dates, `planetViewTime` (now, later,
+  and by day not now), and `PlanetViews` with a stub React (hidden moons
+  not drawn, west on the right, the ring's far half behind the planet).
 - **`iss.test.js`** — SGP4 against the `sgp4` package (five element sets,
   a centimetre), `issLook` against PyEphem from New York (altitude,
   azimuth, range, shadow), visible passes from New York, London and Sydney
