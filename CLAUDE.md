@@ -250,7 +250,13 @@ Three tabs, one `index.html`, no build step:
   know only the Sun, the Moon and the navigation stars, so tapping Jupiter
   left Aim Assist and Sky View's Align with nothing. That meant moving
   `skyBodies` and the constellation memos above it: a `useMemo` reading a
-  later `const` throws on render. `find.test.js`.
+  later `const` throws on render. `find.test.js`. **Only what can be seen
+  now** (2026-09-24): `findLimit(sunAlt)` is the faintest magnitude the eye
+  gets with the Sun at that height (-3.5 by day, -1 to 3° down, 1.5 to 6°,
+  4 to 12°, then 6), and planets (`PLANET_MAG`, typical values), stars,
+  constellations (from nautical twilight) and deep-sky objects (a magnitude
+  brighter than that until dark) are offered against it. At 3 PM Find had
+  listed Vega, Arcturus and Orion; now it lists Venus and the Moon.
 - **Time travel in Sky View (2026-09-24).** A **Time** button in Sky View's
   top bar opens a slider, a day either way in 15-minute steps, on the same
   live (or drag) view: point the phone where Jupiter will rise tonight.
@@ -827,7 +833,10 @@ things a syntax check cannot see:
   positions (M31, M42, M45, M13, M57, M1, M44 within 0.5°), not its own
   contents; Find's group (faint, low, order, the kind's words); the drawing
   with a recording canvas (size from arcminutes, ellipse, dashes, no catalogue
-  numbers written, amber when picked); and that the file ships.
+  numbers written, amber when picked); and that the file ships. A galaxy's
+  label moves above its outline when a constellation's name is below
+  (`nameBoxes`, recorded as the names are written), and is left off when
+  both are taken.
 - **`ephemeris-extras.test.js`** — golden and blue hours against geometry
   that doesn't depend on the code: 40 and 8 minutes at the equator on an
   equinox, longer at a slant; windows that can't happen far north in
