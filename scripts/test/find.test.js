@@ -15,7 +15,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS16', 'compass16',
   'quatAxis', 'quatMul', 'quatFromEuler', 'quatRotate', 'vecAz', 'viewBasis', 'toScreen', 'skyProject', 'screenDir',
-  'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'findList', 'findTarget',
+  'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'PLANET_MAG', 'findLimit', 'findList', 'findTarget',
   'theName', 'capFirst', 'findGuide', 'edgePoint',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
   'drawMoonDisc', 'starGlow', 'drawSkyView']);
@@ -39,7 +39,7 @@ test('directions in words', () => {
 });
 
 const BODIES = [
-  { name: 'Sun', kind: 'sun', az: 250, alt: 20, mag: -26 },
+  { name: 'Sun', kind: 'sun', az: 350, alt: -30, mag: -26 },
   { name: 'Moon', kind: 'moon', az: 120, alt: 25, mag: -12 },
   { name: 'Saturn', kind: 'planet', az: 160, alt: 30, mag: -2 },
   { name: 'Jupiter', kind: 'planet', az: 90, alt: 12, mag: -2 },
@@ -66,6 +66,22 @@ test('Find lists only what is up, never the Sun, in a helpful order', () => {
   assert.strictEqual(g[0].items[1].where, 'low in the east');
   assert.ok(!JSON.stringify(g).includes('Sun'));
   assert.deepStrictEqual(m.findList(BODIES.filter(b => b.alt < 3 || b.kind === 'sun'), []), [], 'empty groups are dropped');
+});
+
+test('only what the Sun allows: the Moon and Venus by day, bright things in twilight', () => {
+  const sky = sunAlt => [{ name: 'Sun', kind: 'sun', az: 250, alt: sunAlt, mag: -26 }].concat(BODIES.filter(b => b.kind !== 'sun'),
+    [{ name: 'Venus', kind: 'planet', az: 240, alt: 25, mag: -2 }]);
+  const names = g => g.map(x => x.title + ': ' + x.items.map(i => i.name).join(', '));
+  // 3 PM: Vega and Arcturus were offered, and Orion.
+  assert.deepStrictEqual(names(m.findList(sky(20), NAMES)), ['Moon and planets: Moon, Venus']);
+  // Just after sunset: Jupiter too; no star is that bright yet.
+  assert.deepStrictEqual(names(m.findList(sky(-2), NAMES)), ['Moon and planets: Moon, Venus, Jupiter']);
+  const civil = names(m.findList(sky(-5), NAMES));
+  assert.deepStrictEqual(civil, ['Moon and planets: Moon, Venus, Jupiter, Saturn', 'Brightest stars: Arcturus, Vega']);
+  // The figures once their fainter stars are out.
+  assert.ok(names(m.findList(sky(-8), NAMES)).some(t => t.startsWith('Constellations')));
+  assert.strictEqual(m.findLimit(10), -3.5);
+  assert.strictEqual(m.findLimit(-18), 6);
 });
 
 test('findTarget finds bodies and constellations', () => {

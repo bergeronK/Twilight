@@ -16,7 +16,7 @@ const { extract } = require('./extract.js');
 
 const m = extract([
   'D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst',
-  'sunAltitude', 'moonState', 'scanCrossings', 'SUN_THR', 'MOON_THR',
+  'sunAltitude', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'scanCrossings', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'moonNote', 'heroLabel', 'heroFacing', 'panoX', 'panoY'
 ]);
 
