@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ozpfOQ34AE7bBpsZDuWvm5k+LaZLRjaDzfeuMUf4c9E=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-1STm5f+LvUKBgwWJLvjABSFyjCLUGkEnDvit9VI7fg0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1249,6 +1249,40 @@ const prefStore = (() => {
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
+/* The observing log: what you've seen, {key: when first marked, ms}, kept
+   in this browser only (tw_seen). The key is a Messier number for a
+   galaxy, nebula or cluster, otherwise the name ("Jupiter", "Orion"). */
+function parseSeen(raw) {
+  try {
+    const o = JSON.parse(raw || '{}');
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
+    const out = {};
+    for (const [k, v] of Object.entries(o)) if (k.length <= 40 && Number.isFinite(v) && v > 0) out[k] = v;
+    return out;
+  } catch (e) { return {}; }
+}
+function toggleSeen(log, key, now) {
+  const out = { ...log };
+  if (out[key]) delete out[key]; else out[key] = now;
+  return out;
+}
+const seenKey = b => (b ? (b.kind === 'dso' && b.id ? b.id : b.name) : null);
+const seenStore = (() => {
+  let log = {};
+  try { log = parseSeen(localStorage.getItem('tw_seen')); } catch (e) {}
+  const subs = new Set();
+  return {
+    get: () => log,
+    subscribe: f => { subs.add(f); return () => subs.delete(f); },
+    toggle(key) {
+      if (!key) return;
+      log = toggleSeen(log, key, Date.now());
+      try { localStorage.setItem('tw_seen', JSON.stringify(log)); } catch (e) {}
+      subs.forEach(f => f());
+    }
+  };
+})();
+function useSeen() { return React.useSyncExternalStore(seenStore.subscribe, seenStore.get); }
 function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
 function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
 function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortleMode); }
@@ -1532,7 +1566,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v118";
+const BUILD = "v119";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -6565,7 +6599,7 @@ function findList(bodies, names) {
     { title: 'Moon and planets', items: moon.concat(planets).map(item) },
     { title: 'Brightest stars', items: stars.map(item) },
     { title: 'Constellations', items: cons.map(item) },
-    { title: 'Galaxies, nebulae and clusters', items: deep.map(b => ({ name: b.name, where: DSO_KIND[b.type] + ', ' + whereWords(b.az, b.alt) })) }
+    { title: 'Galaxies, nebulae and clusters', items: deep.map(b => ({ name: b.name, id: b.id, where: DSO_KIND[b.type] + ', ' + whereWords(b.az, b.alt) })) }
   ].filter(g => g.items.length);
 }
 // The thing picked, whatever it is: a body, or a constellation (aimed at its
@@ -6699,6 +6733,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
   const [findOpen, setFindOpen] = useState(false);
+  const seen = useSeen();
   const [timeOpen, setTimeOpen] = useState(false);
   const shifted = !!(time && time.shift);
   const [size, setSize] = useState({ w: 360, h: 640 });
@@ -6962,7 +6997,8 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
               textAlign: 'left', cursor: 'pointer'
             }
           },
-            it.name,
+            React.createElement('span', null, it.name,
+              seen[it.id || it.name] ? React.createElement('span', { style: { marginLeft: 8, fontSize: 10.5, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', color: 'rgba(200,186,255,.8)' } }, 'Seen') : null),
             React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
         ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
           shifted ? 'Nothing bright is up at that time.' : 'Nothing bright is up right now. Try again after dark.')
@@ -7067,7 +7103,13 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         ? React.createElement(React.Fragment, null,
             React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: found ? '#e8b563' : '#eef2ff' } }, guide.text),
             React.createElement('div', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)', marginTop: 2 } },
-              capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'))
+              capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'),
+            // The log: once you've found it, say so. Not for the Sun.
+            target.kind !== 'sun' && React.createElement('div', { ...keepTap, style: { marginTop: 8 } },
+              React.createElement('button', {
+                onClick: () => seenStore.toggle(seenKey(target)), 'aria-pressed': !!seen[seenKey(target)],
+                style: { ...chip, ...(seen[seenKey(target)] ? chipOn : {}), padding: '6px 12px' }
+              }, seen[seenKey(target)] ? 'Seen it' : 'I’ve seen it')))
         : (live
             ? 'Live — move your phone to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
@@ -7099,6 +7141,43 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   );
 }
 
+// The log in one sentence.
+function logSummary(seen) {
+  const keys = Object.keys(seen), messier = keys.filter(k => /^M\d{1,3}$/.test(k)).length;
+  if (!keys.length) return 'Nothing yet. In Sky View, pick something and tap “I’ve seen it” once you’ve found it in the sky.';
+  return `You’ve marked ${keys.length} ${keys.length === 1 ? 'thing' : 'things'} as seen` +
+    (messier ? `, ${messier} of them from the Messier list of galaxies, nebulae and clusters.` : '.');
+}
+/* The observing log on the Stars tab. Hook-free: `seen` from useSeen,
+   `names` maps a Messier number to its common name where it has one. The
+   checklist is all 110, each a toggle, for what was seen through a
+   telescope or before this app. */
+function ObservingLog({ seen, names, open, onOpen, onToggle }) {
+  const messier = Array.from({ length: 110 }, (_, i) => 'M' + (i + 1));
+  const done = messier.filter(k => seen[k]).length;
+  const others = Object.keys(seen).filter(k => !/^M\d{1,3}$/.test(k)).sort((a, b) => seen[a] - seen[b]);
+  return React.createElement('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
+    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'Your observing log'),
+    React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } },
+      logSummary(seen), ' Kept on this device only.'),
+    others.length > 0 && React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink)', marginTop: 8 } }, 'Seen: ' + others.join(', ') + '.'),
+    React.createElement('button', {
+      onClick: onOpen, 'aria-expanded': !!open, 'aria-controls': 'messier-list',
+      style: { marginTop: 12, font: '600 13px var(--font-ui)', padding: '8px 13px', borderRadius: 9, cursor: 'pointer', border: '1px solid var(--btn-border)', background: 'transparent', color: 'var(--btn-ink)' }
+    }, `Messier checklist, ${done} of 110`),
+    open && React.createElement('div', {
+      id: 'messier-list', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(44px, 1fr))', gap: 4, marginTop: 12 }
+    }, messier.map(k => React.createElement('button', {
+      key: k, onClick: () => onToggle(k), 'aria-pressed': !!seen[k],
+      'aria-label': k + (names && names[k] ? ', ' + names[k] : '') + (seen[k] ? ': seen' : ''),
+      title: names && names[k] ? names[k] : undefined,
+      style: {
+        font: '600 11.5px var(--font-ui)', fontVariantNumeric: 'tabular-nums', padding: '7px 0', borderRadius: 7, cursor: 'pointer',
+        border: seen[k] ? '1px solid rgba(190,172,255,.75)' : '1px solid var(--btn-border)',
+        background: seen[k] ? 'rgba(190,172,255,.18)' : 'transparent', color: seen[k] ? '#e4dcff' : 'var(--ink-dim)'
+      }
+    }, k))));
+}
 function StarFinder({ redMode } = {}) {
   useH24();
   const [loc, setLoc] = useState(() => {
@@ -7117,6 +7196,8 @@ function StarFinder({ redMode } = {}) {
   // offers it, and closing Sky View brings it back to now, so the preview,
   // the chart and Aim Assist always show the sky as it is.
   const [skyShift, setSkyShift] = useState(0);
+  const seen = useSeen();
+  const [logOpen, setLogOpen] = useState(false);
   const skyNow = now + skyShift * 60000;
   const useMyLocation = () => {
     if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
@@ -8067,6 +8148,10 @@ function StarFinder({ redMode } = {}) {
       )
     }),
     starFinderPanel,
+    React.createElement(ObservingLog, {
+      seen, open: logOpen, onOpen: () => setLogOpen(o => !o), onToggle: k => seenStore.toggle(k),
+      names: deepSky ? Object.fromEntries(deepSky.filter(o => o.name).map(o => [o.id, o.name])) : null
+    }),
     navigatorPanel,
     aimPanel,
     skyOpen && React.createElement(SkyDome, {
