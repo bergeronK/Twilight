@@ -17,7 +17,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', '
   'moonState', 'moonTopo', 'moonAltSeen', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
-  'tonightHighlights', 'TonightHighlights']);
+  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights']);
 
 const STOWE = [44.26, -72.58];
 function tonight(iso, [lat, lon], bortle = 3) {
@@ -87,4 +87,19 @@ test('across a year of nights: never more than four, most important first', () =
     for (let i = 1; i < h.length; i++) assert.ok(h[i].rank >= h[i - 1].rank, `${new Date(t).toISOString()}: ${titles(h).join(' / ')}`);
   }
   assert.ok(longest >= 3, 'some nights have plenty to offer');
+});
+
+test('a galaxy or cluster when it is well placed and the sky dark enough for it', () => {
+  // Mid-October from Stowe: the Andromeda Galaxy nearly overhead.
+  const oct = tonight('2026-10-15T01:00Z', STOWE);
+  const deep = oct.find(h => h.kind === 'deep');
+  assert.strictEqual(deep.title, 'The Andromeda Galaxy is well placed');
+  assert.match(deep.detail, /^High in the \w+ around \d\d:\d\d: a faint oval glow 2\.5 million light-years away/);
+  // From a city it is too faint to be worth the trip; the Pleiades are not.
+  const city = tonight('2026-10-15T01:00Z', STOWE, 8).find(h => h.kind === 'deep');
+  assert.strictEqual(city.title, 'The Pleiades are well placed');
+  // One a night at most.
+  assert.ok(oct.filter(h => h.kind === 'deep').length === 1);
+  // From Sydney the Andromeda Galaxy never climbs past 15°: not offered.
+  assert.ok(!tonight('2026-10-15T10:00Z', [-33.87, 151.21]).some(h => /Andromeda/.test(h.title)));
 });

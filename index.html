@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-x5QcncGGV950Xl3ru851bRkZAIM56jmFdGDWCXGTLxg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-pW+9g/o5+PtyfPYo78ZYMY8q67SAZqkwwx6e/wzUluo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1344,7 +1344,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v113";
+const BUILD = "v118";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2874,6 +2874,16 @@ function sepAltAz(a, b) {
   const c = sin(a.alt) * sin(b.alt) + cos(a.alt) * cos(b.alt) * cos(a.az - b.az);
   return Math.acos(Math.max(-1, Math.min(1, c))) * R2D;
 }
+// The showpieces beyond the stars, in the order they're worth mentioning:
+// [name, RA°, Dec°, magnitude, what you see]. One a night at most.
+const HIGHLIGHT_DSO = [
+  ['the Andromeda Galaxy', 10.68, 41.27, 3.4, 'a faint oval glow 2.5 million light-years away, the farthest thing most people can see with the eye alone'],
+  ['the Orion Nebula', 83.82, -5.39, 4.0, 'a misty patch in Orion’s sword where new stars are forming, lovely in binoculars'],
+  ['the Pleiades', 56.75, 24.12, 1.6, 'a tight little dipper of blue-white stars; binoculars show dozens more'],
+  ['the Great Hercules Cluster', 250.42, 36.46, 5.8, 'a ball of some 300,000 stars, a fuzzy star to the eye and in binoculars'],
+  ['the Beehive Cluster', 130.1, 19.67, 3.7, 'a hazy patch that binoculars turn into a swarm of stars'],
+  ['the Lagoon Nebula', 270.9, -24.38, 6.0, 'a glow in the Milky Way just above the spout of the Sagittarius teapot']
+];
 function tonightHighlights(plan, lat, lon, bortle, fmt) {
   if (!plan) return [];
   const STEP = 15 * 60000, samples = [];
@@ -2963,6 +2973,22 @@ function tonightHighlights(plan, lat, lon, bortle, fmt) {
       title: 'Mercury is on show',
       detail: `Look low in the ${compass16(m.b.az)} around ${fmt(m.s.t)}, ${evening ? 'after sunset' : 'before sunrise'}. It is only this easy to see a few weeks a year.`
     });
+  }
+
+  // One of the showpieces, well up in a properly dark sky and bright enough
+  // against tonight's limit to be worth the walk outside.
+  for (const [name, ra, dec, mag, what] of HIGHLIGHT_DSO) {
+    const ok = samples.filter(s => s.sunAlt <= -15 && s.lm >= mag + 1.5)
+      .map(s => ({ s, p: starHcZn(ra, dec, lat, lon, s.d) })).filter(x => x.p.alt >= 30);
+    if (!ok.length) continue;
+    // The first time it's within 5° of its best: 10 PM beats 4 AM for most.
+    const top = Math.max(...ok.map(x => x.p.alt)), best = ok.find(x => x.p.alt >= top - 5);
+    out.push({
+      kind: 'deep', rank: 5,
+      title: `${name[0].toUpperCase() + name.slice(1)} ${name === 'the Pleiades' ? 'are' : 'is'} well placed`,
+      detail: `${where(best.p.alt)[0].toUpperCase() + where(best.p.alt).slice(1)} ${compass16(best.p.az)} around ${fmt(best.s.t)}: ${what}.`
+    });
+    break;
   }
 
   // The Milky Way's bright centre, when the sky is dark enough for it.
@@ -3151,6 +3177,19 @@ function drawSkyChart(g, size, d) {
       }
     });
   }
+  // Galaxies, nebulae and clusters under the stars, in Sky View's violet and
+  // shapes, at their size on the chart (a few pixels at least).
+  (d.deep || []).forEach(o => {
+    const p = P(o.az, o.alt);
+    if (!p) return;
+    const r = Math.max(2.5, Math.min(12, (o.size / 60) * (R / 90) / 2 * 1.6));
+    g.strokeStyle = 'rgba(190,172,255,.75)'; g.lineWidth = 1;
+    g.setLineDash(o.type === 'oc' || o.type === 'gc' || o.type === 'pos' ? [2, 2] : []);
+    g.beginPath();
+    if (o.type === 's' || o.type === 'e' || o.type === 'i') g.ellipse(p.x, p.y, r, r * 0.45, -0.5, 0, 7); else g.arc(p.x, p.y, r, 0, 7);
+    g.stroke();
+    g.setLineDash([]);
+  });
   // Stars, faintest first so the bright ones win any overlap.
   d.stars.forEach(s => {
     const p = P(s.az, s.alt);
@@ -3233,6 +3272,12 @@ function drawSkyChart(g, size, d) {
     const p = P(d.polaris.az, d.polaris.alt);
     if (p) label('Polaris', p, 'rgba(238,242,255,.66)', 6);
   }
+  // Named ones last, so they never push a star's name off.
+  (d.deep || []).forEach(o => {
+    if (o.name === o.id || o.mag > 5) return;
+    const p = P(o.az, o.alt);
+    if (p) label(o.name, p, 'rgba(200,186,255,.8)', 8);
+  });
 
   // The rim last, over everything, with the cardinal points outside it.
   g.strokeStyle = 'rgba(210,160,77,.45)';
@@ -3267,7 +3312,7 @@ function chartDir(x, y, R) {
   if (r > R) return null;
   return { az: rev(atan2(-x, -y)), alt: 90 - 2 * Math.atan(r / R) * R2D };
 }
-function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris, mw, lat, lst }) {
+function SkyChart({ stars, lines, planets, deep, moon, sunAz, fix, polaris, mw, lat, lst }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const [size, setSize] = useState(320);
@@ -3299,8 +3344,8 @@ function SkyChart({ stars, lines, planets, moon, sunAz, fix, polaris, mw, lat, l
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, size, size);
-    drawSkyChart(g, size, { stars, lines, planets, moon, sunAz, fix, polaris, mw: mwImg, lat });
-  }, [size, stars, lines, planets, moon, sunAz, fix, polaris, mwImg, lat]);
+    drawSkyChart(g, size, { stars, lines, planets, deep, moon, sunAz, fix, polaris, mw: mwImg, lat });
+  }, [size, stars, lines, planets, deep, moon, sunAz, fix, polaris, mwImg, lat]);
   return React.createElement('div', { ref: wrapRef, style: { flex: '1 1 300px', maxWidth: 420, minWidth: 0 } },
     React.createElement('canvas', {
       ref: canvasRef, className: 'hz-sky',
@@ -7206,6 +7251,16 @@ function StarFinder({ redMode } = {}) {
     });
     return out.filter(st => st.alt > -1).sort((a, b) => b.mag - a.mag);
   }, [minuteKey, loc.lat, loc.lon, starCatalog]);
+  // The brighter galaxies, nebulae and clusters, for the chart: the ones Find
+  // offers (magnitude 6 or brighter), above the horizon.
+  const chartDeep = useMemo(() => {
+    if (!deepSky) return [];
+    const dt = new Date(now);
+    return deepSky.filter(o => o.mag <= 6).map(o => {
+      const p = starHcZn(o.ra, o.dec, loc.lat, loc.lon, dt);
+      return { name: dsoLabel(o), id: o.id, type: o.type, mag: o.mag, size: o.size, az: p.az, alt: p.alt };
+    }).filter(o => o.alt > 0);
+  }, [minuteKey, loc.lat, loc.lon, deepSky]);
   const chartLines = useMemo(() => {
     if (!constLines || !constLines.length) return [];
     const dt = new Date(now);
@@ -7222,7 +7277,7 @@ function StarFinder({ redMode } = {}) {
   const chartMoon = useMemo(() => moonTopo(moonState(new Date(now), loc.lat, loc.lon)), [minuteKey, loc.lat, loc.lon]);
   const chartSunAz = useMemo(() => sunHcZn(new Date(now), loc.lat, loc.lon).az, [minuteKey, loc.lat, loc.lon]);
   const skyChart = React.createElement(SkyChart, {
-    stars: chartStars, lines: chartLines, planets: chartPlanets,
+    stars: chartStars, lines: chartLines, planets: chartPlanets, deep: chartDeep,
     moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
     fix: fixStars, polaris: showPolaris ? polaris : null,
     mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(now)) + loc.lon)

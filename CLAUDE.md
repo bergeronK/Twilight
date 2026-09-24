@@ -275,8 +275,17 @@ Three tabs, one `index.html`, no build step:
   catalogue numbers across the sky) unless picked, when it goes amber.
   Find gains a "Galaxies, nebulae and clusters" group: magnitude 6 or
   brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
-  east"). `theName` says "the Andromeda Galaxy". Not on the Console's
-  painting or the chart. `deep-sky.test.js`.
+  east"). `theName` says "the Andromeda Galaxy". `deep-sky.test.js`.
+  **On the chart and the Console too (2026-09-24):** the Stars chart draws
+  those of magnitude 6 or brighter (`chartDeep`, same shapes and violet,
+  enlarged 1.6x since 3° is a couple of pixels on a whole-sky disc), naming
+  the famous ones of magnitude 5 or brighter after every star's label. The
+  Console's highlights offer one showpiece a night (`HIGHLIGHT_DSO`: the
+  Andromeda Galaxy, the Orion Nebula, the Pleiades, M13, the Beehive, the
+  Lagoon, in that order) when it's 30°+ up in a sky 15°+ dark with the
+  limiting magnitude 1.5 past its own, at the first time it's within 5° of
+  its best: from a city the Pleiades, not the Andromeda Galaxy. Not on the
+  painting, which shows only what the eye would.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
