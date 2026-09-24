@@ -12,7 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'jd', 'gmst', 'moonState', 'moonElong', 'MOON_PHASE_NAMES',
+const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'jd', 'gmst', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonElong', 'MOON_PHASE_NAMES',
   'moonPhases', 'daysInMonth', 'moonMonth', 'moonPhasePath']);
 
 // PyEphem 4.x: ephem.next_new_moon / next_first_quarter_moon / next_full_moon /
