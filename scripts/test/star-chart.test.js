@@ -16,7 +16,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { extract } = require('./extract.js');
+const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'chartXY', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'starGlow', 'drawSkyChart']);
 const R_OF = size => size / 2 - 17;
@@ -162,4 +162,31 @@ test('a chart with nothing up still draws its frame', () => {
   m.drawSkyChart(g, SIZE, { stars: [], lines: [], planets: [], moon: null, sunAz: 0, fix: [], polaris: null });
   assert.ok(g.texts.some(t => t.t === 'N'), 'the compass rose is always there');
   assert.ok(g.arcs.some(a => Math.abs(a.r - R_OF(SIZE)) < 1e-9), 'and the horizon');
+});
+
+test('galaxies and clusters on the chart: violet outlines, the famous ones named', () => {
+  const g = stubCtx();
+  const d = baseData();
+  d.deep = [
+    { name: 'Andromeda Galaxy', id: 'M31', type: 's', mag: 3.4, size: 190, az: 60, alt: 50 },
+    { name: 'M35', id: 'M35', type: 'oc', mag: 5.1, size: 28, az: 100, alt: 40 },
+    { name: 'Eagle Nebula', id: 'M16', type: 'sfr', mag: 6.0, size: 7, az: 200, alt: 30 }
+  ];
+  m.drawSkyChart(g, SIZE, d);
+  const R = R_OF(SIZE), at = m.chartXY(60, 50, R), gx = SIZE / 2 + at.x, gy = SIZE / 2 + at.y;
+  const ell = g.calls.filter(c => c.name === 'ellipse' && Math.hypot(c.args[0] - gx, c.args[1] - gy) < 0.5);
+  assert.strictEqual(ell.length, 1, 'the galaxy is an ellipse');
+  // Its size from arcminutes, at the chart's scale (enlarged 1.6x: it is
+  // 3° across, a couple of pixels on a whole-sky disc).
+  assert.ok(Math.abs(ell[0].args[2] - (190 / 60) * (R / 90) / 2 * 1.6) < 0.01, `radius ${ell[0].args[2]}`);
+  assert.ok(g.calls.some(c => c.name === 'setLineDash' && c.args[0].length), 'the cluster is dashed');
+  const names = g.texts.map(t => t.t);
+  assert.ok(names.includes('Andromeda Galaxy'));
+  assert.ok(!names.includes('M35'), 'no catalogue numbers');
+  assert.ok(!names.includes('Eagle Nebula'), 'magnitude 6: marked, not named');
+  // And the Stars tab hands them over, from the catalogue Sky View loads.
+  assert.match(declSource('StarFinder'), /planets: chartPlanets, deep: chartDeep,/);
+  assert.match(declSource('StarFinder'), /deepSky\.filter\(o => o\.mag <= 6\)/);
+  // Named after every star, so none of theirs is pushed off.
+  assert.ok(names.indexOf('Andromeda Galaxy') > Math.max(...names.map((n, i) => (d.stars.some(s => s.name === n) ? i : -1))));
 });

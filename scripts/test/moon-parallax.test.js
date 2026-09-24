@@ -21,7 +21,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst',
-  'moonState', 'moonTopo', 'moonAltSeen', 'scanCrossings', 'MOON_THR']);
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'scanCrossings', 'MOON_THR']);
 const D = Math.PI / 180;
 const hp = r => Math.asin(1 / r) / D;   // horizontal parallax, degrees
 
