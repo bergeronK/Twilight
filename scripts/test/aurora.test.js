@@ -105,6 +105,9 @@ test('tonight’s chance, from the dark hours only', () => {
   assert.strictEqual(m.auroraTonight(plan, lat, lon, rows(from, 2, [Date.UTC(2026, 8, 25, 6), 8.33]), fmt).reach, 'overhead');
   // The same storm at 18 UTC, 2 PM, is in daylight: nothing.
   assert.strictEqual(m.auroraTonight(plan, lat, lon, rows(from, 2, [Date.UTC(2026, 8, 24, 18), 8.33]), fmt), null);
+  // And 4:30-7:30 PM, through sunset and twilight, ending before the Sun
+  // is 12° down (7:40): nothing.
+  assert.strictEqual(m.auroraTonight(plan, lat, lon, [{ t: Date.UTC(2026, 8, 24, 20, 30), kp: 8.33 }], fmt), null);
   // Hobart, under the southern oval's reach.
   const hp = planFor('2026-09-24T10:00:00Z', -42.88, 147.33);
   const h = m.auroraTonight(hp, -42.88, 147.33, rows(from, 7), fmt);
