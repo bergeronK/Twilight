@@ -325,3 +325,20 @@ test('Sky View does not show a north warning in drag-to-look mode', () => {
   assert.ok(!text.includes('Finding north'));
   assert.ok(text.includes('drag to look around'));
 });
+
+test('Sky View offers Align before anything is picked: on the Moon when it is up', () => {
+  // Field report, v107: the Moon drawn 14° off, and no way to find Align,
+  // which only appeared once a target had been picked.
+  const align = { onAlign: () => {}, onReset: () => {}, offset: 0 };
+  let picked = null;
+  const up = renderSkyDome({ targetName: null, align, onPick: n => { picked = n; }, diag: diagProp(false) });
+  const btn = find(up, n => n.type === 'button' && textOf(n).trim() === 'Align on the Moon');
+  assert.ok(btn, 'an Align on the Moon button');
+  btn.props.onClick();
+  assert.strictEqual(picked, 'Moon');
+  const down = renderSkyDome({ targetName: null, align, bodies: [{ name: 'Moon', az: 120, alt: -10, kind: 'moon', mag: -12 }], diag: diagProp(false) });
+  assert.ok(!find(down, n => n.type === 'button' && textOf(n).trim() === 'Align on the Moon'));
+  assert.match(textOf(down), /Tap a bright star or planet you can see, then Align\./);
+  // Not in drag-to-look mode, where there is no compass to correct.
+  assert.ok(!/lining up/.test(textOf(renderSkyDome({ targetName: null, align, viewQ: null, diag: diagProp(false) }))));
+});

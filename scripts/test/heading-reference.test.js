@@ -11,7 +11,8 @@
  * The contracts, as this handler now treats them:
  *   iOS Safari   — `deviceorientation` with a relative alpha and a
  *                  webkitCompassHeading. Attitude from the angles, north
- *                  from the heading. Treated as true north.
+ *                  from the heading. Treated as MAGNETIC north (four field
+ *                  readings, fusion.test.js IPHONE).
  *   Android      — plain `deviceorientation` is relative (gyro-based) and
  *                  drives the view; `deviceorientationabsolute` is
  *                  magnetometer-referenced and supplies north.
@@ -76,14 +77,14 @@ const aimAz = o => O.aimOf(o.q).az;
 
 // ---------------------------------------------------------------- the three contracts
 
-test('iOS: the compass heading supplies north, and is not double-corrected', () => {
+test('iOS: the compass heading supplies north, magnetic, for declination to correct', () => {
   const L = makeListener();
   // Upright, relative alpha arbitrary; the camera actually faces 40.
   L.fire(ev('deviceorientation', false, 12, 90, 0, { webkitCompassHeading: 40, webkitCompassAccuracy: 8 }));
   const o = L.last();
   assert.ok(o, 'an iOS event should produce a view');
   assert.strictEqual(o.abs, true, 'a compass heading means north is known');
-  assert.strictEqual(o.magnetic, false, 'iOS applies declination itself — adding it again doubles it');
+  assert.strictEqual(o.magnetic, true, 'iPhone headings read as magnetic in the field (fusion.test.js, IPHONE)');
   assert.strictEqual(o.acc, 8, 'compass accuracy passes through for the calibration hint');
   assert.ok(angErr(aimAz(o), 40) < 1e-9, `camera should read 40, got ${aimAz(o)}`);
 });
@@ -229,13 +230,15 @@ test('end to end: an Android view in Seattle is turned from magnetic to true', (
   assert.ok(corrected > 10 && corrected < 20, `expected ~15 deg true, got ${corrected.toFixed(1)}`);
 });
 
-test('end to end: an iOS view is left alone by declination', () => {
+test('end to end: an iOS view in Holyoke is turned from magnetic to true', () => {
+  // The field case: the phone's camera on the Moon at true az 152.7, the
+  // heading 168; declination 13.3 W takes it to 154.7.
   const L = makeListener();
-  L.fire(ev('deviceorientation', false, 0, 90, 0, { webkitCompassHeading: 0 }));
+  L.fire(ev('deviceorientation', false, 351.5, 121.2, -6.4, { webkitCompassHeading: 168 }));
   const o = L.last();
-  const seattle = magneticDeclination(47.6062, -122.3321, new Date());
-  const corrected = O.aimOf(O.correctView(o.q, headingCorrection(o, seattle, 0))).az;
-  assert.ok(angErr(corrected, 0) < 1e-9, `iOS true north must not be shifted, got ${corrected}`);
+  const here = magneticDeclination(42.09, -72.62, new Date('2026-09-24T01:09:00Z'));
+  const corrected = O.aimOf(O.correctView(o.q, headingCorrection(o, here, 0))).az;
+  assert.ok(Math.abs(corrected - 152.7) < 4, `corrected to ${corrected.toFixed(1)}, the Moon was at 152.7`);
 });
 
 test('iOS: a heading marked invalid by the phone does not move north', () => {
