@@ -366,6 +366,15 @@ Three tabs, one `index.html`, no build step:
   - The CSV export gains six columns, and iCal a "photography" mode.
   - `computeDay` is untouched, so `twilight-calc.js` and the city pages
     need no port. `ephemeris-extras.test.js`.
+- **Ephemeris: the Moon this month (2026-09-24).** A calendar of the month
+  shown (`MoonMonth`, hook-free): each day's Moon at local noon as an SVG
+  phase shape (`moonPhasePath(k, r)`, lit on the right, mirrored when waning
+  or south of the equator), the principal phases' days in amber, and under
+  it New Moon / First quarter / Full Moon / Last quarter to the minute in
+  local time. A tap opens that date. `moonPhases(t0, t1)` finds them (6-hour
+  steps, halved to a minute) and `moonMonth(Y, Mo, offOf)` puts each on its
+  local day with that day's own offset. "Upcoming sky events" uses the same
+  phases; it stepped a day at a time before. `moon-calendar.test.js`.
 - **Star Finder sky chart** — the whole sky on one disc at the top of the
   Stars tab, replacing the 184 px, 57-dot compass dial. Stereographic
   (`chartXY`), because an equidistant disc squashes constellations near the
@@ -574,6 +583,14 @@ camera image. Bearing is untouched. Moonrise/set shift by several minutes
 (one field night: 03:15 → 03:09). **Never pass `moonTopo` to the sextant
 path** — it would correct parallax twice; `moon-parallax.test.js` guards
 both directions by reading the call sites in `StarFinder`.
+
+**The phase comes from the TRUE longitudes (fixed 2026-09-24).** `moonState`'s
+`illum` and `age` used `Lm - Ls`, the mean longitudes, which leaves out the
+Moon's equation of centre (up to ~6°): the 11 September 2026 new Moon came
+13 hours late, the full Moon 6. Now `lon` (the perturbed true longitude the
+position already used) minus the Sun's true longitude. Every principal phase
+of 2026 lands within 15 minutes of PyEphem (`moon-calendar.test.js`, its
+reference written out by script). Positions were never affected.
 
 ## Magnetic declination
 
@@ -827,6 +844,11 @@ things a syntax check cannot see:
   full Moon (rises with sunset, sets with sunrise), the Moon's height at the
   minute given, the next day's later rise, and a month with a moonless day.
   The CSV and the photography iCal are run from source.
+- **`moon-calendar.test.js`** — all 50 principal phases of 2026 against
+  PyEphem, illumination at new, full and the quarters, each phase on its
+  local day (New York's 10 September new Moon is UTC's 11th) with per-day
+  offsets, the phase shape's arcs, and `MoonMonth` rendered with a stub React
+  (weekday blanks, labels, a tap, waning and southern mirroring).
 - **`accessibility.test.js`** — `--ink-faint` against every surface
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the
