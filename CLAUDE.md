@@ -277,6 +277,16 @@ Three tabs, one `index.html`, no build step:
   brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
   east"). `theName` says "the Andromeda Galaxy". Not on the Console's
   painting or the chart. `deep-sky.test.js`.
+- **Observing log (2026-09-24).** What you've marked as seen, in this
+  browser only: `seenStore` (external store like `prefStore`, `tw_seen` =
+  `{key: first marked, ms}`, `parseSeen` drops junk, `toggleSeen`), keyed by
+  `seenKey` (a Messier number for deep-sky, else the name). Sky View's
+  bottom line offers **I've seen it** once something is picked (never the
+  Sun); Find marks what's been seen. The Stars tab's **Your observing log**
+  (`ObservingLog`, hook-free) says how many (`logSummary`), lists the others
+  in the order seen, and opens a **Messier checklist** of all 110 toggles.
+  `/privacy.html` lists it under what's stored on the device.
+  `observing-log.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
