@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gP1qzHZTIxTvNtqXSWYMlGW00lcHF3bgp/GlCkFgghE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-lqCSXWYat9LX3PR2FKWccfaItDVKaRlz/rqc4O6W45A=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1324,7 +1324,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v106";
+const BUILD = "v107";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4588,6 +4588,33 @@ function computeDay(lat, lon, y, m, d) {
   };
 }
 
+/* For photographers: golden hour, the Sun from 4° below the horizon to 6°
+   up (low, warm, long-shadowed light), and blue hour, from 6° below to 4°
+   below (the deep blue after sunset and before sunrise). Definitions vary a
+   little between sources; these are the common ones, and the sub-lines
+   say them. Each window is [start, end] in UTC minutes, or null when the
+   Sun doesn't cross both edges that day (summer nights far north, polar
+   days). */
+function photoWindows(lat, lon, p) {
+  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  const win = (a, b) => (a.none || b.none ? null : [a.utc, b.utc]);
+  return {
+    morningBlue: win(ev(-6, true), ev(-4, true)),
+    morningGolden: win(ev(-4, true), ev(6, true)),
+    eveningGolden: win(ev(6, false), ev(-4, false)),
+    eveningBlue: win(ev(-4, false), ev(-6, false))
+  };
+}
+/* Moonrise and moonset in the 24 hours from `startMs` (the local day's
+   midnight), as seen from the ground: the same topocentric Moon the Console
+   times. Either can be null: about once a month the Moon rises or sets on
+   neither side of a given midnight. */
+function moonRiseSet(lat, lon, startMs) {
+  const xs = scanCrossings(startMs, startMs + 86400000, lat, lon, moonAltSeen, MOON_THR, 2);
+  const r = xs.find(x => x.dir === 'up'), s = xs.find(x => x.dir === 'down');
+  return { rise: r ? r.t : null, set: s ? s.t : null };
+}
+
 /* ============================================================
    COMPONENT
    ============================================================ */
@@ -4812,7 +4839,8 @@ function TwilightEphemeris({ redMode } = {}) {
     URL.revokeObjectURL(url);
   }
   function exportCSV() {
-    const hdr = ["Date", "Astronomical dawn", "Nautical dawn", "Civil dawn", "Sunrise", "Solar noon", "Sunset", "Civil dusk", "Nautical dusk", "Astronomical dusk"];
+    const hdr = ["Date", "Astronomical dawn", "Nautical dawn", "Civil dawn", "Sunrise", "Solar noon", "Sunset", "Civil dusk", "Nautical dusk", "Astronomical dusk",
+      "Blue hour (morning)", "Golden hour (morning)", "Golden hour (evening)", "Blue hour (evening)", "Moonrise", "Moonset"];
     const lines = [hdr.join(",")];
     for (const {
       day,
@@ -4820,7 +4848,10 @@ function TwilightEphemeris({ redMode } = {}) {
       off
     } of monthRows()) {
       const ds = `${Y}-${pad2(Mo)}-${pad2(day)}`;
-      lines.push([ds, cell(c.astroDawn, off), cell(c.nautDawn, off), cell(c.civilDawn, off), cell(c.sunrise, off), fmtLocal(c.noon, off), cell(c.sunset, off), cell(c.civilDusk, off), cell(c.nautDusk, off), cell(c.astroDusk, off)].map(x => `"${x}"`).join(","));
+      const ph = photoWindows(latN, lonN, c.p), win = w => (w ? fmtLocal(w[0], off) + "\u2013" + fmtLocal(w[1], off) : "none");
+      const mn = moonRiseSet(latN, lonN, Date.UTC(Y, Mo - 1, day) - off * 60000), mt = t => (t == null ? "none" : fmtLocal((t - Date.UTC(Y, Mo - 1, day)) / 60000, off));
+      lines.push([ds, cell(c.astroDawn, off), cell(c.nautDawn, off), cell(c.civilDawn, off), cell(c.sunrise, off), fmtLocal(c.noon, off), cell(c.sunset, off), cell(c.civilDusk, off), cell(c.nautDusk, off), cell(c.astroDusk, off),
+        win(ph.morningBlue), win(ph.morningGolden), win(ph.eveningGolden), win(ph.eveningBlue), mt(mn.rise), mt(mn.set)].map(x => `"${x}"`).join(","));
     }
     download(`twilight_${Y}-${pad2(Mo)}.csv`, lines.join("\n"), "text/csv");
   }
@@ -4838,6 +4869,13 @@ function TwilightEphemeris({ redMode } = {}) {
           const e = utcDate(nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate(), nc.astroDawn.utc);
           push(s, e, "\uD83C\uDF0C Astronomical dark window", "Sun below \u221218\u00B0 \u2014 darkest sky for stargazing.");
         }
+      } else if (icalMode === "photography") {
+        const w = photoWindows(latN, lonN, c.p);
+        const add = (win, title, desc) => { if (win) push(utcDate(Y, Mo, day, win[0]), utcDate(Y, Mo, day, win[1]), title, desc); };
+        add(w.morningBlue, "\uD83D\uDCF7 Blue hour", "Sun 6\u00B0 to 4\u00B0 below the horizon: a deep blue sky.");
+        add(w.morningGolden, "\uD83D\uDCF7 Golden hour", "Sun from 4\u00B0 below to 6\u00B0 up: low, warm light.");
+        add(w.eveningGolden, "\uD83D\uDCF7 Golden hour", "Sun from 6\u00B0 up to 4\u00B0 below: low, warm light.");
+        add(w.eveningBlue, "\uD83D\uDCF7 Blue hour", "Sun 4\u00B0 to 6\u00B0 below the horizon: a deep blue sky.");
       } else if (icalMode === "navigation") {
         if (!c.nautDawn.none && !c.sunrise.none) push(utcDate(Y, Mo, day, c.nautDawn.utc), utcDate(Y, Mo, day, c.sunrise.utc), "\u2693 Morning nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
         if (!c.sunset.none && !c.nautDusk.none) push(utcDate(Y, Mo, day, c.sunset.utc), utcDate(Y, Mo, day, c.nautDusk.utc), "\u2693 Evening nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
@@ -5074,6 +5112,25 @@ function TwilightEphemeris({ redMode } = {}) {
   const phaseRows = today ? [["Astronomical dawn", today.astroDawn, "#7a78d6", "Sun reaches \u221218\u00B0"], ["Nautical dawn", today.nautDawn, "#5f76c8", "Sun reaches \u221212\u00B0"], ["Civil dawn", today.civilDawn, "#f2a65a", "Sun reaches \u22126\u00B0"], ["Sunrise", today.sunrise, "#ffd479", "Upper limb at horizon"], ["Solar noon", {
     utc: today.noon
   }, gold, "Sun on meridian"], ["Sunset", today.sunset, "#ffd479", "Upper limb at horizon"], ["Civil dusk", today.civilDusk, "#f2a65a", "Sun reaches \u22126\u00B0"], ["Nautical dusk", today.nautDusk, "#5f76c8", "Sun reaches \u221212\u00B0"], ["Astronomical dusk", today.astroDusk, "#7a78d6", "Sun reaches \u221218\u00B0"]] : [];
+  // Golden and blue hours, and the Moon, for the date shown.
+  const photo = today ? photoWindows(latN, lonN, today.p) : null;
+  const dayStartMs = Date.UTC(Y, Mo - 1, D) - offMin * 60000;
+  const moonDay = useMemo(() => valid ? moonRiseSet(latN, lonN, dayStartMs) : null, [valid, latN, lonN, dayStartMs]);
+  const moonLit = valid ? Math.round(moonState(new Date(dayStartMs + 12 * 3600000), latN, lonN).illum * 100) : 0;
+  const atMs = t => fmtLocal((t - Date.UTC(Y, Mo - 1, D)) / 60000, offMin);
+  const winStr = w => (w ? fmtLocal(w[0], offMin) + " \u2013 " + fmtLocal(w[1], offMin) : "Not today");
+  const extraRows = photo ? [
+    ["For photographers", [
+      ["Blue hour", "Morning. Sun 6\u00B0 to 4\u00B0 below the horizon: a deep blue sky.", winStr(photo.morningBlue), "#5f86d8"],
+      ["Golden hour", "Morning. Sun from 4\u00B0 below to 6\u00B0 up: low, warm light.", winStr(photo.morningGolden), "#f2b45a"],
+      ["Golden hour", "Evening.", winStr(photo.eveningGolden), "#f2b45a"],
+      ["Blue hour", "Evening.", winStr(photo.eveningBlue), "#5f86d8"]
+    ]],
+    ["The Moon", [
+      ["Moonrise", moonLit + "% lit today.", moonDay && moonDay.rise != null ? atMs(moonDay.rise) : "No moonrise today", "#d9d6cc"],
+      ["Moonset", "As seen from the ground, parallax included.", moonDay && moonDay.set != null ? atMs(moonDay.set) : "No moonset today", "#9d9a91"]
+    ]]
+  ] : [];
   // Live sky glow for the entered location's sky right now (darkened for
   // readability; themed fallback in red-light mode \u2014 no blue light).
   const eLat = parseFloat(lat), eLon = parseFloat(lon);
@@ -5204,6 +5261,8 @@ function TwilightEphemeris({ redMode } = {}) {
   }, "iCal: stargazing \u2014 dark windows"), /*#__PURE__*/React.createElement("option", {
     value: "navigation"
   }, "iCal: navigation \u2014 nautical twilight"), /*#__PURE__*/React.createElement("option", {
+    value: "photography"
+  }, "iCal: photography \u2014 golden and blue hours"), /*#__PURE__*/React.createElement("option", {
     value: "all"
   }, "iCal: all phase markers"))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5635,7 +5694,22 @@ function TwilightEphemeris({ redMode } = {}) {
       color: dim,
       textAlign: "right"
     }
-  }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high."))))
+  }, "Times in ", tzLabel, ". \u201C\u2014 high\u201D = sun never sinks that low; \u201C\u2014 low\u201D = sun never climbs that high.")),
+  // Golden and blue hours, and the Moon: flat, hairline rows like the times
+  // above.
+  valid && extraRows.map(([title, rows]) => /*#__PURE__*/React.createElement("div", {
+    key: title,
+    style: { ...panel, padding: "14px 6px 6px" }
+  }, /*#__PURE__*/React.createElement("div", { style: labelSt }, title),
+    rows.map(([name, sub, val, color], i) => /*#__PURE__*/React.createElement("div", {
+      key: name + i,
+      style: { display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 12, alignItems: "center", padding: "11px 0", borderTop: i ? "1px solid rgba(255,255,255,.05)" : "none" }
+    },
+      /*#__PURE__*/React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}` } }),
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("div", { style: { font: "550 14px var(--font-ui)", color: ink } }, name),
+        /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
+      /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", font: "600 16px var(--font-ui)", color: /^No|^Not/.test(val) ? dim : ink, fontVariantNumeric: "tabular-nums" } }, val)))))))
   , /*#__PURE__*/React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
