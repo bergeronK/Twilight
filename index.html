@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-SRml9j7C5MTBRCM82qG9t3Y2hj2ZPgUgLhbae/ASXVo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/cC8tyGjR/m7UiK5TgMcCasxJRiQ/AMJgl8/Hj4t168=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -962,6 +962,26 @@ function milkyWayImage(field, cols, rows, rgb, reuse) {
   return c;
 }
 let constellationNamesPromise = null;
+/* The Messier catalogue: galaxies, nebulae and star clusters, from the same
+   d3-celestial commit as the constellations (BSD 3-Clause;
+   constellations.LICENSE.txt), built by scripts/generate-deep-sky.js. Rows
+   are [id, name, type, mag, ra, dec, size in arcminutes]. */
+let deepSkyPromise = null;
+function loadDeepSky() {
+  if (!deepSkyPromise) {
+    deepSkyPromise = fetch('deep-sky.json')
+      .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
+      .then(rows => rows.map(([id, name, type, mag, ra, dec, size]) => ({ id, name, type, mag, ra, dec, size })))
+      .catch(() => []);
+  }
+  return deepSkyPromise;
+}
+// What each kind of deep-sky object is, in plain words.
+const DSO_KIND = {
+  s: 'galaxy', e: 'galaxy', i: 'galaxy', gc: 'globular cluster', oc: 'star cluster',
+  sfr: 'nebula', rn: 'nebula', pn: 'planetary nebula', snr: 'supernova remnant', pos: 'star group'
+};
+const dsoLabel = o => o.name || o.id;
 function loadConstellationNames() {
   if (!constellationNamesPromise) {
     constellationNamesPromise = fetch('constellation-names.json')
@@ -1324,7 +1344,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v111";
+const BUILD = "v112";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -5880,6 +5900,34 @@ const SKY_FOV_DEFAULT = 63;
    constellation names for the overlay's controls), reticle }. Drawn by the
    full-screen overlay on every sensor event, and once a minute by the Stars
    tab's preview, so the two cannot drift apart. */
+/* A deep-sky object in Sky View: a soft violet outline its real size where
+   that is bigger than a few pixels (the Andromeda Galaxy is three Moons
+   across), a small mark otherwise. Galaxies as ellipses, clusters dashed,
+   nebulae solid. Named only when it has a common name and is bright enough
+   to find (magnitude 6 or brighter), or when it is the target, so the sky
+   doesn't fill with catalogue numbers. */
+function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn) {
+  const pxPerDeg = h / fov;
+  const r = Math.max(4, Math.min(80, (bd.size / 60) * pxPerDeg / 2));
+  const galaxy = bd.type === 's' || bd.type === 'e' || bd.type === 'i';
+  g.globalAlpha = bd.alt < 0 ? 0.25 : Math.max(0.45, Math.min(0.9, 1.2 - bd.mag * 0.08));
+  g.strokeStyle = isTarget ? '#e8b563' : 'rgba(190,172,255,.9)';
+  g.lineWidth = isTarget ? 1.8 : 1.2;
+  g.setLineDash(bd.type === 'oc' || bd.type === 'gc' || bd.type === 'pos' ? [3, 3] : []);
+  g.beginPath();
+  if (galaxy) g.ellipse(p.x, p.y, r, r * 0.45, -0.5, 0, 7); else g.arc(p.x, p.y, r, 0, 7);
+  g.stroke();
+  g.setLineDash([]);
+  g.globalAlpha = 1;
+  const hidden = kc && ((p.y < kc.h && p.x < kc.w) || p.y > h - kc.bottom);
+  if (hidden || !(isTarget || (bd.id !== bd.name && bd.mag <= 6))) return;
+  if (drawn.some(q => Math.abs(q.x - p.x) < 62 && Math.abs(q.y - p.y) < 15)) return;
+  g.font = (isTarget ? '600 ' : '500 ') + '11.5px Inter, system-ui, sans-serif';
+  g.fillStyle = isTarget ? '#e8b563' : 'rgba(200,186,255,.85)';
+  g.textAlign = 'center';
+  g.fillText(bd.name, Math.max(40, Math.min(w - 40, p.x)), p.y + r + 13);
+  drawn.push({ x: p.x, y: p.y });
+}
 function drawSkyView(g, w, h, o) {
   const { basis, fov, cam, bodies, lines, names, showLines, targetName, mw, lat, lst } = o;
   const dir = b => toScreen(basis, b.az, b.alt);
@@ -6002,6 +6050,7 @@ function drawSkyView(g, w, h, o) {
     const d = dir(bd), p = proj(d);
     if (!p || p.x < -60 || p.x > w + 60 || p.y < -60 || p.y > h + 60) return;
     const isTarget = bd.name === targetName;
+    if (bd.kind === 'dso') { drawDeepSky(g, bd, p, isTarget, h, fov, o.keepClear, w, drawn); return; }
     let r, fill, dim = 1;
     if (bd.kind === 'sun') { r = 16; fill = '#ffd27f'; }
     else if (bd.kind === 'moon') { r = 14; fill = '#e8e6df'; }
@@ -6110,10 +6159,16 @@ function findList(bodies, names) {
     .sort((a, b) => a.mag - b.mag);
   const cons = (names || []).filter(c => c.rank === 1 && c.alt >= 10)
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Galaxies, nebulae and clusters worth finding without a telescope:
+  // magnitude 6 or brighter (binoculars show them all; the brightest, the
+  // eye alone under a dark sky), 15° up, clear of the worst of the haze.
+  const deep = bodies.filter(b => b.kind === 'dso' && b.mag <= 6 && b.alt >= 15)
+    .sort((a, b) => a.mag - b.mag);
   return [
     { title: 'Moon and planets', items: moon.concat(planets).map(item) },
     { title: 'Brightest stars', items: stars.map(item) },
-    { title: 'Constellations', items: cons.map(item) }
+    { title: 'Constellations', items: cons.map(item) },
+    { title: 'Galaxies, nebulae and clusters', items: deep.map(b => ({ name: b.name, where: DSO_KIND[b.type] + ', ' + whereWords(b.az, b.alt) })) }
   ].filter(g => g.items.length);
 }
 // The thing picked, whatever it is: a body, or a constellation (aimed at its
@@ -6130,7 +6185,8 @@ function findTarget(name, bodies, names) {
    Turn is along the horizon, tilt is up or down; either is left out when it
    is under 3°, so the last few degrees read "Tilt up 5°", not "Turn left 1°
    and tilt up 5°". */
-const theName = n => (n === 'Moon' || n === 'Sun' ? 'the ' + n : n);
+// "the Moon", "the Andromeda Galaxy", "the Pleiades"; but "Jupiter", "Vega", "M35".
+const theName = n => (n === 'Moon' || n === 'Sun' || n === 'Pleiades' || / (Galaxy|Nebula|Cluster|Cloud)$/.test(n) ? 'the ' + n : n);
 const capFirst = s => s[0].toUpperCase() + s.slice(1);
 function findGuide(centre, t) {
   if (!centre || !t) return null;
@@ -6353,7 +6409,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const found = !!(guide && guide.on);
   const findGroups = useMemo(() => findOpen ? findList(bodies, names) : [], [findOpen, bodies, names]);
   // The picture in words, for a screen reader: the named bodies in frame.
-  const summary = skyViewSummary(centre, bodies.filter(b => (b.kind !== 'star' || b.nav || (b.name && b.mag <= 2)) && (() => {
+  const summary = skyViewSummary(centre, bodies.filter(b => (b.kind === 'dso' ? b.mag <= 5 : (b.kind !== 'star' || b.nav || (b.name && b.mag <= 2))) && (() => {
     const p = skyProject(toScreen(basis, b.az, b.alt), size.w, size.h, fov);
     return p && p.x >= 0 && p.x <= size.w && p.y >= 0 && p.y <= size.h;
   })()));
@@ -6757,6 +6813,13 @@ function StarFinder({ redMode } = {}) {
     loadConstellationNames().then(c => { if (live) setConstNames(c); });
     return () => { live = false; };
   }, [constNames]);
+  const [deepSky, setDeepSky] = useState(null);
+  useEffect(() => {
+    if (deepSky) return;
+    let live = true;
+    loadDeepSky().then(c => { if (live) setDeepSky(c); });
+    return () => { live = false; };
+  }, [deepSky]);
   // Shared by Aim Assist and Sky View. Must be reached synchronously from a
   // tap: iOS only grants motion access during a real user gesture.
   const ensureSensors = async () => {
@@ -6963,11 +7026,17 @@ function StarFinder({ redMode } = {}) {
       const p = starHcZn(st.ra, st.dec, loc.lat, loc.lon, d);
       out.push({ name: st.name, az: p.az, alt: p.alt, kind: 'star', mag: st.mag, color: starColor(st.ci, st.mag) });
     });
+    // Galaxies, nebulae and clusters: named by their common name where they
+    // have one, so a tap, Find and Aim Assist all read "Andromeda Galaxy".
+    (deepSky || []).forEach(o => {
+      const p = starHcZn(o.ra, o.dec, loc.lat, loc.lon, d);
+      out.push({ name: dsoLabel(o), id: o.id, az: p.az, alt: p.alt, kind: 'dso', type: o.type, mag: o.mag, size: o.size });
+    });
     // Sorted faintest-first once here rather than per frame, so the draw loop
     // gets correct overlap (bright on top) without re-sorting ~1600 entries
     // on every sensor event.
     return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
-  }, [now, loc.lat, loc.lon, starCatalog]);
+  }, [now, loc.lat, loc.lon, starCatalog, deepSky]);
   // Constellation vertices to alt/az once per clock tick, like the catalogue
   // above, so the draw loop only projects.
   const constellationPaths = useMemo(() => {

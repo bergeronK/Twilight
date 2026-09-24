@@ -21,6 +21,7 @@ const FILES = [
   'stars.bin',
   'constellations.bin',
   'constellation-names.json',
+  'deep-sky.json',
   'milkyway.bin',
   'facts.json',
   // BSD 3-Clause: binary redistribution must carry the notice with it.
