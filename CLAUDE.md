@@ -75,6 +75,23 @@ Three tabs, one `index.html`, no build step:
     magnitude*, *Bortle*, *cut* and *marine horizon* do not belong on the
     Console, which is where a casual stargazer lands first. Reference
     sentence for the intended register: *"Dark skies and the Moon is down."*
+- **Accessibility (2026-09-24)**: axe-core reports no violations on any tab
+  or in Sky View (run it with Playwright and `bypassCSP: true`; axe is on
+  npm). What that took, and what to keep:
+  - `--ink-faint` is `#888174`, 4.6:1 on the lightest panel. `#7d766a` was
+    4.3, under AA, despite its "AA-safe" comment.
+  - Every input and select has an `aria-label`. The labels on screen are
+    `div`s above the fields, which look like labels but aren't.
+  - Landmarks: one `header`, one `main`, one `footer`. The tip and install
+    banners are named regions, and the place name is the Console's `h1`.
+  - The focus ring is `!important`: inline `outline: none` on some fields
+    beat it.
+  - Sky View is a named modal dialog. Focus goes to Back when it opens and
+    returns when it closes, and Escape closes it. Its canvas is an `img`
+    whose label says where it looks and what's in frame
+    (`skyViewSummary`).
+  - The Ephemeris chart is an `img` with the day in words (`daySummary`).
+  - Segmented buttons carry `aria-pressed`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
@@ -713,6 +730,11 @@ things a syntax check cannot see:
   `edgePoint`, a picked constellation drawn amber and named once, and at
   source level that `aimTarget` resolves Sky View's picks and is declared
   after what it reads.
+- **`accessibility.test.js`** — `--ink-faint` against every surface
+  token by the WCAG formula, every input/select named (a source scan, so a
+  screen no one visits is covered too), the landmarks and Console `h1`, the
+  `!important` focus ring, Sky View's dialog wiring, and the words of
+  `skyViewSummary` and `daySummary`.
 - **`load.test.js`** — first load and offline: the two Inter faces (core
   = `subset-inter.sh`'s range, no overlap, same in the city pages,
   preloaded, the core precached not the full font), no shipped character in
