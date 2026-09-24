@@ -237,7 +237,7 @@ test('a press on any Sky View button never reaches the sky beneath', () => {
 const entriesFor = new Function(
   'orient', 'aimNow', 'aimTarget', 'aimTurn', 'aimTilt', 'decl', 'aimOffset', 'headingCorr',
   'screenAngle', 'sensorStats', 'dl', 'window', 'DeviceOrientationEvent', 'loc', 'BUILD',
-  declSource('turnWord') + '\n' + declSource('tiltWord') + '\n' + declSource('diagEntries') + '\nreturn diagEntries;'
+  declSource('turnWord') + '\n' + declSource('tiltWord') + '\n' + declSource('nativeOn') + '\n' + declSource('diagEntries') + '\nreturn diagEntries;'
 );
 const base = {
   orient: null, aimNow: null, aimTarget: null, aimTurn: null, aimTilt: null,
@@ -341,4 +341,18 @@ test('Sky View offers Align before anything is picked: on the Moon when it is up
   assert.match(textOf(down), /Tap a bright star or planet you can see, then Align\./);
   // Not in drag-to-look mode, where there is no compass to correct.
   assert.ok(!/lining up/.test(textOf(renderSkyDome({ targetName: null, align, viewQ: null, diag: diagProp(false) }))));
+});
+
+test('the readout says when CoreMotion is the source, and what it settled', () => {
+  // The iPhone app: Sensor details must say which path ran, or a field
+  // readout can't tell the native fix from the browser's.
+  const o = { q: [0, 0, 0, 1], abs: true, magnetic: false, trusted: true, frame: 'abs', yaw: null, northKind: 'abs' };
+  const r = Object.fromEntries(rows({ orient: o, sensorStats: { rel: 0, abs: 0, usable: 5, native: 5, nativeTrueNorth: true, nativeDir: 'refToDevice', last: null } }).filter(Boolean));
+  assert.strictEqual(r['Fusion'], 'iOS CoreMotion (native, gyro + compass)');
+  assert.strictEqual(r['North source'], 'CoreMotion');
+  assert.strictEqual(r['CoreMotion frame'], 'true north · matrix refToDevice');
+  assert.strictEqual(r['Heading reference'], 'true north');
+  const web = Object.fromEntries(rows({ orient: o, sensorStats: { rel: 3, abs: 0, usable: 3, last: null } }).filter(Boolean));
+  assert.ok(!('CoreMotion frame' in web));
+  assert.strictEqual(web['Fusion'], 'compass only');
 });
