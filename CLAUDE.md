@@ -490,6 +490,22 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   picked, and nothing said so. Now, with sensors live and nothing picked,
   Sky View's bottom offers **Align on the Moon** when it's up (picks it),
   otherwise "Tap a bright star or planet you can see, then Align."
+- **The iPhone app reads CoreMotion (2026-09-24, v111; unbuilt).** In the
+  Capacitor app, Sky View's orientation comes from CoreMotion's fused
+  attitude in the true-north frame, the source native sky apps use, via
+  `TwilyteMotionPlugin` in `native/ios/App/App/AppDelegate.swift` (JS
+  `TwilyteMotion`; registered by `TwilyteBridgeViewController`, which the
+  storyboard now names). `nativeMotion()` finds it (iOS only); the effect
+  then skips the browser's events and feeds `{kind:'abs'}` samples through
+  the same `publish` step. `iosAttitudeToEnu(r, g, dir)` converts the
+  matrix and **uses gravity to decide which way round it goes** rather than
+  trusting the docs (a wrong guess mirrors every bearing). One band of
+  compass directions can't be told apart by gravity, so the decision waits
+  until the phone turns out of it and is then kept. Sensor details shows
+  "iOS CoreMotion" and the frame. **Never built or run on a device**: no
+  Mac here. `native-motion.test.js` (W3C matrix written out independently,
+  CoreMotion simulated both ways, a physical "camera east" pose, Swift and
+  JS names in step) and `native/README.md` for the device check.
 - **(Superseded) iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
   A third iPhone reading (42.11, -72.54, declination 13.3° W; Moon at az 120,
   alt 12; `webkitCompassHeading` 125) drew the Moon 6° left of the real one.
