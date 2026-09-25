@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'scanCrossings', 'SUN_THR',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'SUN_THR',
   'sextantWindows', 'nextSextantWindow', 'sextantICS']);
 
 test('the sextant windows are nautical twilight, evening and morning', () => {

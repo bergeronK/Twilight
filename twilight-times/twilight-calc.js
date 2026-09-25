@@ -16,8 +16,10 @@
   var deg = function (r) { return r / RAD; };
   var pad2 = function (n) { return String(n).padStart(2, '0'); };
 
-  function solarParams(y, m, d) {
-    var JD = Date.UTC(y, m - 1, d, 12, 0, 0) / 86400000 + 2440587.5;
+  // utcMin: minutes after the date's UTC midnight (noon when not given).
+  function solarParams(y, m, d, utcMin) {
+    if (utcMin === undefined) utcMin = 720;
+    var JD = Date.UTC(y, m - 1, d) / 86400000 + utcMin / 1440 + 2440587.5;
     var T = (JD - 2451545.0) / 36525;
     var L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
     var M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
@@ -30,7 +32,7 @@
     var decl = deg(Math.asin(Math.sin(rad(obliqCorr)) * Math.sin(rad(appLong))));
     var vY = Math.pow(Math.tan(rad(obliqCorr / 2)), 2);
     var eqTime = 4 * deg(vY * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * vY * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * vY * vY * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
-    return { decl: decl, eqTime: eqTime };
+    return { decl: decl, eqTime: eqTime, y: y, m: m, d: d };
   }
 
   function eventUTC(lat, lon, p, altDeg, rise) {
@@ -43,10 +45,21 @@
     return { utc: utc };
   }
 
+  // Found with noon's Sun, then twice more with the Sun at the event's time.
+  function sunEvent(lat, lon, p, a, rise) {
+    var e = eventUTC(lat, lon, p, a, rise);
+    for (var k = 0; k < 2 && e.utc !== undefined; k++) {
+      var e2 = eventUTC(lat, lon, solarParams(p.y, p.m, p.d, e.utc), a, rise);
+      if (e2.utc === undefined) break;
+      e = e2;
+    }
+    return e;
+  }
+
   var ALT = { sun: -0.833, civil: -6, nautical: -12, astro: -18 };
   function computeDay(lat, lon, y, m, d) {
     var p = solarParams(y, m, d);
-    var ev = function (a, rise) { return eventUTC(lat, lon, p, a, rise); };
+    var ev = function (a, rise) { return sunEvent(lat, lon, p, a, rise); };
     return {
       astroDawn: ev(ALT.astro, true),
       nautDawn: ev(ALT.nautical, true),
