@@ -137,7 +137,12 @@ Three tabs, one `index.html`, no build step:
   under the painting with coordinates, Use my location, Save, saved places
   and the city search (the old block of those below the painting is gone).
   `HorizonHero` takes them as `header` and `panel` props; `pickerOpen` is the
-  panel's state, and a failed first geolocation still opens it. **Tabs sit
+  panel's state, and a failed first geolocation still opens it. **With a
+  saved place the automatic try is quiet** (2026-09-25; `startPlace`, read
+  once before `tw_loc` is written): no "Locating…", and a refusal keeps the
+  saved place. A `?lat=&lon=` link is never replaced by the device's
+  location. `useMyLocation(quiet)` takes quiet only when it is exactly
+  `true`, because a click passes an event. **Tabs sit
   in a bar along the bottom at ≤780 px** (2026-09-23): the same three buttons
   inside `<nav class="tw-tabs">`, which is `display:contents` on wide screens
   so they stay in the header there; `aria-current="page"` marks the active
@@ -323,8 +328,9 @@ Three tabs, one `index.html`, no build step:
     elements: minutes of drift). `connect-src` allows `https://celestrak.org`;
     `/privacy.html` and the store answers say so. **CelesTrak's CORS could
     not be checked from the sandbox** (its network blocks the host); if a
-    browser refuses the response, the Stars tab says it couldn't get the
-    orbit and the Console simply has no station highlight.
+    browser refuses the response, the Stars tab leaves its panel out
+    (it used to say it couldn't get the orbit) and the Console simply has
+    no station highlight.
   - `iss.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
