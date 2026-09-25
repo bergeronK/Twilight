@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-c07PjVnzDVgxFsgttX3Hy6V+G9cC4gFDkw9F8gkbc8s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tgONoNZEgl9iQJswZTikjpegxJz0AGxpHqejcquu7lk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1989,6 +1989,21 @@ function makeStars() {
   return [...named, ...filler];
 }
 const STARS = makeStars();
+// A place from the address: ?lat=&lon=, with name= and tz= as the city
+// pages send them (2026-09-25). A bad zone falls back to the device's, a
+// missing name to the coordinates; null when there is no place, or it is off
+// the globe. The name is only ever rendered as text.
+function urlPlace(search) {
+  try {
+    const p = new URLSearchParams(search);
+    const lat = parseFloat(p.get("lat")), lon = parseFloat(p.get("lon"));
+    if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    let tz = p.get("tz");
+    try { if (tz) new Intl.DateTimeFormat([], { timeZone: tz }); } catch (e) { tz = null; }
+    const name = (p.get("name") || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    return { lat, lon, name: name || `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, tz: tz || Intl.DateTimeFormat().resolvedOptions().timeZone };
+  } catch (e) { return null; }
+}
 const PRESETS = [{
   name: "Boston",
   lat: 42.3601,
@@ -2092,7 +2107,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v130";
+const BUILD = "v131";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4775,19 +4790,15 @@ function RealtimeTwilight({ redMode } = {}) {
   // Where the Console's place came from when it opened.
   const startPlace = () => {
     try {
-      const p = new URLSearchParams(window.location.search);
-      if (!isNaN(parseFloat(p.get('lat'))) && !isNaN(parseFloat(p.get('lon')))) return 'url';
+      if (urlPlace(window.location.search)) return 'url';
       return localStorage.getItem('tw_loc') ? 'saved' : null;
     } catch (e) { return null; }
   };
   // Read once, before the effect below saves tw_loc.
   const [start] = useState(startPlace);
   const [loc, setLoc] = useState(() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      const lat = parseFloat(p.get('lat')), lon = parseFloat(p.get('lon'));
-      if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, name: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
-    } catch(e) {}
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch(e) { return PRESETS[0]; }
   });
   const [now, setNow] = useState(() => Date.now());
@@ -5734,7 +5745,10 @@ function TwilightEphemeris({ redMode } = {}) {
   // Opens on today, at the place the Console last used, in that place's own
   // time zone. It used to open on a fixed New York solstice with a hand-set
   // UTC-5 +DST, so anyone elsewhere saw wrong times until they noticed.
+  // A place in the address (a city page's link) comes first.
   const [place] = useState(() => {
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
   });
   const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -7909,7 +7923,8 @@ function ObservingLog({ seen, names, open, onOpen, onToggle }) {
 function StarFinder({ redMode } = {}) {
   useH24();
   const [loc, setLoc] = useState(() => {
-    try { const p = new URLSearchParams(window.location.search); const la = parseFloat(p.get('lat')), lo = parseFloat(p.get('lon')); if (!isNaN(la) && !isNaN(lo)) return { lat: la, lon: lo, name: `${la.toFixed(2)}°, ${lo.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }; } catch (e) {}
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
   });
   const [now, setNow] = useState(() => Date.now());
