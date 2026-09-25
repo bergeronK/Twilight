@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KKejUOldQ4Dq1W86JGVVujO4/PDDHVjCPMtW6elqjQo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HPIoJLJHNDPQM822xmC6nokUWpqlY9eoh+BBIfA/SxI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1816,7 +1816,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v120";
+const BUILD = "v125";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3634,6 +3634,15 @@ function chartXY(az, alt, R) {
    [{pts: [{az, alt}]}], planets: [{name, az, alt}], moon: {az, alt, illum},
    sunAz, fix: [{name, az, alt}], polaris: {az, alt} | null, labelMag }.
    Returns nothing; everything is drawn relative to the disc's centre. */
+// Where along the day (local minutes) to name a twilight band on the
+// Ephemeris chart: at the Sun's highest or lowest, whichever is further
+// from the band's middle altitude. Null without a curve.
+function bandLabelX(pts, mid) {
+  if (!pts || !pts.length) return null;
+  let hi = pts[0], lo = pts[0];
+  pts.forEach(q => { if (q[1] > hi[1]) hi = q; if (q[1] < lo[1]) lo = q; });
+  return Math.abs(hi[1] - mid) >= Math.abs(lo[1] - mid) ? hi[0] : lo[0];
+}
 function drawSkyChart(g, size, d) {
   const R = size / 2 - 17, cx = size / 2, cy = size / 2;
   const P = (az, alt) => { const p = chartXY(az, alt, R); return p && { x: cx + p.x, y: cy + p.y }; };
@@ -4987,7 +4996,7 @@ function RealtimeTwilight({ redMode } = {}) {
       color: C.inkDim,
       lineHeight: 1.6
     }
-  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from a Schlyter low-precision series (~1\u20132\u2032). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
+  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
 }
 function RO({
   label,
@@ -6294,11 +6303,14 @@ function TwilightEphemeris({ redMode } = {}) {
       h
     } = bandClip(b.a1, b.a2);
     if (h < 11 || b.a1 > 0) return null;
+    // Under noon or midnight, whichever keeps the Sun's curve further from
+    // this band: at the chart's edge the names ran into dusk and "now".
+    const at = bandLabelX(curve ? curve.pts : null, (b.a1 + b.a2) / 2);
     return /*#__PURE__*/React.createElement("text", {
       key: i,
-      x: W - padR - 5,
+      x: at == null ? W - padR - 5 : Math.max(padL + 30, Math.min(W - padR - 30, X(at))),
       y: y + h / 2 + 3,
-      textAnchor: "end",
+      textAnchor: at == null ? "end" : "middle",
       style: {
         font: "9px var(--font-ui)",
         fill: "rgba(220,228,255,.45)",
@@ -6599,7 +6611,8 @@ function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn, nameBoxes) {
   // Below the outline, or above it where a constellation's name is already
   // there (the Triangulum Galaxy sits right under TRIANGULUM); left off if
   // both are taken, unless it's the one picked.
-  const lx = Math.max(40, Math.min(w - 40, p.x)), half = g.measureText(bd.name).width / 2;
+  // Kept whole on screen: a fixed 40 px margin cut long names in half.
+  const half = g.measureText(bd.name).width / 2, lx = Math.max(half + 4, Math.min(w - half - 4, p.x));
   const clash = y => (nameBoxes || []).some(b => lx + half > b.x1 && lx - half < b.x2 && y > b.y1 - 4 && y - 11 < b.y2);
   let ly = p.y + r + 13;
   if (clash(ly)) ly = p.y - r - 6;
@@ -8836,7 +8849,7 @@ function TwilightApp() {
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
         " for any date, and ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Star Finder"),
-        " for a navigation fix — tap the tabs above or swipe left/right."
+        " for a navigation fix — tap the tabs, or swipe left or right."
       ),
       React.createElement("button", {
         onClick: dismissHint,
@@ -8863,7 +8876,7 @@ function TwilightApp() {
     },
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris."),
       React.createElement("span", null,
-        "Sun & moon: NOAA / Schlyter models · Place search: ",
+        "Sun: NOAA · Moon: Meeus (ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
