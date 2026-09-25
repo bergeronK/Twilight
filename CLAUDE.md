@@ -54,6 +54,23 @@ stargazer is the default, navigator material is kept whole but folded.
   stage it shows tomorrow's. The next stage is scanned 48 h ahead
   (`sunAhead`); the old midnight-to-midnight scan had none from
   astronomical dusk to midnight. `twilight-today.test.js`.
+- **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
+  In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
+  middle cloud 20-80% with little low cloud is "Likely colourful"; low cloud
+  70%+ or rain overhead "Probably grey"; low cloud 60%+ 150 km toward the
+  sunset "Probably muted"; under 15% cloud "Clear and clean"; otherwise
+  "Some colour possible"; always said to be an estimate). The forecast
+  request now asks Open-Meteo for two places, here and `pointToward(...,
+  sunsetBearing(...), 150)`, and all three cloud layers; `wxOf` turns the
+  reply (or an old single-place cache) into `wx` with `wx.west`, and
+  `cloudAt` reads the hour nearest the sunset. `/privacy.html` says a
+  second point is sent. "Add tonight's sunset to your calendar" downloads
+  `sunsetICS` (sunset to civil dusk, the dusk times in the description, a
+  30-minute `VALARM`: the reminder without a push service). A **Twilight
+  fact** button over the painting's top-right (`HorizonHero`'s `corner`;
+  labels keep clear of it through `o.reserveRight`) deals a fact if none is
+  showing and scrolls to the almanac once it is in (earlier, the page is too
+  short and the scroll stops short). `sunset.test.js`.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.

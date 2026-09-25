@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/QAiwUBg6FtJreKI5iK/SHS+N5ZQEiPBnScDQrLnAt0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-FSHEv9MOWQr8T+3ls6Nr5I5VWddjJVhedhJkeIzw2iA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2092,7 +2092,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v128";
+const BUILD = "v129";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2760,11 +2760,13 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
   g.textBaseline = 'middle';
   // A name goes right of its body, or left near the edge; it is skipped if
   // both would cover the place-name header drawn over the top-left
-  // (`o.reserve`, {w, h} in px), where it used to collide with the date line.
-  const rsv = o.reserve || { w: 0, h: 0 };
+  // (`o.reserve`, {w, h} in px), where it used to collide with the date line,
+  // or the almanac button over the top-right (`o.reserveRight`, {w, h}: the
+  // strip that far in from the right edge).
+  const rsv = o.reserve || { w: 0, h: 0 }, rr = o.reserveRight || { w: 0, h: 0 };
   const label = (text, x, y, gap) => {
     const tw = g.measureText(text).width;
-    const hits = (x0, x1) => y - 8 < rsv.h && x0 < rsv.w && x1 > 0;
+    const hits = (x0, x1) => (y - 8 < rsv.h && x0 < rsv.w && x1 > 0) || (y - 8 < rr.h && x1 > w - rr.w);
     let flip = x + gap + tw > w - 8;
     if (!flip && hits(x + gap, x + gap + tw)) flip = true;
     if (flip && hits(x - gap - tw, x - gap)) return;
@@ -3019,9 +3021,86 @@ function twilightDay(sunEv, now) {
     dusk: sunEv.filter(e => e.dir === "down").map(row)
   };
 }
+/* ---- Sunset colour (2026-09-25) ----
+   A sunset glows when there is high or middle cloud overhead for the Sun to
+   light from below, and a clear horizon toward it for the light to get
+   through. Thick low cloud either overhead or toward the sunset kills it, and
+   a sky with no cloud at all gives a clean glow on the horizon but little
+   colour. That is the whole rule, applied to Open-Meteo's cloud layers at
+   the sunset hour here and 150 km toward the sunset. An estimate, and it
+   says so. */
+// A point `km` along a great circle from lat/lon on a bearing (degrees).
+function pointToward(lat, lon, bearing, km) {
+  const d = km / 6371, b = bearing * D2R, p1 = lat * D2R, l1 = lon * D2R;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+  const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return { lat: +(p2 * R2D).toFixed(2), lon: +(((l2 * R2D + 540) % 360) - 180).toFixed(2) };
+}
+// The forecast as the app keeps it: here, with the point toward the sunset
+// as `west` when the reply carried both (a cached reply may be one place).
+function wxOf(d) {
+  if (!Array.isArray(d)) return d || null;
+  return d[0] ? Object.assign({}, d[0], { west: d[1] || null }) : null;
+}
+// Cloud layers (%) at the forecast hour nearest t, or null if the forecast
+// has no layers or no hour within 90 minutes.
+function cloudAt(wx, t) {
+  const H = wx && wx.hourly;
+  if (!H || !H.time || !H.cloud_cover_low || !H.cloud_cover_mid || !H.cloud_cover_high) return null;
+  const off = (wx.utc_offset_seconds || 0) * 1000;
+  let best = -1, gap = Infinity;
+  for (let i = 0; i < H.time.length; i++) {
+    const g = Math.abs(Date.parse(H.time[i] + "Z") - off - t);
+    if (g < gap) { gap = g; best = i; }
+  }
+  if (best < 0 || gap > 90 * 60000) return null;
+  const v = a => a && a[best] != null ? a[best] : 0;
+  return { total: v(H.cloud_cover), low: v(H.cloud_cover_low), mid: v(H.cloud_cover_mid), high: v(H.cloud_cover_high), precip: v(H.precipitation_probability) };
+}
+function sunsetGlow(here, west) {
+  if (!here) return null;
+  const upper = Math.max(here.high, here.mid);
+  if (here.precip >= 60 || here.low >= 70) return { level: "grey", title: "Probably grey", detail: "Thick low cloud or rain overhead will hide most of it." };
+  if (west && west.low >= 60) return { level: "muted", title: "Probably muted", detail: "Low cloud toward the sunset is likely to block the light before it reaches the sky here." };
+  if (here.total < 15) return { level: "plain", title: "Clear and clean", detail: "Little cloud to light up, so expect a clean glow on the horizon rather than a blaze of colour." };
+  if (upper >= 20 && upper <= 80 && here.low < 40) return { level: "vivid", title: "Likely colourful", detail: "High cloud to catch the light, and " + (west ? "a clear way through to the west." : "little low cloud in the way.") };
+  if (upper > 80 && here.low < 40) return { level: "some", title: "Some colour possible", detail: "A lot of high cloud: it can glow for a few minutes after sunset, or just dim the light." };
+  return { level: "some", title: "Some colour possible", detail: "A mixed sky: some cloud to catch the light, some in the way." };
+}
+// A calendar event for a sunset: from sunset to the end of civil dusk, the
+// rest of the evening in the description, and a reminder 30 minutes before.
+function sunsetICS(set, place, stamp, fmt) {
+  const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = set.civil || set.t + 30 * 60000;
+  const lines = ["Sunset " + fmt(set.t) + "."];
+  if (set.civil) lines.push("Civil dusk " + fmt(set.civil) + ": the last of the colour.");
+  if (set.naut) lines.push("Nautical dusk " + fmt(set.naut) + ": the horizon fades and the brighter stars are out.");
+  if (set.astro) lines.push("Fully dark " + fmt(set.astro) + ".");
+  const esc = x => x.replace(/[\\;,]/g, m => "\\" + m);
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT",
+    "UID:sunset-" + Math.round(set.t / 60000) + "@twilyte.info", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(set.t), "DTEND:" + dt(end),
+    "SUMMARY:" + esc("Sunset at " + place), "DESCRIPTION:" + esc(lines.join(" ")),
+    "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc("Sunset in 30 minutes"), "TRIGGER:-PT30M", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+}
+// Which way the next sunset is (true degrees); due west when the Sun
+// doesn't set in the next day and a half.
+function sunsetBearing(lat, lon, now) {
+  const set = scanCrossings(now, now + 36 * 3600000, lat, lon, sunAltitude, [{ key: "rise", h: -0.833 }], 10).find(e => e.dir === "down");
+  return set ? sunHcZn(new Date(set.t), lat, lon).az : 270;
+}
+// The next sunset after `now` among the Sun's crossings, with the evening's
+// dusk stages that follow it (each absent when it doesn't happen).
+function nextSunset(sunEv, now) {
+  const i = sunEv.findIndex(e => e.key === "rise" && e.dir === "down" && e.t > now);
+  if (i < 0) return null;
+  const set = { t: sunEv[i].t };
+  for (let j = i + 1; j < sunEv.length && sunEv[j].dir === "down"; j++) set[sunEv[j].key] = sunEv[j].t;
+  return set;
+}
 // Hook-free: the next stage with its countdown, then the day's times in two
 // columns (past ones dimmed), then the way to the full day on the Ephemeris.
-function TwilightToday({ next, now, sched, fmt, sunUp, onMore }) {
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glow, sunset, onCalendar }) {
   const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
     rows.map(r => React.createElement("div", {
@@ -3051,7 +3130,13 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore }) {
       : React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "14px 28px", marginBottom: 16 } },
           sched.dawn.length > 0 && col("Dawn", sched.dawn),
           sched.dusk.length > 0 && col("Dusk", sched.dusk)),
-    React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris →"));
+    glow && React.createElement("div", { style: { margin: "0 0 16px", fontFamily: "var(--font-ui)" } },
+      React.createElement("div", { style: { fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 3 } }, glow.when, " sunset colour"),
+      React.createElement("div", { style: { fontSize: 15, color: glow.level === "vivid" ? C.brass : C.ink } }, glow.title),
+      React.createElement("div", { style: { fontSize: 12.5, color: C.inkDim, marginTop: 2, maxWidth: "52ch" } }, glow.detail, " An estimate from the cloud forecast.")),
+    React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+      sunset && React.createElement("button", { className: "rtbtn", onClick: onCalendar }, "Add " + (sunset.when === "today" ? "tonight" : "tomorrow") + "\u2019s sunset to your calendar"),
+      React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris \u2192")));
 }
 
 /* ---- Orientation fusion ----
@@ -4295,7 +4380,7 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4304,6 +4389,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
   });
   const headerRef = useRef(null);
+  const cornerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
@@ -4418,10 +4504,16 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       const hb = rg.getBoundingClientRect(), cb = cv.getBoundingClientRect();
       if (hb.width) reserve = { w: hb.right - cb.left + 10, h: hb.bottom - cb.top + 6 };
     }
+    let reserveRight = null;
+    const cn = cornerRef.current;
+    if (cn && cn.getBoundingClientRect) {
+      const kb = cn.getBoundingClientRect(), cb = cv.getBoundingClientRect();
+      if (kb.width) reserveRight = { w: cb.right - kb.left + 10, h: kb.bottom - cb.top + 6 };
+    }
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve,
+      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight,
       mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
     };
     const gc = groundRef.current;
@@ -4545,6 +4637,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
       }),
       header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+      corner && React.createElement('div', {
+        style: { position: 'absolute', left: pad, right: pad, top: 14, maxWidth: 1080, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none' }
+      }, React.createElement('div', { ref: cornerRef, style: { pointerEvents: 'auto' } }, corner)),
       React.createElement('div', {
         // Changes on its own as twilight advances, rarely enough that
         // announcing it is useful rather than noisy.
@@ -4689,7 +4784,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const tick = useRef();
   const nextFact = () => {
     if (fact === null || fact === "error") setFact("loading");
-    loadFacts().then(list => {
+    return loadFacts().then(list => {
       if (factDeck.current === undefined) {
         try { factDeck.current = JSON.parse(localStorage.getItem('tw_fact_deck') || 'null'); } catch(e) { factDeck.current = null; }
       }
@@ -4700,6 +4795,32 @@ function RealtimeTwilight({ redMode } = {}) {
       setFact({ f: list.find(f => f.id === d.id), seen: d.deck.seen.length, total: list.length });
     }, () => setFact("error"));
   };
+  // The almanac sits at the foot of the page; the painting's corner button
+  // (2026-09-25) deals a fact if none is showing and takes the reader there,
+  // once the fact is in: before that the page is too short to bring the
+  // almanac to the top, and the scroll stops short.
+  const jumpToFact = () => {
+    const ready = fact === null || fact === "error" ? nextFact() : Promise.resolve();
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ready.then(() => requestAnimationFrame(() => {
+      const el = factRef.current;
+      if (!el) return;
+      // Focus first: focusing during a smooth scroll stops it short.
+      try { el.focus({ preventScroll: true }); } catch (e) {}
+      el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }));
+  };
+  const factCorner = React.createElement("button", {
+    onClick: jumpToFact,
+    "aria-label": "A twilight fact from the almanac",
+    title: "A Twilight Almanac",
+    style: {
+      display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "6px 12px",
+      borderRadius: 999, border: "1px solid rgba(238,241,250,.28)", background: "rgba(8,10,20,.42)",
+      color: C.ink, fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, cursor: "pointer",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", textShadow: "0 1px 6px rgba(3,5,12,.8)"
+    }
+  }, React.createElement("span", { "aria-hidden": "true", style: { color: C.brass } }, "\u2726"), "Twilight fact");
   const toggleSave = () => {
     const isAlready = saved.some(s => s.lat === loc.lat && s.lon === loc.lon);
     const next = isAlready ? saved.filter(s => !(s.lat === loc.lat && s.lon === loc.lon)) : [...saved, loc].slice(-3);
@@ -4782,14 +4903,16 @@ function RealtimeTwilight({ redMode } = {}) {
     const key = `tw_wx_${loc.lat.toFixed(2)}_${loc.lon.toFixed(2)}`;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(cached.d); setWxStale(null); return; }
+    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
     const seq = ++wxSeq.current;
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
+    // A second point, 150 km toward today's sunset, for the sunset colour.
+    const west = pointToward(loc.lat, loc.lon, sunsetBearing(loc.lat, loc.lon, Date.now()), 150);
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat},${west.lat}&longitude=${loc.lon},${west.lon}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
       .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
         try { noteSource(localStorage, 'openmeteo'); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        setWx(d);
+        setWx(wxOf(d));
         setWxStale(null);
         try {
           localStorage.setItem(key, JSON.stringify({ t: Date.now(), d }));
@@ -4809,7 +4932,7 @@ function RealtimeTwilight({ redMode } = {}) {
       .catch(err => {
         try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        if (wxCacheUse(cached, Date.now())) { setWx(cached.d); setWxStale(cached.t); }
+        if (wxCacheUse(cached, Date.now())) { setWx(wxOf(cached.d)); setWxStale(cached.t); }
         else { setWx(null); setWxStale(null); }
       });
   }, [loc.lat, loc.lon, hourKey]);
@@ -4857,6 +4980,26 @@ function RealtimeTwilight({ redMode } = {}) {
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
   const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
   const nextSunEv = sunAhead.find(e => e.t > now);
+  // The next sunset: its colour from the cloud forecast, and a calendar
+  // event with a reminder half an hour before.
+  const sunset = useMemo(() => {
+    const set = nextSunset(sunAhead, now);
+    return set && { ...set, when: dateKey(set.t, loc.tz) === dateKey(now, loc.tz) ? "today" : "tomorrow" };
+  }, [sunAhead, minute, loc.tz]);
+  const glow = useMemo(() => {
+    if (!sunset || sunset.t - now > 30 * 3600000) return null;
+    const g = sunsetGlow(cloudAt(wx, sunset.t), wx && wx.west ? cloudAt(wx.west, sunset.t) : null);
+    return g && { ...g, when: sunset.when === "today" ? "Tonight\u2019s" : "Tomorrow\u2019s" };
+  }, [wx, sunset, hourKey]);
+  const downloadSunsetICS = () => {
+    if (!sunset) return;
+    const url = URL.createObjectURL(new Blob([sunsetICS(sunset, loc.name, Date.now(), t => fmtT(t, loc.tz))], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sunset.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   // Today's times while any are still to come; after the last, tomorrow's.
   const twSched = useMemo(() => {
     if (day.sunEv.some(e => e.t > now)) return { when: "today", ...twilightDay(day.sunEv, now) };
@@ -5077,8 +5220,10 @@ function RealtimeTwilight({ redMode } = {}) {
     // of the page).
     twilight: React.createElement(TwilightToday, {
       next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
-      onMore: () => goTab("ephemeris")
+      onMore: () => goTab("ephemeris"),
+      glow, sunset, onCalendar: downloadSunsetICS
     }),
+    corner: factCorner,
     onIntroDone: pick => {
       setIntro(false);
       try { localStorage.setItem('tw_welcomed', '1'); } catch (e) {}
@@ -5109,6 +5254,8 @@ function RealtimeTwilight({ redMode } = {}) {
   weekPlannerEl(wxWeek, loc, h24, pro),
   React.createElement("section", {
     ref: factRef,
+    tabIndex: -1,
+    "aria-label": "A Twilight Almanac",
     style: {
       maxWidth: 1080,
       margin: "0 auto",
