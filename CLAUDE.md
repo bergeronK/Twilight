@@ -451,7 +451,17 @@ stargazer is the default, navigator material is kept whole but folded.
   could put it either side); moons in Jupiter's *shadow* aren't worked out.
   `saturnRings(date)` is the ring tilt B from Meeus ch. 45's pole and
   Saturn's geocentric place (within 0.3° of PyEphem), positive showing the
-  north face. `planetAltAz` now calls `planetGeo` for its geocentric part
+  north face. **Saturn is drawn realistically since 2026-09-25**
+  (`saturnDrawing(B, W)`, SVG): the globe flattened 0.902 and rounder as
+  the pole tips toward us, soft cloud bands (`SATURN_BANDS`) whose edges
+  follow each circle of latitude limb to limb, limb darkening, and the
+  rings at their Cassini radii (`SATURN_RINGS`: C, B inner and outer,
+  Cassini division, A, Encke gap, F). The rings are drawn whole behind the
+  globe and only their near half over it, clipped to it (two halves side
+  by side left a hairline seam); the faint C ring lets the globe through.
+  The svg's ids (`sat-disc`, `sat-limb`, `sat-soft`) are fixed, so two
+  Saturns on one page would borrow each other's; the app shows one.
+  `planetAltAz` now calls `planetGeo` for its geocentric part
   (tests that extract `planetAltAz` need `planetGeo` too).
   `planet-moons.test.js`.
 - **The aurora (2026-09-24).** A highlight when tonight's geomagnetic
