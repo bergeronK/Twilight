@@ -358,6 +358,15 @@ stargazer is the default, navigator material is kept whole but folded.
     (it used to say it couldn't get the orbit) and the Console simply has
     no station highlight.
   - `iss.test.js`.
+- **`?sources` (2026-09-25).** Every fetch of another site's data
+  (Open-Meteo's forecast, CelesTrak, NOAA SWPC) notes how it went in
+  `tw_src` (`noteSource`), and `twilyte.info/?sources` lists them at the
+  foot of the page (`SourcesNote` → `SourceList`, `sourceLines`). A CORS
+  refusal reaches the page only as a TypeError, like being offline; when
+  another source worked within the hour the words say the site refused.
+  This is how to settle the CelesTrak and SWPC questions above on a real
+  browser. Playwright's routed responses skip CORS, so it can't fake a
+  refusal; an aborted request stands in. `sources.test.js`.
 - **Tonight on the Moon (2026-09-24).** The Ephemeris's Moon section
   names, for 9 PM on the date shown, up to three features with the Sun 1-10°
   above them (long shadows, still lit; `terminatorFeatures`), sunrise or
@@ -811,8 +820,20 @@ commit**, even though content is identical, so `git merge origin/main` shows
 conflicts on files touched by the just-merged PR purely because git's
 merge-base is stale.
 
+**`node scripts/sync-main.js` does the routine part** (2026-09-25): it
+fetches and merges `origin/main`, settles the three conflicts every branch
+has with every other (the CSP line becomes the union of both sides' sources,
+then its hashes are regenerated; `BUILD` and `CACHE` become the branch's
+number if already above main's, else main's + 1), commits, runs the build
+guard and the tests, and never pushes. Any other conflict (code, CLAUDE.md,
+a test's extract list) is left in place and it stops with exit code 2.
+`sync-main.test.js`. Checked end to end on #102's v121 head against main
+at v125: identical to the hand resolution. **So bump nothing by hand in a
+feature branch** beyond one number above main; the script re-numbers at
+merge time.
+
 **Fix, every time, before pushing new work**: `git fetch origin main && git
-merge origin/main --no-edit`. If it conflicts, first establish which of two
+merge origin/main --no-edit` (or the script above). If it conflicts, first establish which of two
 cases you are in, per conflicted file:
 
 ```

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-NzBEZTqL8WZBr/JoGiOT8dZ9gXEqvXpmwkzJ1L+0E7s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HAkN90m1jR3ky0RWJeEQWbJSFctcAaPE7d2wIIokFFA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -755,6 +755,39 @@ function issPasses(sat, t0, t1, lat, lon) {
   }
   return out;
 }
+/* ---- How the other sites' data arrived ----
+   Each fetch of another site's data notes how it went in tw_src, and
+   twilyte.info/?sources lists it at the foot of the page. The point is the
+   live site: a browser refusing a site's answer (CORS) gives the page no
+   reason, only a TypeError, exactly as when offline, so the note says which
+   it could be and whether another source worked around the same time. */
+const SOURCE_NAMES = [['openmeteo', 'Open-Meteo, the weather forecast'], ['celestrak', 'CelesTrak, the space station’s orbit'], ['swpc', 'NOAA SWPC, the aurora forecast']];
+function noteSource(store, key, err, now = Date.now()) {
+  try {
+    let all = JSON.parse(store.getItem('tw_src') || '{}');
+    if (!all || typeof all !== 'object') all = {};
+    all[key] = err
+      ? { ok: false, at: now, why: err.name === 'TypeError' ? 'refused or offline' : String(err.message || err).slice(0, 60) }
+      : { ok: true, at: now };
+    store.setItem('tw_src', JSON.stringify(all));
+  } catch (e) {}
+}
+function agoWords(ms) {
+  const m = Math.round(ms / 60000);
+  return m < 1 ? 'just now' : m < 90 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+}
+// [name, what happened] for each source, in words.
+function sourceLines(all, now) {
+  all = all && typeof all === 'object' ? all : {};
+  return SOURCE_NAMES.map(([k, name]) => {
+    const r = all[k];
+    if (!r || !(r.at > 0)) return [name, 'not fetched in this browser yet'];
+    if (r.ok) return [name, `worked, ${agoWords(now - r.at)}`];
+    // Refused while another source answered within the hour: not offline.
+    const other = SOURCE_NAMES.some(([k2]) => k2 !== k && all[k2] && all[k2].ok && Math.abs(all[k2].at - r.at) < 3600000);
+    return [name, `failed, ${agoWords(now - r.at)}: ${r.why === 'refused or offline' && other ? 'refused by the browser (the site doesn’t allow it; another source worked)' : r.why}`];
+  });
+}
 /* The station's orbit from CelesTrak (the public element sets, no key, no
    account): fetched at most every 12 hours and kept in tw_iss_tle. A
    failed fetch falls back to what's kept while it's under a week old; past
@@ -774,8 +807,10 @@ async function loadIssTle(now = Date.now(), fetchFn = typeof fetch !== 'undefine
     if (!l1 || !l2 || l1.length < 69 || l2.length < 69) throw new Error('no element set');
     const got = { l1, l2, at: now };
     try { store.setItem('tw_iss_tle', JSON.stringify(got)); } catch (e) {}
+    noteSource(store, 'celestrak', null, now);
     return got;
   } catch (e) {
+    noteSource(store, 'celestrak', e, now);
     return kept;
   }
 }
@@ -839,8 +874,10 @@ async function loadKp(now = Date.now(), fetchFn = typeof fetch !== 'undefined' ?
     const rows = parseKp(await r.json());
     if (!rows.length) throw new Error('no forecast');
     try { store.setItem('tw_kp', JSON.stringify({ rows, at: now })); } catch (e) {}
+    noteSource(store, 'swpc', null, now);
     return rows;
   } catch (e) {
+    noteSource(store, 'swpc', e, now);
     // A forecast two days old still covers tonight; older is left alone.
     return kept && now - kept.at < 2 * 86400000 ? kept.rows : null;
   }
@@ -4695,8 +4732,9 @@ function RealtimeTwilight({ redMode } = {}) {
     if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(cached.d); setWxStale(null); return; }
     const seq = ++wxSeq.current;
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
-      .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
+        try { noteSource(localStorage, 'openmeteo'); } catch (e) {}
         if (seq !== wxSeq.current) return;
         setWx(d);
         setWxStale(null);
@@ -4715,7 +4753,8 @@ function RealtimeTwilight({ redMode } = {}) {
       // Offline, or the forecast service down: a saved forecast up to a day
       // old still covers tonight (it runs 8 days ahead), so show that, said
       // to be older, rather than nothing.
-      .catch(() => {
+      .catch(err => {
+        try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
         if (wxCacheUse(cached, Date.now())) { setWx(cached.d); setWxStale(cached.t); }
         else { setWx(null); setWxStale(null); }
@@ -8697,6 +8736,22 @@ function StarFinder({ redMode } = {}) {
 
 // Switch tabs from inside one (TwilightApp listens).
 function goTab(t) { window.dispatchEvent(new CustomEvent('tw:tab', { detail: t })); }
+// The ?sources list at the foot of the page. Hook-free: `lines` from
+// sourceLines.
+function SourceList({ lines }) {
+  return React.createElement('div', { role: 'region', 'aria-label': 'Data sources', style: { flexBasis: '100%', margin: '6px 0 10px' } },
+    React.createElement('div', { style: { fontWeight: 600, color: 'var(--ink-dim)', marginBottom: 2 } }, 'Data sources, as this browser last fetched them'),
+    lines.map(([name, what]) => React.createElement('div', { key: name }, name, ': ', what)));
+}
+// Rereads tw_src every few seconds, since the fetches finish after the
+// page has drawn.
+function SourcesNote() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 3000); return () => clearInterval(t); }, []);
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem('tw_src') || '{}'); } catch (e) {}
+  return React.createElement(SourceList, { lines: sourceLines(all, now) });
+}
 function TwilightApp() {
   const [activeTab, setActiveTab] = React.useState(() => {
     try { const t = new URLSearchParams(window.location.search).get('tab'); if (t === 'console' || t === 'ephemeris' || t === 'stars') return t; } catch (e) {}
@@ -9089,6 +9144,7 @@ function TwilightApp() {
         gap: "4px 18px", justifyContent: "space-between", alignItems: "baseline"
       }
     },
+      (() => { try { return new URLSearchParams(window.location.search).has('sources'); } catch (e) { return false; } })() && React.createElement(SourcesNote),
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris. ",
         React.createElement("a", { href: "https://github.com/bergeronK/Twilight/issues/new?template=feedback.md", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
       React.createElement("span", null,
