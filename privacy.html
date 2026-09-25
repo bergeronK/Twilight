@@ -52,7 +52,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
 <main>
   <div class="kicker">Twilyte</div>
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated September 22, 2026</div>
+  <div class="updated">Last updated September 23, 2026</div>
 
   <p>Twilyte doesn't track you. There's no account, no advertising, no analytics
   software, and no profile built about you or your device. This page explains,
@@ -66,8 +66,10 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   where you are. Your coordinates are used as follows:</p>
   <ul>
     <li><strong>On your device:</strong> all astronomy calculations run
-    locally in the app — your position is never sent to a Twilyte server,
-    because Twilyte doesn't operate one.</li>
+    locally in the app. Your position is never sent to a Twilyte server, with
+    one exception that you choose: if you turn on clear-sky alerts, the
+    approximate place they're for is kept so the alert can be worked out
+    (see <a href="#alerts">Clear-sky alerts</a>).</li>
     <li><strong>To Open-Meteo</strong> (<a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">open-meteo.com</a>),
     a weather-forecast provider: your coordinates, and two points about 150 km
     from them toward the sunset and the sunrise, are sent to fetch the cloud
@@ -127,6 +129,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     “Add to your home screen” suggestion is put off</li>
     <li>The last three days this browser opened Twilyte (dates only), so that
     suggestion waits for a second visit</li>
+    <li>Whether clear-sky alerts are on, and the rounded place they're for</li>
     <li>When this browser was last counted by the visit counter, and the last
     total it showed, so that coming back later the same day isn't counted as another visit</li>
   </ul>
@@ -147,6 +150,28 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   only the first half, the part that identifies your network rather than your
   device, goes into the hash. The hash isn't linked
   to your location or to anything else, and is used for nothing but the count.</p>
+
+  <h2 id="alerts">Clear-sky alerts (website only, optional)</h2>
+  <p>On the website you can ask Twilyte to tell you when tonight looks clear
+  and dark. It's off unless you turn it on, and your browser asks your
+  permission to show notifications first. The iOS and Android apps don't
+  offer it.</p>
+  <p>When you turn it on, a small Twilyte service (a Cloudflare Worker) keeps:</p>
+  <ul>
+    <li>the push address your browser gives it, which only lets it send a
+    notification to that browser through the browser maker's push service
+    (Google, Mozilla, Apple or Microsoft). The notification's text is
+    encrypted so that service can't read it.</li>
+    <li>the place the alerts are for, rounded to about 11 km (0.1°), its time
+    zone, and whether you use 12- or 24-hour time</li>
+    <li>the date of the last alert it sent, so you get at most one a day</li>
+  </ul>
+  <p>Every afternoon it fetches the cloud forecast for that rounded place
+  from Open-Meteo and works out tonight's score the same way the app does.
+  No name, email or other identifier is involved. Turning alerts off deletes
+  all of it straight away. If the push service reports that the address is
+  no longer in use (for example, after you clear this site's data), it's
+  deleted then.</p>
 
   <h2>In-app purchase (Pro features, iOS &amp; Android app only)</h2>
   <p>The native iOS and Android apps offer an optional one-time purchase to
@@ -175,6 +200,8 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <tr><td>Open-Meteo</td><td>Weather forecast &amp; place search</td><td>Coordinates or search text</td></tr>
     <tr><td>GeoNames</td><td>Place-name database backing search results</td><td>None directly — accessed via Open-Meteo</td></tr>
     <tr><td>Visit counter (Cloudflare Worker, website only)</td><td>Anonymous running visit total</td><td>None sent by the app beyond the request itself; a salted hash of your IP address is kept for 24 hours</td></tr>
+    <tr><td>Clear-sky alerts (Cloudflare Worker, website only, if you turn them on)</td><td>A notification when tonight looks clear and dark</td><td>Your browser's push address, the place rounded to 0.1°, time zone, 12/24-hour choice</td></tr>
+    <tr><td>Browser push service (Google, Mozilla, Apple or Microsoft, if you turn alerts on)</td><td>Delivers the notification</td><td>The encrypted alert, which it can't read</td></tr>
     <tr><td>RevenueCat (native app only)</td><td>Purchase verification &amp; restore</td><td>Anonymous install ID, purchase receipt</td></tr>
   </table>
 

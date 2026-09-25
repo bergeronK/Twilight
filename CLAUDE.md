@@ -685,6 +685,49 @@ stargazer is the default, navigator material is kept whole but folded.
     count could never display there — but a plain GET needs no preflight, so
     every launch still reached the Worker and was counted. That is data
     collected for nothing, which both store forms would have had to declare.
+- **Clear-and-dark alerts (2026-09-23; built, waiting on a deploy)** — a web
+  push notification around 4 PM local when tonight scores 78+ (the score's
+  own "clear & dark") at the Console's place. Owner decisions: **web push
+  only** (browsers and the installed PWA; iPhone only from the Home Screen,
+  iOS 16.4+; the native apps don't show it, `alertsSupport` returns
+  `'native'`), and **free for everyone**. Two halves:
+  - **Worker, `alerts/`** (`twilyte-alerts`, its own KV namespace, *not* the
+    counter's, so the counter's privacy statements stay true). `/key`,
+    `/subscribe`, `/unsubscribe`, and an hourly cron, `runAlerts`: whoever's
+    local hour is `ALERT_HOUR` (16) and hasn't had today's alert, one Open-Meteo
+    forecast per rounded place, `clearDarkScore`, send if ≥ `MIN_SCORE` (78).
+    Subscriber data lives in KV *metadata* (`lat`/`lon` to 0.1°, `tz`, `h24`,
+    `last`), so the run lists and writes only on a send. Endpoints must be real
+    push services (`PUSH_HOST`); 404/410 deletes. `alerts/package.json` makes
+    it ES modules, which is what lets the tests `import()` the real files on
+    Node 20 (the counter's test evaluates text instead).
+  - **`alerts/src/sky.js` is GENERATED** from `index.html` by
+    `node scripts/generate-alerts-sky.js` (a verbatim copy of `sunAltitude`,
+    `moonState`, `scoreHours`, `summarize`, `clearDarkScore` and helpers), and
+    `alerts.test.js` fails if it's stale. **Change the score in `index.html`,
+    re-run the generator, redeploy the Worker.** Merging does not deploy it.
+  - **`src/push.js`**: RFC 8291 encryption and RFC 8292 VAPID on WebCrypto,
+    no dependencies; `encryptPush` matches the RFC's appendix A example byte
+    for byte (taken from the working group's source; rfc-editor.org is
+    blocked here).
+  - **App**: `ClearAlerts` (hooks) → `AlertsRow` (hook-free) under the strip,
+    `alertsOn`/`alertsOff` with the window injected, `tw_alerts` holds what the
+    Worker was told so a place change resubscribes quietly. Permission is
+    asked **before** any other await (Safari drops a prompt after one).
+    `sw.js` shows the notification (`tag` replaces, tap focuses or opens).
+    CSP `connect-src` allows the Worker. **Hidden until `ALERTS_LIVE`**
+    (`?alerts=1` shows it anyway, to try a fresh deploy).
+  - **Deploy (owner):** `alerts/README.md` steps: create the KV namespace,
+    `node scripts/generate-vapid.js` (public key into `wrangler.toml`, private
+    via `wrangler secret put VAPID_PRIVATE`, never in the repo, made **once**),
+    `npx wrangler deploy`, try `?alerts=1`, then flip `ALERTS_LIVE`.
+  - Headless Chromium here refuses push subscriptions ("permission denied"),
+    so the browser checks stub `pushManager` with the service worker blocked
+    (Playwright can't route a SW's requests), and deliver a push to `sw.js`
+    through CDP `ServiceWorker.deliverPushMessage`. A real subscription is
+    untested until the owner deploys.
+  - `/privacy.html` has a "Clear-sky alerts" section describing exactly what
+    the Worker keeps; change one, change the other.
 - **The Twilight Almanac (2026-09-23)** — the Console's "Tell me a twilight
   fact" card deals from `facts.json` (336 facts, `{id, tag, title, body}`),
   fetched on the first tap by `loadFacts()` and precached by `sw.js` and
@@ -887,9 +930,8 @@ Quito to Tromsø, eight dates) the Console was 29 s out at the median and
   `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
   (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
   `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
-- **`alerts/src/sky.js` (on the held #102 branch) copies `sunAltitude`**:
-  its generator list needs `sunHcZn` and `sunRaDec` when it is next
-  regenerated.
+- `alerts/src/sky.js` copies `sunAltitude`; its generator list carries
+  `sunRaDec` and `sunHcZn` (regenerated 2026-09-25).
 
 ## Magnetic declination
 
@@ -1234,6 +1276,15 @@ things a syntax check cannot see:
   `.js`) and drives `fetch` against an in-memory KV: `visitorKey`'s IPv6
   /64 reduction in every written form, IPv4 keys unchanged from the old
   scheme, 24h TTL, and the missing-salt refusal.
+- **`alerts.test.js`** — the alerts Worker and its app side: encryption
+  against RFC 8291's example, the VAPID token verified with its public key,
+  `sky.js` current and scoring as `index.html` does, the hourly run over an
+  in-memory KV (4 PM only, once a day, one forecast a place, nothing below
+  78, gone subscriptions deleted), subscribe validation and rounding,
+  `alertsSupport` per browser, `alertsOn`/`alertsOff` with a fake window
+  (permission first, key bytes, rounded place), `AlertsRow`'s words, and the
+  CSP/sw.js/`ALERTS_LIVE` wiring. `extract.js` now keeps `async` on an
+  extracted `async function` (it dropped it, and `await` failed to parse).
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
@@ -1450,6 +1501,8 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 
 **Blocked on the repo owner, not on engineering:**
+- **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
+  `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
   `index.html` to activate the purchase flow. Owner has an Apple Developer
   account as of this writing but has not yet created the App Store Connect
@@ -1463,9 +1516,8 @@ The Console shots were retaken when the horizon view became the default
   here until the owner has one available.
 
 **Backlog, not started, no blockers:**
-- Alerts (clear-and-dark-tonight push notifications) — needs a backend
-  decision (Cloudflare Worker + Cron Triggers is the natural fit given the
-  existing visitor-counter Worker).
+- ~~Alerts~~ — **built** (web push, free); see the Architecture entry.
+  Waiting on the owner's Worker deploy, then `ALERTS_LIVE = true`.
 - ~~Denser star catalog for Sky View~~ — **done** (owner chose HYG). See the
   Sky View v1.4 entry above.
 - App Store screenshots: **done for both iPhone and iPad**
