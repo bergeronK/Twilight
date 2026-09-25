@@ -10,7 +10,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunHcZn', 'scanCrossings', 'SUN_THR',
   'TWILIGHT_WORDS', 'twilightWord', 'twilightDay', 'cdHMS',
-  'pointToward', 'wxOf', 'cloudAt', 'sunsetGlow', 'sunsetICS', 'sunsetBearing', 'nextSunset']);
+  'pointToward', 'wxOf', 'cloudAt', 'skyGlow', 'sunsetICS', 'sunriseICS', 'horizonBearing', 'nextSunset', 'nextSunrise']);
 
 const BOS = [42.36, -71.06];
 // Great-circle distance, written independently of pointToward.
@@ -34,12 +34,17 @@ test('the point toward the sunset is 150 km away, on the bearing', () => {
 
 test('the sunset bearing through the year from Boston', () => {
   // About 302° at the June solstice, 270° at the equinox, 238° in December.
-  const at = iso => m.sunsetBearing(...BOS, Date.parse(iso));
+  const at = (iso, dir) => m.horizonBearing(...BOS, Date.parse(iso), dir);
   assert.ok(Math.abs(at('2026-06-21T12:00Z') - 302.5) < 1.5, at('2026-06-21T12:00Z'));
   assert.ok(Math.abs(at('2026-09-23T12:00Z') - 270) < 1.5, at('2026-09-23T12:00Z'));
   assert.ok(Math.abs(at('2026-12-21T12:00Z') - 237.5) < 1.5, at('2026-12-21T12:00Z'));
-  // No sunset in the next day and a half: due west.
-  assert.strictEqual(m.sunsetBearing(78.2, 15.6, Date.parse('2026-06-21T12:00Z')), 270);
+  // Sunrise mirrors it across the meridian: about 57°, 90°, 122.5°.
+  assert.ok(Math.abs(at('2026-06-21T02:00Z', 'up') - 57.5) < 1.5, at('2026-06-21T02:00Z', 'up'));
+  assert.ok(Math.abs(at('2026-09-23T02:00Z', 'up') - 90) < 1.5, at('2026-09-23T02:00Z', 'up'));
+  assert.ok(Math.abs(at('2026-12-21T02:00Z', 'up') - 122.5) < 1.5, at('2026-12-21T02:00Z', 'up'));
+  // No sunset or sunrise in the next day and a half: due west, due east.
+  assert.strictEqual(m.horizonBearing(78.2, 15.6, Date.parse('2026-06-21T12:00Z')), 270);
+  assert.strictEqual(m.horizonBearing(78.2, 15.6, Date.parse('2026-06-21T12:00Z'), 'up'), 90);
 });
 
 const hours = (t0, n) => Array.from({ length: n }, (_, i) => new Date(t0 + i * 3600000).toISOString().slice(0, 16));
@@ -50,8 +55,10 @@ function wx(fill, { off = 0, t0 = Date.UTC(2026, 8, 24), n = 48 } = {}) {
 
 test('the forecast for two places, or one from an old cache', () => {
   const a = { hourly: { time: [] } }, b = { hourly: { time: ['x'] } };
-  assert.deepStrictEqual(m.wxOf([a, b]), { hourly: a.hourly, west: b });
-  assert.deepStrictEqual(m.wxOf([a]), { hourly: a.hourly, west: null });
+  const e = { hourly: { time: ['y'] } };
+  assert.deepStrictEqual(m.wxOf([a, b, e]), { hourly: a.hourly, west: b, east: e });
+  assert.deepStrictEqual(m.wxOf([a, b]), { hourly: a.hourly, west: b, east: null }, 'a cached two-place reply');
+  assert.deepStrictEqual(m.wxOf([a]), { hourly: a.hourly, west: null, east: null });
   assert.strictEqual(m.wxOf(a), a, 'a cached single-place reply is kept as it is');
   assert.strictEqual(m.wxOf(null), null);
   assert.strictEqual(m.wxOf([]), null);
@@ -71,7 +78,7 @@ test('cloud layers at the hour nearest the sunset', () => {
 });
 
 test('the colour rule', () => {
-  const g = (here, west) => m.sunsetGlow(here, west).level;
+  const g = (here, west) => m.skyGlow(here, west).level;
   const c = (total, low, mid, high, precip = 0) => ({ total, low, mid, high, precip });
   assert.strictEqual(g(c(50, 5, 10, 45), c(20, 5, 5, 10)), 'vivid', 'high cloud and a clear way west');
   assert.strictEqual(g(c(50, 5, 40, 10), null), 'vivid', 'middle cloud counts too');
@@ -81,8 +88,13 @@ test('the colour rule', () => {
   assert.strictEqual(g(c(5, 0, 2, 5)), 'plain', 'nothing to light up');
   assert.strictEqual(g(c(95, 5, 20, 95)), 'some', 'a thick high sheet');
   assert.strictEqual(g(c(60, 50, 20, 30)), 'some', 'a mixed sky');
-  assert.strictEqual(m.sunsetGlow(null, null), null);
-  assert.match(m.sunsetGlow(c(50, 5, 10, 45), null).detail, /little low cloud/, 'says only what it knows without the west');
+  assert.strictEqual(m.skyGlow(null, null), null);
+  assert.match(m.skyGlow(c(50, 5, 10, 45), null).detail, /little low cloud/, 'says only what it knows without the west');
+  // Sunrise: the same rule, its own words.
+  assert.match(m.skyGlow(c(50, 5, 10, 45), c(20, 5, 5, 10), 'sunrise').detail, /through to the east\./);
+  assert.match(m.skyGlow(c(50, 5, 10, 45), c(80, 70, 5, 10), 'sunrise').detail, /toward the sunrise/);
+  assert.match(m.skyGlow(c(95, 5, 20, 95), null, 'sunrise').detail, /before sunrise/);
+  assert.match(m.skyGlow(c(50, 5, 10, 45), c(20, 5, 5, 10)).detail, /through to the west\./, 'sunset by default');
 });
 
 const MID = Date.UTC(2026, 8, 24, 4);
@@ -121,39 +133,86 @@ test('the calendar event: sunset to civil dusk, a reminder half an hour before',
   assert.ok(!/dusk|dark/.test(bare.split('DESCRIPTION:')[1].split('\r\n')[0]));
 });
 
+test('the next sunrise and the dawn before it', () => {
+  const rise = m.nextSunrise(sunEv, MID + 12 * 3600000);
+  const local = t => new Date(t - 4 * 3600000).toISOString().slice(11, 16);
+  assert.match(local(rise.t), /^06:3\d$/, 'Boston sunrise about 06:33 on the 25th');
+  assert.ok(rise.astro < rise.naut && rise.naut < rise.civil && rise.civil < rise.t);
+  assert.ok(rise.t - rise.astro < 2 * 3600000, 'this morning\'s dawn, not an earlier one');
+  assert.ok(!('rise' in rise), 'nothing from the evening before');
+  // Between civil dawn and sunrise, the stages already gone are left out.
+  const late = m.nextSunrise(sunEv.filter(e => e.t > rise.civil + 60000), rise.civil + 60000);
+  assert.ok(late.t === rise.t && !late.civil && !late.naut);
+  assert.strictEqual(m.nextSunrise([], 0), null);
+});
+
+test('the sunrise calendar event: civil dawn to sunrise, a reminder before it', () => {
+  const rise = m.nextSunrise(sunEv, MID + 12 * 3600000);
+  const ics = m.sunriseICS(rise, 'Boston, MA', Date.UTC(2026, 8, 24, 12), t => 'T' + new Date(t).toISOString().slice(11, 16));
+  const dt = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  assert.ok(ics.startsWith('BEGIN:VCALENDAR\r\n') && ics.endsWith('END:VCALENDAR') && !/[^\r]\n/.test(ics));
+  assert.match(ics, new RegExp('DTSTART:' + dt(rise.civil) + '\r\nDTEND:' + dt(rise.t) + '\r\n'));
+  assert.match(ics, /SUMMARY:Sunrise at Boston\\, MA\r\n/);
+  assert.match(ics, /TRIGGER:-PT30M/);
+  assert.match(ics, /DESCRIPTION:Nautical dawn T09:\d\d: the first light along the horizon\. Civil dawn T10:0\d: the colour begins\. Sunrise T10:3\d\./);
+  assert.match(ics, /UID:sunrise-\d+@twilyte\.info/);
+  // Civil dawn already gone: half an hour before sunrise.
+  assert.match(m.sunriseICS({ t: rise.t }, 'X', 0, String), new RegExp('DTSTART:' + dt(rise.t - 30 * 60000)));
+});
+
 test('in the Twilight section: the colour line and the calendar button', () => {
   const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
   const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', `${declSource('TwilightToday')}; return TwilightToday;`)(
     R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {});
   const text = n => typeof n === 'string' || typeof n === 'number' ? String(n) : (n.c || []).map(text).join('');
   const sched = { when: 'today', ...m.twilightDay(sunEv.filter(e => e.t < MID + 86400000), MID) };
-  let cal = 0;
+  let cal = [];
   const base = { next: sunEv[0], now: MID, sched, fmt: String, sunUp: false, onMore() {} };
-  const out = TT({ ...base, glow: { when: 'Tonight’s', level: 'vivid', title: 'Likely colourful', detail: 'High cloud.' }, sunset: { when: 'today' }, onCalendar: () => cal++ });
+  const glows = [
+    { kind: 'sunset', label: 'Tonight’s sunset', level: 'vivid', title: 'Likely colourful', detail: 'High cloud.' },
+    { kind: 'sunrise', label: 'Tomorrow’s sunrise', level: 'grey', title: 'Probably grey', detail: 'Low cloud.' }];
+  const reminders = [
+    { kind: 'sunset', label: 'Add sunset to calendar', aria: 'Add tonight’s sunset to your calendar', onClick: () => cal.push('set') },
+    { kind: 'sunrise', label: 'Add sunrise to calendar', aria: 'Add tomorrow’s sunrise to your calendar', onClick: () => cal.push('rise') }];
+  const out = TT({ ...base, glows, reminders });
   const all = text(out);
-  assert.match(all, /Tonight’s sunset colourLikely colourfulHigh cloud\. An estimate from the cloud forecast\./);
+  assert.match(all, /Tonight’s sunset colourLikely colourfulHigh cloud\.Tomorrow’s sunrise colourProbably greyLow cloud\.Estimates from the cloud forecast\./);
+  assert.match(text(TT({ ...base, glows: glows.slice(0, 1) })), /High cloud\.An estimate from the cloud forecast\./);
   assert.ok(!JSON.stringify(out).includes('"border":'), 'no boxes');
   const btns = out.c[out.c.length - 1].c;
-  assert.strictEqual(text(btns[0]), 'Add tonight’s sunset to your calendar');
-  btns[0].p.onClick(); assert.strictEqual(cal, 1);
+  assert.deepStrictEqual(btns.slice(0, 2).map(text), ['Add sunset to calendar', 'Add sunrise to calendar']);
+  assert.strictEqual(btns[0].p['aria-label'], 'Add tonight’s sunset to your calendar', 'the full words for a screen reader');
+  btns[0].p.onClick(); btns[1].p.onClick(); assert.deepStrictEqual(cal, ['set', 'rise']);
   // The vivid title in amber, anything else in ink.
-  const title = o => JSON.stringify(o).match(/"color":"(\w+)"\}\},"c":\["(Likely colourful|Probably grey)"/)[1];
-  assert.strictEqual(title(out), 'AMBER');
-  assert.strictEqual(title(TT({ ...base, glow: { when: 'x', level: 'grey', title: 'Probably grey', detail: '' } })), 'INK');
-  // No forecast, no sunset: neither shows.
+  const colour = t => JSON.stringify(out).match(new RegExp('"color":"(\\w+)"\\}\\},"c":\\["' + t + '"'))[1];
+  assert.strictEqual(colour('Likely colourful'), 'AMBER');
+  assert.strictEqual(colour('Probably grey'), 'INK');
+  // No forecast, no events: neither shows.
   const none = TT(base);
-  assert.ok(!/sunset colour|calendar/.test(text(none)));
+  assert.ok(!/colour|calendar/.test(text(none)));
 });
 
 test('the Console asks for the cloud layers here and toward the sunset', () => {
   const rt = declSource('RealtimeTwilight');
-  assert.match(rt, /const west = pointToward\(loc\.lat, loc\.lon, sunsetBearing\(loc\.lat, loc\.lon, Date\.now\(\)\), 150\);/);
-  assert.match(rt, /latitude=\$\{loc\.lat\},\$\{west\.lat\}&longitude=\$\{loc\.lon\},\$\{west\.lon\}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability/);
+  assert.match(rt, /const west = pointToward\(loc\.lat, loc\.lon, horizonBearing\(loc\.lat, loc\.lon, Date\.now\(\), "down"\), 150\);/);
+  assert.match(rt, /const east = pointToward\(loc\.lat, loc\.lon, horizonBearing\(loc\.lat, loc\.lon, Date\.now\(\), "up"\), 150\);/);
+  assert.match(rt, /latitude=\$\{loc\.lat\},\$\{west\.lat\},\$\{east\.lat\}&longitude=\$\{loc\.lon\},\$\{west\.lon\},\$\{east\.lon\}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability/);
   // Every way the forecast arrives goes through wxOf.
   assert.strictEqual((rt.match(/setWx\(wxOf\(/g) || []).length, 3);
   assert.ok(!/setWx\((?!wxOf|null)/.test(rt), 'no raw reply reaches setWx');
-  assert.match(rt, /sunsetGlow\(cloudAt\(wx, sunset\.t\), wx && wx\.west \? cloudAt\(wx\.west, sunset\.t\) : null\)/);
-  assert.match(rt, /glow, sunset, onCalendar: downloadSunsetICS/);
+  assert.match(rt, /glows, reminders\n/);
+  // The colour memo run from source: sunset against the west, sunrise
+  // against the east, soonest first, nothing past 30 hours.
+  const body = rt.slice(rt.indexOf('const glows = useMemo(() => {') + 'const glows = useMemo(() => {'.length, rt.indexOf('}, [wx, sunset, sunrise, hourKey]);'));
+  const seen = [];
+  const run = (sunset, sunrise, now = 0) => new Function('sunset', 'sunrise', 'now', 'wx', 'cloudAt', 'skyGlow', body)(
+    sunset, sunrise, now, { name: 'here', west: { name: 'W' }, east: { name: 'E' } },
+    (w, t) => ({ from: w.name, t }), (here, toward, kind) => { seen.push([kind, here.from, toward.from]); return { level: 'x' }; });
+  const H = 3600000;
+  const g = run({ t: 10 * H, when: 'today' }, { t: 2 * H, when: 'today' });
+  assert.deepStrictEqual(g.map(x => [x.kind, x.label]), [['sunrise', 'This morning’s sunrise'], ['sunset', 'Tonight’s sunset']]);
+  assert.deepStrictEqual(seen, [['sunset', 'here', 'W'], ['sunrise', 'here', 'E']]);
+  assert.deepStrictEqual(run({ t: 40 * H, when: 'tomorrow' }, { t: 20 * H, when: 'tomorrow' }).map(x => x.label), ['Tomorrow’s sunrise'], 'past 30 hours: not yet');
 });
 
 test('the almanac button over the painting deals a fact and goes to it', async () => {
