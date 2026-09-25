@@ -156,6 +156,19 @@ stargazer is the default, navigator material is kept whole but folded.
     (`skyViewSummary`).
   - The Ephemeris chart is an `img` with the day in words (`daySummary`).
   - Segmented buttons carry `aria-pressed`.
+- **Offering to install (2026-09-25).** The top banner used to show on
+  the first visit, only where the browser has `beforeinstallprompt`
+  (Chrome, Edge; never iOS, where Add to Home Screen is also the only way
+  to get web push), to people already installed, and its x hid it for
+  good. `installOffer` (pure) now says 'prompt' (the browser's dialog),
+  'ios' (tap Share, then "Add to Home Screen", with a drawn share icon) or
+  nothing: not before a second day (`noteVisitDay`, `tw_visit_days`, the
+  last three dates only), not over the tabs tip, not when standalone or
+  `appinstalled` fired, not in Capacitor, and x snoozes 60 days
+  (`tw_install_snooze`; the old `tw_nodismiss` flag migrates to a snooze).
+  Don't promise alerts in its words until `ALERTS_LIVE`. `/privacy.html`
+  lists both keys. The tabs tip names the Stars tab as it is now.
+  `install.test.js`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
