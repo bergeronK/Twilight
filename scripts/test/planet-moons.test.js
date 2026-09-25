@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'planetGeo', 'planetAltAz',
-  'JUPITER_MOONS', 'jupiterMoons', 'moonStatus', 'jupiterWords', 'saturnRings', 'saturnWords', 'planetViewTime', 'PlanetViews']);
+  'JUPITER_MOONS', 'jupiterMoons', 'moonStatus', 'jupiterWords', 'saturnRings', 'saturnWords', 'planetViewTime', 'SATURN_R', 'SATURN_POLAR', 'SATURN_RINGS', 'SATURN_BANDS', 'saturnDrawing', 'PlanetViews']);
 
 // PyEphem 4.2: [ms, then per moon [x east +, y south +, z toward Earth +]]
 // in Jupiter radii, Io to Callisto.
@@ -103,14 +103,63 @@ test('the section, drawn with a stub React', () => {
   assert.strictEqual(dots.length, 3);
   const cx = Object.fromEntries(find(tree, n => n.type === 'g').map(g => [g.props.key, g.kids[0].props.cx]));
   assert.ok(cx.Europa < 160 && cx.Io > 160 && cx.Callisto > cx.Io);
-  // Saturn: south face seen, so the far half of the ring is the bottom one,
-  // drawn before the planet; the near (top) half after it.
+  // Saturn: the rings whole behind the globe, the globe, then the near half
+  // of the rings over it (clipped to it). South face seen: the near half is
+  // the top one, its outer edge sweeping over.
   const sv = find(tree, n => n.type === 'svg')[1];
-  assert.deepStrictEqual(sv.kids.map(k => k.type), ['path', 'ellipse', 'path']);
-  assert.match(sv.kids[0].props.d, /A 100 [\d.]+ 0 0 0 /, 'far half: the outer edge sweeps under');
-  assert.match(sv.kids[2].props.d, /A 100 [\d.]+ 0 0 1 /, 'near half: the outer edge sweeps over');
-  // Seen from the north it's the other way round.
+  assert.deepStrictEqual(sv.kids.map(k => k.props.className || k.type), ['defs', 'sat-far', 'sat-globe', 'sat-near']);
+  const outer = 136775 * 100 / 140280;
+  const nearA = sv.kids[3].props.clipPath && find(sv.kids[3], n => n.type === 'path').map(p => p.props.d);
+  assert.strictEqual(sv.kids[3].props.clipPath, 'url(#sat-disc)', 'in front of the globe only');
+  assert.ok(nearA.some(d => new RegExp('A ' + outer.toFixed(3).replace(/0+$/, '').replace('.', '\\.') + '[\\d]* [\\d.]+ 0 0 1 ').test(d)), 'near half over the top');
+  const behind = find(sv.kids[1], n => n.type === 'path');
+  assert.ok(behind.every(p => p.props.fillRule === 'evenodd' && (p.props.d.match(/M /g) || []).length === 2), 'whole rings behind: no seam where halves meet');
+  // Seen from the north, the near half is the bottom one.
   const nv = find(m.PlanetViews({ jup: null, sat: { t: 2, rings: { B: 20, ring: 44, disc: 19.5 } }, when: String }), n => n.type === 'svg')[0];
-  assert.match(nv.kids[0].props.d, /A 100 [\d.]+ 0 0 1 /);
+  assert.ok(find(nv.kids[3], n => n.type === 'path').every(p => / 0 0 0 /.test(p.props.d.split(' L ')[0])), 'near half under');
+  delete global.React;
+});
+
+test('Saturn drawn true: flattened globe, rings at their radii, bands meeting the limb', () => {
+  const h = (type, props, ...kids) => ({ type, props: props || {}, kids: kids.flat(Infinity).filter(k => k !== false && k != null) });
+  global.React = { createElement: h };
+  const find = (n, f, out = []) => { if (n && typeof n === 'object') { if (f(n)) out.push(n); n.kids.forEach(k => find(k, f, out)); } return out; };
+  const W = 320;
+  for (const B of [26.7, 12, 3, 0, -3, -12, -26.7]) {
+    const d = m.saturnDrawing(B, W);
+    const globe = d.kids.find(k => k.props.className === 'sat-globe');
+    const disc = find(globe, n => n.type === 'ellipse')[0].props;
+    const k = 100 / 140280, Re = 60268 * k;
+    assert.ok(Math.abs(disc.rx - Re) < 1e-9, 'equatorial radius to scale with the rings');
+    // Flattening: 0.902 edge-on, rounder as the pole tips toward us.
+    const want = Math.sqrt((0.902 * Re) ** 2 * Math.cos(B * Math.PI / 180) ** 2 + Re ** 2 * Math.sin(B * Math.PI / 180) ** 2);
+    assert.ok(Math.abs(disc.ry - want) < 1e-9, `B ${B}: polar ${disc.ry}`);
+    // Every ring edge where it should be: B ring inside the Cassini division inside the A ring.
+    const far = find(d.kids.find(x => x.props.className === 'sat-far'), n => n.type === 'path');
+    const radii = far.map(p => +/M ([\d.]+) /.exec(p.props.d)[1]).map(x => W / 2 - x);
+    assert.deepStrictEqual(radii.map(r => Math.round(r / k)), [92000, 103000, 117580, 122170, 133423, 133745, 136775, 140280]);
+    const ringH = 2 * Math.max(140280 * k * Math.abs(Math.sin(B * Math.PI / 180)), 0.35);
+    assert.ok(d.H >= Math.max(2 * disc.ry, ringH) + 16 && d.H < Math.max(2 * disc.ry, ringH) + 17, 'the picture fits the globe and the rings');
+    // A band's edge runs limb to limb: the curve's two ends sit on the
+    // globe's outline, not inside it (short ends left the base colour
+    // showing as a pale crescent). Whole circles (near the pole facing us)
+    // lie inside it.
+    let checked = 0;
+    for (const band of find(globe, n => n.type === 'path')) {
+      const nums = band.props.d.match(/-?[\d.]+/g).map(Number);
+      const pts = []; for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+      const q = ([x, y]) => ((x - W / 2) / disc.rx) ** 2 + ((y - d.H / 2) / disc.ry) ** 2;
+      const curve = pts.filter(([x]) => Math.abs(x - W / 2) < disc.rx + 1);
+      if (/^M -?[\d.]+ -?[\d.]+ L/.test(band.props.d) && Math.abs(pts[0][0] - W / 2) > disc.rx + 1) {
+        assert.ok(Math.abs(q(curve[0]) - 1) < 0.03 && Math.abs(q(curve[curve.length - 1]) - 1) < 0.03, `B ${B}: ends ${q(curve[0]).toFixed(3)}, ${q(curve[curve.length - 1]).toFixed(3)}`);
+        checked++;
+      }
+      curve.forEach(p => assert.ok(q(p) < 1.03, `B ${B}: a band edge outside the globe`));
+    }
+    assert.ok(checked >= 8, `B ${B}: ${checked} band edges checked`);
+  }
+  // The globe shows through the faint C ring but not the bright B ring.
+  const op = Object.fromEntries(m.SATURN_RINGS.map(r => [r[0], r[3]]));
+  assert.ok(op[74658] < 0.3 && op[103000] > 0.9);
   delete global.React;
 });
