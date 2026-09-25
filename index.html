@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-YXYq7cXYHbpYBgf2ldeLaRPPS/QsLGF+N9K/2FMBc6s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-t6b7w1pNVnSvdS6wcU6JCKl30mKs8qTOCPhCuvUfHDQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1338,6 +1338,11 @@ function eclipsesBetween(t0, t1, lat, lon) {
 }
 /* An eclipse in words for one place: a title, and one line on what can be
    seen from here and when. `fmt(t)` gives a local time. */
+// Whether eclipseWords says there is something to see from here: not "Not
+// seen from here", and not a penumbral graze with "nothing to see".
+function eclipseSeen(w) {
+  return !/^Not seen from here/.test(w.line) && !/nothing to see/.test(w.line);
+}
 function eclipseWords(e, lat, lon, fmt) {
   const title = e.kind[0].toUpperCase() + e.kind.slice(1) + ' ' + e.type + ' eclipse';
   if (e.type === 'lunar') {
@@ -2112,7 +2117,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v133";
+const BUILD = "v134";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -6241,20 +6246,37 @@ function TwilightEphemeris({ redMode } = {}) {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase", marginBottom: 6 } }, "Eclipses"),
-    eclipses.map((e, i) => {
-      const w = eclipseWords(e, latN, lonN, eclFmt);
-      const when = new Date(e.tMax + offAt(e.tMax) * 60000).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-      return React.createElement("div", { key: e.tMax, style: { padding: "12px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none" } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", font: "600 14.5px var(--font-ui)", color: ink } },
-          w.title, React.createElement("span", { style: { font: "500 13px var(--font-ui)", color: dim, fontVariantNumeric: "tabular-nums" } }, when)),
-        React.createElement("div", { style: { font: "13px/1.5 var(--font-ui)", color: dim, marginTop: 3, maxWidth: 640 } }, w.line));
-    }));
+    // The ones that can be seen from here, open; the rest behind a fold
+    // (2026-09-25: three of four usually read "Not seen from here").
+    (() => {
+      const all = eclipses.map(e => ({ e, w: eclipseWords(e, latN, lonN, eclFmt) }));
+      const row = ({ e, w }, i) => {
+        const when = new Date(e.tMax + offAt(e.tMax) * 60000).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+        return React.createElement("div", { key: e.tMax, style: { padding: "12px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none" } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", font: "600 14.5px var(--font-ui)", color: ink } },
+            w.title, React.createElement("span", { style: { font: "500 13px var(--font-ui)", color: dim, fontVariantNumeric: "tabular-nums" } }, when)),
+          React.createElement("div", { style: { font: "13px/1.5 var(--font-ui)", color: dim, marginTop: 3, maxWidth: 640 } }, w.line));
+      };
+      const seen = all.filter(x => eclipseSeen(x.w)), unseen = all.filter(x => !eclipseSeen(x.w));
+      return [
+        seen.length ? seen.map(row) : React.createElement("div", { key: "none", style: { font: "13px/1.5 var(--font-ui)", color: dim, padding: "8px 0 4px" } }, "None that can be seen from here in the next three years."),
+        unseen.length > 0 && React.createElement("details", { key: "unseen", style: { marginTop: 8 } },
+          React.createElement("summary", { style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" } }, unseen.length === 1 ? "One more, not seen from here" : unseen.length + " more, not seen from here"),
+          unseen.map(row))
+      ];
+    })());
   // The Moon through the month shown: a phase a day, and the four principal
   // phases to the minute in local time.
   const moonDays = useMemo(() => valid ? moonMonth(Y, Mo, day => (tz ? zoneOffsets(tz, Y, Mo, day).off : offMin)) : [],
     [valid, Y, Mo, tz, offMin]);
-  const moonCal = valid && React.createElement("div", { style: { ...panel, padding: "14px 6px 10px" } },
-    React.createElement("div", { style: labelSt }, "The Moon this month"),
+  // Folded (2026-09-25): a month of Moons is a screen tall. The summary
+  // names the month's next principal phase, or its last if all are past.
+  const nextPhase = moonDays.filter(d => d.phase).find(d => d.phase.t > Date.now()) || moonDays.filter(d => d.phase).slice(-1)[0];
+  const moonCal = valid && React.createElement("details", { className: "te-moon-month", style: { ...panel, padding: "14px 6px 10px" } },
+    React.createElement("summary", { style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" } },
+      "The Moon this month",
+      nextPhase && React.createElement("span", { style: { color: dim, fontWeight: 400 } }, " \u00b7 " + nextPhase.phase.name + ", " +
+        new Date(Date.UTC(Y, Mo - 1, nextPhase.day, 12)).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }))),
     React.createElement(MoonMonth, { days: moonDays, Y, Mo, D, south: latN < 0, onPick: day => setDateStr(`${Y}-${pad2(Mo)}-${pad2(day)}`) }),
     moonDays.filter(d => d.phase).map(d => React.createElement("div", {
       key: d.day,
@@ -6384,18 +6406,15 @@ function TwilightEphemeris({ redMode } = {}) {
   }, /*#__PURE__*/React.createElement("section", {
     style: {
       ...panel,
-      padding: 20,
+      padding: "14px 6px 10px",
       order: 3,
       gridColumn: "1 / -1"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
+    style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
+  }, "Export the whole month (", Y, "-", pad2(Mo), ") to a calendar or spreadsheet"), /*#__PURE__*/React.createElement("div", {
     style: {
-      ...labelSt,
-      marginBottom: 10
-    }
-  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
+      margin: "12px 0 10px"
     }
   }, /*#__PURE__*/React.createElement("select", {
     "aria-label": "What to export",
@@ -6439,7 +6458,7 @@ function TwilightEphemeris({ redMode } = {}) {
       border: "1px solid rgba(120,140,200,.28)",
       opacity: valid ? 1 : 0.4
     }
-  }, "\u2193 CSV"))), formOpen && /*#__PURE__*/React.createElement("section", {
+  }, "\u2193 CSV")))), formOpen && /*#__PURE__*/React.createElement("section", {
     id: "te-form",
     style: {
       ...panel,
@@ -6864,14 +6883,6 @@ function TwilightEphemeris({ redMode } = {}) {
         /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
       /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", font: "600 16px var(--font-ui)", color: /^No|^Not/.test(val) ? dim : ink, fontVariantNumeric: "tabular-nums" } }, val))))),
   moonCal))
-  , /*#__PURE__*/React.createElement("details", {
-    className: "tw-bands",
-    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "14px 0" }
-  },
-    /*#__PURE__*/React.createElement("summary", {
-      style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
-    }, "What the three twilights mean"),
-    /*#__PURE__*/React.createElement(TwilightBands, null))
   , eclipseSection, /*#__PURE__*/React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
@@ -6897,6 +6908,14 @@ function TwilightEphemeris({ redMode } = {}) {
       )
     )
   )
+  , /*#__PURE__*/React.createElement("details", {
+    className: "tw-bands",
+    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "14px 0" }
+  },
+    /*#__PURE__*/React.createElement("summary", {
+      style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
+    }, "What the three twilights mean"),
+    /*#__PURE__*/React.createElement(TwilightBands, null))
   // A plain block, not a <footer>: the page has one footer, at the bottom.
   , /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6905,7 +6924,7 @@ function TwilightEphemeris({ redMode } = {}) {
       color: dim,
       lineHeight: 1.7
     }
-  }, "Computed with the NOAA solar-position algorithm. Sunrise/sunset use the upper-limb convention (\u22120.833\xB0, including atmospheric refraction); twilight phases use sun-center altitudes of \u22126\xB0 / \u221212\xB0 / \u221218\xB0. Accuracy is typically within \xB11 minute; refraction near the horizon varies with weather, so treat horizon events as approximate.")));
+  }, "Computed from Meeus\u2019s solar position at each event\u2019s own moment, within half a minute of PyEphem from the equator to 70\xB0 N. Sunrise and sunset use the upper-limb convention (\u22120.833\xB0, including atmospheric refraction); twilight phases use sun-centre altitudes of \u22126\xB0 / \u221212\xB0 / \u221218\xB0. Times are rounded to the minute; refraction near the horizon varies with the weather, so treat horizon events as approximate.")));
 }
 
 /* ---- Root tab app ---- */
@@ -9492,7 +9511,7 @@ function TwilightApp() {
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris. ",
         React.createElement("a", { href: "https://github.com/bergeronK/Twilight/issues/new?template=feedback.md", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
       React.createElement("span", null,
-        "Sun: NOAA · Moon: Meeus (ELP-2000/82) · Place search: ",
+        "Sun and Moon: Meeus (Astronomical Algorithms; ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),

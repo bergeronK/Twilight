@@ -85,6 +85,15 @@ stargazer is the default, navigator material is kept whole but folded.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.
+  **Tidied again (2026-09-25), 3,709 → 3,063 px:** the month's Moon
+  calendar is a fold (`details.te-moon-month`, its summary the month's next
+  principal phase), the month export is a fold, eclipses not seen from here
+  sit behind "N more, not seen from here" (`eclipseSeen` reads
+  `eclipseWords`' line; a penumbral graze with "nothing to see" counts as
+  unseen), and the band notes follow the upcoming events. Open: the chart,
+  the dark window, the times, golden and blue hours, the Moon tonight, the
+  eclipses that can be seen, the events. The accuracy note and the footer
+  credit no longer say NOAA. `ephemeris-tidy.test.js`.
 - Stars: `<details id="for-navigators">`, shut by default; the sextant
   window runs on pure `sextantWindows` / `nextSextantWindow` /
   `sextantICS`.
