@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'planetGeo', 'planetAltAz',
-  'JUPITER_MOONS', 'jupiterMoons', 'moonStatus', 'jupiterWords', 'saturnRings', 'saturnWords', 'planetViewTime', 'SATURN_R', 'SATURN_POLAR', 'SATURN_RINGS', 'SATURN_BANDS', 'saturnDrawing', 'PlanetViews']);
+  'JUPITER_MOONS', 'jupiterMoons', 'moonStatus', 'jupiterWords', 'JUPITER_R', 'JUPITER_MOON_LOOK', 'JUPITER_BANDS', 'jupiterDrawing', 'jupiterSurfaceWords', 'saturnRings', 'saturnWords', 'planetViewTime', 'SATURN_R', 'SATURN_POLAR', 'SATURN_RINGS', 'SATURN_BANDS', 'saturnDrawing', 'PlanetViews']);
 
 // PyEphem 4.2: [ms, then per moon [x east +, y south +, z toward Earth +]]
 // in Jupiter radii, Io to Callisto.
@@ -98,15 +98,21 @@ test('the section, drawn with a stub React', () => {
   assert.match(t, /Jupiter’s moonsnow/);
   assert.match(t, /Saturn’s ringsat 22:00/);
   assert.match(t, /Left to right: Europa, Jupiter, Io, Callisto\. Ganymede is behind Jupiter\./);
-  // Hidden Ganymede isn't drawn; the others are, west (positive x) on the right.
-  const dots = find(tree, n => n.type === 'circle');
-  assert.strictEqual(dots.length, 3);
-  const cx = Object.fromEntries(find(tree, n => n.type === 'g').map(g => [g.props.key, g.kids[0].props.cx]));
+  // Two Jupiter pictures: the close-up and the line of moons. Hidden
+  // Ganymede is drawn in neither; in the line the others are, west
+  // (positive x) on the right; the close-up holds only Io, 3 radii out.
+  const [close, line] = find(tree, n => n.type === 'svg');
+  const at = svg => Object.fromEntries(find(svg, n => n.type === 'circle').map(c => [c.props.key, c.props.cx]));
+  assert.deepStrictEqual(Object.keys(at(line)).sort(), ['Callisto', 'Europa', 'Io']);
+  assert.deepStrictEqual(Object.keys(at(close)), ['Io']);
+  const cx = at(line);
   assert.ok(cx.Europa < 160 && cx.Io > 160 && cx.Callisto > cx.Io);
+  assert.ok(cx.Callisto < 320 - 4, 'the farthest moon fits');
+  assert.match(close.props['aria-label'], /Jupiter close up: its cloud belts, with no moon or shadow on the disc\./);
   // Saturn: the rings whole behind the globe, the globe, then the near half
   // of the rings over it (clipped to it). South face seen: the near half is
   // the top one, its outer edge sweeping over.
-  const sv = find(tree, n => n.type === 'svg')[1];
+  const sv = find(tree, n => n.type === 'svg')[2];
   assert.deepStrictEqual(sv.kids.map(k => k.props.className || k.type), ['defs', 'sat-far', 'sat-globe', 'sat-near']);
   const outer = 136775 * 100 / 140280;
   const nearA = sv.kids[3].props.clipPath && find(sv.kids[3], n => n.type === 'path').map(p => p.props.d);
@@ -161,5 +167,78 @@ test('Saturn drawn true: flattened globe, rings at their radii, bands meeting th
   // The globe shows through the faint C ring but not the bright B ring.
   const op = Object.fromEntries(m.SATURN_RINGS.map(r => [r[0], r[3]]));
   assert.ok(op[74658] < 0.3 && op[103000] > 0.9);
+  delete global.React;
+});
+
+// PyEphem 4.2 (scripts/jupiter-shadow-reference.py): every 90 minutes for
+// 40 days around Jupiter's 2026 quadrature and 20 around its opposition,
+// each moon's sun_visible, and where its shadow falls on our side of the
+// globe, found by a ray from the Sun through the moon, not by the app's
+// method. [ms, [[sunVisible, shadow [x east, y south] | null, moon [x, y]] x4]].
+const SHREF = require('./jupiter-shadow-reference.json');
+
+test('moons in Jupiter’s shadow, and their shadows on it, as PyEphem has them', () => {
+  let agree = 0, total = 0, both = 0, refShadows = 0, worst = 0;
+  const seps = [];
+  for (const [ms, row] of SHREF) {
+    const js = m.jupiterMoons(ms);
+    row.forEach(([sunVisible, sh, pos], i) => {
+      const mo = js[i];
+      total++;
+      if (mo.eclipsed === !sunVisible) agree++;
+      else assert.ok(Math.abs(Math.hypot(mo.x, mo.y) - 1) < 0.8 || mo.name === 'Callisto', `${mo.name} ${new Date(ms).toISOString()}: eclipse disagrees far from the shadow's edge`);
+      if (sh) {
+        refShadows++;
+        if (!mo.shadow) { assert.ok(Math.hypot(...sh) > 0.8, `${mo.name} ${new Date(ms).toISOString()}: shadow missed at ${Math.hypot(...sh).toFixed(2)} R`); return; }
+        both++;
+        worst = Math.max(worst, Math.abs(Math.hypot(mo.shadow.x, mo.shadow.y) - Math.hypot(...sh)));
+        // How far the shadow falls from its moon: the phase angle's work,
+        // the same in any frame. Only while the moon is off the disc, where
+        // its place is well measured.
+        seps.push(Math.abs(Math.hypot(mo.shadow.x - mo.x, mo.shadow.y - mo.y) - Math.hypot(sh[0] - pos[0], sh[1] - pos[1])));
+        // Our x is west-positive; PyEphem's east-positive.
+        if (Math.abs(sh[0]) > 0.2) assert.strictEqual(Math.sign(-mo.shadow.x), Math.sign(sh[0]), `${mo.name} shadow side at ${ms}`);
+      } else if (mo.shadow) assert.ok(Math.hypot(mo.shadow.x, mo.shadow.y) > 0.8, `${mo.name} ${new Date(ms).toISOString()}: a shadow PyEphem doesn't have`);
+    });
+  }
+  assert.ok(agree / total > 0.995, `eclipses agree ${agree}/${total}`);
+  assert.ok(both / refShadows > 0.95 && refShadows > 100, `shadows ${both}/${refShadows}`);
+  assert.ok(worst < 0.3, `shadow place within ${worst.toFixed(3)} R`);
+  seps.sort((a, b) => a - b);
+  const med = seps[seps.length >> 1], p90 = seps[Math.floor(seps.length * 0.9)];
+  assert.ok(med < 0.04 && p90 < 0.12, `shadow-to-moon offset: median ${med.toFixed(3)}, 90th ${p90.toFixed(3)} R`);
+});
+
+test('the close-up: shadows as black dots, moons in front, the eclipsed and hidden left out', () => {
+  const h = (type, props, ...kids) => ({ type, props: props || {}, kids: kids.flat(Infinity).filter(k => k !== false && k != null) });
+  global.React = { createElement: h };
+  const find = (n, f, out = []) => { if (n && typeof n === 'object') { if (f(n)) out.push(n); n.kids.forEach(k => find(k, f, out)); } return out; };
+  const moons = [
+    { name: 'Io', x: 0.3, y: 0, front: true, shadow: { x: 0.5, y: 0.02 } },          // crossing, shadow beside it
+    { name: 'Europa', x: 1.8, y: 0, front: false, eclipsed: true },                   // in the shadow: dark
+    { name: 'Ganymede', x: -0.4, y: 0, front: false },                                 // behind
+    { name: 'Callisto', x: -2.5, y: 0.1, front: true }];
+  const d = m.jupiterDrawing(moons, 320, 34, 't');
+  const shadows = find({ kids: d.kids }, n => n.props && n.props.className === 'jup-shadow');
+  assert.strictEqual(shadows.length, 1);
+  assert.strictEqual(shadows[0].props.cx, 160 + 0.5 * 34);
+  assert.strictEqual(shadows[0].props.fill, '#0b0806');
+  const drawn = find({ kids: d.kids }, n => n.type === 'circle' && n.props.className !== 'jup-shadow').map(c => c.props.key).sort();
+  assert.deepStrictEqual(drawn, ['Callisto', 'Io']);
+  // The globe: flattened, clipped, banded, and the shadow on it (inside the clip); the moons after it.
+  assert.deepStrictEqual(d.kids.map(k => k.props.className || k.type), ['defs', 'jup-globe', 'jup-moons', 'jup-labels']);
+  // Close up, the moon off the disc is named; the one crossing it isn't (it's on the globe).
+  assert.deepStrictEqual(find(d.kids[3], n => n.type === 'text').map(t => t.kids[0]), ['C']);
+  assert.strictEqual(m.jupiterDrawing(moons, 320, 8, 's', 30).kids.filter(Boolean).length, 3, 'the small globe in the line has no labels of its own');
+  const disc = find(d.kids[1], n => n.type === 'ellipse')[0].props;
+  assert.ok(Math.abs(disc.ry / disc.rx - 0.935) < 1e-9);
+  assert.strictEqual(find(d.kids[1], n => n.type === 'rect').length, m.JUPITER_BANDS.length);
+  // Ids per drawing, so the close-up and the line don't share gradients.
+  assert.strictEqual(find(d.kids[0], n => n.type === 'clipPath')[0].props.id, 'jup-disc-t');
+  assert.strictEqual(m.jupiterSurfaceWords(moons), 'Io crossing its face; Io’s shadow on the cloud tops.');
+  const w = m.jupiterWords(moons);
+  assert.match(w, /Europa is in Jupiter’s shadow, dark for now\./);
+  assert.match(w, /Io’s shadow is on Jupiter’s cloud tops: a small black dot in a telescope\./);
+  assert.ok(!/Left to right:[^.]*Europa/.test(w), 'an eclipsed moon isn’t in the line');
   delete global.React;
 });
