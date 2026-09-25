@@ -752,7 +752,9 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
 - **Fusion is a complementary filter.** The smooth gyro-based *relative*
   stream (Android plain `deviceorientation`; iOS alpha) drives the view. The
   noisy *north* source (Android `deviceorientationabsolute`; iOS
-  `webkitCompassHeading`) only estimates one slow yaw offset (`NORTH_SMOOTH`).
+  `webkitCompassHeading`) only estimates one slow yaw offset (`NORTH_SMOOTH`),
+  after averaging its first `NORTH_SETTLE_SAMPLES` readings so the estimate
+  does not start from whichever single reading arrived first.
   A device with no relative stream falls back to the absolute one directly.
   **This inverts the pre-quaternion handler**, which discarded Android's
   relative stream once the absolute one appeared.
@@ -772,6 +774,18 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   every synthetic test agreed with the assumption because they all built
   their heading out of it.** Two of them literally constructed the heading
   from the top axis; they were rewritten, not patched.
+- **...but only below beta ~135 — OPEN since 2026-09-25.** Two earlier
+  readings (2026-09-16, `IPHONE_STEEP` in `fusion.test.js`) were taken
+  tipped further back than any of the four above: beta 132.6 fits the
+  camera, but beta 136.1 — real Polaris centred — fits the **top** (0°) and
+  is 176° out as the camera. The one rule that fits all six: the heading is
+  the bearing of whichever of the top and camera axes is **more horizontal**
+  (they swap at beta 135 with no roll, camera 45° up — about where Polaris is
+  from 42° N). That rests on a single reading near the swap, so it has not
+  been adopted: `yawFromHeading` still reads the camera only, and a `todo`
+  test ("reading #2 through the fusion lands on Polaris") records the gap
+  without failing CI. Adopting the rule — ideally holding north in a band
+  around the swap, where either axis could be meant — is an owner decision.
 - **iOS heading reference — MAGNETIC north since build v109 (2026-09-24).**
   A fourth reading (v107, 42.09, -72.62: camera on the Moon at true az
   152.7, alt 31; `webkitCompassHeading` 168, "way off to the left") settled
@@ -935,6 +949,7 @@ the browser rejects, which is the one outcome both exist to prevent.
 Bump `BUILD` in `index.html` alongside `CACHE`: it is what a Sensor details
 screenshot reports, and it sat at `v56` for weeks while the app moved on,
 making every field report ambiguous about what was actually running.
+`scripts/verify-build.js` now fails if the two differ.
 
 Also bump `CACHE` in `sw.js` (and mirror any new/changed asset filename into
 its `ASSETS` array and into `native/sync-web.js`'s file list) whenever a

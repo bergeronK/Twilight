@@ -70,6 +70,19 @@ if (!cspMatch) {
   }
 }
 
+// The build label in Sensor details must name the service-worker cache
+// actually being served: it is what tells a bug report apart from a stale
+// cache. It once drifted nine versions behind, with only a comment asking
+// for the two to be kept in step.
+{
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+  const cache = (sw.match(/const CACHE = 'twilight-(v\d+)'/) || [])[1];
+  const build = (html.match(/const BUILD = "(v\d+)"/) || [])[1];
+  if (!cache) bad('could not find CACHE in sw.js');
+  else if (!build) bad('could not find BUILD in index.html');
+  else if (cache !== build) bad(`BUILD is ${build} but sw.js CACHE is ${cache} — bump them together`);
+}
+
 if (errors.length) {
   errors.forEach(e => console.error('✗ ' + e));
   console.error(`\nBuild guard FAILED. Recompute the CSP hashes after editing inline scripts.`);

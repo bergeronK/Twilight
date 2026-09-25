@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-SkPkci+iqaOe1Qn2i68FRQbt+3jOF0fOv4i67nNvctU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-im5v828jtXJwLsf8o9w7uPHblW/opNTMnOQ94Kge4Js=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v137";
+const BUILD = "v138";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3258,6 +3258,8 @@ const NORTH_JUMP_DEG = 60;
 // ...unless the new value persists, consistently, for this many samples
 // (~0.75 s at 60 Hz) — a genuine change, such as a compass recalibrating.
 const NORTH_JUMP_SAMPLES = 45;
+// Readings averaged before the slow filter takes over (~1/4 s at 60 Hz).
+const NORTH_SETTLE_SAMPLES = 15;
 
 /* Exponential smoothing for an angle that wraps: 359 and 1 must average to 0,
    not 180. Used here only for the yaw offset. */
@@ -3268,28 +3270,38 @@ function smoothAngle(prev, next, k) {
 }
 const angGap = (a, b) => Math.abs(((a - b) % 360 + 540) % 360 - 180);
 
-/* Fold one north sample into the estimate. Small disagreements are blended.
-   Large ones are held back until they have persisted and agreed with each
-   other, then adopted outright — never blended, since blending across a gap
-   near 180 deg has no well-defined direction and the view spins. */
+/* Fold one north sample into the estimate.
+
+   The first NORTH_SETTLE_SAMPLES readings are averaged — a running mean — so
+   the estimate starts from all of them rather than from whichever happened
+   to arrive first. Before this, the first reading was adopted outright and
+   later ones trickled in at NORTH_SMOOTH, so one reading's worth of compass
+   noise (several degrees on a phone) took around fifty more to wear off.
+
+   After that, small disagreements are blended slowly. Large ones are held
+   back until they have persisted and agreed with each other, then adopted
+   outright — never blended, since blending across a gap near 180 deg has no
+   well-defined direction and the view spins. */
 function updateNorth(s, y, trusted) {
   const yN = ((y % 360) + 360) % 360;
-  if (s.yaw === null) return { yaw: yN, trusted, pending: 0, pendingYaw: null };
+  const n = s.northCount || 0;
+  if (s.yaw === null) return { yaw: yN, trusted, northCount: 1, pending: 0, pendingYaw: null };
   if (angGap(yN, s.yaw) <= NORTH_JUMP_DEG) {
+    const k = n < NORTH_SETTLE_SAMPLES ? 1 / (n + 1) : NORTH_SMOOTH;
     return {
-      yaw: smoothAngle(s.yaw, yN, NORTH_SMOOTH),
-      trusted: s.trusted || trusted, pending: 0, pendingYaw: null
+      yaw: smoothAngle(s.yaw, yN, k),
+      trusted: s.trusted || trusted, northCount: n + 1, pending: 0, pendingYaw: null
     };
   }
   // A trusted sample overrides an untrusted first guess straight away.
-  if (trusted && !s.trusted) return { yaw: yN, trusted: true, pending: 0, pendingYaw: null };
+  if (trusted && !s.trusted) return { yaw: yN, trusted: true, northCount: 1, pending: 0, pendingYaw: null };
   if (s.pendingYaw !== null && angGap(yN, s.pendingYaw) <= NORTH_JUMP_DEG) {
     const pending = s.pending + 1;
     const pendingYaw = smoothAngle(s.pendingYaw, yN, 0.2);
-    if (pending >= NORTH_JUMP_SAMPLES) return { yaw: pendingYaw, trusted: s.trusted || trusted, pending: 0, pendingYaw: null };
-    return { yaw: s.yaw, trusted: s.trusted, pending, pendingYaw };
+    if (pending >= NORTH_JUMP_SAMPLES) return { yaw: pendingYaw, trusted: s.trusted || trusted, northCount: n, pending: 0, pendingYaw: null };
+    return { yaw: s.yaw, trusted: s.trusted, northCount: n, pending, pendingYaw };
   }
-  return { yaw: s.yaw, trusted: s.trusted, pending: 1, pendingYaw: yN };
+  return { yaw: s.yaw, trusted: s.trusted, northCount: n, pending: 1, pendingYaw: yN };
 }
 
 /* The yaw psi with yawQ(psi) * rel ≈ abs, read off how the two rotations
@@ -3331,7 +3343,7 @@ function yawFromHeading(rel, heading) {
 }
 
 const FUSION_INIT = {
-  att: null, frame: null, yaw: null, trusted: false, pending: 0, pendingYaw: null,
+  att: null, frame: null, yaw: null, trusted: false, northCount: 0, pending: 0, pendingYaw: null,
   lastAbs: null, haveRel: false, magnetic: false, northKind: null
 };
 
