@@ -386,3 +386,15 @@ test('no element is given a style object as its props', () => {
   const bad = [...html.matchAll(/createElement\(\s*["'][a-z]+["'],\s*([A-Za-z_$][\w$]*(?:St|Style))\s*[,)]/g)].map(m => m[0]);
   assert.deepStrictEqual(bad, []);
 });
+
+test('the station panel is left out when there is no orbit, and events have their icons', () => {
+  const { declSource } = require('./extract.js');
+  const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat() }) };
+  const [IssPanel, eventIcon] = new Function('React', 'highlightIcon', 'D2R', 'issWords',
+    `${declSource('IssPanel')}; ${declSource('eventIcon')}; return [IssPanel, eventIcon];`)(R, k => ({ t: 'svg', k }), Math.PI / 180, () => 'words');
+  assert.strictEqual(IssPanel({ passes: null, failed: true, when: String, fmt: String }), null);
+  assert.ok(IssPanel({ passes: null, failed: false, when: String, fmt: String }), 'still "working it out" while loading');
+  const kinds = ['new', 'full', 'season'].map(k => JSON.stringify(eventIcon(k)));
+  assert.strictEqual(new Set(kinds).size, 3);
+  assert.strictEqual(eventIcon('meteors').k, 'meteors', 'the highlights’ meteor');
+});
