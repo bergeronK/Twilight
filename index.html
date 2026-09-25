@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-tgONoNZEgl9iQJswZTikjpegxJz0AGxpHqejcquu7lk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uHDNK5g6jBvWL0/osDWUlKG4W7ameBCEapBV2tuZKgs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -516,37 +516,39 @@ const atan2 = (y, x) => Math.atan2(y, x) * R2D;
 const acos = x => Math.acos(Math.max(-1, Math.min(1, x))) * R2D;
 const jd = date => date.getTime() / 86400000 + 2440587.5;
 const gmst = date => rev(280.46061837 + 360.98564736629 * (jd(date) - 2451545.0));
-function sunAltitude(date, lat, lonE) {
-  const yr = date.getUTCFullYear();
-  const start = Date.UTC(yr, 0, 1);
-  const days = yr % 4 === 0 && yr % 100 !== 0 || yr % 400 === 0 ? 366 : 365;
-  const doy = (date.getTime() - start) / 86400000;
-  const hUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  const g = 2 * Math.PI / days * (doy + (hUTC - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
-  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
-  const tst = hUTC * 60 + eq + 4 * lonE;
-  const ha = tst / 4 - 180;
-  const cosZ = Math.sin(lat * D2R) * Math.sin(decl) + Math.cos(lat * D2R) * Math.cos(decl) * Math.cos(ha * D2R);
-  return 90 - acos(cosZ);
+/* The Sun's apparent place at the moment given (2026-09-25): Meeus's
+   low-precision solar coordinates (Astronomical Algorithms ch. 25, the same
+   terms as the Ephemeris's solarParams, aberration and nutation in
+   longitude included), good to about 0.01 degree. Before, sunAltitude and
+   sunHcZn used a short Fourier fit for declination and the equation of time
+   that was a few arcminutes out: sunset half a minute off in Boston, and up
+   to 10 minutes far north where the Sun crosses the horizon at a slant.
+   Also returns Greenwich mean sidereal time for the same instant. */
+function sunRaDec(date) {
+  const T = (date.getTime() / 86400000 + 2440587.5 - 2451545) / 36525, r = D2R;
+  const L0 = 280.46646 + T * (36000.76983 + T * 0.0003032);
+  const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+  const C = Math.sin(M * r) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(2 * M * r) * (0.019993 - 0.000101 * T) + Math.sin(3 * M * r) * 0.000289;
+  const om = 125.04 - 1934.136 * T;
+  const lam = (L0 + C - 0.00569 - 0.00478 * Math.sin(om * r)) * r;
+  const eps = (23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * Math.cos(om * r)) * r;
+  return {
+    ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D,
+    dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D,
+    gmst: 280.46061837 + 360.98564736629 * T * 36525
+  };
 }
-/* Sun's altitude AND azimuth, for sight reduction — same declination/hour-angle
-   derivation as sunAltitude() (kept separate rather than refactored into a
-   shared helper, matching how starHcZn/moonState each self-contain their math). */
+/* The Sun's altitude and azimuth (true, degrees) from here: for the sky,
+   the twilight times and the sextant alike. */
 function sunHcZn(date, lat, lonE) {
-  const yr = date.getUTCFullYear();
-  const start = Date.UTC(yr, 0, 1);
-  const days = yr % 4 === 0 && yr % 100 !== 0 || yr % 400 === 0 ? 366 : 365;
-  const doy = (date.getTime() - start) / 86400000;
-  const hUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  const g = 2 * Math.PI / days * (doy + (hUTC - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
-  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
-  const tst = hUTC * 60 + eq + 4 * lonE;
-  const haDeg = tst / 4 - 180, haRad = haDeg * D2R, latRad = lat * D2R;
-  const alt = 90 - acos(Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad));
-  const az = rev(R2D * Math.atan2(Math.sin(haRad), Math.cos(haRad) * Math.sin(latRad) - Math.tan(decl) * Math.cos(latRad)) + 180);
+  const s = sunRaDec(date);
+  const ha = (s.gmst + lonE - s.ra) * D2R, la = lat * D2R, de = s.dec * D2R;
+  const alt = Math.asin(Math.max(-1, Math.min(1, Math.sin(la) * Math.sin(de) + Math.cos(la) * Math.cos(de) * Math.cos(ha)))) * R2D;
+  const az = ((Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(la) - Math.tan(de) * Math.cos(la)) * R2D + 180) % 360 + 360) % 360;
   return { alt, az };
+}
+function sunAltitude(date, lat, lonE) {
+  return sunHcZn(date, lat, lonE).alt;
 }
 /* ---- The space station ---- */
 /* SGP4, near-Earth only (periods under 225 minutes: the space station's is
@@ -1868,12 +1870,15 @@ async function rcRestorePro() {
 }
 // Native boot: reconcile the stored pro flag with the store entitlement.
 rcInit().then(P => { if (P) P.getCustomerInfo().then(rcApply).catch(() => {}); });
+// To the nearest minute, as almanacs give times (and as the Ephemeris
+// does): Intl alone drops the seconds, so a sunset at 18:37:50 read 18:37
+// here and 18:38 there.
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
   hour: "numeric",
   minute: "2-digit",
   hourCycle: prefStore.getH24() ? "h23" : "h12"
-}).format(new Date(t));
+}).format(new Date(Math.round(t / 60000) * 60000));
 const dateKey = (t, tz) => new Intl.DateTimeFormat("en-CA", {
   timeZone: tz,
   year: "numeric",
@@ -2107,7 +2112,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v131";
+const BUILD = "v132";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -5429,7 +5434,7 @@ function RealtimeTwilight({ redMode } = {}) {
       color: C.inkDim,
       lineHeight: 1.6
     }
-  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
+  }, "Sun times from Meeus\u2019s solar position at each event\u2019s own moment, within half a minute of PyEphem from the equator to 70\xB0 N, and rounded to the nearest minute; moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
 }
 const LABELS = {
   astro: "Astronomical twilight",
@@ -5460,8 +5465,10 @@ const COLORS = {
 const RAD = Math.PI / 180;
 const rad = d => d * RAD;
 const deg = r => r / RAD;
-function solarParams(y, m, d) {
-  const JD = Date.UTC(y, m - 1, d, 12, 0, 0) / 86400000 + 2440587.5;
+// The Sun's declination and the equation of time on a date, at `utcMin`
+// minutes after that date's UTC midnight (noon when not given).
+function solarParams(y, m, d, utcMin = 720) {
+  const JD = Date.UTC(y, m - 1, d) / 86400000 + utcMin / 1440 + 2440587.5;
   const T = (JD - 2451545.0) / 36525;
   const L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
   const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
@@ -5476,7 +5483,10 @@ function solarParams(y, m, d) {
   const eqTime = 4 * deg(vY * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * vY * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * vY * vY * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
   return {
     decl,
-    eqTime
+    eqTime,
+    y,
+    m,
+    d
   };
 }
 
@@ -5555,9 +5565,22 @@ const ALT = {
   nautical: -12,
   astro: -18
 };
+// An event found with the Sun's place at noon (`p`), then found again twice
+// with the Sun's place at the event's own time (2026-09-25). With noon's
+// alone, an evening in the Americas was worked out with a Sun ten hours
+// stale: Boston's sunset 50 seconds late, and minutes far north.
+function sunEvent(lat, lon, p, a, r) {
+  let e = eventUTC(lat, lon, p, a, r);
+  for (let k = 0; k < 2 && e.utc !== undefined; k++) {
+    const e2 = eventUTC(lat, lon, solarParams(p.y, p.m, p.d, e.utc), a, r);
+    if (e2.utc === undefined) break;
+    e = e2;
+  }
+  return e;
+}
 function computeDay(lat, lon, y, m, d) {
   const p = solarParams(y, m, d);
-  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  const ev = (a, r) => sunEvent(lat, lon, p, a, r);
   return {
     p,
     astroDawn: ev(ALT.astro, true),
@@ -5580,7 +5603,7 @@ function computeDay(lat, lon, y, m, d) {
    Sun doesn't cross both edges that day (summer nights far north, polar
    days). */
 function photoWindows(lat, lon, p) {
-  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  const ev = (a, r) => sunEvent(lat, lon, p, a, r);
   const win = (a, b) => (a.none || b.none ? null : [a.utc, b.utc]);
   return {
     morningBlue: win(ev(-6, true), ev(-4, true)),

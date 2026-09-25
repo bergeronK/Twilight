@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'sunAltitude', 'SGP4_RE', 'SGP4_XKE', 'SGP4_J2', 'SGP4_J3',
+const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'SGP4_RE', 'SGP4_XKE', 'SGP4_J2', 'SGP4_J3',
   'SGP4_J4', 'SGP4_J3OJ2', 'parseTle', 'sgp4Init', 'sgp4At', 'gstimeRad', 'issSunDir', 'issLook', 'issPasses', 'ISS_TLE_URL',
   'noteSource', 'loadIssTle', 'issSatFrom', 'COMPASS_WORDS', 'compassWord', 'issWords']);
 

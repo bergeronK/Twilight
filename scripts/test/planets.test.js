@@ -17,7 +17,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst', 'planetGeo', 'planetAltAz', 'sunHcZn']);
+const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst', 'planetGeo', 'planetAltAz', 'sunHcZn', 'sunRaDec']);
 const D = Math.PI / 180;
 const sep = (a, b) => Math.acos(Math.min(1,
   Math.sin(a.alt * D) * Math.sin(b.alt * D) + Math.cos(a.alt * D) * Math.cos(b.alt * D) * Math.cos((a.az - b.az) * D))) / D;

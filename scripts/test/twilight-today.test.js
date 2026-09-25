@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'scanCrossings', 'SUN_THR',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'SUN_THR',
   'TWILIGHT_WORDS', 'twilightWord', 'twilightDay', 'cdHMS']);
 
 // Boston, 24 September 2026, local midnight (EDT, UTC-4) to midnight.

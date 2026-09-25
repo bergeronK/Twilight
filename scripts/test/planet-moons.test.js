@@ -12,7 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'planetGeo', 'planetAltAz',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'planetGeo', 'planetAltAz',
   'JUPITER_MOONS', 'jupiterMoons', 'moonStatus', 'jupiterWords', 'saturnRings', 'saturnWords', 'planetViewTime', 'PlanetViews']);
 
 // PyEphem 4.2: [ms, then per moon [x east +, y south +, z toward Earth +]]

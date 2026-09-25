@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { extract, extractFrom } = require('./extract.js');
 
-const NAMES = ['RAD', 'rad', 'deg', 'ALT', 'solarParams', 'eventUTC', 'computeDay'];
+const NAMES = ['RAD', 'rad', 'deg', 'ALT', 'solarParams', 'eventUTC', 'sunEvent', 'computeDay'];
 
 const app = extract(NAMES);
 const pages = extractFrom(

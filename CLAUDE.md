@@ -808,6 +808,36 @@ tables are data from Meeus: a term typed wrong by more than about 3″ fails
 it is regenerated (`node scripts/generate-alerts-sky.js`), the generator
 needs `MOON_LR`, `MOON_B` and `moonEcliptic` in its list.
 
+## Sun times: one Sun, checked against PyEphem (2026-09-25)
+
+The Console and the Ephemeris used to have different Suns. `sunAltitude`
+and `sunHcZn` used a short Fourier fit for declination and the equation of
+time (a few arcminutes out); the Ephemeris's `computeDay` used Meeus's
+formula but only at noon UTC, so an evening in the Americas was worked out
+with a Sun ten hours stale. Against PyEphem (588 events, ten places from
+Quito to Tromsø, eight dates) the Console was 29 s out at the median and
+10 min at worst, the Ephemeris 13 s and 4.5 min, and the two tabs up to
+14 min apart: Boston's 24 September sunset read 18:37 on the Console and
+6:39 on the Ephemeris and city pages (PyEphem: 18:37:50). Now:
+- `sunRaDec(date)` is Meeus's low-precision Sun (ch. 25) at the moment
+  given; `sunHcZn` and `sunAltitude` are built on it, so the painting, the
+  scores, the highlights **and the sextant's Sun** all use it.
+- `computeDay` finds each event with noon's Sun, then refines it twice at
+  the event's own time (`sunEvent`, via `solarParams(y, m, d, utcMin)`,
+  which now also records its date). `photoWindows` uses `sunEvent` too, so
+  blue hour still ends exactly at civil dusk. `twilight-calc.js` carries
+  the same change; `solar-parity.test.js` holds the two in step.
+- `fmtT` rounds to the nearest minute, as almanacs and the Ephemeris do
+  (Intl alone truncates). The header's live clock still truncates.
+- Result: both within 23 s of PyEphem everywhere (median 1 s) and within
+  4 s of each other. `sun-times.test.js` against
+  `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
+  (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
+  `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
+- **`alerts/src/sky.js` (on the held #102 branch) copies `sunAltitude`**:
+  its generator list needs `sunHcZn` and `sunRaDec` when it is next
+  regenerated.
+
 ## Magnetic declination
 
 Every azimuth the app computes is TRUE-referenced. Phone compasses are not,
