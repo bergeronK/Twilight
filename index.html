@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ckHnG5tzKN22QyCaCGtaXTpkOPYurXKz5LiUlxgdqs0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-9J9mph8qR7E31bd3ASSqcq5hK7RQwocBzWkBg4Ujdf8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -4254,6 +4254,16 @@ function RealtimeTwilight({ redMode } = {}) {
   const bortle = useBortle();
   const bortleMode = useBortleMode();
   const pro = usePro();
+  // Where the Console's place came from when it opened.
+  const startPlace = () => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (!isNaN(parseFloat(p.get('lat'))) && !isNaN(parseFloat(p.get('lon')))) return 'url';
+      return localStorage.getItem('tw_loc') ? 'saved' : null;
+    } catch (e) { return null; }
+  };
+  // Read once, before the effect below saves tw_loc.
+  const [start] = useState(startPlace);
   const [loc, setLoc] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -4312,13 +4322,18 @@ function RealtimeTwilight({ redMode } = {}) {
   React.useEffect(() => {
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
   }, [loc]);
-  const useMyLocation = () => {
+  // `quiet` (strictly true: a click passes an event) is the automatic try
+  // on opening with a place already saved: no "Locating…", and a refusal
+  // keeps that place instead of opening the picker with an error.
+  const useMyLocation = quiet => {
+    quiet = quiet === true;
     if (!navigator.geolocation) {
+      if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
       return;
     }
-    setGeoMsg("Locating…");
+    if (!quiet) setGeoMsg("Locating…");
     navigator.geolocation.getCurrentPosition(p => {
       setLoc({
         name: "Your location",
@@ -4329,6 +4344,7 @@ function RealtimeTwilight({ redMode } = {}) {
       setGeoMsg("");
       setPickerOpen(false);
     }, () => {
+      if (quiet) return;
       setGeoMsg("Couldn't get precise location — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
     }, {
@@ -4337,7 +4353,8 @@ function RealtimeTwilight({ redMode } = {}) {
     });
   };
   useEffect(() => {
-    useMyLocation();
+    // A shared link's place stays put; a saved place is tried quietly.
+    if (start !== 'url') useMyLocation(start === 'saved');
   }, []);
   const searchPlaces = async () => {
     const q = query.trim();
@@ -5362,6 +5379,17 @@ function moonMonth(Y, Mo, offOf) {
   });
   return days;
 }
+// The upcoming-events list's icons: the Moon new (an outline) and full, a
+// sun for the equinoxes and solstices, and a meteor. 22 px, currentColor.
+function eventIcon(kind) {
+  const e = React.createElement;
+  if (kind === 'meteors') return highlightIcon('meteors');
+  const kids = kind === 'new' ? [e('circle', { key: 1, cx: 11, cy: 11, r: 7, fill: 'rgba(255,255,255,.06)', stroke: 'currentColor', strokeWidth: 1.3 })]
+    : kind === 'full' ? [e('circle', { key: 1, cx: 11, cy: 11, r: 7, fill: 'currentColor' }), e('circle', { key: 2, cx: 9, cy: 9, r: 1.6, fill: 'rgba(0,0,0,.12)' }), e('circle', { key: 3, cx: 13.5, cy: 13, r: 1.1, fill: 'rgba(0,0,0,.1)' })]
+    : [e('circle', { key: 0, cx: 11, cy: 11, r: 4, fill: 'currentColor' }),
+      ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => e('line', { key: a, x1: 11 + 6 * Math.cos(a * D2R), y1: 11 + 6 * Math.sin(a * D2R), x2: 11 + 8.5 * Math.cos(a * D2R), y2: 11 + 8.5 * Math.sin(a * D2R), stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' }))];
+  return e('svg', { viewBox: '0 0 22 22', width: 22, height: 22, 'aria-hidden': 'true', style: { display: 'block', flexShrink: 0 } }, kids);
+}
 /* The lit part of a Moon of radius r centred on 0,0, as an SVG path, lit on
    the right (waxing, seen from the north); mirror it for waning or the
    south. The terminator is half an ellipse, r·|1 − 2k| wide: bulging toward
@@ -5803,20 +5831,20 @@ function TwilightEphemeris({ redMode } = {}) {
     const lunarCycle = 29.53 * 24 * 3600000;
     // To the minute (moonPhases); this stepped a day at a time before.
     moonPhases(now2, now2 + 6 * lunarCycle).forEach(ph => {
-      if (ph.kind === 0) events.push({ t: ph.t, type: "New Moon", color: "#7a8a9e", symbol: "🌑" });
-      if (ph.kind === 180) events.push({ t: ph.t, type: "Full Moon", color: "#e8ecf4", symbol: "🌕" });
+      if (ph.kind === 0) events.push({ t: ph.t, type: "New Moon", color: "#7a8a9e", kind: "new" });
+      if (ph.kind === 180) events.push({ t: ph.t, type: "Full Moon", color: "#e8ecf4", kind: "full" });
     });
     const yr = new Date().getFullYear();
     [
-      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f", symbol: "♈" },
-      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879", symbol: "☀️" },
-      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f", symbol: "♎" },
-      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4", symbol: "❄️" },
+      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f" },
+      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879" },
+      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f" },
+      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4" },
     ].forEach(e => {
       const t = new Date(yr, e.month, e.day).getTime();
-      if (t > now2) events.push({ t, type: e.type, color: e.color, symbol: e.symbol });
+      if (t > now2) events.push({ t, type: e.type, color: e.color, kind: "season" });
       const t2 = new Date(yr + 1, e.month, e.day).getTime();
-      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: e.type, color: e.color, symbol: e.symbol });
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: e.type, color: e.color, kind: "season" });
     });
     const showers = [
       { month: 0, day: 3, name: "Quadrantids", peak: "~120/hr", color: "#a8c8e8" },
@@ -5829,9 +5857,9 @@ function TwilightEphemeris({ redMode } = {}) {
     ];
     showers.forEach(s => {
       const t = new Date(yr, s.month, s.day).getTime();
-      if (t > now2) events.push({ t, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+      if (t > now2) events.push({ t, type: s.name + " meteors", color: s.color, kind: "meteors", note: s.peak });
       const t2 = new Date(yr + 1, s.month, s.day).getTime();
-      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, kind: "meteors", note: s.peak });
     });
     return events.sort((a, b) => a.t - b.t).slice(0, 8);
   }, []);
@@ -6505,13 +6533,15 @@ function TwilightEphemeris({ redMode } = {}) {
       ...upcomingEvents.map((ev, i) =>
         /*#__PURE__*/React.createElement("div", {
           key: i,
-          style: { borderLeft: `2px solid ${ev.color}`, paddingLeft: 12 }
+          style: { display: "flex", gap: 12, alignItems: "flex-start" }
         },
-          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
-            new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
-          ),
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: ev.color, marginTop: 2 } }, ev.type),
-          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, marginTop: 2 } }, ev.note)
+          /*#__PURE__*/React.createElement("div", { style: { color: ev.color, marginTop: 2 } }, eventIcon(ev.kind)),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
+              new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: "var(--ink)", marginTop: 2 } }, ev.type),
+            ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, marginTop: 2 } }, ev.note))
         )
       )
     )
@@ -7447,10 +7477,13 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
    `passes` from issPasses (null while the orbit loads), `failed` when it
    couldn't be had, `when(t)` gives a day and time. */
 function IssPanel({ passes, failed, when, fmt }) {
+  // No orbit (offline on a first visit, or the source refusing): nothing to
+  // show and nothing the reader can do about it, so no panel, as the
+  // Console simply has no station highlight then.
+  if (failed) return null;
   const head = React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'The space station');
   const note = t => React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } }, t);
-  const body = failed ? note('Couldn’t get the station’s orbit just now. It will try again next time.')
-    : !passes ? note('Working out when it passes over…')
+  const body = !passes ? note('Working out when it passes over…')
     : !passes.length ? note('It doesn’t pass over in a dark enough sky from here in the next three days.')
     : passes.map((p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
         React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
