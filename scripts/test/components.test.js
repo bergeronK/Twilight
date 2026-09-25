@@ -81,7 +81,7 @@ test('each band keeps its explanatory sentence', () => {
   // asserting only the names leaves half the legend unguarded.
   const TwilightBands = build('TwilightBands', { React, C });
   const text = textOf(TwilightBands());
-  for (const phrase of ['photographers', 'navigation stars', 'deep-sky']) {
+  for (const phrase of ['read by', 'navigation stars', 'deep-sky']) {
     assert.ok(text.includes(phrase), `a band description went missing (looking for "${phrase}")`);
   }
   // Three descriptions, each a real sentence rather than an empty node.

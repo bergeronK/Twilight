@@ -139,10 +139,13 @@ test('the calendar: days under their weekdays, mirrored when waning or south, a 
   assert.deepStrictEqual(south, north.map(x => !x), 'from the south, every one the other way');
 });
 
-test('the Ephemeris shows it, and its events use the same phases', () => {
+test('the Ephemeris shows it; the events list leaves its phases to it', () => {
   const src = declSource('TwilightEphemeris');
   assert.match(src, /React\.createElement\(MoonMonth, \{ days: moonDays/);
-  assert.match(src, /moonPhases\(now2, now2 \+ 6 \* lunarCycle\)/);
+  // New and full Moons are in the calendar, so the events list leaves them out.
+  assert.doesNotMatch(src, /type: "New Moon"|type: "Full Moon"/);
+  assert.match(src, /terminatorFeatures\(moonLib, 2\)/, 'two features at most');
+  assert.match(src, /React\.createElement\(TwilightBands, null\)/, 'the band notes live here now');
   assert.match(src, /onPick: day => setDateStr\(/);
   assert.match(src, /moonDays\.filter\(d => d\.phase\)\.map\(d => React\.createElement/, 'the four phases listed under it');
 });
