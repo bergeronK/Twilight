@@ -40,3 +40,30 @@ test('the store screenshots skip it', () => {
     assert.match(src, /localStorage\.setItem\('tw_welcomed', '1'\)/, f);
   }
 });
+
+test('a saved place is kept quietly when the device’s location can’t be had', () => {
+  const src = declSource('RealtimeTwilight');
+  const a = src.indexOf('const useMyLocation = quiet =>'), b = src.indexOf('\n  };', a) + 4;
+  const body = src.slice(a, b);
+  const run = (quiet, outcome, hasGeo = true) => {
+    const log = { msg: [], picker: [], loc: [] };
+    const navigator = { geolocation: hasGeo ? { getCurrentPosition: (ok, fail) => outcome === 'ok' ? ok({ coords: { latitude: 1, longitude: 2 } }) : fail() } : undefined };
+    new Function('navigator', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', body + '\nuseMyLocation(arguments[5]);')(
+      navigator, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, quiet);
+    return log;
+  };
+  // Opened with a saved place: nothing said, the picker stays shut.
+  assert.deepStrictEqual(run(true, 'fail'), { msg: [], picker: [], loc: [] });
+  assert.deepStrictEqual(run(true, 'fail', false), { msg: [], picker: [], loc: [] });
+  // A fix still replaces it.
+  assert.strictEqual(run(true, 'ok').loc[0].name, 'Your location');
+  // A tap (the click event is truthy, not true) and a first visit say so.
+  const tap = run({ type: 'click' }, 'fail');
+  assert.deepStrictEqual(tap.msg, ['Locating…', 'Couldn\'t get precise location — enter a ZIP code or pick a city below.']);
+  assert.deepStrictEqual(tap.picker, [true]);
+  assert.deepStrictEqual(run(undefined, 'fail').picker, [true]);
+  // Where the place came from is read before tw_loc is written, and a
+  // shared link's place is not replaced.
+  assert.match(src, /const \[start\] = useState\(startPlace\);[\s\S]*React\.useEffect\(\(\) => \{\s*try \{ localStorage\.setItem\('tw_loc'/);
+  assert.match(src, /if \(start !== 'url'\) useMyLocation\(start === 'saved'\);/);
+});
