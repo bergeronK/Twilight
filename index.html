@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-pzSS//0ytJtN/krdsCjcTGewe8Ll7D/yHWRbBDwsEDU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-cbc1nzX2qUbgzvpNfefQLrDcAJCH1D4pTKbSxRWx0P4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1338,6 +1338,11 @@ function eclipsesBetween(t0, t1, lat, lon) {
 }
 /* An eclipse in words for one place: a title, and one line on what can be
    seen from here and when. `fmt(t)` gives a local time. */
+// Whether eclipseWords says there is something to see from here: not "Not
+// seen from here", and not a penumbral graze with "nothing to see".
+function eclipseSeen(w) {
+  return !/^Not seen from here/.test(w.line) && !/nothing to see/.test(w.line);
+}
 function eclipseWords(e, lat, lon, fmt) {
   const title = e.kind[0].toUpperCase() + e.kind.slice(1) + ' ' + e.type + ' eclipse';
   if (e.type === 'lunar') {
@@ -2112,7 +2117,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v133";
+const BUILD = "v136";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -6352,20 +6357,37 @@ function TwilightEphemeris({ redMode } = {}) {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase", marginBottom: 6 } }, "Eclipses"),
-    eclipses.map((e, i) => {
-      const w = eclipseWords(e, latN, lonN, eclFmt);
-      const when = new Date(e.tMax + offAt(e.tMax) * 60000).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-      return React.createElement("div", { key: e.tMax, style: { padding: "12px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none" } },
-        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", font: "600 14.5px var(--font-ui)", color: ink } },
-          w.title, React.createElement("span", { style: { font: "500 13px var(--font-ui)", color: dim, fontVariantNumeric: "tabular-nums" } }, when)),
-        React.createElement("div", { style: { font: "13px/1.5 var(--font-ui)", color: dim, marginTop: 3, maxWidth: 640 } }, w.line));
-    }));
+    // The ones that can be seen from here, open; the rest behind a fold
+    // (2026-09-25: three of four usually read "Not seen from here").
+    (() => {
+      const all = eclipses.map(e => ({ e, w: eclipseWords(e, latN, lonN, eclFmt) }));
+      const row = ({ e, w }, i) => {
+        const when = new Date(e.tMax + offAt(e.tMax) * 60000).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+        return React.createElement("div", { key: e.tMax, style: { padding: "12px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none" } },
+          React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", font: "600 14.5px var(--font-ui)", color: ink } },
+            w.title, React.createElement("span", { style: { font: "500 13px var(--font-ui)", color: dim, fontVariantNumeric: "tabular-nums" } }, when)),
+          React.createElement("div", { style: { font: "13px/1.5 var(--font-ui)", color: dim, marginTop: 3, maxWidth: 640 } }, w.line));
+      };
+      const seen = all.filter(x => eclipseSeen(x.w)), unseen = all.filter(x => !eclipseSeen(x.w));
+      return [
+        seen.length ? seen.map(row) : React.createElement("div", { key: "none", style: { font: "13px/1.5 var(--font-ui)", color: dim, padding: "8px 0 4px" } }, "None that can be seen from here in the next three years."),
+        unseen.length > 0 && React.createElement("details", { key: "unseen", style: { marginTop: 8 } },
+          React.createElement("summary", { style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" } }, unseen.length === 1 ? "One more, not seen from here" : unseen.length + " more, not seen from here"),
+          unseen.map(row))
+      ];
+    })());
   // The Moon through the month shown: a phase a day, and the four principal
   // phases to the minute in local time.
   const moonDays = useMemo(() => valid ? moonMonth(Y, Mo, day => (tz ? zoneOffsets(tz, Y, Mo, day).off : offMin)) : [],
     [valid, Y, Mo, tz, offMin]);
-  const moonCal = valid && React.createElement("div", { style: { ...panel, padding: "14px 6px 10px" } },
-    React.createElement("div", { style: labelSt }, "The Moon this month"),
+  // Folded (2026-09-25): a month of Moons is a screen tall. The summary
+  // names the month's next principal phase, or its last if all are past.
+  const nextPhase = moonDays.filter(d => d.phase).find(d => d.phase.t > Date.now()) || moonDays.filter(d => d.phase).slice(-1)[0];
+  const moonCal = valid && React.createElement("details", { className: "te-moon-month", style: { ...panel, padding: "14px 6px 10px" } },
+    React.createElement("summary", { style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" } },
+      "The Moon this month",
+      nextPhase && React.createElement("span", { style: { color: dim, fontWeight: 400 } }, " \u00b7 " + nextPhase.phase.name + ", " +
+        new Date(Date.UTC(Y, Mo - 1, nextPhase.day, 12)).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }))),
     React.createElement(MoonMonth, { days: moonDays, Y, Mo, D, south: latN < 0, onPick: day => setDateStr(`${Y}-${pad2(Mo)}-${pad2(day)}`) }),
     moonDays.filter(d => d.phase).map(d => React.createElement("div", {
       key: d.day,
@@ -6495,18 +6517,15 @@ function TwilightEphemeris({ redMode } = {}) {
   }, /*#__PURE__*/React.createElement("section", {
     style: {
       ...panel,
-      padding: 20,
+      padding: "14px 6px 10px",
       order: 3,
       gridColumn: "1 / -1"
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
+    style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
+  }, "Export the whole month (", Y, "-", pad2(Mo), ") to a calendar or spreadsheet"), /*#__PURE__*/React.createElement("div", {
     style: {
-      ...labelSt,
-      marginBottom: 10
-    }
-  }, "Export \u2014 full month (", Y, "-", pad2(Mo), ")"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 10
+      margin: "12px 0 10px"
     }
   }, /*#__PURE__*/React.createElement("select", {
     "aria-label": "What to export",
@@ -6550,7 +6569,7 @@ function TwilightEphemeris({ redMode } = {}) {
       border: "1px solid rgba(120,140,200,.28)",
       opacity: valid ? 1 : 0.4
     }
-  }, "\u2193 CSV"))), formOpen && /*#__PURE__*/React.createElement("section", {
+  }, "\u2193 CSV")))), formOpen && /*#__PURE__*/React.createElement("section", {
     id: "te-form",
     style: {
       ...panel,
@@ -6975,14 +6994,6 @@ function TwilightEphemeris({ redMode } = {}) {
         /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
       /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", font: "600 16px var(--font-ui)", color: /^No|^Not/.test(val) ? dim : ink, fontVariantNumeric: "tabular-nums" } }, val))))),
   moonCal))
-  , /*#__PURE__*/React.createElement("details", {
-    className: "tw-bands",
-    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "14px 0" }
-  },
-    /*#__PURE__*/React.createElement("summary", {
-      style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
-    }, "What the three twilights mean"),
-    /*#__PURE__*/React.createElement(TwilightBands, null))
   , eclipseSection, /*#__PURE__*/React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
@@ -7008,6 +7019,14 @@ function TwilightEphemeris({ redMode } = {}) {
       )
     )
   )
+  , /*#__PURE__*/React.createElement("details", {
+    className: "tw-bands",
+    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "14px 0" }
+  },
+    /*#__PURE__*/React.createElement("summary", {
+      style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
+    }, "What the three twilights mean"),
+    /*#__PURE__*/React.createElement(TwilightBands, null))
   // A plain block, not a <footer>: the page has one footer, at the bottom.
   , /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7016,7 +7035,7 @@ function TwilightEphemeris({ redMode } = {}) {
       color: dim,
       lineHeight: 1.7
     }
-  }, "Computed with the NOAA solar-position algorithm. Sunrise/sunset use the upper-limb convention (\u22120.833\xB0, including atmospheric refraction); twilight phases use sun-center altitudes of \u22126\xB0 / \u221212\xB0 / \u221218\xB0. Accuracy is typically within \xB11 minute; refraction near the horizon varies with weather, so treat horizon events as approximate.")));
+  }, "Computed from Meeus\u2019s solar position at each event\u2019s own moment, within half a minute of PyEphem from the equator to 70\xB0 N. Sunrise and sunset use the upper-limb convention (\u22120.833\xB0, including atmospheric refraction); twilight phases use sun-centre altitudes of \u22126\xB0 / \u221212\xB0 / \u221218\xB0. Times are rounded to the minute; refraction near the horizon varies with the weather, so treat horizon events as approximate.")));
 }
 
 /* ---- Root tab app ---- */
@@ -7038,6 +7057,39 @@ const COUNTER_WINDOW_MS = 24 * 60 * 60 * 1000;
 // browser is the one place that actually knows it has been here before, so
 // the window is enforced here, and the Worker's own check stays as a backstop
 // for cleared storage.
+/* ---- Offering to install (2026-09-25) ----
+   The banner used to appear on the very first visit, and only where the
+   browser has an install prompt (Chrome, Edge): never on an iPhone or iPad,
+   where Add to Home Screen is also the only way to get notifications. It
+   also showed to people who had installed already, and its x hid it for
+   good. Now it waits for a second day, says how on iOS, never shows inside
+   an installed copy or the native apps or over the tabs tip, and x puts it
+   off for 60 days. */
+const INSTALL_SNOOZE_MS = 60 * 86400000;
+// The distinct days (device-local) this browser has opened Twilyte, the last
+// three kept in tw_visit_days; returns how many. Storage injected.
+function noteVisitDay(store, now) {
+  let days = [];
+  try { days = JSON.parse(store.getItem('tw_visit_days') || '[]'); } catch (e) {}
+  if (!Array.isArray(days)) days = [];
+  const d = new Date(now), key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  if (!days.includes(key)) days = days.concat(key).slice(-3);
+  try { store.setItem('tw_visit_days', JSON.stringify(days)); } catch (e) {}
+  return days.length;
+}
+// Whether to offer installing, and how: 'prompt' (the browser's own
+// dialog), 'ios' (the Share sheet's Add to Home Screen), or null.
+function installOffer(o) {
+  if (o.standalone || o.native || o.tipShowing) return null;
+  if (o.visitDays < 2) return null;
+  if (o.snoozedUntil && o.now < o.snoozedUntil) return null;
+  if (o.hasPrompt) return 'prompt';
+  if (o.ios) return 'ios';
+  return null;
+}
+function isIOS(nav) {
+  return /iPad|iPhone|iPod/.test(nav.userAgent || '') || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+}
 function pingVisitorCounter(show) {
   if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
   // Web only. In the native apps the page origin (capacitor://localhost,
@@ -7966,6 +8018,89 @@ function planetViewTime(name, now, lat, lon) {
   }
   return null;
 }
+/* Saturn as it looks tonight (2026-09-25): the globe flattened as it is
+   (polar radius 0.902 of the equator's), its cloud bands curving with the
+   tilt, darker toward the limb, and the rings at their real radii (Cassini
+   figures, km) and tonight's tilt `B` (degrees, positive when the north face
+   shows): the faint C ring, the bright B ring, the Cassini division, the A
+   ring with the Encke gap, the thin F ring. The far half of the rings is
+   drawn before the globe and the near half after, so the globe shows
+   through the thin rings as it does in a photograph. Returns { H, kids }
+   for an svg `W` wide; north up. The colours are sampled from Cassini's
+   natural-colour mosaics. */
+const SATURN_R = 60268, SATURN_POLAR = 0.902;
+const SATURN_RINGS = [ // [inner km, outer km, colour, opacity]
+  [74658, 92000, '#a39479', 0.2],
+  [92000, 103000, '#cdb58c', 0.9],
+  [103000, 117580, '#e7d6b0', 0.96],
+  [117580, 122170, '#3a3024', 0.25],
+  [122170, 133423, '#cbb690', 0.85],
+  [133423, 133745, '#2b241b', 0.3],
+  [133745, 136775, '#c2ad88', 0.8],
+  [140080, 140280, '#bfae90', 0.35]];
+const SATURN_BANDS = [ // [planetographic latitude the colour starts at, going north]
+  [-90, '#a8a38c'], [-62, '#c3b18d'], [-42, '#d6c39c'], [-27, '#cdb489'], [-15, '#e0cfab'],
+  [-5, '#e9dcbc'], [7, '#e4d4b1'], [14, '#d3b98b'], [22, '#dfcca4'], [34, '#cfb385'], [47, '#d8c69e'], [61, '#bdb192'], [74, '#9aa29b']];
+function saturnDrawing(B, W) {
+  const el = React.createElement, cx = W / 2, k = 100 / 140280;
+  const sB = Math.sin(B * D2R), cB = Math.cos(B * D2R);
+  const Re = SATURN_R * k, Rpol = Re * SATURN_POLAR;
+  const Ry = Math.sqrt(Rpol * Rpol * cB * cB + Re * Re * sB * sB);
+  const ringB = r => Math.max(r * k * Math.abs(sB), 0.35);
+  const H = Math.ceil(Math.max(2 * Ry, 2 * ringB(140280)) + 16), cy = H / 2;
+  // Half of an annulus: the outer edge from left to right over the top
+  // (top) or under it, then the inner edge back.
+  const half = (top, ro, ri) => {
+    const a = ro * k, ai = ri * k, b = ringB(ro), bi = ringB(ri);
+    return `M ${cx - a} ${cy} A ${a} ${b} 0 0 ${top ? 1 : 0} ${cx + a} ${cy} L ${cx + ai} ${cy} A ${ai} ${bi} 0 0 ${top ? 0 : 1} ${cx - ai} ${cy} Z`;
+  };
+  const far = B > 0; // the far half is the top one when the north face shows
+  // Behind the globe the rings are drawn whole; in front of it, only the
+  // near half, and only where it crosses the globe. Two halves meeting side
+  // by side left a hairline seam across the rings.
+  const whole = (ro, ri) => {
+    const a = ro * k, ai = ri * k, b = ringB(ro), bi = ringB(ri);
+    return `M ${cx - a} ${cy} A ${a} ${b} 0 1 0 ${cx + a} ${cy} A ${a} ${b} 0 1 0 ${cx - a} ${cy} Z M ${cx - ai} ${cy} A ${ai} ${bi} 0 1 0 ${cx + ai} ${cy} A ${ai} ${bi} 0 1 0 ${cx - ai} ${cy} Z`;
+  };
+  const ringsBehind = SATURN_RINGS.map(([ri, ro, fill, op]) => el('path', { key: ri, d: whole(ro, ri), fill, opacity: op, fillRule: 'evenodd' }));
+  const ringsInFront = SATURN_RINGS.map(([ri, ro, fill, op]) => el('path', { key: ri, d: half(!far, ro, ri), fill, opacity: op }));
+  // The visible disc north of a latitude. The visible part of that circle
+  // of latitude runs from limb to limb (where the surface turns edge-on,
+  // cos(longitude) = -tan(lat) tan(B)); the region is everything above it.
+  // Where the whole circle is in view (near the pole that faces us) it is
+  // the circle's inside, or everything but; where none is, all or nothing.
+  const xy = (be, la) => [cx + Re * Math.cos(be) * Math.sin(la), cy - (Rpol * Math.sin(be) * cB - Re * Math.cos(be) * Math.cos(la) * sB)];
+  const X0 = cx - Re - 4, X1 = cx + Re + 4, Y0 = cy - Ry - 4, Y1 = cy + Ry + 4;
+  const northOf = lat => {
+    const be = lat * D2R, q = -Math.tan(be) * Math.tan(B * D2R);
+    const loop = () => Array.from({ length: 49 }, (_, i) => xy(be, (i / 48) * 2 * Math.PI)).map((p, i) => (i ? 'L' : 'M') + ' ' + p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join(' ') + ' Z';
+    if (q <= -1) return be > 0 ? { d: loop() } : { d: `M ${X0} ${Y0} H ${X1} V ${Y1} H ${X0} Z ` + loop(), rule: 'evenodd' };
+    if (q >= 1) return be > 0 ? null : { d: `M ${X0} ${Y0} H ${X1} V ${Y1} H ${X0} Z` };
+    const l0 = Math.acos(q), pts = Array.from({ length: 33 }, (_, i) => xy(be, -l0 + (i / 32) * 2 * l0));
+    const first = pts[0], last = pts[pts.length - 1];
+    // Out from each end sideways (the disc is convex, so that leaves it at once), then over the top.
+    const [lft, rgt] = first[0] < last[0] ? [first, last] : [last, first];
+    const seq = first[0] < last[0] ? pts : pts.slice().reverse();
+    return { d: `M ${X0} ${lft[1].toFixed(2)} ` + seq.map(p => 'L ' + p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join(' ') + ` L ${X1} ${rgt[1].toFixed(2)} L ${X1} ${Y0} L ${X0} ${Y0} Z` };
+  };
+  const kids = [
+    el('defs', { key: 'd' },
+      el('clipPath', { id: 'sat-disc' }, el('ellipse', { cx, cy, rx: Re, ry: Ry })),
+      el('radialGradient', { id: 'sat-limb', cx: '50%', cy: '50%', r: '50%' },
+        el('stop', { offset: '0', stopColor: '#1a1006', stopOpacity: 0 }),
+        el('stop', { offset: '0.62', stopColor: '#1a1006', stopOpacity: 0.06 }),
+        el('stop', { offset: '0.9', stopColor: '#1a1006', stopOpacity: 0.3 }),
+        el('stop', { offset: '1', stopColor: '#1a1006', stopOpacity: 0.62 })),
+      // Soft band edges: Saturn's belts shade into each other.
+      el('filter', { id: 'sat-soft', x: '-5%', y: '-5%', width: '110%', height: '110%' }, el('feGaussianBlur', { stdDeviation: 1.3 }))),
+    el('g', { key: 'far', className: 'sat-far' }, ringsBehind),
+    el('g', { key: 'globe', className: 'sat-globe', clipPath: 'url(#sat-disc)' },
+      el('ellipse', { cx, cy, rx: Re, ry: Ry, fill: SATURN_BANDS[0][1] }),
+      el('g', { filter: 'url(#sat-soft)' }, SATURN_BANDS.slice(1).map(([lat, fill]) => { const r = northOf(lat); return r && el('path', { key: lat, d: r.d, fill, fillRule: r.rule }); })),
+      el('ellipse', { cx, cy, rx: Re, ry: Ry, fill: 'url(#sat-limb)' })),
+    el('g', { key: 'near', className: 'sat-near', clipPath: 'url(#sat-disc)' }, ringsInFront)];
+  return { H, kids };
+}
 /* Jupiter with its moons and Saturn with its rings, drawn as they are at
    that time, north up with west on the right, as the eye and binoculars
    show them facing south. Hook-free: `jup` is { t, moons }, `sat` is
@@ -7999,18 +8134,10 @@ function PlanetViews({ jup, sat, when }) {
       words(jupiterWords(jup.moons) + ' Binoculars held steady show them as tiny stars in a line; they move from night to night, Io within hours.')));
   }
   if (sat) {
-    const a = 100, b = a * Math.abs(Math.sin(sat.rings.B * D2R)), ai = a * 0.66, bi = b * 0.66;
-    const rp = a * sat.rings.disc / sat.rings.ring, H = Math.max(2 * rp * 0.9, 2 * b) + 16, cy = H / 2;
-    // Half the ring, far side then near: the far side is the top when we
-    // see the north face (B > 0), the bottom when we see the south.
-    const half = top => `M ${cx - a} ${cy} A ${a} ${Math.max(b, 0.4)} 0 0 ${top ? 1 : 0} ${cx + a} ${cy} L ${cx + ai} ${cy} A ${ai} ${Math.max(bi, 0.3)} 0 0 ${top ? 0 : 1} ${cx - ai} ${cy} Z`;
-    const far = sat.rings.B > 0;
+    const pic = saturnDrawing(sat.rings.B, W);
     rows.push(el('div', { key: 's', style: { padding: '12px 0 4px', borderTop: jup ? '1px solid rgba(255,255,255,.06)' : 'none' } },
-      title('Saturn’s rings', sat.t),
-      el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 2px' }, role: 'img', 'aria-label': 'Saturn: ' + saturnWords(sat.rings) },
-        el('path', { d: half(far), fill: '#cdbf9f', opacity: 0.85 }),
-        el('ellipse', { cx, cy, rx: rp, ry: rp * 0.9, fill: '#e2cf9f' }),
-        el('path', { d: half(!far), fill: '#cdbf9f', opacity: 0.95 })),
+      title('Saturn\u2019s rings', sat.t),
+      el('svg', { viewBox: `0 0 ${W} ${pic.H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 2px' }, role: 'img', 'aria-label': 'Saturn: ' + saturnWords(sat.rings) }, pic.kids),
       words(saturnWords(sat.rings) + ' The rings need a small telescope, 25 times or more; binoculars show an oval blur.')));
   }
   return el('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
@@ -9208,7 +9335,18 @@ function TwilightApp() {
     touchStartX.current = null;
   };
   const [installPrompt, setInstallPrompt] = React.useState(null);
-  const [installDismissed, setInstallDismissed] = React.useState(() => localStorage.getItem('tw_nodismiss') === '1');
+  // Counted once per load; the old forever-dismiss flag becomes a snooze.
+  const [visitDays] = React.useState(() => noteVisitDay(localStorage, Date.now()));
+  const [snoozedUntil, setSnoozedUntil] = React.useState(() => {
+    try {
+      if (localStorage.getItem('tw_nodismiss') === '1') {
+        localStorage.removeItem('tw_nodismiss');
+        localStorage.setItem('tw_install_snooze', String(Date.now() + INSTALL_SNOOZE_MS));
+      }
+      return +localStorage.getItem('tw_install_snooze') || 0;
+    } catch (e) { return 0; }
+  });
+  const [installed, setInstalled] = React.useState(false);
 
   React.useEffect(() => {
     if (!settingsOpen) return;
@@ -9219,8 +9357,10 @@ function TwilightApp() {
 
   React.useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    const done = () => { setInstalled(true); setInstallPrompt(null); };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', done);
+    return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('appinstalled', done); };
   }, []);
 
   const doInstall = () => {
@@ -9228,7 +9368,16 @@ function TwilightApp() {
     installPrompt.prompt();
     installPrompt.userChoice.then(() => setInstallPrompt(null));
   };
-  const dismissInstall = () => { setInstallDismissed(true); localStorage.setItem('tw_nodismiss', '1'); };
+  const dismissInstall = () => {
+    const until = Date.now() + INSTALL_SNOOZE_MS;
+    setSnoozedUntil(until);
+    try { localStorage.setItem('tw_install_snooze', String(until)); } catch (e) {}
+  };
+  const offer = installOffer({
+    standalone: installed || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true,
+    native: !!window.Capacitor, tipShowing: !hintDismissed, visitDays, snoozedUntil, now: Date.now(),
+    hasPrompt: !!installPrompt, ios: isIOS(navigator)
+  });
 
   React.useEffect(() => { pingVisitorCounter(setVisitorCount); }, []);
 
@@ -9260,7 +9409,7 @@ function TwilightApp() {
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
       .tw-stars,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
-    installPrompt && !installDismissed && React.createElement("div", {
+    offer && React.createElement("div", {
       role: "region", "aria-label": "Install Twilyte",
       style: {
         background: "var(--surface)",
@@ -9273,15 +9422,21 @@ function TwilightApp() {
         fontSize: 12
       }
     },
-      React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "Add Twilyte to your home screen for quick access"),
-      React.createElement("button", {
+      offer === 'ios'
+        ? React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1, lineHeight: 1.5 } },
+            "Add Twilyte to your Home Screen: tap Share ",
+            React.createElement("svg", { "aria-hidden": "true", width: 13, height: 15, viewBox: "0 0 13 15", style: { verticalAlign: "-2px", color: "var(--accent)" } },
+              React.createElement("path", { d: "M6.5 1v8.5M3.5 4l3-3 3 3M4 6.5H2.5v7.5h8V6.5H9", fill: "none", stroke: "currentColor", strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round" })),
+            ", then \u201cAdd to Home Screen\u201d. It opens like an app and works offline.")
+        : React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "Add Twilyte to your home screen: it opens like an app and works offline."),
+      offer === 'prompt' && React.createElement("button", {
         onClick: doInstall,
         style: { background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "var(--font-ui)", cursor: "pointer", fontWeight: 600 }
       }, "Install"),
       React.createElement("button", {
         onClick: dismissInstall,
-        "aria-label": "Dismiss install banner",
-        title: "Dismiss",
+        "aria-label": "Not now",
+        title: "Not now",
         style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 16, cursor: "pointer", padding: "2px 6px" }
       }, "✕")
     ),
@@ -9512,8 +9667,8 @@ function TwilightApp() {
         " for tonight's live sky, ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
         " for any date, and ",
-        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Star Finder"),
-        " for a navigation fix — tap the tabs, or swipe left or right."
+        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Stars"),
+        " to find what you're looking at \u2014 tap the tabs, or swipe left or right."
       ),
       React.createElement("button", {
         onClick: dismissHint,
@@ -9542,7 +9697,7 @@ function TwilightApp() {
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris. ",
         React.createElement("a", { href: "https://github.com/bergeronK/Twilight/issues/new?template=feedback.md", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
       React.createElement("span", null,
-        "Sun: NOAA · Moon: Meeus (ELP-2000/82) · Place search: ",
+        "Sun and Moon: Meeus (Astronomical Algorithms; ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
