@@ -85,6 +85,15 @@ stargazer is the default, navigator material is kept whole but folded.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.
+  **Tidied again (2026-09-25), 3,709 → 3,063 px:** the month's Moon
+  calendar is a fold (`details.te-moon-month`, its summary the month's next
+  principal phase), the month export is a fold, eclipses not seen from here
+  sit behind "N more, not seen from here" (`eclipseSeen` reads
+  `eclipseWords`' line; a penumbral graze with "nothing to see" counts as
+  unseen), and the band notes follow the upcoming events. Open: the chart,
+  the dark window, the times, golden and blue hours, the Moon tonight, the
+  eclipses that can be seen, the events. The accuracy note and the footer
+  credit no longer say NOAA. `ephemeris-tidy.test.js`.
 - Stars: `<details id="for-navigators">`, shut by default; the sextant
   window runs on pure `sextantWindows` / `nextSextantWindow` /
   `sextantICS`.
@@ -156,6 +165,19 @@ stargazer is the default, navigator material is kept whole but folded.
     (`skyViewSummary`).
   - The Ephemeris chart is an `img` with the day in words (`daySummary`).
   - Segmented buttons carry `aria-pressed`.
+- **Offering to install (2026-09-25).** The top banner used to show on
+  the first visit, only where the browser has `beforeinstallprompt`
+  (Chrome, Edge; never iOS, where Add to Home Screen is also the only way
+  to get web push), to people already installed, and its x hid it for
+  good. `installOffer` (pure) now says 'prompt' (the browser's dialog),
+  'ios' (tap Share, then "Add to Home Screen", with a drawn share icon) or
+  nothing: not before a second day (`noteVisitDay`, `tw_visit_days`, the
+  last three dates only), not over the tabs tip, not when standalone or
+  `appinstalled` fired, not in Capacitor, and x snoozes 60 days
+  (`tw_install_snooze`; the old `tw_nodismiss` flag migrates to a snooze).
+  Don't promise alerts in its words until `ALERTS_LIVE`. `/privacy.html`
+  lists both keys. The tabs tip names the Stars tab as it is now.
+  `install.test.js`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
