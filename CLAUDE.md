@@ -655,6 +655,18 @@ stargazer is the default, navigator material is kept whole but folded.
   Deliberately **not** added to `sw.js`'s precache list — these are
   low-traffic content pages, not core app shell, so normal network-first
   navigation is sufficient.
+  **129 cities since 2026-09-25** (from 30): more US metros and dark-sky
+  towns, and big cities across every latitude band and time zone (Tromsø,
+  Fairbanks, Lake Tekapo, San Pedro de Atacama; slugs have accents taken
+  off). Each page links **into the app on its own place**: "See tonight's
+  sky over Boston" (the Console) and "The full day for Boston, MA" (the
+  Ephemeris), both carrying `lat`, `lon`, `name` and `tz`, which
+  `urlPlace(search)` in `index.html` reads for all three tabs. Before, the
+  link sent `?tab=ephemeris&lat=&lon=`, which the Ephemeris ignored (it
+  opened on the reader's saved place), and the Console showed bare
+  coordinates on the reader's clock. Up to four "Nearby" cities within
+  1,500 km. The small grey labels use `#888174` (AA). `city-pages.test.js`
+  reads every page's links the way the app does.
 
 ## Sky View orientation pipeline
 

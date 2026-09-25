@@ -53,20 +53,145 @@ const CITIES = [
   { name: "London", region: "", country: "UK", lat: 51.5072, lon: -0.1276, tz: "Europe/London" },
   { name: "Sydney", region: "", country: "Australia", lat: -33.8688, lon: 151.2093, tz: "Australia/Sydney" },
   { name: "Toronto", region: "ON", country: "Canada", lat: 43.6532, lon: -79.3832, tz: "America/Toronto" },
-  { name: "Reykjavik", region: "", country: "Iceland", lat: 64.1466, lon: -21.9426, tz: "Atlantic/Reykjavik" }
+  { name: "Reykjavik", region: "", country: "Iceland", lat: 64.1466, lon: -21.9426, tz: "Atlantic/Reykjavik" },
+  // Added 2026-09-25: more metros and dark-sky towns across the US, and the
+  // world's big cities across every latitude band and time zone.
+  { name: "Washington", region: "DC", country: "USA", lat: 38.9072, lon: -77.0369, tz: "America/New_York" },
+  { name: "Baltimore", region: "MD", country: "USA", lat: 39.2904, lon: -76.6122, tz: "America/New_York" },
+  { name: "Pittsburgh", region: "PA", country: "USA", lat: 40.4406, lon: -79.9959, tz: "America/New_York" },
+  { name: "Coudersport", region: "PA", country: "USA", lat: 41.7748, lon: -78.0206, tz: "America/New_York" },
+  { name: "Hartford", region: "CT", country: "USA", lat: 41.7658, lon: -72.6734, tz: "America/New_York" },
+  { name: "Providence", region: "RI", country: "USA", lat: 41.8240, lon: -71.4128, tz: "America/New_York" },
+  { name: "Northampton", region: "MA", country: "USA", lat: 42.3251, lon: -72.6412, tz: "America/New_York" },
+  { name: "Burlington", region: "VT", country: "USA", lat: 44.4759, lon: -73.2121, tz: "America/New_York" },
+  { name: "Portland", region: "ME", country: "USA", lat: 43.6591, lon: -70.2568, tz: "America/New_York" },
+  { name: "Bar Harbor", region: "ME", country: "USA", lat: 44.3876, lon: -68.2039, tz: "America/New_York" },
+  { name: "Richmond", region: "VA", country: "USA", lat: 37.5407, lon: -77.4360, tz: "America/New_York" },
+  { name: "Raleigh", region: "NC", country: "USA", lat: 35.7796, lon: -78.6382, tz: "America/New_York" },
+  { name: "Charlotte", region: "NC", country: "USA", lat: 35.2271, lon: -80.8431, tz: "America/New_York" },
+  { name: "Charleston", region: "SC", country: "USA", lat: 32.7765, lon: -79.9311, tz: "America/New_York" },
+  { name: "Savannah", region: "GA", country: "USA", lat: 32.0809, lon: -81.0912, tz: "America/New_York" },
+  { name: "Jacksonville", region: "FL", country: "USA", lat: 30.3322, lon: -81.6557, tz: "America/New_York" },
+  { name: "Orlando", region: "FL", country: "USA", lat: 28.5384, lon: -81.3789, tz: "America/New_York" },
+  { name: "Tampa", region: "FL", country: "USA", lat: 27.9506, lon: -82.4572, tz: "America/New_York" },
+  { name: "Key West", region: "FL", country: "USA", lat: 24.5551, lon: -81.7800, tz: "America/New_York" },
+  { name: "Detroit", region: "MI", country: "USA", lat: 42.3314, lon: -83.0458, tz: "America/Detroit" },
+  { name: "Cleveland", region: "OH", country: "USA", lat: 41.4993, lon: -81.6944, tz: "America/New_York" },
+  { name: "Columbus", region: "OH", country: "USA", lat: 39.9612, lon: -82.9988, tz: "America/New_York" },
+  { name: "Indianapolis", region: "IN", country: "USA", lat: 39.7684, lon: -86.1581, tz: "America/Indiana/Indianapolis" },
+  { name: "Milwaukee", region: "WI", country: "USA", lat: 43.0389, lon: -87.9065, tz: "America/Chicago" },
+  { name: "Madison", region: "WI", country: "USA", lat: 43.0731, lon: -89.4012, tz: "America/Chicago" },
+  { name: "St. Louis", region: "MO", country: "USA", lat: 38.6270, lon: -90.1994, tz: "America/Chicago" },
+  { name: "Kansas City", region: "MO", country: "USA", lat: 39.0997, lon: -94.5786, tz: "America/Chicago" },
+  { name: "Omaha", region: "NE", country: "USA", lat: 41.2565, lon: -95.9345, tz: "America/Chicago" },
+  { name: "Oklahoma City", region: "OK", country: "USA", lat: 35.4676, lon: -97.5164, tz: "America/Chicago" },
+  { name: "New Orleans", region: "LA", country: "USA", lat: 29.9511, lon: -90.0715, tz: "America/Chicago" },
+  { name: "Marfa", region: "TX", country: "USA", lat: 30.3094, lon: -104.0206, tz: "America/Chicago" },
+  { name: "Albuquerque", region: "NM", country: "USA", lat: 35.0844, lon: -106.6504, tz: "America/Denver" },
+  { name: "Santa Fe", region: "NM", country: "USA", lat: 35.6870, lon: -105.9378, tz: "America/Denver" },
+  { name: "Tucson", region: "AZ", country: "USA", lat: 32.2226, lon: -110.9747, tz: "America/Phoenix" },
+  { name: "Bozeman", region: "MT", country: "USA", lat: 45.6770, lon: -111.0429, tz: "America/Denver" },
+  { name: "Jackson", region: "WY", country: "USA", lat: 43.4799, lon: -110.7624, tz: "America/Denver" },
+  { name: "Boise", region: "ID", country: "USA", lat: 43.6150, lon: -116.2023, tz: "America/Boise" },
+  { name: "Spokane", region: "WA", country: "USA", lat: 47.6588, lon: -117.4260, tz: "America/Los_Angeles" },
+  { name: "Bend", region: "OR", country: "USA", lat: 44.0582, lon: -121.3153, tz: "America/Los_Angeles" },
+  { name: "Sacramento", region: "CA", country: "USA", lat: 38.5816, lon: -121.4944, tz: "America/Los_Angeles" },
+  { name: "San Jose", region: "CA", country: "USA", lat: 37.3382, lon: -121.8863, tz: "America/Los_Angeles" },
+  { name: "Joshua Tree", region: "CA", country: "USA", lat: 34.1347, lon: -116.3131, tz: "America/Los_Angeles" },
+  { name: "Anchorage", region: "AK", country: "USA", lat: 61.2181, lon: -149.9003, tz: "America/Anchorage" },
+  { name: "Fairbanks", region: "AK", country: "USA", lat: 64.8378, lon: -147.7164, tz: "America/Anchorage" },
+  { name: "Honolulu", region: "HI", country: "USA", lat: 21.3069, lon: -157.8583, tz: "Pacific/Honolulu" },
+  { name: "Hilo", region: "HI", country: "USA", lat: 19.7071, lon: -155.0816, tz: "Pacific/Honolulu" },
+  { name: "San Juan", region: "PR", country: "USA", lat: 18.4655, lon: -66.1057, tz: "America/Puerto_Rico" },
+  { name: "Vancouver", region: "BC", country: "Canada", lat: 49.2827, lon: -123.1207, tz: "America/Vancouver" },
+  { name: "Calgary", region: "AB", country: "Canada", lat: 51.0447, lon: -114.0719, tz: "America/Edmonton" },
+  { name: "Winnipeg", region: "MB", country: "Canada", lat: 49.8951, lon: -97.1384, tz: "America/Winnipeg" },
+  { name: "Ottawa", region: "ON", country: "Canada", lat: 45.4215, lon: -75.6972, tz: "America/Toronto" },
+  { name: "Montreal", region: "QC", country: "Canada", lat: 45.5019, lon: -73.5674, tz: "America/Toronto" },
+  { name: "Halifax", region: "NS", country: "Canada", lat: 44.6488, lon: -63.5752, tz: "America/Halifax" },
+  { name: "Mexico City", region: "", country: "Mexico", lat: 19.4326, lon: -99.1332, tz: "America/Mexico_City" },
+  { name: "Edinburgh", region: "", country: "UK", lat: 55.9533, lon: -3.1883, tz: "Europe/London" },
+  { name: "Glasgow", region: "", country: "UK", lat: 55.8642, lon: -4.2518, tz: "Europe/London" },
+  { name: "Manchester", region: "", country: "UK", lat: 53.4808, lon: -2.2426, tz: "Europe/London" },
+  { name: "Dublin", region: "", country: "Ireland", lat: 53.3498, lon: -6.2603, tz: "Europe/Dublin" },
+  { name: "Paris", region: "", country: "France", lat: 48.8566, lon: 2.3522, tz: "Europe/Paris" },
+  { name: "Amsterdam", region: "", country: "Netherlands", lat: 52.3676, lon: 4.9041, tz: "Europe/Amsterdam" },
+  { name: "Berlin", region: "", country: "Germany", lat: 52.5200, lon: 13.4050, tz: "Europe/Berlin" },
+  { name: "Zurich", region: "", country: "Switzerland", lat: 47.3769, lon: 8.5417, tz: "Europe/Zurich" },
+  { name: "Vienna", region: "", country: "Austria", lat: 48.2082, lon: 16.3738, tz: "Europe/Vienna" },
+  { name: "Madrid", region: "", country: "Spain", lat: 40.4168, lon: -3.7038, tz: "Europe/Madrid" },
+  { name: "Santa Cruz de La Palma", region: "", country: "Spain", lat: 28.6835, lon: -17.7642, tz: "Atlantic/Canary" },
+  { name: "Lisbon", region: "", country: "Portugal", lat: 38.7223, lon: -9.1393, tz: "Europe/Lisbon" },
+  { name: "Rome", region: "", country: "Italy", lat: 41.9028, lon: 12.4964, tz: "Europe/Rome" },
+  { name: "Athens", region: "", country: "Greece", lat: 37.9838, lon: 23.7275, tz: "Europe/Athens" },
+  { name: "Copenhagen", region: "", country: "Denmark", lat: 55.6761, lon: 12.5683, tz: "Europe/Copenhagen" },
+  { name: "Oslo", region: "", country: "Norway", lat: 59.9139, lon: 10.7522, tz: "Europe/Oslo" },
+  { name: "Tromsø", region: "", country: "Norway", lat: 69.6492, lon: 18.9553, tz: "Europe/Oslo" },
+  { name: "Stockholm", region: "", country: "Sweden", lat: 59.3293, lon: 18.0686, tz: "Europe/Stockholm" },
+  { name: "Helsinki", region: "", country: "Finland", lat: 60.1699, lon: 24.9384, tz: "Europe/Helsinki" },
+  { name: "Istanbul", region: "", country: "Turkey", lat: 41.0082, lon: 28.9784, tz: "Europe/Istanbul" },
+  { name: "Cairo", region: "", country: "Egypt", lat: 30.0444, lon: 31.2357, tz: "Africa/Cairo" },
+  { name: "Nairobi", region: "", country: "Kenya", lat: -1.2921, lon: 36.8219, tz: "Africa/Nairobi" },
+  { name: "Cape Town", region: "", country: "South Africa", lat: -33.9249, lon: 18.4241, tz: "Africa/Johannesburg" },
+  { name: "Dubai", region: "", country: "UAE", lat: 25.2048, lon: 55.2708, tz: "Asia/Dubai" },
+  { name: "Mumbai", region: "", country: "India", lat: 19.0760, lon: 72.8777, tz: "Asia/Kolkata" },
+  { name: "New Delhi", region: "", country: "India", lat: 28.6139, lon: 77.2090, tz: "Asia/Kolkata" },
+  { name: "Bangkok", region: "", country: "Thailand", lat: 13.7563, lon: 100.5018, tz: "Asia/Bangkok" },
+  { name: "Singapore", region: "", country: "Singapore", lat: 1.3521, lon: 103.8198, tz: "Asia/Singapore" },
+  { name: "Hong Kong", region: "", country: "Hong Kong", lat: 22.3193, lon: 114.1694, tz: "Asia/Hong_Kong" },
+  { name: "Beijing", region: "", country: "China", lat: 39.9042, lon: 116.4074, tz: "Asia/Shanghai" },
+  { name: "Seoul", region: "", country: "South Korea", lat: 37.5665, lon: 126.9780, tz: "Asia/Seoul" },
+  { name: "Tokyo", region: "", country: "Japan", lat: 35.6762, lon: 139.6503, tz: "Asia/Tokyo" },
+  { name: "Perth", region: "", country: "Australia", lat: -31.9505, lon: 115.8605, tz: "Australia/Perth" },
+  { name: "Brisbane", region: "", country: "Australia", lat: -27.4698, lon: 153.0251, tz: "Australia/Brisbane" },
+  { name: "Melbourne", region: "", country: "Australia", lat: -37.8136, lon: 144.9631, tz: "Australia/Melbourne" },
+  { name: "Auckland", region: "", country: "New Zealand", lat: -36.8485, lon: 174.7633, tz: "Pacific/Auckland" },
+  { name: "Lake Tekapo", region: "", country: "New Zealand", lat: -44.0046, lon: 170.4772, tz: "Pacific/Auckland" },
+  { name: "Queenstown", region: "", country: "New Zealand", lat: -45.0312, lon: 168.6626, tz: "Pacific/Auckland" },
+  { name: "Bogotá", region: "", country: "Colombia", lat: 4.7110, lon: -74.0721, tz: "America/Bogota" },
+  { name: "Lima", region: "", country: "Peru", lat: -12.0464, lon: -77.0428, tz: "America/Lima" },
+  { name: "Rio de Janeiro", region: "", country: "Brazil", lat: -22.9068, lon: -43.1729, tz: "America/Sao_Paulo" },
+  { name: "São Paulo", region: "", country: "Brazil", lat: -23.5505, lon: -46.6333, tz: "America/Sao_Paulo" },
+  { name: "Buenos Aires", region: "", country: "Argentina", lat: -34.6037, lon: -58.3816, tz: "America/Argentina/Buenos_Aires" },
+  { name: "Santiago", region: "", country: "Chile", lat: -33.4489, lon: -70.6693, tz: "America/Santiago" },
+  { name: "San Pedro de Atacama", region: "", country: "Chile", lat: -22.9087, lon: -68.1997, tz: "America/Santiago" }
 ];
 
 function slugify(city) {
   const base = city.region ? `${city.name}-${city.region}` : city.name;
-  return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  // Accents off ("São Paulo" → sao-paulo, "Tromsø" → tromso) so the URL is plain.
+  return base.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ø/g, 'o').replace(/Ø/g, 'O')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 function place(city) {
-  return city.region ? `${city.name}, ${city.region}` : `${city.name}, ${city.country}`;
+  if (city.region) return `${city.name}, ${city.region}`;
+  return city.name === city.country ? city.name : `${city.name}, ${city.country}`;
 }
 
-function page(city, slug) {
+// The app, opened on this place: its name and time zone travel with the
+// coordinates (index.html's urlPlace), so the Console says "Boston, MA" and
+// shows Boston's clock, not the reader's.
+function appLink(city, tab) {
+  const q = `lat=${city.lat}&lon=${city.lon}&name=${encodeURIComponent(place(city))}&tz=${encodeURIComponent(city.tz)}`;
+  return '/?' + (tab ? `tab=${tab}&` : '') + q.replace(/&/g, '&amp;');
+}
+
+// Great-circle km between two cities.
+function km(a, b) {
+  const r = x => x * Math.PI / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lon - a.lon) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+// Up to four other cities within 1,500 km, nearest first.
+function nearby(city, all) {
+  return all.filter(c => c !== city).map(c => [km(city, c), c]).filter(([d]) => d < 1500)
+    .sort((a, b) => a[0] - b[0]).slice(0, 4).map(([, c]) => c);
+}
+
+function page(city, slug, all) {
   const p = place(city);
+  const near = nearby(city, all);
   const title = `Twilight Times in ${p} — Civil, Nautical & Astronomical Dawn/Dusk`;
   const desc = `Today's civil, nautical, and astronomical twilight times for ${p}: when dawn breaks, when dusk falls, and when the sky is truly dark enough for stargazing.`;
   return `<!doctype html>
@@ -99,7 +224,7 @@ function page(city, slug) {
   main{max-width:640px;margin:0 auto;padding:clamp(20px,5vw,56px) 20px 60px;}
   .brand{display:flex;align-items:center;gap:10px;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:600;text-decoration:none;color:#eae7e0;margin-bottom:28px;}
   .brand svg{display:block;}
-  .kicker{font-size:10.5px;font-weight:600;letter-spacing:.07em;color:#7d766a;text-transform:uppercase;}
+  .kicker{font-size:10.5px;font-weight:600;letter-spacing:.07em;color:#888174;text-transform:uppercase;}
   h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(26px,5.4vw,40px);line-height:1.05;margin:8px 0 6px;letter-spacing:-.01em;}
   .date{font-size:14px;color:#a09a8f;margin-bottom:22px;}
   p.lede{font-size:15px;line-height:1.6;color:#c9c4b8;margin:0 0 28px;}
@@ -110,7 +235,7 @@ function page(city, slug) {
   .row.hl .val{color:#e5ba6e;}
   .cta{display:inline-block;margin:6px 0 34px;padding:11px 20px;border-radius:10px;border:1px solid rgba(210,160,77,.4);background:rgba(210,160,77,.08);color:#e5ba6e;text-decoration:none;font-size:14px;font-weight:550;}
   .explain{font-size:13px;line-height:1.6;color:#a09a8f;margin-bottom:10px;}
-  footer{font-size:11.5px;color:#7d766a;border-top:1px solid #211f1b;padding-top:18px;line-height:1.6;}
+  footer{font-size:11.5px;color:#888174;border-top:1px solid #211f1b;padding-top:18px;line-height:1.6;}
   footer a{color:#a09a8f;}
 </style>
 </head>
@@ -136,11 +261,12 @@ function page(city, slug) {
     <div class="row"><span class="label">Astronomical dusk</span><span class="val" data-tw-field="astroDusk">&hellip;</span></div>
   </div>
 
-  <a class="cta" href="/?tab=ephemeris&amp;lat=${city.lat}&amp;lon=${city.lon}">Open full ephemeris for ${p} →</a>
+  <a class="cta" href="${appLink(city)}">See tonight’s sky over ${city.name} →</a>
+  <p class="explain"><a href="${appLink(city, 'ephemeris')}">The full day for ${p}</a>, with the Sun’s path, golden and blue hours, moonrise and moonset, and any date you choose.</p>
 
-  <p class="explain">Times shown are computed live for ${p} (${city.lat.toFixed(2)}°, ${city.lon.toFixed(2)}°) using the Sun's position for today's date, and use your local time zone (${city.tz.replace('_', ' ')}) automatically, including daylight saving where applicable.</p>
+  <p class="explain">Times shown are computed live for ${p} (${city.lat.toFixed(2)}°, ${city.lon.toFixed(2)}°) using the Sun's position for today's date, in ${city.name}'s own time zone (${city.tz.replace(/_/g, ' ')}), daylight saving included.</p>
 
-  <footer>
+${near.length ? `  <p class="explain">Nearby: ${near.map(c => `<a href="${slugify(c)}.html">${place(c)}</a>`).join(' · ')}</p>\n\n` : ''}  <footer>
     Part of <a href="/">Twilyte</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. See twilight times, sun/moon/planet positions, and a clear-and-dark observing score for any location. <a href="/twilight-times/">More cities</a> · <a href="/privacy.html">Privacy</a>
   </footer>
 </main>
@@ -188,12 +314,12 @@ function hubPage(cities) {
   .brand svg{display:block;}
   h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(26px,5.4vw,40px);line-height:1.05;margin:0 0 8px;letter-spacing:-.01em;}
   p.lede{font-size:15px;line-height:1.6;color:#c9c4b8;margin:0 0 28px;}
-  h2{font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#7d766a;border-top:1px solid #211f1b;padding-top:18px;margin:26px 0 8px;}
+  h2{font-family:'Inter',system-ui,sans-serif;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#888174;border-top:1px solid #211f1b;padding-top:18px;margin:26px 0 8px;}
   ul{list-style:none;margin:0 0 4px;padding:0;columns:2;column-gap:20px;}
   li{padding:5px 0;font-size:14.5px;break-inside:avoid;}
   li a{color:#eae7e0;text-decoration:none;}
   li a:hover{color:#e5ba6e;}
-  footer{font-size:11.5px;color:#7d766a;border-top:1px solid #211f1b;padding-top:18px;margin-top:26px;line-height:1.6;}
+  footer{font-size:11.5px;color:#888174;border-top:1px solid #211f1b;padding-top:18px;margin-top:26px;line-height:1.6;}
   footer a{color:#a09a8f;}
 </style>
 </head>
@@ -237,7 +363,7 @@ function updateSitemap(cities) {
     const slug = slugify(city);
     if (slugs.has(slug)) throw new Error(`duplicate slug: ${slug}`);
     slugs.add(slug);
-    fs.writeFileSync(path.join(OUT_DIR, `${slug}.html`), page(city, slug));
+    fs.writeFileSync(path.join(OUT_DIR, `${slug}.html`), page(city, slug, CITIES));
   }
   fs.writeFileSync(path.join(OUT_DIR, 'index.html'), hubPage(CITIES));
   updateSitemap(CITIES);

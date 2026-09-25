@@ -28,7 +28,7 @@
   main{max-width:640px;margin:0 auto;padding:clamp(20px,5vw,56px) 20px 60px;}
   .brand{display:flex;align-items:center;gap:10px;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:600;text-decoration:none;color:#eae7e0;margin-bottom:28px;}
   .brand svg{display:block;}
-  .kicker{font-size:10.5px;font-weight:600;letter-spacing:.07em;color:#7d766a;text-transform:uppercase;}
+  .kicker{font-size:10.5px;font-weight:600;letter-spacing:.07em;color:#888174;text-transform:uppercase;}
   h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:clamp(26px,5.4vw,40px);line-height:1.05;margin:8px 0 6px;letter-spacing:-.01em;}
   .date{font-size:14px;color:#a09a8f;margin-bottom:22px;}
   p.lede{font-size:15px;line-height:1.6;color:#c9c4b8;margin:0 0 28px;}
@@ -39,7 +39,7 @@
   .row.hl .val{color:#e5ba6e;}
   .cta{display:inline-block;margin:6px 0 34px;padding:11px 20px;border-radius:10px;border:1px solid rgba(210,160,77,.4);background:rgba(210,160,77,.08);color:#e5ba6e;text-decoration:none;font-size:14px;font-weight:550;}
   .explain{font-size:13px;line-height:1.6;color:#a09a8f;margin-bottom:10px;}
-  footer{font-size:11.5px;color:#7d766a;border-top:1px solid #211f1b;padding-top:18px;line-height:1.6;}
+  footer{font-size:11.5px;color:#888174;border-top:1px solid #211f1b;padding-top:18px;line-height:1.6;}
   footer a{color:#a09a8f;}
 </style>
 </head>
@@ -65,9 +65,12 @@
     <div class="row"><span class="label">Astronomical dusk</span><span class="val" data-tw-field="astroDusk">&hellip;</span></div>
   </div>
 
-  <a class="cta" href="/?tab=ephemeris&amp;lat=64.1466&amp;lon=-21.9426">Open full ephemeris for Reykjavik, Iceland →</a>
+  <a class="cta" href="/?lat=64.1466&amp;lon=-21.9426&amp;name=Reykjavik%2C%20Iceland&amp;tz=Atlantic%2FReykjavik">See tonight’s sky over Reykjavik →</a>
+  <p class="explain"><a href="/?tab=ephemeris&lat=64.1466&amp;lon=-21.9426&amp;name=Reykjavik%2C%20Iceland&amp;tz=Atlantic%2FReykjavik">The full day for Reykjavik, Iceland</a>, with the Sun’s path, golden and blue hours, moonrise and moonset, and any date you choose.</p>
 
-  <p class="explain">Times shown are computed live for Reykjavik, Iceland (64.15°, -21.94°) using the Sun's position for today's date, and use your local time zone (Atlantic/Reykjavik) automatically, including daylight saving where applicable.</p>
+  <p class="explain">Times shown are computed live for Reykjavik, Iceland (64.15°, -21.94°) using the Sun's position for today's date, in Reykjavik's own time zone (Atlantic/Reykjavik), daylight saving included.</p>
+
+  <p class="explain">Nearby: <a href="glasgow.html">Glasgow, UK</a> · <a href="edinburgh.html">Edinburgh, UK</a> · <a href="dublin.html">Dublin, Ireland</a></p>
 
   <footer>
     Part of <a href="/">Twilyte</a> — a live sky dashboard and twilight ephemeris for stargazing and celestial navigation. See twilight times, sun/moon/planet positions, and a clear-and-dark observing score for any location. <a href="/twilight-times/">More cities</a> · <a href="/privacy.html">Privacy</a>
