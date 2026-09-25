@@ -17,7 +17,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst',
   'tzOffset', 'zoneOffsets', 'shiftDate', 'hx', 'toHex', 'lerpC', 'skyColors', 'daySkyStops',
-  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonDayTrack']);
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonDayTrack', 'bandLabelX']);
 
 test('zoneOffsets: the offset a real zone has on the date, daylight saving included', () => {
   const cases = [
@@ -144,4 +144,21 @@ test('choosePlace: on today, moves to the new place\'s today; on another date, k
   assert.strictEqual(r.calls.date, '2026-09-23');
   r = choosePlaceWith(false, now); r.choosePlace(sydney);
   assert.strictEqual(r.calls.date, undefined);
+});
+
+test('the chart names each twilight band where the Sun’s curve is furthest from it', () => {
+  // An ordinary day: the Sun 48° up at minute 759, 40° down around midnight.
+  const day = []; for (let mm = 0; mm <= 1440; mm += 3) day.push([mm, -40 + 88 * Math.max(0, Math.cos((mm - 759) / 1440 * 2 * Math.PI))]);
+  assert.strictEqual(m.bandLabelX(day, -3), 759, 'Civil under noon');
+  assert.strictEqual(m.bandLabelX(day, -21), 759, 'Night under noon too: the curve is far above');
+  // A polar night: the Sun never above -8° (at 00:00 and 24:00) and 42°
+  // down at minute 720. Civil (-3) is furthest from the curve at its
+  // lowest; a band at -30 is furthest at its highest.
+  const polar = []; for (let mm = 0; mm <= 1440; mm += 3) polar.push([mm, -25 - 17 * Math.cos((mm - 720) / 1440 * 2 * Math.PI)]);
+  assert.strictEqual(m.bandLabelX(polar, -3), 720);
+  assert.strictEqual(m.bandLabelX(polar, -30), 0);
+  assert.strictEqual(m.bandLabelX(null, -3), null);
+  // Wired in: the names are placed by it, not at the right edge.
+  const src = require('./extract.js').declSource('TwilightEphemeris');
+  assert.match(src, /const at = bandLabelX\(curve \? curve\.pts : null, \(b\.a1 \+ b\.a2\) \/ 2\)/);
 });

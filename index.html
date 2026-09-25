@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-nzQL3KYZiMqf07dDduB4USKo1h+ujzLeOIM2ZWRUWcE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gwX+Ol1l7EUlro+N/m1CDgpNdtVc74LY0yz3QlfH4Cc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -798,8 +798,115 @@ function issWords(p, fmt) {
     : 'A steady, moving star, fainter than the brightest.';
   return `From ${fmt(p.start.t)} it rises out of the ${compassWord(p.start.az)}, climbs to ${top}°${top >= 75 ? ', almost overhead,' : ''} and ${end}. ${bright}`;
 }
+/* ---- The northern (and southern) lights ----
+   How far from the magnetic pole the aurora reaches is set by the Kp index,
+   the planetary measure of geomagnetic disturbance (0 quiet to 9 an extreme
+   storm), which NOAA's Space Weather Prediction Center forecasts three days
+   ahead in 3-hour blocks. The request is a fixed URL with nothing about the
+   user in it; the forecast is kept 3 hours in tw_kp. */
+const KP_URL = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json';
+// Rows of { t: start of the 3-hour block, kp }. NOAA has served this as an
+// array of arrays under a header row; objects keyed the same way are read
+// too, so a change of shape doesn't silently lose the forecast.
+function parseKp(json) {
+  if (!Array.isArray(json)) return [];
+  let head = null;
+  const out = [];
+  json.forEach(row => {
+    let o = row;
+    if (Array.isArray(row)) {
+      if (!head) { head = row.map(s => String(s).toLowerCase()); return; }
+      o = {}; head.forEach((k, i) => { o[k] = row[i]; });
+    }
+    if (!o || typeof o !== 'object') return;
+    const key = k => Object.keys(o).find(x => x.toLowerCase() === k);
+    const ts = o[key('time_tag')], kp = parseFloat(o[key('kp')]);
+    if (typeof ts !== 'string' || !isFinite(kp) || kp < 0 || kp > 9) return;
+    const s = ts.trim().replace(' ', 'T');
+    const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
+    if (isFinite(t)) out.push({ t, kp });
+  });
+  return out.sort((a, b) => a.t - b.t);
+}
+async function loadKp(now = Date.now(), fetchFn = typeof fetch !== 'undefined' ? fetch : null, store = typeof localStorage !== 'undefined' ? localStorage : null) {
+  let kept = null;
+  try { kept = JSON.parse(store.getItem('tw_kp') || 'null'); } catch (e) {}
+  if (!kept || !Array.isArray(kept.rows) || !(kept.at > 0)) kept = null;
+  if (kept && now - kept.at < 3 * 3600000) return kept.rows;
+  try {
+    const r = await fetchFn(KP_URL);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = parseKp(await r.json());
+    if (!rows.length) throw new Error('no forecast');
+    try { store.setItem('tw_kp', JSON.stringify({ rows, at: now })); } catch (e) {}
+    return rows;
+  } catch (e) {
+    // A forecast two days old still covers tonight; older is left alone.
+    return kept && now - kept.at < 2 * 86400000 ? kept.rows : null;
+  }
+}
+// Geomagnetic latitude: the angle from the magnetic equator of the Earth's
+// best-fitting dipole, whose axis is the first three WMM coefficients (at
+// this date, with their yearly change). WMM2025 puts the pole at 80.8° N,
+// 72.8° W.
+function geomagPole(date) {
+  const M = wmmModel(), d = date || new Date();
+  const dt = Math.min(WMM_EPOCH_YEARS, Math.max(0, d.getUTCFullYear() + d.getUTCMonth() / 12 - M.epoch));
+  const g10 = M.g[1][0] + dt * M.gd[1][0], g11 = M.g[1][1] + dt * M.gd[1][1], h11 = M.h[1][1] + dt * M.hd[1][1];
+  const b = Math.hypot(g10, g11, h11);
+  return { lat: 90 - Math.acos(-g10 / b) * R2D, lon: Math.atan2(-h11, -g11) * R2D };
+}
+function geomagLat(lat, lon, date) {
+  const p = geomagPole(date);
+  return Math.asin(Math.max(-1, Math.min(1, sin(lat) * sin(p.lat) + cos(lat) * cos(p.lat) * cos(lon - p.lon)))) * R2D;
+}
+// The geomagnetic latitude of the auroral oval's equatorward edge at a
+// given Kp: 66.5° when quiet, 48.1° in an extreme storm (NOAA's table,
+// about 2° a step). Seen from under the edge the aurora is overhead; it
+// stands high enough (100-300 km) to show low toward the pole from about
+// 5° farther out, and a camera, which sees fainter than the eye, from 9°.
+const auroraEdge = kp => 66.5 - 2.044 * kp;
+function auroraReach(mlat, kp) {
+  const d = Math.abs(mlat) - auroraEdge(kp);
+  return d >= 0 ? 'overhead' : d >= -5 ? 'low' : d >= -9 ? 'camera' : null;
+}
+// Tonight's chance, from the forecast blocks that overlap the dark hours
+// (the Sun 12° or more down). The strongest block decides; its time is when
+// to look. `hemi` is 'north' or 'south', the way to face.
+function auroraTonight(plan, lat, lon, rows, fmt) {
+  if (!plan || !rows || !rows.length) return null;
+  const mlat = geomagLat(lat, lon, new Date(plan.start));
+  let best = null, dark = null;
+  for (let t = plan.start; t <= plan.end; t += 15 * 60000) {
+    if (sunAltitude(new Date(t), lat, lon) > -12) continue;
+    if (dark === null) dark = t;
+    const row = rows.find(r => t >= r.t && t < r.t + 3 * 3600000);
+    // From the block's start, or from dark if it began before then.
+    if (row && (!best || row.kp > best.kp)) best = { kp: row.kp, t: Math.max(row.t, dark) };
+  }
+  if (!best) return null;
+  const reach = auroraReach(mlat, best.kp);
+  return reach && { reach, kp: best.kp, t: best.t, south: mlat < 0 };
+}
+function auroraWords(a, fmt) {
+  const lights = a.south ? 'southern lights' : 'northern lights', way = a.south ? 'south' : 'north';
+  const kp = `Kp ${Math.round(a.kp)} on the 0-9 scale of geomagnetic activity`;
+  if (a.reach === 'overhead') return {
+    title: `The ${lights} may be out tonight`,
+    detail: `${kp} is forecast around ${fmt(a.t)}, enough to bring the aurora over you. Look ${way} and up, away from lights, and give your eyes 20 minutes.`
+  };
+  if (a.reach === 'low') return {
+    title: `A chance of the ${lights} tonight`,
+    detail: `${kp} is forecast around ${fmt(a.t)}. From here it would show low in the ${way}: a pale glow or rays above the horizon, best from somewhere dark with a clear view ${way}.`
+  };
+  return {
+    title: `A faint chance of the ${lights}`,
+    detail: `${kp} is forecast around ${fmt(a.t)}. From here the eye probably won’t see it, but a phone camera’s night mode may catch a glow low in the ${way}.`
+  };
+}
 /* ---- Planetary visibility ---- */
-function planetAltAz(planetName, date, lat, lonE) {
+// Geocentric ecliptic rectangular coordinates (AU), and the obliquity.
+function planetGeo(planetName, date) {
   const d = jd(date) - 2451543.5;
   const ecl = 23.4393 - 3.563e-7 * d;
   const els = {
@@ -830,7 +937,12 @@ function planetAltAz(planetName, date, lat, lonE) {
   const vs = rev(Ms + R2D * 0.016709 * sin(Ms));
   const xs = 1.0 * cos(vs + ws);
   const ys = 1.0 * sin(vs + ws);
-  const xg = xh + xs, yg = yh + ys, zg = zh;
+  return { xg: xh + xs, yg: yh + ys, zg: zh, ecl };
+}
+function planetAltAz(planetName, date, lat, lonE) {
+  const g = planetGeo(planetName, date);
+  if (!g) return null;
+  const { xg, yg, zg, ecl } = g;
   const xe = xg;
   const ye = yg * cos(ecl) - zg * sin(ecl);
   const ze = yg * sin(ecl) + zg * cos(ecl);
@@ -841,6 +953,75 @@ function planetAltAz(planetName, date, lat, lonE) {
   const alt = asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(ha));
   const az = rev(atan2(sin(ha), cos(ha) * sin(lat) - Math.tan(dec * D2R) * cos(lat)) + 180);
   return { alt, az };
+}
+/* ---- Jupiter's moons and Saturn's rings ----
+   Where the four big moons sit beside Jupiter, from Meeus, Astronomical
+   Algorithms ch. 44 (the lower-accuracy method): x in Jupiter radii,
+   positive to the WEST, y positive north, both along Jupiter's own equator,
+   which is how a view of it is naturally drawn. Within 0.1 radius of
+   PyEphem. `front` is true on the Earth's side of Jupiter. A moon can also
+   be in Jupiter's shadow, which this doesn't work out. */
+const JUPITER_MOONS = ['Io', 'Europa', 'Ganymede', 'Callisto'];
+function jupiterMoons(ms) {
+  const d = ms / 86400000 + 2440587.5 - 2451545.0 + 69 / 86400;
+  const V = 172.74 + 0.00111588 * d, M = 357.529 + 0.9856003 * d;
+  const N = 20.020 + 0.0830853 * d + 0.329 * sin(V), J = 66.115 + 0.9025179 * d - 0.329 * sin(V);
+  const A = 1.915 * sin(M) + 0.020 * sin(2 * M), B = 5.555 * sin(N) + 0.168 * sin(2 * N);
+  const K = J + A - B;
+  const R = 1.00014 - 0.01671 * cos(M) - 0.00014 * cos(2 * M);
+  const r = 5.20872 - 0.25208 * cos(N) - 0.00611 * cos(2 * N);
+  const dl = Math.sqrt(r * r + R * R - 2 * r * R * cos(K));
+  const psi = asin(R / dl * sin(K));
+  const t = d - dl / 173; // light time
+  const u = [163.8069 + 203.4058646 * t, 358.4140 + 101.2916335 * t, 5.7176 + 50.2345180 * t, 224.8092 + 21.4879800 * t].map(x => x + psi - B);
+  const G = 331.18 + 50.310482 * t, H = 87.45 + 21.569231 * t;
+  const rr = [5.9057 - 0.0244 * cos(2 * (u[0] - u[1])), 9.3966 - 0.0882 * cos(2 * (u[1] - u[2])), 14.9883 - 0.0216 * cos(G), 26.3627 - 0.1939 * cos(H)];
+  const uc = [u[0] + 0.473 * sin(2 * (u[0] - u[1])), u[1] + 1.065 * sin(2 * (u[1] - u[2])), u[2] + 0.165 * sin(G), u[3] + 0.843 * sin(H)];
+  const lam = 34.35 + 0.083091 * d + 0.329 * sin(V) + B;
+  const De = 3.12 * sin(lam + 42.8) - 2.22 * sin(psi) * cos(lam + 22) - 1.30 * (r - dl) / dl * sin(lam - 100.5);
+  return JUPITER_MOONS.map((name, i) => ({ name, x: rr[i] * sin(uc[i]), y: -rr[i] * cos(uc[i]) * sin(De), front: cos(uc[i]) > 0 }));
+}
+// Which moons can't be seen: behind the disc, or crossing its face (there,
+// but lost against the bright cloud tops). Within a third of a radius of
+// the edge a moon is 'near': lost in the glare, and close enough that the
+// method's 0.1-radius error could put it on either side of the edge.
+function moonStatus(mo) {
+  const rho = Math.sqrt(mo.x * mo.x + mo.y * mo.y / 0.87);
+  return rho < 1 ? (mo.front ? 'transit' : 'hidden') : rho < 1.3 ? 'near' : 'clear';
+}
+function jupiterWords(moons) {
+  const seen = moons.filter(mo => moonStatus(mo) === 'clear' || moonStatus(mo) === 'near');
+  // West is on the right as the sky is seen facing it with north up.
+  const row = [...seen.map(mo => ({ name: mo.name, x: mo.x })), { name: 'Jupiter', x: 0 }].sort((a, b) => a.x - b.x).map(o => o.name);
+  let s = `Left to right: ${row.join(', ')}.`;
+  const hid = moons.filter(mo => moonStatus(mo) === 'hidden').map(mo => mo.name);
+  const tr = moons.filter(mo => moonStatus(mo) === 'transit').map(mo => mo.name);
+  const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  if (hid.length) s += ` ${list(hid)} ${hid.length === 1 ? 'is' : 'are'} behind Jupiter.`;
+  if (tr.length) s += ` ${list(tr)} ${tr.length === 1 ? 'is' : 'are'} crossing in front of it, too close to the disc to pick out.`;
+  const near = moons.filter(mo => moonStatus(mo) === 'near').map(mo => mo.name);
+  if (near.length) s += ` ${list(near)} ${near.length === 1 ? 'is' : 'are'} right at Jupiter’s edge and hard to pick out.`;
+  return s;
+}
+/* Saturn's rings: their tilt toward us (B, degrees; positive shows the
+   north face) from the ring plane's pole (Meeus ch. 45) and Saturn's
+   geocentric place. Near 0 the rings are edge-on and all but vanish, as in
+   March 2025; they open to about 27° every 15 years. */
+function saturnRings(date) {
+  const g = planetGeo('Saturn', date);
+  const lam = atan2(g.yg, g.xg), dist = Math.hypot(g.xg, g.yg, g.zg), beta = asin(g.zg / dist);
+  const T = (jd(date) - 2451545) / 36525;
+  const i = 28.075216 - 0.012998 * T + 0.000004 * T * T, O = 169.508470 + 1.394681 * T + 0.000412 * T * T;
+  const B = asin(sin(i) * cos(beta) * sin(lam - O) - cos(i) * sin(beta));
+  return { B, dist, ring: 375.35 / dist, disc: 165.46 / dist };
+}
+function saturnWords(sr) {
+  const b = Math.abs(sr.B), deg = b < 1 ? 'less than a degree' : `${Math.round(b)}°`;
+  const face = sr.B > 0 ? 'north' : 'south';
+  if (b < 2) return `The rings are almost edge-on to us (${deg}): a thin line through the planet, or gone altogether.`;
+  if (b < 8) return `The rings are tilted only ${deg} toward us, a narrow ellipse. We see their ${face} side.`;
+  if (b < 18) return `The rings are tilted ${deg} toward us, open enough to see the gap between planet and ring. We see their ${face} side.`;
+  return `The rings are wide open, tilted ${deg} toward us: the best view for years. We see their ${face} side.`;
 }
 /* The Moon's geocentric ecliptic longitude and latitude (degrees, mean
    equinox of date) and distance (km), from Meeus, Astronomical Algorithms,
@@ -935,6 +1116,64 @@ function sunState(date) {
   // Less 20.5 arcseconds of aberration: an eclipse is where the Sun is SEEN,
   // and light-time moves the Moon by under 1 arcsecond.
   return { lon: rev(atan2(yv, xv) + w - 0.005694), r: Math.sqrt(xv * xv + yv * yv), d };
+}
+/* ---- Tonight on the Moon ----
+   How the Moon is turned toward us (its libration: up to 8° either way,
+   which brings features near the edge into view or hides them) and where
+   the Sun is rising and setting on it (the colongitude), from Meeus ch. 53,
+   the optical part (the physical part is under 0.04°). Craters on the line
+   between day and night, with the Sun low on them, show long shadows and
+   are the best sight in a small telescope or binoculars. */
+const MOON_FEATURES = [["Copernicus","a great crater with terraced walls and peaks in the middle",-20.08,9.62,96],["Tycho","a sharp young crater, the hub of the bright rays at full Moon",-11.22,-43.3,85],["the Apennine Mountains","the Moon’s grandest mountain range",0.03,19.87,600],["Plato","a crater with a dark, flat floor",-9.38,51.62,101],["Clavius","one of the largest craters, with a curve of smaller ones inside",-14.73,-58.62,231],["the Bay of Rainbows","a bay whose curved mountain rim catches the sunrise",-31.67,45.01,249],["the Straight Wall","a cliff 110 km long, a thin dark line in morning light and bright in the evening",-7.7,-21.67,116],["Theophilus","a deep crater with mountains in the middle, one of a trio with Cyrillus and Catharina",26.28,-11.45,99],["Archimedes","a flat-floored crater at the edge of the Sea of Rains",-3.99,29.72,81],["Ptolemaeus","a huge, flat, walled plain, first of a chain of three with Alphonsus and Arzachel",-1.84,-9.16,154],["Gassendi","a crater on the edge of the Sea of Moisture, its floor cracked by rilles",-39.96,-17.55,111],["the Alpine Valley","a straight cleft cut through the lunar Alps",3.63,49.21,155],["Aristarchus","the brightest spot on the Moon",-47.49,23.73,40],["Posidonius","a crater on the edge of the Sea of Serenity",29.99,31.88,95],["Petavius","a big crater with a cleft running from its centre",60.78,-25.39,184],["Langrenus","a large crater near the eastern edge",61.04,-8.86,132],["Eratosthenes","the crater at the end of the Apennine Mountains",-11.32,14.47,59],["Schickard","a huge, low-walled crater near the south-west edge",-55.11,-44.38,212],["Grimaldi","the darkest floor on the Moon, near the western edge",-68.36,-5.38,235],["Kepler","a small bright crater with rays",-38.01,8.12,29],["Hipparchus","an old, worn crater near the centre",4.91,-5.36,144],["Maurolycus","a large crater in the crowded southern highlands",13.92,-41.77,115],["Proclus","a small, brilliant crater",46.89,16.09,27],["Messier","a pair of small craters with twin rays like a comet’s tail",47.65,-1.9,14]];
+function moonLibration(ms) {
+  const m = moonEcliptic(ms);
+  const y = new Date(ms).getUTCFullYear(), dT = 69.2 + 0.2 * (y - 2025);
+  const T = ((ms + dT * 1000) / 86400000 + 2440587.5 - 2451545) / 36525;
+  const F = rev(93.2720950 + 483202.0175233 * T - 0.0036539 * T * T - T ** 3 / 3526000);
+  const Om = rev(125.0445479 - 1934.1362891 * T + 0.0020754 * T * T + T ** 3 / 467441);
+  const I = 1.54242;
+  // Selenographic longitude and latitude of the point under a direction
+  // given in ecliptic coordinates.
+  const selen = (lam, bet) => {
+    const W = lam - Om;
+    const A = atan2(sin(W) * cos(bet) * cos(I) - sin(bet) * sin(I), cos(W) * cos(bet));
+    const l = rev(A - F);
+    return { l: l > 180 ? l - 360 : l, b: asin(-sin(W) * cos(bet) * sin(I) - sin(bet) * cos(I)) };
+  };
+  const earth = selen(m.lon, m.lat);
+  // The Sun seen from the Moon: its geocentric place, shifted by the
+  // Moon's distance.
+  const s = sunState(new Date(ms)), R = s.r * 149597870.7, k = m.dist / R;
+  const sun = selen(s.lon + 180 + k * R2D * cos(m.lat) * sin(s.lon - m.lon), k * m.lat);
+  return { l: earth.l, b: earth.b, colong: rev(90 - sun.l), sunLat: sun.b };
+}
+// The Sun's height above a point on the Moon (east longitude, latitude),
+// and whether it's morning there.
+function moonSunAlt(lib, lon, lat) {
+  const a = lib.colong + lon;
+  return { alt: asin(sin(lib.sunLat) * sin(lat) + cos(lib.sunLat) * cos(lat) * sin(a)), rising: cos(a) > 0 };
+}
+// Up to `n` features with the Sun 1-10° above them (long shadows, still
+// lit) on the side of the Moon facing us, most worth seeing first.
+function terminatorFeatures(lib, n = 3) {
+  return MOON_FEATURES.map(([name, what, lon, lat]) => {
+    const s = moonSunAlt(lib, lon, lat);
+    // Angle from the middle of the disc we see: past ~80° it's on the edge.
+    const off = Math.acos(Math.max(-1, Math.min(1, sin(lib.b) * sin(lat) + cos(lib.b) * cos(lat) * cos(lon - lib.l)))) * R2D;
+    return { name, what, alt: s.alt, rising: s.rising, off };
+  }).filter(f => f.alt >= 1 && f.alt <= 10 && f.off < 80).slice(0, n);
+}
+// The libration in words, when it's large enough to notice (5° or more).
+function librationWords(lib) {
+  const parts = [];
+  if (Math.abs(lib.b) >= 5) parts.push(lib.b > 0 ? 'its north edge, beyond Plato' : 'its south edge, beyond Tycho');
+  if (Math.abs(lib.l) >= 5) parts.push(lib.l > 0 ? 'the Mare Crisium side' : 'the Grimaldi side');
+  return parts.length ? `The Moon is tipped to show more than usual of ${parts.join(' and ')}.` : '';
+}
+function moonTonightWords(feats, fmtName) {
+  if (!feats.length) return '';
+  const one = f => `${f.rising ? 'Sunrise' : 'Sunset'} over ${f.name}, ${f.what}`;
+  return feats.map(one).join('. ') + '.';
 }
 // The Sun's altitude and azimuth from sunState, for the solar eclipse.
 function sunAltAzExact(date, lat, lonE) {
@@ -1816,7 +2055,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v121";
+const BUILD = "v126";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3466,7 +3705,7 @@ const HIGHLIGHT_DSO = [
   ['the Beehive Cluster', 130.1, 19.67, 3.7, 'a hazy patch that binoculars turn into a swarm of stars'],
   ['the Lagoon Nebula', 270.9, -24.38, 6.0, 'a glow in the Milky Way just above the spout of the Sagittarius teapot']
 ];
-function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
+function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
   if (!plan) return [];
   const STEP = 15 * 60000, samples = [];
   for (let t = plan.start; t <= plan.end; t += STEP) {
@@ -3508,6 +3747,10 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
       detail: issWords(best, fmt) + (iss.length > 1 ? ` ${iss.length - 1 === 1 ? 'It passes once more' : `It passes ${iss.length - 1} more times`} tonight.` : '')
     });
   }
+
+  // The aurora, when tonight's forecast brings it within reach of here.
+  const aur = auroraTonight(plan, lat, lon, kp, fmt);
+  if (aur) out.push(Object.assign({ kind: 'aurora', rank: aur.reach === 'overhead' ? 0 : aur.reach === 'low' ? 1 : 6 }, auroraWords(aur, fmt)));
 
   // Meteor showers, at the best hour's rate.
   const showers = {};
@@ -3611,6 +3854,18 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
     });
   }
 
+  // Craters on the Moon's line between day and night, when the Moon is
+  // part lit and well up after dark: the best telescope sight of the month.
+  const moonUp = samples.find(s => s.sunAlt <= -6 && s.moon.alt >= 15 && s.moon.illum > 0.05 && s.moon.illum < 0.95);
+  if (moonUp) {
+    const f = terminatorFeatures(moonLibration(moonUp.t), 1)[0];
+    if (f) out.push({
+      kind: 'moonfeature', rank: 6,
+      title: `On the Moon: ${f.rising ? 'sunrise' : 'sunset'} over ${f.name}`,
+      detail: `${f.what[0].toUpperCase() + f.what.slice(1)}, on the line between day and night, where shadows are longest. Binoculars held steady show it; a small telescope shows it well. The Moon is ${where(moonUp.moon.alt)} ${compass16(moonUp.moon.az)} at ${fmt(moonUp.t)}.`
+    });
+  }
+
   // The Moon at either end of the month.
   const illum = samples[Math.floor(samples.length / 2)].moon.illum;
   if (illum < 0.03) out.push({ kind: 'moon', rank: 4, title: 'No Moon tonight', detail: 'The darkest nights of the month, and the best for faint things.' });
@@ -3626,6 +3881,27 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
   }
   return out.sort((x, y) => x.rank - y.rank).slice(0, 4);
 }
+// A small drawing for each kind of highlight, in the ink colour, so the
+// list scans at a glance. 20x20, stroked or filled with currentColor.
+function highlightIcon(kind) {
+  const e = React.createElement, sw = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' };
+  const parts = {
+    meteors: [e('path', Object.assign({ key: 1, d: 'M4 4 L13 13' }, sw, { strokeOpacity: 0.55 })), e('circle', { key: 2, cx: 14.5, cy: 14.5, r: 2.2, fill: 'currentColor' }),
+      e('path', Object.assign({ key: 3, d: 'M9 3 L13 7' }, sw, { strokeOpacity: 0.35 }))],
+    pair: [e('circle', { key: 1, cx: 7, cy: 11, r: 3.2, fill: 'currentColor' }), e('circle', { key: 2, cx: 14, cy: 8, r: 2, fill: 'currentColor', fillOpacity: 0.7 })],
+    planet: [e('circle', { key: 1, cx: 10, cy: 10, r: 4, fill: 'currentColor' }), e('ellipse', Object.assign({ key: 2, cx: 10, cy: 10, rx: 8, ry: 2.6, transform: 'rotate(-20 10 10)' }, sw, { strokeOpacity: 0.7 }))],
+    iss: [e('rect', { key: 1, x: 8.5, y: 8, width: 3, height: 4, rx: 0.8, fill: 'currentColor' }), e('rect', Object.assign({ key: 2, x: 2.5, y: 7, width: 5, height: 6 }, sw, { strokeWidth: 1.2 })),
+      e('rect', Object.assign({ key: 3, x: 12.5, y: 7, width: 5, height: 6 }, sw, { strokeWidth: 1.2 }))],
+    eclipse: [e('circle', { key: 1, cx: 10, cy: 10, r: 6.5, fill: 'currentColor', fillOpacity: 0.35 }), e('circle', { key: 2, cx: 12.5, cy: 9, r: 6, fill: 'currentColor' })],
+    moon: [e('path', { key: 1, d: 'M13 3.5 A7 7 0 1 0 13 16.5 A5.5 5.5 0 1 1 13 3.5 Z', fill: 'currentColor' })],
+    moonfeature: [e('path', { key: 1, d: 'M10 3 A7 7 0 0 1 10 17 A3 7 0 0 0 10 3 Z', fill: 'currentColor' }), e('circle', Object.assign({ key: 2, cx: 13.2, cy: 8, r: 1.4 }, sw, { strokeWidth: 1 }))],
+    deep: [e('ellipse', Object.assign({ key: 1, cx: 10, cy: 10, rx: 8, ry: 3.4, transform: 'rotate(-30 10 10)' }, sw)), e('circle', { key: 2, cx: 10, cy: 10, r: 1.8, fill: 'currentColor' })],
+    milkyway: [3, 6, 9, 12, 15, 17].map((x, i) => e('circle', { key: i, cx: x, cy: 14 - x * 0.55 + (i % 2 ? 1.5 : -1), r: i % 3 ? 0.9 : 1.4, fill: 'currentColor' })),
+    aurora: [e('path', Object.assign({ key: 1, d: 'M2 14 C6 6, 9 16, 12 8 S17 10, 18 5' }, sw)), e('path', Object.assign({ key: 2, d: 'M2 17 C6 11, 9 18, 12 12 S17 14, 18 10' }, sw, { strokeOpacity: 0.5 }))]
+  };
+  const kids = parts[kind] || [e('circle', { key: 1, cx: 10, cy: 10, r: 2.5, fill: 'currentColor' })];
+  return e('svg', { viewBox: '0 0 20 20', width: 20, height: 20, 'aria-hidden': 'true', style: { display: 'block', flexShrink: 0, marginTop: 1 } }, kids);
+}
 // The list, flat under a small heading, a hairline between items.
 function TonightHighlights({ items }) {
   if (!items || !items.length) return null;
@@ -3633,10 +3909,12 @@ function TonightHighlights({ items }) {
     React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint, marginBottom: 6 } }, 'Worth a look tonight'),
     items.map((h, i) => React.createElement('div', {
       key: h.title,
-      style: { padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
+      style: { display: 'flex', gap: 12, padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
     },
-      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, color: C.ink } }, h.title),
-      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: C.inkDim, lineHeight: 1.45, marginTop: 2 } }, h.detail)
+      React.createElement('div', { style: { color: i ? C.inkDim : C.brass } }, highlightIcon(h.kind)),
+      React.createElement('div', { style: { minWidth: 0 } },
+        React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, color: C.ink } }, h.title),
+        React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: C.inkDim, lineHeight: 1.45, marginTop: 2 } }, h.detail))
     ))
   );
 }
@@ -3744,6 +4022,15 @@ function chartXY(az, alt, R) {
    [{pts: [{az, alt}]}], planets: [{name, az, alt}], moon: {az, alt, illum},
    sunAz, fix: [{name, az, alt}], polaris: {az, alt} | null, labelMag }.
    Returns nothing; everything is drawn relative to the disc's centre. */
+// Where along the day (local minutes) to name a twilight band on the
+// Ephemeris chart: at the Sun's highest or lowest, whichever is further
+// from the band's middle altitude. Null without a curve.
+function bandLabelX(pts, mid) {
+  if (!pts || !pts.length) return null;
+  let hi = pts[0], lo = pts[0];
+  pts.forEach(q => { if (q[1] > hi[1]) hi = q; if (q[1] < lo[1]) lo = q; });
+  return Math.abs(hi[1] - mid) >= Math.abs(lo[1] - mid) ? hi[0] : lo[0];
+}
 function drawSkyChart(g, size, d) {
   const R = size / 2 - 17, cx = size / 2, cy = size / 2;
   const P = (az, alt) => { const p = chartXY(az, alt, R); return p && { x: cx + p.x, y: cy + p.y }; };
@@ -4069,10 +4356,13 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const [issTle, setIssTle] = useState(null);
   useEffect(() => { let live = true; loadIssTle().then(t => { if (live) setIssTle(t); }); return () => { live = false; }; }, []);
   const issSat = useMemo(() => issSatFrom(issTle), [issTle]);
+  // NOAA's geomagnetic forecast, for the aurora (kept 3 hours).
+  const [kpRows, setKpRows] = useState(null);
+  useEffect(() => { let live = true; loadKp().then(k => { if (live) setKpRows(k); }); return () => { live = false; }; }, []);
   // What is worth going out for tonight, every ten minutes like the plan.
   const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt,
-    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null),
-    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat]);
+    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null, kpRows),
+    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat, kpRows]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
     const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
@@ -4332,6 +4622,16 @@ function RealtimeTwilight({ redMode } = {}) {
   const bortle = useBortle();
   const bortleMode = useBortleMode();
   const pro = usePro();
+  // Where the Console's place came from when it opened.
+  const startPlace = () => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (!isNaN(parseFloat(p.get('lat'))) && !isNaN(parseFloat(p.get('lon')))) return 'url';
+      return localStorage.getItem('tw_loc') ? 'saved' : null;
+    } catch (e) { return null; }
+  };
+  // Read once, before the effect below saves tw_loc.
+  const [start] = useState(startPlace);
   const [loc, setLoc] = useState(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -4390,13 +4690,18 @@ function RealtimeTwilight({ redMode } = {}) {
   React.useEffect(() => {
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
   }, [loc]);
-  const useMyLocation = () => {
+  // `quiet` (strictly true: a click passes an event) is the automatic try
+  // on opening with a place already saved: no "Locating…", and a refusal
+  // keeps that place instead of opening the picker with an error.
+  const useMyLocation = quiet => {
+    quiet = quiet === true;
     if (!navigator.geolocation) {
+      if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
       return;
     }
-    setGeoMsg("Locating…");
+    if (!quiet) setGeoMsg("Locating…");
     navigator.geolocation.getCurrentPosition(p => {
       setLoc({
         name: "Your location",
@@ -4407,6 +4712,7 @@ function RealtimeTwilight({ redMode } = {}) {
       setGeoMsg("");
       setPickerOpen(false);
     }, () => {
+      if (quiet) return;
       setGeoMsg("Couldn't get precise location — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
     }, {
@@ -4415,7 +4721,8 @@ function RealtimeTwilight({ redMode } = {}) {
     });
   };
   useEffect(() => {
-    useMyLocation();
+    // A shared link's place stays put; a saved place is tried quietly.
+    if (start !== 'url') useMyLocation(start === 'saved');
   }, []);
   const searchPlaces = async () => {
     const q = query.trim();
@@ -5098,7 +5405,7 @@ function RealtimeTwilight({ redMode } = {}) {
       color: C.inkDim,
       lineHeight: 1.6
     }
-  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from a Schlyter low-precision series (~1\u20132\u2032). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
+  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
 }
 function RO({
   label,
@@ -5440,6 +5747,17 @@ function moonMonth(Y, Mo, offOf) {
     if (dd) dd.phase = { ...ph, off: offOf(guess) };
   });
   return days;
+}
+// The upcoming-events list's icons: the Moon new (an outline) and full, a
+// sun for the equinoxes and solstices, and a meteor. 22 px, currentColor.
+function eventIcon(kind) {
+  const e = React.createElement;
+  if (kind === 'meteors') return highlightIcon('meteors');
+  const kids = kind === 'new' ? [e('circle', { key: 1, cx: 11, cy: 11, r: 7, fill: 'rgba(255,255,255,.06)', stroke: 'currentColor', strokeWidth: 1.3 })]
+    : kind === 'full' ? [e('circle', { key: 1, cx: 11, cy: 11, r: 7, fill: 'currentColor' }), e('circle', { key: 2, cx: 9, cy: 9, r: 1.6, fill: 'rgba(0,0,0,.12)' }), e('circle', { key: 3, cx: 13.5, cy: 13, r: 1.1, fill: 'rgba(0,0,0,.1)' })]
+    : [e('circle', { key: 0, cx: 11, cy: 11, r: 4, fill: 'currentColor' }),
+      ...[0, 45, 90, 135, 180, 225, 270, 315].map(a => e('line', { key: a, x1: 11 + 6 * Math.cos(a * D2R), y1: 11 + 6 * Math.sin(a * D2R), x2: 11 + 8.5 * Math.cos(a * D2R), y2: 11 + 8.5 * Math.sin(a * D2R), stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' }))];
+  return e('svg', { viewBox: '0 0 22 22', width: 22, height: 22, 'aria-hidden': 'true', style: { display: 'block', flexShrink: 0 } }, kids);
 }
 /* The lit part of a Moon of radius r centred on 0,0, as an SVG path, lit on
    the right (waxing, seen from the north); mirror it for waning or the
@@ -5882,20 +6200,20 @@ function TwilightEphemeris({ redMode } = {}) {
     const lunarCycle = 29.53 * 24 * 3600000;
     // To the minute (moonPhases); this stepped a day at a time before.
     moonPhases(now2, now2 + 6 * lunarCycle).forEach(ph => {
-      if (ph.kind === 0) events.push({ t: ph.t, type: "New Moon", color: "#7a8a9e", symbol: "🌑" });
-      if (ph.kind === 180) events.push({ t: ph.t, type: "Full Moon", color: "#e8ecf4", symbol: "🌕" });
+      if (ph.kind === 0) events.push({ t: ph.t, type: "New Moon", color: "#7a8a9e", kind: "new" });
+      if (ph.kind === 180) events.push({ t: ph.t, type: "Full Moon", color: "#e8ecf4", kind: "full" });
     });
     const yr = new Date().getFullYear();
     [
-      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f", symbol: "♈" },
-      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879", symbol: "☀️" },
-      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f", symbol: "♎" },
-      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4", symbol: "❄️" },
+      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f" },
+      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879" },
+      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f" },
+      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4" },
     ].forEach(e => {
       const t = new Date(yr, e.month, e.day).getTime();
-      if (t > now2) events.push({ t, type: e.type, color: e.color, symbol: e.symbol });
+      if (t > now2) events.push({ t, type: e.type, color: e.color, kind: "season" });
       const t2 = new Date(yr + 1, e.month, e.day).getTime();
-      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: e.type, color: e.color, symbol: e.symbol });
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: e.type, color: e.color, kind: "season" });
     });
     const showers = [
       { month: 0, day: 3, name: "Quadrantids", peak: "~120/hr", color: "#a8c8e8" },
@@ -5908,9 +6226,9 @@ function TwilightEphemeris({ redMode } = {}) {
     ];
     showers.forEach(s => {
       const t = new Date(yr, s.month, s.day).getTime();
-      if (t > now2) events.push({ t, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+      if (t > now2) events.push({ t, type: s.name + " meteors", color: s.color, kind: "meteors", note: s.peak });
       const t2 = new Date(yr + 1, s.month, s.day).getTime();
-      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, symbol: "☄", note: s.peak });
+      if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, kind: "meteors", note: s.peak });
     });
     return events.sort((a, b) => a.t - b.t).slice(0, 8);
   }, []);
@@ -5932,6 +6250,10 @@ function TwilightEphemeris({ redMode } = {}) {
   const moonDay = useMemo(() => valid ? moonRiseSet(latN, lonN, dayStartMs) : null, [valid, latN, lonN, dayStartMs]);
   const moonLit = valid ? Math.round(moonState(new Date(dayStartMs + 12 * 3600000), latN, lonN).illum * 100) : 0;
   const atMs = t => fmtLocal((t - Date.UTC(Y, Mo - 1, D)) / 60000, offMin);
+  // What a telescope shows on the Moon that evening, at 9 PM.
+  const moonLib = valid ? moonLibration(dayStartMs + 21 * 3600000) : null;
+  const moonFeats = moonLib ? terminatorFeatures(moonLib) : [];
+  const libWords = moonLib ? librationWords(moonLib) : '';
   // The next eclipses from this place, three years ahead. ~100 ms of
   // arithmetic, so after the page has painted, and again only when the
   // place moves by more than a few kilometres.
@@ -5986,7 +6308,11 @@ function TwilightEphemeris({ redMode } = {}) {
     ]],
     ["The Moon", [
       ["Moonrise", moonLit + "% lit today.", moonDay && moonDay.rise != null ? atMs(moonDay.rise) : "No moonrise today", "#d9d6cc"],
-      ["Moonset", "As seen from the ground, parallax included.", moonDay && moonDay.set != null ? atMs(moonDay.set) : "No moonset today", "#9d9a91"]
+      ["Moonset", "As seen from the ground, parallax included.", moonDay && moonDay.set != null ? atMs(moonDay.set) : "No moonset today", "#9d9a91"],
+      // At 9 PM: craters on the line between day and night, with long
+      // shadows, and the tilt when it's large enough to notice.
+      ...moonFeats.map(f => [(f.rising ? "Sunrise over " : "Sunset over ") + f.name, f.what[0].toUpperCase() + f.what.slice(1) + ", at 9 PM.", "Sun " + Math.round(f.alt) + "\u00B0 up", "#c9c2b0"]),
+      ...(libWords ? [["Tipped toward us", libWords, (Math.abs(moonLib.b) >= 5 ? (moonLib.b > 0 ? "N " : "S ") + Math.round(Math.abs(moonLib.b)) + "\u00B0 " : "") + (Math.abs(moonLib.l) >= 5 ? (moonLib.l > 0 ? "E " : "W ") + Math.round(Math.abs(moonLib.l)) + "\u00B0" : ""), "#9d9a91"]] : [])
     ]]
   ] : [];
   // Live sky glow for the entered location's sky right now (darkened for
@@ -6405,11 +6731,14 @@ function TwilightEphemeris({ redMode } = {}) {
       h
     } = bandClip(b.a1, b.a2);
     if (h < 11 || b.a1 > 0) return null;
+    // Under noon or midnight, whichever keeps the Sun's curve further from
+    // this band: at the chart's edge the names ran into dusk and "now".
+    const at = bandLabelX(curve ? curve.pts : null, (b.a1 + b.a2) / 2);
     return /*#__PURE__*/React.createElement("text", {
       key: i,
-      x: W - padR - 5,
+      x: at == null ? W - padR - 5 : Math.max(padL + 30, Math.min(W - padR - 30, X(at))),
       y: y + h / 2 + 3,
-      textAnchor: "end",
+      textAnchor: at == null ? "end" : "middle",
       style: {
         font: "9px var(--font-ui)",
         fill: "rgba(220,228,255,.45)",
@@ -6581,13 +6910,15 @@ function TwilightEphemeris({ redMode } = {}) {
       ...upcomingEvents.map((ev, i) =>
         /*#__PURE__*/React.createElement("div", {
           key: i,
-          style: { borderLeft: `2px solid ${ev.color}`, paddingLeft: 12 }
+          style: { display: "flex", gap: 12, alignItems: "flex-start" }
         },
-          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
-            new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
-          ),
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: ev.color, marginTop: 2 } }, ev.type),
-          ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, marginTop: 2 } }, ev.note)
+          /*#__PURE__*/React.createElement("div", { style: { color: ev.color, marginTop: 2, width: 22, display: "flex", justifyContent: "center", flexShrink: 0 } }, eventIcon(ev.kind)),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
+              new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: "var(--ink)", marginTop: 2 } }, ev.type),
+            ev.note && /*#__PURE__*/React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, marginTop: 2 } }, ev.note))
         )
       )
     )
@@ -6710,7 +7041,8 @@ function drawDeepSky(g, bd, p, isTarget, h, fov, kc, w, drawn, nameBoxes) {
   // Below the outline, or above it where a constellation's name is already
   // there (the Triangulum Galaxy sits right under TRIANGULUM); left off if
   // both are taken, unless it's the one picked.
-  const lx = Math.max(40, Math.min(w - 40, p.x)), half = g.measureText(bd.name).width / 2;
+  // Kept whole on screen: a fixed 40 px margin cut long names in half.
+  const half = g.measureText(bd.name).width / 2, lx = Math.max(half + 4, Math.min(w - half - 4, p.x));
   const clash = y => (nameBoxes || []).some(b => lx + half > b.x1 && lx - half < b.x2 && y > b.y1 - 4 && y - 11 < b.y2);
   let ly = p.y + r + 13;
   if (clash(ly)) ly = p.y - r - 6;
@@ -7522,10 +7854,13 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
    `passes` from issPasses (null while the orbit loads), `failed` when it
    couldn't be had, `when(t)` gives a day and time. */
 function IssPanel({ passes, failed, when, fmt }) {
+  // No orbit (offline on a first visit, or the source refusing): nothing to
+  // show and nothing the reader can do about it, so no panel, as the
+  // Console simply has no station highlight then.
+  if (failed) return null;
   const head = React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'The space station');
   const note = t => React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } }, t);
-  const body = failed ? note('Couldn’t get the station’s orbit just now. It will try again next time.')
-    : !passes ? note('Working out when it passes over…')
+  const body = !passes ? note('Working out when it passes over…')
     : !passes.length ? note('It doesn’t pass over in a dark enough sky from here in the next three days.')
     : passes.map((p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
         React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
@@ -7533,6 +7868,69 @@ function IssPanel({ passes, failed, when, fmt }) {
   return React.createElement('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
     head, body,
     React.createElement('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 10 } }, 'Orbit from CelesTrak, predicted on this device.'));
+}
+// A time's calendar day where the place is, as YYYY-MM-DD.
+const localDay = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined }).format(new Date(t));
+// When to show a planet: now if it's 10°+ up in a sky dark enough (the Sun
+// 6° down), else the first quarter hour in the next 24 hours when it is.
+function planetViewTime(name, now, lat, lon) {
+  const q = 15 * 60000;
+  for (let t = now; t < now + 24 * 3600000; t = t === now ? Math.ceil((now + 1) / q) * q : t + q) {
+    const p = planetAltAz(name, new Date(t), lat, lon);
+    if (p && p.alt >= 10 && sunAltitude(new Date(t), lat, lon) <= -6) return t;
+  }
+  return null;
+}
+/* Jupiter with its moons and Saturn with its rings, drawn as they are at
+   that time, north up with west on the right, as the eye and binoculars
+   show them facing south. Hook-free: `jup` is { t, moons }, `sat` is
+   { t, rings }, either null when the planet isn't up tonight. */
+function PlanetViews({ jup, sat, when }) {
+  if (!jup && !sat) return null;
+  const h = (t, k) => React.createElement('div', { key: k, style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, t);
+  const title = (t, at) => React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)' } }, t,
+    React.createElement('span', { style: { fontWeight: 400, color: 'var(--ink-faint)', marginLeft: 8, fontVariantNumeric: 'tabular-nums' } }, when(at)));
+  const words = t => React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink-dim)', marginTop: 4, maxWidth: 640 } }, t);
+  const W = 320, cx = W / 2, el = React.createElement;
+  const rows = [];
+  if (jup) {
+    const k = 5.6, r = k, H = 56, cy = 24;
+    const shown = jup.moons.filter(mo => moonStatus(mo) !== 'hidden')
+      .map(mo => ({ mo, x: cx + mo.x * k, y: cy - mo.y * k })).sort((a, b) => a.x - b.x);
+    // Letters alternate below and above where two moons are close.
+    let last = -99, up = false;
+    shown.forEach(o => { up = o.x - last < 12 ? !up : false; o.up = up; last = o.x; });
+    rows.push(el('div', { key: 'j', style: { padding: '4px 0 12px' } },
+      title('Jupiter’s moons', jup.t),
+      el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 2px' }, role: 'img', 'aria-label': 'Jupiter and its moons: ' + jupiterWords(jup.moons) },
+        el('ellipse', { cx, cy, rx: r, ry: r * 0.93, fill: '#d9c3a0' }),
+        el('line', { x1: cx - r, x2: cx + r, y1: cy - 1.4, y2: cy - 1.4, stroke: '#a88a66', strokeWidth: 0.9 }),
+        el('line', { x1: cx - r, x2: cx + r, y1: cy + 1.6, y2: cy + 1.6, stroke: '#a88a66', strokeWidth: 0.9 }),
+        shown.map(o => el('g', { key: o.mo.name },
+          el('circle', { cx: o.x, cy: o.y, r: 1.9, fill: moonStatus(o.mo) === 'transit' ? '#f4ead8' : '#e9edf5', opacity: moonStatus(o.mo) === 'transit' ? 0.7 : 1 }),
+          moonStatus(o.mo) !== 'transit' && el('text', { x: o.x, y: o.up ? cy - 8 : cy + 15, textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, o.mo.name[0]))),
+        el('text', { x: 4, y: H - 4, fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'East'),
+        el('text', { x: W - 4, y: H - 4, textAnchor: 'end', fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'West')),
+      words(jupiterWords(jup.moons) + ' Binoculars held steady show them as tiny stars in a line; they move from night to night, Io within hours.')));
+  }
+  if (sat) {
+    const a = 100, b = a * Math.abs(Math.sin(sat.rings.B * D2R)), ai = a * 0.66, bi = b * 0.66;
+    const rp = a * sat.rings.disc / sat.rings.ring, H = Math.max(2 * rp * 0.9, 2 * b) + 16, cy = H / 2;
+    // Half the ring, far side then near: the far side is the top when we
+    // see the north face (B > 0), the bottom when we see the south.
+    const half = top => `M ${cx - a} ${cy} A ${a} ${Math.max(b, 0.4)} 0 0 ${top ? 1 : 0} ${cx + a} ${cy} L ${cx + ai} ${cy} A ${ai} ${Math.max(bi, 0.3)} 0 0 ${top ? 0 : 1} ${cx - ai} ${cy} Z`;
+    const far = sat.rings.B > 0;
+    rows.push(el('div', { key: 's', style: { padding: '12px 0 4px', borderTop: jup ? '1px solid rgba(255,255,255,.06)' : 'none' } },
+      title('Saturn’s rings', sat.t),
+      el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 2px' }, role: 'img', 'aria-label': 'Saturn: ' + saturnWords(sat.rings) },
+        el('path', { d: half(far), fill: '#cdbf9f', opacity: 0.85 }),
+        el('ellipse', { cx, cy, rx: rp, ry: rp * 0.9, fill: '#e2cf9f' }),
+        el('path', { d: half(!far), fill: '#cdbf9f', opacity: 0.95 })),
+      words(saturnWords(sat.rings) + ' The rings need a small telescope, 25 times or more; binoculars show an oval blur.')));
+  }
+  return el('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
+    h('Jupiter and Saturn', 'h'), rows,
+    el('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 6 } }, 'North up, west on the right, as the eye sees them facing south; most telescopes turn the view round.'));
 }
 // The log in one sentence.
 function logSummary(seen) {
@@ -7585,6 +7983,11 @@ function StarFinder({ redMode } = {}) {
   // The chart places ~2,500 stars, line vertices and bodies. Once a minute is
   // plenty: the sky turns a quarter of a degree in that time.
   const minuteKey = Math.floor(now / 60000);
+  // Jupiter's moons and Saturn's rings, now or when each is next well up.
+  const planetViews = useMemo(() => {
+    const jt = planetViewTime('Jupiter', now, loc.lat, loc.lon), st = planetViewTime('Saturn', now, loc.lat, loc.lon);
+    return { jup: jt === null ? null : { t: jt, moons: jupiterMoons(jt) }, sat: st === null ? null : { t: st, rings: saturnRings(new Date(st)) } };
+  }, [minuteKey, loc.lat, loc.lon]);
   // Sky View's time travel: minutes ahead of (or behind) now. Only Sky View
   // offers it, and closing Sky View brings it back to now, so the preview,
   // the chart and Aim Assist always show the sky as it is.
@@ -8171,7 +8574,9 @@ function StarFinder({ redMode } = {}) {
   );
   // ---- Navigator: sight reduction calculator + aim assist UI ----
   const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
-  const navLabelSt = { font: "600 10.5px var(--font-ui)", letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ink-faint)" };
+  // Small and quiet like the app's other labels, but not upper-cased: "Hs"
+  // is how every sextant manual writes it.
+  const navLabelSt = { font: "600 12px var(--font-ui)", letterSpacing: ".01em", color: "var(--ink-dim)" };
   const navInputSt = { width: "100%", minWidth: 0, marginTop: 6, padding: "9px 11px", color: C.ink, background: "var(--field-bg)", border: "1px solid var(--line)", borderRadius: 9, font: "15px var(--font-ui)", outline: "none" };
   const segBtn = active => ({
     fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 550, padding: "7px 14px", cursor: "pointer",
@@ -8207,7 +8612,7 @@ function StarFinder({ redMode } = {}) {
   const fixPanel = sightFix && React.createElement("div", {
     style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
   },
-    React.createElement("div", { style: { ...navLabelSt, color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
+    React.createElement("div", { style: { ...navLabelSt, fontSize: 10.5, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 18, color: C.ink, fontWeight: 600 } },
       Math.abs(sightFix.lat).toFixed(4), "° ", sightFix.lat >= 0 ? "N" : "S", ", ",
       Math.abs(sightFix.lon).toFixed(4), "° ", sightFix.lon >= 0 ? "E" : "W"),
@@ -8226,47 +8631,47 @@ function StarFinder({ redMode } = {}) {
       loc.name, ". Two or three sights of bodies in different directions will give you a fix."),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Body"),
+        React.createElement("div", { style: navLabelSt }, "Body"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, "aria-pressed": sightBody === b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
         )
       ),
       sightBody === "star" && React.createElement("div", { style: { flex: "1 1 160px", minWidth: 140 } },
-        React.createElement("div", navLabelSt, "Star"),
+        React.createElement("div", { style: navLabelSt }, "Star"),
         React.createElement("select", {
           "aria-label": "Star", value: sightStarName, onChange: e => setSightStarName(e.target.value), style: { ...navInputSt, cursor: "pointer" }
         }, NAV_STARS.slice().sort((a, b) => a[0].localeCompare(b[0])).map(s => React.createElement("option", { key: s[0], value: s[0] }, s[0])))
       ),
       (sightBody === "sun" || sightBody === "moon") && React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Limb"),
+        React.createElement("div", { style: navLabelSt }, "Limb"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           ["lower", "upper"].map(l => React.createElement("button", { key: l, "aria-pressed": sightLimb === l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
         )
       ),
       React.createElement("div", { style: { flex: "1 1 180px", minWidth: 160 } },
-        React.createElement("div", navLabelSt, "Sight time"),
+        React.createElement("div", { style: navLabelSt }, "Sight time"),
         React.createElement("input", { type: "datetime-local", "aria-label": "Sight time", value: sightTime, onChange: e => setSightTime(e.target.value), style: navInputSt })
       )
     ),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 90px" } },
-        React.createElement("div", navLabelSt, "Hs deg"),
+        React.createElement("div", { style: navLabelSt }, "Hs deg"),
         React.createElement("input", { type: "number", "aria-label": "Hs, degrees", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
       ),
       React.createElement("div", { style: { flex: "0 0 90px" } },
-        React.createElement("div", navLabelSt, "Hs min"),
+        React.createElement("div", { style: navLabelSt }, "Hs min"),
         React.createElement("input", { type: "number", step: "0.1", "aria-label": "Hs, minutes", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
       ),
       React.createElement("div", { style: { flex: "0 0 120px" } },
-        React.createElement("div", navLabelSt, "Height of eye (m)"),
+        React.createElement("div", { style: navLabelSt }, "Height of eye (m)"),
         React.createElement("input", { type: "number", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 100px" } },
-        React.createElement("div", navLabelSt, "Index error '"),
+        React.createElement("div", { style: navLabelSt }, "Index error (\u2032)"),
         React.createElement("input", { type: "number", step: "0.1", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Index error is"),
+        React.createElement("div", { style: navLabelSt }, "Index error is"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           React.createElement("button", { "aria-pressed": sightIeOnArc, style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
           React.createElement("button", { "aria-pressed": !sightIeOnArc, style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
@@ -8488,21 +8893,21 @@ function StarFinder({ redMode } = {}) {
                 : React.createElement("div", null,
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
                       React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Turn"),
+                        React.createElement("div", { style: navLabelSt }, "Turn"),
                         React.createElement("div", {
                           style: bigNum,
                           "aria-label": "Turn " + Math.abs(aimTurn).toFixed(0) + " degrees " + (aimTurn >= 0 ? "right" : "left")
                         }, Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
                       ),
                       aimTilt !== null && React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Tilt"),
+                        React.createElement("div", { style: navLabelSt }, "Tilt"),
                         React.createElement("div", {
                           style: bigNum,
                           "aria-label": "Tilt " + Math.abs(aimTilt).toFixed(0) + " degrees " + (aimTilt >= 0 ? "up" : "down")
                         }, Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
                       ),
                       aimTarget && React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Target altitude"),
+                        React.createElement("div", { style: navLabelSt }, "Target altitude"),
                         React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 20, color: C.ink } }, aimTarget.alt.toFixed(0), "°")
                       ),
                       onTarget && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On target")
@@ -8547,6 +8952,10 @@ function StarFinder({ redMode } = {}) {
       )
     }),
     starFinderPanel,
+    React.createElement(PlanetViews, {
+      jup: planetViews.jup, sat: planetViews.sat,
+      when: t => t - now < 60000 ? 'now' : (localDay(t, loc.tz) === localDay(now, loc.tz) ? 'at ' : 'tomorrow at ') + fmtT(t, loc.tz)
+    }),
     React.createElement(IssPanel, {
       passes: issNext, failed: issTle !== undefined && !issSat,
       fmt: t => fmtT(t, loc.tz),
@@ -8947,7 +9356,7 @@ function TwilightApp() {
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
         " for any date, and ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Star Finder"),
-        " for a navigation fix — tap the tabs above or swipe left/right."
+        " for a navigation fix — tap the tabs, or swipe left or right."
       ),
       React.createElement("button", {
         onClick: dismissHint,
@@ -8974,7 +9383,7 @@ function TwilightApp() {
     },
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris."),
       React.createElement("span", null,
-        "Sun & moon: NOAA / Schlyter models · Place search: ",
+        "Sun: NOAA · Moon: Meeus (ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
         " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),

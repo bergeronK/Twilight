@@ -12,7 +12,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunHcZn', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo',
-  'planetAltAz', 'starHcZn', 'NAV_STARS', 'starColor', 'dsoLabel', 'timeShiftWords']);
+  'planetGeo', 'planetAltAz', 'starHcZn', 'NAV_STARS', 'starColor', 'dsoLabel', 'timeShiftWords']);
 
 test('the shift in words', () => {
   assert.strictEqual(m.timeShiftWords(0), 'now');

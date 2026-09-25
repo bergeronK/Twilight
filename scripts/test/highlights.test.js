@@ -14,10 +14,10 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunHcZn',
-  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
-  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights']);
+  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights', 'auroraTonight', 'auroraWords', 'MOON_FEATURES', 'moonLibration', 'moonSunAlt', 'terminatorFeatures']);
 
 const STOWE = [44.26, -72.58];
 function tonight(iso, [lat, lon], bortle = 3) {
@@ -70,12 +70,30 @@ test('no night, no list', () => {
 });
 
 test('the list renders flat, one row per item, and not at all when empty', () => {
-  const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat() }) };
-  const render = new Function('React', 'C', `${require('./extract.js').declSource('TonightHighlights')}; return TonightHighlights;`)(R, { ink: '', inkDim: '', inkFaint: '' });
+  const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
+  const src = require('./extract.js').declSource;
+  const [render, icon] = new Function('React', 'C', `${src('highlightIcon')}; ${src('TonightHighlights')}; return [TonightHighlights, highlightIcon];`)(R, { ink: 'INK', inkDim: 'DIM', inkFaint: '', brass: 'AMBER' });
   assert.strictEqual(render({ items: [] }), null);
-  const out = render({ items: [{ title: 'A', detail: 'a' }, { title: 'B', detail: 'b' }] });
+  const out = render({ items: [{ title: 'A', detail: 'a', kind: 'meteors' }, { title: 'B', detail: 'b', kind: 'planet' }] });
   assert.strictEqual(out.c.length, 3, 'a heading and two rows');
   assert.ok(!JSON.stringify(out).includes('"border":'), 'no boxes: hairlines between rows only');
+  // Each row leads with its kind's icon: the first in amber, the rest dim.
+  const [, r1, r2] = out.c;
+  assert.strictEqual(r1.c[0].p.style.color, 'AMBER');
+  assert.strictEqual(r2.c[0].p.style.color, 'DIM');
+  assert.strictEqual(r1.c[0].c[0].t, 'svg');
+  assert.strictEqual(r1.c[0].c[0].p['aria-hidden'], 'true', 'decoration, not read out');
+  // A different drawing for every kind the list makes, and a plain dot for
+  // one it doesn't know.
+  const kinds = ['meteors', 'pair', 'planet', 'iss', 'eclipse', 'moon', 'moonfeature', 'deep', 'milkyway', 'aurora'];
+  const drawn = kinds.map(k => JSON.stringify(icon(k).c));
+  assert.strictEqual(new Set(drawn).size, kinds.length);
+  const dot = icon('something-new').c;
+  assert.strictEqual(dot.length, 1);
+  assert.strictEqual(dot[0].t, 'circle');
+  // Every kind tonightHighlights can produce has its own icon.
+  const made = [...src('tonightHighlights').matchAll(/kind: '(\w+)',\s*rank/g)].map(x => x[1]);
+  made.forEach(k => assert.ok(kinds.includes(k), `${k} has an icon`));
 });
 
 test('across a year of nights: never more than four, most important first', () => {
