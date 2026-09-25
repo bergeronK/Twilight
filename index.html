@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HPIoJLJHNDPQM822xmC6nokUWpqlY9eoh+BBIfA/SxI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KkHqpm7z6ZqUKD+cbpdmVJl3TmTbo844TyHFWyAsuf0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -3516,6 +3516,27 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
   }
   return out.sort((x, y) => x.rank - y.rank).slice(0, 4);
 }
+// A small drawing for each kind of highlight, in the ink colour, so the
+// list scans at a glance. 20x20, stroked or filled with currentColor.
+function highlightIcon(kind) {
+  const e = React.createElement, sw = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' };
+  const parts = {
+    meteors: [e('path', Object.assign({ key: 1, d: 'M4 4 L13 13' }, sw, { strokeOpacity: 0.55 })), e('circle', { key: 2, cx: 14.5, cy: 14.5, r: 2.2, fill: 'currentColor' }),
+      e('path', Object.assign({ key: 3, d: 'M9 3 L13 7' }, sw, { strokeOpacity: 0.35 }))],
+    pair: [e('circle', { key: 1, cx: 7, cy: 11, r: 3.2, fill: 'currentColor' }), e('circle', { key: 2, cx: 14, cy: 8, r: 2, fill: 'currentColor', fillOpacity: 0.7 })],
+    planet: [e('circle', { key: 1, cx: 10, cy: 10, r: 4, fill: 'currentColor' }), e('ellipse', Object.assign({ key: 2, cx: 10, cy: 10, rx: 8, ry: 2.6, transform: 'rotate(-20 10 10)' }, sw, { strokeOpacity: 0.7 }))],
+    iss: [e('rect', { key: 1, x: 8.5, y: 8, width: 3, height: 4, rx: 0.8, fill: 'currentColor' }), e('rect', Object.assign({ key: 2, x: 2.5, y: 7, width: 5, height: 6 }, sw, { strokeWidth: 1.2 })),
+      e('rect', Object.assign({ key: 3, x: 12.5, y: 7, width: 5, height: 6 }, sw, { strokeWidth: 1.2 }))],
+    eclipse: [e('circle', { key: 1, cx: 10, cy: 10, r: 6.5, fill: 'currentColor', fillOpacity: 0.35 }), e('circle', { key: 2, cx: 12.5, cy: 9, r: 6, fill: 'currentColor' })],
+    moon: [e('path', { key: 1, d: 'M13 3.5 A7 7 0 1 0 13 16.5 A5.5 5.5 0 1 1 13 3.5 Z', fill: 'currentColor' })],
+    moonfeature: [e('path', { key: 1, d: 'M10 3 A7 7 0 0 1 10 17 A3 7 0 0 0 10 3 Z', fill: 'currentColor' }), e('circle', Object.assign({ key: 2, cx: 13.2, cy: 8, r: 1.4 }, sw, { strokeWidth: 1 }))],
+    deep: [e('ellipse', Object.assign({ key: 1, cx: 10, cy: 10, rx: 8, ry: 3.4, transform: 'rotate(-30 10 10)' }, sw)), e('circle', { key: 2, cx: 10, cy: 10, r: 1.8, fill: 'currentColor' })],
+    milkyway: [3, 6, 9, 12, 15, 17].map((x, i) => e('circle', { key: i, cx: x, cy: 14 - x * 0.55 + (i % 2 ? 1.5 : -1), r: i % 3 ? 0.9 : 1.4, fill: 'currentColor' })),
+    aurora: [e('path', Object.assign({ key: 1, d: 'M2 14 C6 6, 9 16, 12 8 S17 10, 18 5' }, sw)), e('path', Object.assign({ key: 2, d: 'M2 17 C6 11, 9 18, 12 12 S17 14, 18 10' }, sw, { strokeOpacity: 0.5 }))]
+  };
+  const kids = parts[kind] || [e('circle', { key: 1, cx: 10, cy: 10, r: 2.5, fill: 'currentColor' })];
+  return e('svg', { viewBox: '0 0 20 20', width: 20, height: 20, 'aria-hidden': 'true', style: { display: 'block', flexShrink: 0, marginTop: 1 } }, kids);
+}
 // The list, flat under a small heading, a hairline between items.
 function TonightHighlights({ items }) {
   if (!items || !items.length) return null;
@@ -3523,10 +3544,12 @@ function TonightHighlights({ items }) {
     React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint, marginBottom: 6 } }, 'Worth a look tonight'),
     items.map((h, i) => React.createElement('div', {
       key: h.title,
-      style: { padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
+      style: { display: 'flex', gap: 12, padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
     },
-      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, color: C.ink } }, h.title),
-      React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: C.inkDim, lineHeight: 1.45, marginTop: 2 } }, h.detail)
+      React.createElement('div', { style: { color: i ? C.inkDim : C.accent } }, highlightIcon(h.kind)),
+      React.createElement('div', { style: { minWidth: 0 } },
+        React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600, color: C.ink } }, h.title),
+        React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: C.inkDim, lineHeight: 1.45, marginTop: 2 } }, h.detail))
     ))
   );
 }
