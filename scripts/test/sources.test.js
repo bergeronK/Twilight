@@ -31,6 +31,11 @@ test('what is noted, and the words for it', () => {
   const alone = { celestrak: all.celestrak };
   assert.strictEqual(m.sourceLines(alone, T)[1][1], 'failed, 4 min ago: refused or offline');
   assert.strictEqual(m.sourceLines(alone, T)[0][1], 'not fetched in this browser yet');
+  // Another source that also failed, or worked hours apart, proves nothing.
+  const bothDown = { celestrak: all.celestrak, swpc: { ok: false, at: T - 4 * 60000, why: 'refused or offline' } };
+  assert.strictEqual(m.sourceLines(bothDown, T)[1][1], 'failed, 4 min ago: refused or offline');
+  const longAgo = { celestrak: all.celestrak, openmeteo: { ok: true, at: T - 5 * 3600000 } };
+  assert.strictEqual(m.sourceLines(longAgo, T)[1][1], 'failed, 4 min ago: refused or offline');
   assert.strictEqual(m.sourceLines('junk', T).length, 3);
   // Storage that throws is not the fetch's problem.
   m.noteSource({ getItem() { throw new Error('no'); }, setItem() {} }, 'swpc', null, T);
