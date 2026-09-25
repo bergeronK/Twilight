@@ -39,11 +39,49 @@ at 390 px wide. The rule it applied is the voice rule's: the casual
 stargazer is the default, navigator material is kept whole but folded.
 - Console: the faintest-star figure (limiting magnitude), "Above the
   horizon now", the twilight schedule and band notes, the Sun's height,
-  horizon visible and the sextant window all left. "Details" is now the
-  next-twilight countdown and a button to the Ephemeris (`goTab`, a
-  `tw:tab` event TwilightApp listens for). The almanac shows only its
+  horizon visible and the sextant window all left. The almanac shows only its
   button until tapped. Highlights: three at most, and no camera-only
   aurora.
+- **Twilight today (2026-09-25, owner's ask: "the app is centered around
+  twilight"):** the next stage and the day's times moved from the foot of
+  the Console to right under the painting's facts, before the highlights
+  (`HorizonHero`'s `twilight` prop). `TwilightToday` (hook-free): "Sunset at
+  18:37" in the voice face, a ticking `cdHMS` countdown, then Dawn and Dusk
+  columns (`twilightDay`, `TWILIGHT_WORDS`: Astronomical/Nautical/Civil dawn,
+  Sunrise; Sunset, Civil/Nautical/Astronomical dusk; past ones dimmed,
+  missing stages simply absent), and "The whole day on the Ephemeris"
+  (`goTab`, a `tw:tab` event TwilightApp listens for). After the day's last
+  stage it shows tomorrow's. The next stage is scanned 48 h ahead
+  (`sunAhead`); the old midnight-to-midnight scan had none from
+  astronomical dusk to midnight. `twilight-today.test.js`.
+- **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
+  In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
+  middle cloud 20-80% with little low cloud is "Likely colourful"; low cloud
+  70%+ or rain overhead "Probably grey"; low cloud 60%+ 150 km toward the
+  sunset "Probably muted"; under 15% cloud "Clear and clean"; otherwise
+  "Some colour possible"; always said to be an estimate). The forecast
+  request now asks Open-Meteo for two places, here and `pointToward(...,
+  sunsetBearing(...), 150)`, and all three cloud layers; `wxOf` turns the
+  reply (or an old single-place cache) into `wx` with `wx.west`, and
+  `cloudAt` reads the hour nearest the sunset. `/privacy.html` says a
+  second point is sent. "Add tonight's sunset to your calendar" downloads
+  `sunsetICS` (sunset to civil dusk, the dusk times in the description, a
+  30-minute `VALARM`: the reminder without a push service). A **Twilight
+  fact** button over the painting's top-right (`HorizonHero`'s `corner`;
+  labels keep clear of it through `o.reserveRight`) deals a fact if none is
+  showing and scrolls to the almanac once it is in (earlier, the page is too
+  short and the scroll stops short). `sunset.test.js`.
+  **Sunrise too (2026-09-25):** `skyGlow(here, toward, kind)` (was
+  `sunsetGlow`) serves both; the request carries a third point toward the
+  next sunrise (`horizonBearing(lat, lon, now, "up")`, was `sunsetBearing`),
+  kept as `wx.east`. The section shows both colours soonest first ("Tonight's
+  sunset", "Tomorrow's sunrise") and two buttons, "Add sunset to calendar"
+  and "Add sunrise to calendar" (full words in `aria-label`); `sunriseICS`
+  runs from civil dawn to sunrise with a 30-minute reminder, from
+  `nextSunrise`. The "Sunset at 18:37" line is upright Cormorant 600 like the
+  hero label: italic pulled the 23 KB `cormorant-i.woff2` into first load
+  (about 250 ms on the throttled phone profile). axe clean after all three
+  2026-09-25 Console PRs; first load 5.2 → 5.35 s, 919 → 935 KB.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.
@@ -671,6 +709,18 @@ stargazer is the default, navigator material is kept whole but folded.
   Deliberately **not** added to `sw.js`'s precache list — these are
   low-traffic content pages, not core app shell, so normal network-first
   navigation is sufficient.
+  **129 cities since 2026-09-25** (from 30): more US metros and dark-sky
+  towns, and big cities across every latitude band and time zone (Tromsø,
+  Fairbanks, Lake Tekapo, San Pedro de Atacama; slugs have accents taken
+  off). Each page links **into the app on its own place**: "See tonight's
+  sky over Boston" (the Console) and "The full day for Boston, MA" (the
+  Ephemeris), both carrying `lat`, `lon`, `name` and `tz`, which
+  `urlPlace(search)` in `index.html` reads for all three tabs. Before, the
+  link sent `?tab=ephemeris&lat=&lon=`, which the Ephemeris ignored (it
+  opened on the reader's saved place), and the Console showed bare
+  coordinates on the reader's clock. Up to four "Nearby" cities within
+  1,500 km. The small grey labels use `#888174` (AA). `city-pages.test.js`
+  reads every page's links the way the app does.
 
 ## Sky View orientation pipeline
 
@@ -800,6 +850,36 @@ tables are data from Meeus: a term typed wrong by more than about 3″ fails
 `eclipses.test.js`. **`alerts/src/sky.js` copies `moonState`**: the next time
 it is regenerated (`node scripts/generate-alerts-sky.js`), the generator
 needs `MOON_LR`, `MOON_B` and `moonEcliptic` in its list.
+
+## Sun times: one Sun, checked against PyEphem (2026-09-25)
+
+The Console and the Ephemeris used to have different Suns. `sunAltitude`
+and `sunHcZn` used a short Fourier fit for declination and the equation of
+time (a few arcminutes out); the Ephemeris's `computeDay` used Meeus's
+formula but only at noon UTC, so an evening in the Americas was worked out
+with a Sun ten hours stale. Against PyEphem (588 events, ten places from
+Quito to Tromsø, eight dates) the Console was 29 s out at the median and
+10 min at worst, the Ephemeris 13 s and 4.5 min, and the two tabs up to
+14 min apart: Boston's 24 September sunset read 18:37 on the Console and
+6:39 on the Ephemeris and city pages (PyEphem: 18:37:50). Now:
+- `sunRaDec(date)` is Meeus's low-precision Sun (ch. 25) at the moment
+  given; `sunHcZn` and `sunAltitude` are built on it, so the painting, the
+  scores, the highlights **and the sextant's Sun** all use it.
+- `computeDay` finds each event with noon's Sun, then refines it twice at
+  the event's own time (`sunEvent`, via `solarParams(y, m, d, utcMin)`,
+  which now also records its date). `photoWindows` uses `sunEvent` too, so
+  blue hour still ends exactly at civil dusk. `twilight-calc.js` carries
+  the same change; `solar-parity.test.js` holds the two in step.
+- `fmtT` rounds to the nearest minute, as almanacs and the Ephemeris do
+  (Intl alone truncates). The header's live clock still truncates.
+- Result: both within 23 s of PyEphem everywhere (median 1 s) and within
+  4 s of each other. `sun-times.test.js` against
+  `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
+  (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
+  `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
+- **`alerts/src/sky.js` (on the held #102 branch) copies `sunAltitude`**:
+  its generator list needs `sunHcZn` and `sunRaDec` when it is next
+  regenerated.
 
 ## Magnetic declination
 

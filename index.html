@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-z95XhSp2EYlHFUagRkzsHB9uHiUWDpzpNVxBlczr05I=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-pzSS//0ytJtN/krdsCjcTGewe8Ll7D/yHWRbBDwsEDU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -516,37 +516,39 @@ const atan2 = (y, x) => Math.atan2(y, x) * R2D;
 const acos = x => Math.acos(Math.max(-1, Math.min(1, x))) * R2D;
 const jd = date => date.getTime() / 86400000 + 2440587.5;
 const gmst = date => rev(280.46061837 + 360.98564736629 * (jd(date) - 2451545.0));
-function sunAltitude(date, lat, lonE) {
-  const yr = date.getUTCFullYear();
-  const start = Date.UTC(yr, 0, 1);
-  const days = yr % 4 === 0 && yr % 100 !== 0 || yr % 400 === 0 ? 366 : 365;
-  const doy = (date.getTime() - start) / 86400000;
-  const hUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  const g = 2 * Math.PI / days * (doy + (hUTC - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
-  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
-  const tst = hUTC * 60 + eq + 4 * lonE;
-  const ha = tst / 4 - 180;
-  const cosZ = Math.sin(lat * D2R) * Math.sin(decl) + Math.cos(lat * D2R) * Math.cos(decl) * Math.cos(ha * D2R);
-  return 90 - acos(cosZ);
+/* The Sun's apparent place at the moment given (2026-09-25): Meeus's
+   low-precision solar coordinates (Astronomical Algorithms ch. 25, the same
+   terms as the Ephemeris's solarParams, aberration and nutation in
+   longitude included), good to about 0.01 degree. Before, sunAltitude and
+   sunHcZn used a short Fourier fit for declination and the equation of time
+   that was a few arcminutes out: sunset half a minute off in Boston, and up
+   to 10 minutes far north where the Sun crosses the horizon at a slant.
+   Also returns Greenwich mean sidereal time for the same instant. */
+function sunRaDec(date) {
+  const T = (date.getTime() / 86400000 + 2440587.5 - 2451545) / 36525, r = D2R;
+  const L0 = 280.46646 + T * (36000.76983 + T * 0.0003032);
+  const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+  const C = Math.sin(M * r) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(2 * M * r) * (0.019993 - 0.000101 * T) + Math.sin(3 * M * r) * 0.000289;
+  const om = 125.04 - 1934.136 * T;
+  const lam = (L0 + C - 0.00569 - 0.00478 * Math.sin(om * r)) * r;
+  const eps = (23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * Math.cos(om * r)) * r;
+  return {
+    ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D,
+    dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D,
+    gmst: 280.46061837 + 360.98564736629 * T * 36525
+  };
 }
-/* Sun's altitude AND azimuth, for sight reduction — same declination/hour-angle
-   derivation as sunAltitude() (kept separate rather than refactored into a
-   shared helper, matching how starHcZn/moonState each self-contain their math). */
+/* The Sun's altitude and azimuth (true, degrees) from here: for the sky,
+   the twilight times and the sextant alike. */
 function sunHcZn(date, lat, lonE) {
-  const yr = date.getUTCFullYear();
-  const start = Date.UTC(yr, 0, 1);
-  const days = yr % 4 === 0 && yr % 100 !== 0 || yr % 400 === 0 ? 366 : 365;
-  const doy = (date.getTime() - start) / 86400000;
-  const hUTC = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
-  const g = 2 * Math.PI / days * (doy + (hUTC - 12) / 24);
-  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
-  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
-  const tst = hUTC * 60 + eq + 4 * lonE;
-  const haDeg = tst / 4 - 180, haRad = haDeg * D2R, latRad = lat * D2R;
-  const alt = 90 - acos(Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(haRad));
-  const az = rev(R2D * Math.atan2(Math.sin(haRad), Math.cos(haRad) * Math.sin(latRad) - Math.tan(decl) * Math.cos(latRad)) + 180);
+  const s = sunRaDec(date);
+  const ha = (s.gmst + lonE - s.ra) * D2R, la = lat * D2R, de = s.dec * D2R;
+  const alt = Math.asin(Math.max(-1, Math.min(1, Math.sin(la) * Math.sin(de) + Math.cos(la) * Math.cos(de) * Math.cos(ha)))) * R2D;
+  const az = ((Math.atan2(Math.sin(ha), Math.cos(ha) * Math.sin(la) - Math.tan(de) * Math.cos(la)) * R2D + 180) % 360 + 360) % 360;
   return { alt, az };
+}
+function sunAltitude(date, lat, lonE) {
+  return sunHcZn(date, lat, lonE).alt;
 }
 /* ---- The space station ---- */
 /* SGP4, near-Earth only (periods under 225 minutes: the space station's is
@@ -1868,12 +1870,15 @@ async function rcRestorePro() {
 }
 // Native boot: reconcile the stored pro flag with the store entitlement.
 rcInit().then(P => { if (P) P.getCustomerInfo().then(rcApply).catch(() => {}); });
+// To the nearest minute, as almanacs give times (and as the Ephemeris
+// does): Intl alone drops the seconds, so a sunset at 18:37:50 read 18:37
+// here and 18:38 there.
 const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
   timeZone: tz,
   hour: "numeric",
   minute: "2-digit",
   hourCycle: prefStore.getH24() ? "h23" : "h12"
-}).format(new Date(t));
+}).format(new Date(Math.round(t / 60000) * 60000));
 const dateKey = (t, tz) => new Intl.DateTimeFormat("en-CA", {
   timeZone: tz,
   year: "numeric",
@@ -1989,6 +1994,21 @@ function makeStars() {
   return [...named, ...filler];
 }
 const STARS = makeStars();
+// A place from the address: ?lat=&lon=, with name= and tz= as the city
+// pages send them (2026-09-25). A bad zone falls back to the device's, a
+// missing name to the coordinates; null when there is no place, or it is off
+// the globe. The name is only ever rendered as text.
+function urlPlace(search) {
+  try {
+    const p = new URLSearchParams(search);
+    const lat = parseFloat(p.get("lat")), lon = parseFloat(p.get("lon"));
+    if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    let tz = p.get("tz");
+    try { if (tz) new Intl.DateTimeFormat([], { timeZone: tz }); } catch (e) { tz = null; }
+    const name = (p.get("name") || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    return { lat, lon, name: name || `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, tz: tz || Intl.DateTimeFormat().resolvedOptions().timeZone };
+  } catch (e) { return null; }
+}
 const PRESETS = [{
   name: "Boston",
   lat: 42.3601,
@@ -2092,7 +2112,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v128";
+const BUILD = "v133";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2760,11 +2780,13 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
   g.textBaseline = 'middle';
   // A name goes right of its body, or left near the edge; it is skipped if
   // both would cover the place-name header drawn over the top-left
-  // (`o.reserve`, {w, h} in px), where it used to collide with the date line.
-  const rsv = o.reserve || { w: 0, h: 0 };
+  // (`o.reserve`, {w, h} in px), where it used to collide with the date line,
+  // or the almanac button over the top-right (`o.reserveRight`, {w, h}: the
+  // strip that far in from the right edge).
+  const rsv = o.reserve || { w: 0, h: 0 }, rr = o.reserveRight || { w: 0, h: 0 };
   const label = (text, x, y, gap) => {
     const tw = g.measureText(text).width;
-    const hits = (x0, x1) => y - 8 < rsv.h && x0 < rsv.w && x1 > 0;
+    const hits = (x0, x1) => (y - 8 < rsv.h && x0 < rsv.w && x1 > 0) || (y - 8 < rr.h && x1 > w - rr.w);
     let flip = x + gap + tw > w - 8;
     if (!flip && hits(x + gap, x + gap + tw)) flip = true;
     if (flip && hits(x - gap - tw, x - gap)) return;
@@ -3001,6 +3023,173 @@ const cdHMS = ms => {
   const s = Math.floor((t % 60000) / 1000);
   return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
 };
+
+/* ---- Twilight today (2026-09-25) ----
+   The day's Sun crossings as the Console shows them, right under the
+   painting: morning stages as dawn, evening stages as dusk. The app is
+   about twilight, and this had sat at the foot of the page. */
+const TWILIGHT_WORDS = {
+  up: { astro: "Astronomical dawn", naut: "Nautical dawn", civil: "Civil dawn", rise: "Sunrise" },
+  down: { rise: "Sunset", civil: "Civil dusk", naut: "Nautical dusk", astro: "Astronomical dusk" }
+};
+const TWILIGHT_DOTS = { rise: "#e0b96f", civil: "#e08a3c", naut: "#5a7fb0", astro: "#4b5794" };
+const twilightWord = e => TWILIGHT_WORDS[e.dir][e.key];
+function twilightDay(sunEv, now) {
+  const row = e => ({ key: e.key, t: e.t, label: twilightWord(e), past: e.t <= now });
+  return {
+    dawn: sunEv.filter(e => e.dir === "up").map(row),
+    dusk: sunEv.filter(e => e.dir === "down").map(row)
+  };
+}
+/* ---- Sunset and sunrise colour (2026-09-25) ----
+   A sunset (or sunrise) glows when there is high or middle cloud overhead
+   for the Sun to light from below, and a clear horizon toward it for the
+   light to get through. Thick low cloud either overhead or toward the Sun
+   kills it, and a sky with no cloud at all gives a clean glow on the horizon
+   but little colour. That is the whole rule, applied to Open-Meteo's cloud
+   layers at the hour here and 150 km toward where the Sun sets or rises. An
+   estimate, and it says so. */
+// A point `km` along a great circle from lat/lon on a bearing (degrees).
+function pointToward(lat, lon, bearing, km) {
+  const d = km / 6371, b = bearing * D2R, p1 = lat * D2R, l1 = lon * D2R;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+  const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+  return { lat: +(p2 * R2D).toFixed(2), lon: +(((l2 * R2D + 540) % 360) - 180).toFixed(2) };
+}
+// The forecast as the app keeps it: here, with the points toward the sunset
+// and the sunrise as `west` and `east` when the reply carried them (a cached
+// reply may be fewer places).
+function wxOf(d) {
+  if (!Array.isArray(d)) return d || null;
+  return d[0] ? Object.assign({}, d[0], { west: d[1] || null, east: d[2] || null }) : null;
+}
+// Cloud layers (%) at the forecast hour nearest t, or null if the forecast
+// has no layers or no hour within 90 minutes.
+function cloudAt(wx, t) {
+  const H = wx && wx.hourly;
+  if (!H || !H.time || !H.cloud_cover_low || !H.cloud_cover_mid || !H.cloud_cover_high) return null;
+  const off = (wx.utc_offset_seconds || 0) * 1000;
+  let best = -1, gap = Infinity;
+  for (let i = 0; i < H.time.length; i++) {
+    const g = Math.abs(Date.parse(H.time[i] + "Z") - off - t);
+    if (g < gap) { gap = g; best = i; }
+  }
+  if (best < 0 || gap > 90 * 60000) return null;
+  const v = a => a && a[best] != null ? a[best] : 0;
+  return { total: v(H.cloud_cover), low: v(H.cloud_cover_low), mid: v(H.cloud_cover_mid), high: v(H.cloud_cover_high), precip: v(H.precipitation_probability) };
+}
+// `toward` is the cloud 150 km toward the Sun; `kind` "sunset" or "sunrise".
+function skyGlow(here, toward, kind = "sunset") {
+  if (!here) return null;
+  const rise = kind === "sunrise";
+  const upper = Math.max(here.high, here.mid);
+  if (here.precip >= 60 || here.low >= 70) return { level: "grey", title: "Probably grey", detail: "Thick low cloud or rain overhead will hide most of it." };
+  if (toward && toward.low >= 60) return { level: "muted", title: "Probably muted", detail: "Low cloud toward the " + kind + " is likely to block the light before it reaches the sky here." };
+  if (here.total < 15) return { level: "plain", title: "Clear and clean", detail: "Little cloud to light up, so expect a clean glow on the horizon rather than a blaze of colour." };
+  if (upper >= 20 && upper <= 80 && here.low < 40) return { level: "vivid", title: "Likely colourful", detail: "High cloud to catch the light, and " + (toward ? "a clear way through to the " + (rise ? "east." : "west.") : "little low cloud in the way.") };
+  if (upper > 80 && here.low < 40) return { level: "some", title: "Some colour possible", detail: "A lot of high cloud: it can glow for a few minutes " + (rise ? "before sunrise" : "after sunset") + ", or just dim the light." };
+  return { level: "some", title: "Some colour possible", detail: "A mixed sky: some cloud to catch the light, some in the way." };
+}
+// A calendar event for a sunset: from sunset to the end of civil dusk, the
+// rest of the evening in the description, and a reminder 30 minutes before.
+function sunsetICS(set, place, stamp, fmt) {
+  const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = set.civil || set.t + 30 * 60000;
+  const lines = ["Sunset " + fmt(set.t) + "."];
+  if (set.civil) lines.push("Civil dusk " + fmt(set.civil) + ": the last of the colour.");
+  if (set.naut) lines.push("Nautical dusk " + fmt(set.naut) + ": the horizon fades and the brighter stars are out.");
+  if (set.astro) lines.push("Fully dark " + fmt(set.astro) + ".");
+  const esc = x => x.replace(/[\\;,]/g, m => "\\" + m);
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT",
+    "UID:sunset-" + Math.round(set.t / 60000) + "@twilyte.info", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(set.t), "DTEND:" + dt(end),
+    "SUMMARY:" + esc("Sunset at " + place), "DESCRIPTION:" + esc(lines.join(" ")),
+    "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc("Sunset in 30 minutes"), "TRIGGER:-PT30M", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+}
+// Which way the next sunset ("down") or sunrise ("up") is, true degrees;
+// due west or east when there isn't one in the next day and a half.
+function horizonBearing(lat, lon, now, dir = "down") {
+  const ev = scanCrossings(now, now + 36 * 3600000, lat, lon, sunAltitude, [{ key: "rise", h: -0.833 }], 10).find(e => e.dir === dir);
+  return ev ? sunHcZn(new Date(ev.t), lat, lon).az : dir === "up" ? 90 : 270;
+}
+// A calendar event for a sunrise: from civil dawn, when the colour begins,
+// to sunrise, with nautical dawn in the description and a reminder 30
+// minutes before it starts.
+function sunriseICS(rise, place, stamp, fmt) {
+  const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const start = rise.civil || rise.t - 30 * 60000;
+  const lines = [];
+  if (rise.naut) lines.push("Nautical dawn " + fmt(rise.naut) + ": the first light along the horizon.");
+  if (rise.civil) lines.push("Civil dawn " + fmt(rise.civil) + ": the colour begins.");
+  lines.push("Sunrise " + fmt(rise.t) + ".");
+  const esc = x => x.replace(/[\\;,]/g, m => "\\" + m);
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT",
+    "UID:sunrise-" + Math.round(rise.t / 60000) + "@twilyte.info", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(start), "DTEND:" + dt(rise.t),
+    "SUMMARY:" + esc("Sunrise at " + place), "DESCRIPTION:" + esc(lines.join(" ")),
+    "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc("Dawn colour in 30 minutes"), "TRIGGER:-PT30M", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+}
+// The next sunrise after `now`, with the dawn stages before it that are in
+// the list (each absent when it doesn't happen or has already passed).
+function nextSunrise(sunEv, now) {
+  const i = sunEv.findIndex(e => e.key === "rise" && e.dir === "up" && e.t > now);
+  if (i < 0) return null;
+  const rise = { t: sunEv[i].t };
+  for (let j = i - 1; j >= 0 && sunEv[j].dir === "up"; j--) rise[sunEv[j].key] = sunEv[j].t;
+  return rise;
+}
+// The next sunset after `now` among the Sun's crossings, with the evening's
+// dusk stages that follow it (each absent when it doesn't happen).
+function nextSunset(sunEv, now) {
+  const i = sunEv.findIndex(e => e.key === "rise" && e.dir === "down" && e.t > now);
+  if (i < 0) return null;
+  const set = { t: sunEv[i].t };
+  for (let j = i + 1; j < sunEv.length && sunEv[j].dir === "down"; j++) set[sunEv[j].key] = sunEv[j].t;
+  return set;
+}
+// Hook-free: the next stage with its countdown, then the day's times in two
+// columns (past ones dimmed), then the way to the full day on the Ephemeris.
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders }) {
+  const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
+    rows.map(r => React.createElement("div", {
+      key: r.key,
+      style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.line}`, fontFamily: "var(--font-ui)", fontSize: 13, color: r.past ? C.inkFaint : C.ink }
+    },
+      React.createElement("span", { "aria-hidden": "true", style: { width: 7, height: 7, borderRadius: "50%", flex: "0 0 7px", background: TWILIGHT_DOTS[r.key], opacity: r.past ? 0.4 : 1 } }),
+      React.createElement("span", { style: { flex: 1, minWidth: 0 } }, r.label),
+      React.createElement("span", { style: { fontVariantNumeric: "tabular-nums" } }, fmt(r.t)))));
+  const empty = !sched.dawn.length && !sched.dusk.length;
+  return React.createElement("section", {
+    "aria-label": "Twilight " + sched.when,
+    style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
+  },
+    React.createElement("h2", {
+      style: { margin: "0 0 12px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" }
+    }, "Twilight " + sched.when),
+    next && React.createElement("div", { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, color: C.brass, lineHeight: 1.1 } },
+        twilightWord(next), " at ", fmt(next.t)),
+      React.createElement("div", {
+        style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
+      }, "in ", cdHMS(next.t - now))),
+    empty
+      ? React.createElement("p", { style: { margin: "0 0 14px", fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } },
+          sunUp ? "The Sun doesn’t set " + sched.when + "." : "The Sun doesn’t rise " + sched.when + ".")
+      : React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "14px 28px", marginBottom: 16 } },
+          sched.dawn.length > 0 && col("Dawn", sched.dawn),
+          sched.dusk.length > 0 && col("Dusk", sched.dusk)),
+    glows && glows.length > 0 && React.createElement("div", { style: { margin: "0 0 16px", fontFamily: "var(--font-ui)" } },
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "12px 28px" } },
+        glows.map(g => React.createElement("div", { key: g.kind },
+          React.createElement("div", { style: { fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 3 } }, g.label, " colour"),
+          React.createElement("div", { style: { fontSize: 15, color: g.level === "vivid" ? C.brass : C.ink } }, g.title),
+          React.createElement("div", { style: { fontSize: 12.5, color: C.inkDim, marginTop: 2, maxWidth: "52ch" } }, g.detail)))),
+      React.createElement("div", { style: { fontSize: 11.5, color: C.inkFaint, marginTop: 8 } }, glows.length > 1 ? "Estimates from the cloud forecast." : "An estimate from the cloud forecast.")),
+    React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+      (reminders || []).map(m => React.createElement("button", { key: m.kind, className: "rtbtn", onClick: m.onClick, "aria-label": m.aria }, m.label)),
+      React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris \u2192")));
+}
 
 /* ---- Orientation fusion ----
    Two kinds of sensor data, with opposite strengths:
@@ -4353,7 +4542,7 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4362,6 +4551,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
   });
   const headerRef = useRef(null);
+  const cornerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
@@ -4476,10 +4666,16 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       const hb = rg.getBoundingClientRect(), cb = cv.getBoundingClientRect();
       if (hb.width) reserve = { w: hb.right - cb.left + 10, h: hb.bottom - cb.top + 6 };
     }
+    let reserveRight = null;
+    const cn = cornerRef.current;
+    if (cn && cn.getBoundingClientRect) {
+      const kb = cn.getBoundingClientRect(), cb = cv.getBoundingClientRect();
+      if (kb.width) reserveRight = { w: cb.right - kb.left + 10, h: kb.bottom - cb.top + 6 };
+    }
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve,
+      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight,
       mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
     };
     const gc = groundRef.current;
@@ -4603,6 +4799,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
       }),
       header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+      corner && React.createElement('div', {
+        style: { position: 'absolute', left: pad, right: pad, top: 14, maxWidth: 1080, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none' }
+      }, React.createElement('div', { ref: cornerRef, style: { pointerEvents: 'auto' } }, corner)),
       React.createElement('div', {
         // Changes on its own as twilight advances, rarely enough that
         // announcing it is useful rather than noisy.
@@ -4632,6 +4831,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
+      twilight || null,
       React.createElement(TonightHighlights, { items: highlights }),
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
         React.createElement('button', {
@@ -4705,19 +4905,15 @@ function RealtimeTwilight({ redMode } = {}) {
   // Where the Console's place came from when it opened.
   const startPlace = () => {
     try {
-      const p = new URLSearchParams(window.location.search);
-      if (!isNaN(parseFloat(p.get('lat'))) && !isNaN(parseFloat(p.get('lon')))) return 'url';
+      if (urlPlace(window.location.search)) return 'url';
       return localStorage.getItem('tw_loc') ? 'saved' : null;
     } catch (e) { return null; }
   };
   // Read once, before the effect below saves tw_loc.
   const [start] = useState(startPlace);
   const [loc, setLoc] = useState(() => {
-    try {
-      const p = new URLSearchParams(window.location.search);
-      const lat = parseFloat(p.get('lat')), lon = parseFloat(p.get('lon'));
-      if (!isNaN(lat) && !isNaN(lon)) return { lat, lon, name: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
-    } catch(e) {}
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch(e) { return PRESETS[0]; }
   });
   const [now, setNow] = useState(() => Date.now());
@@ -4746,7 +4942,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const tick = useRef();
   const nextFact = () => {
     if (fact === null || fact === "error") setFact("loading");
-    loadFacts().then(list => {
+    return loadFacts().then(list => {
       if (factDeck.current === undefined) {
         try { factDeck.current = JSON.parse(localStorage.getItem('tw_fact_deck') || 'null'); } catch(e) { factDeck.current = null; }
       }
@@ -4757,6 +4953,32 @@ function RealtimeTwilight({ redMode } = {}) {
       setFact({ f: list.find(f => f.id === d.id), seen: d.deck.seen.length, total: list.length });
     }, () => setFact("error"));
   };
+  // The almanac sits at the foot of the page; the painting's corner button
+  // (2026-09-25) deals a fact if none is showing and takes the reader there,
+  // once the fact is in: before that the page is too short to bring the
+  // almanac to the top, and the scroll stops short.
+  const jumpToFact = () => {
+    const ready = fact === null || fact === "error" ? nextFact() : Promise.resolve();
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ready.then(() => requestAnimationFrame(() => {
+      const el = factRef.current;
+      if (!el) return;
+      // Focus first: focusing during a smooth scroll stops it short.
+      try { el.focus({ preventScroll: true }); } catch (e) {}
+      el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }));
+  };
+  const factCorner = React.createElement("button", {
+    onClick: jumpToFact,
+    "aria-label": "A twilight fact from the almanac",
+    title: "A Twilight Almanac",
+    style: {
+      display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "6px 12px",
+      borderRadius: 999, border: "1px solid rgba(238,241,250,.28)", background: "rgba(8,10,20,.42)",
+      color: C.ink, fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, cursor: "pointer",
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", textShadow: "0 1px 6px rgba(3,5,12,.8)"
+    }
+  }, React.createElement("span", { "aria-hidden": "true", style: { color: C.brass } }, "\u2726"), "Twilight fact");
   const toggleSave = () => {
     const isAlready = saved.some(s => s.lat === loc.lat && s.lon === loc.lon);
     const next = isAlready ? saved.filter(s => !(s.lat === loc.lat && s.lon === loc.lon)) : [...saved, loc].slice(-3);
@@ -4839,14 +5061,18 @@ function RealtimeTwilight({ redMode } = {}) {
     const key = `tw_wx_${loc.lat.toFixed(2)}_${loc.lon.toFixed(2)}`;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(cached.d); setWxStale(null); return; }
+    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
     const seq = ++wxSeq.current;
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
+    // Two more points, 150 km toward the next sunset and sunrise, for the
+    // colour of each.
+    const west = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "down"), 150);
+    const east = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "up"), 150);
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat},${west.lat},${east.lat}&longitude=${loc.lon},${west.lon},${east.lon}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
       .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
         try { noteSource(localStorage, 'openmeteo'); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        setWx(d);
+        setWx(wxOf(d));
         setWxStale(null);
         try {
           localStorage.setItem(key, JSON.stringify({ t: Date.now(), d }));
@@ -4866,7 +5092,7 @@ function RealtimeTwilight({ redMode } = {}) {
       .catch(err => {
         try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        if (wxCacheUse(cached, Date.now())) { setWx(cached.d); setWxStale(cached.t); }
+        if (wxCacheUse(cached, Date.now())) { setWx(wxOf(cached.d)); setWxStale(cached.t); }
         else { setWx(null); setWxStale(null); }
       });
   }, [loc.lat, loc.lon, hourKey]);
@@ -4910,7 +5136,53 @@ function RealtimeTwilight({ redMode } = {}) {
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
-  const nextSunEv = useMemo(() => day.sunEv.find(e => e.t > now), [day, now]);
+  // Two days ahead, so the next stage is found after the day's last one too
+  // (the old midnight-to-midnight scan had none from astronomical dusk on).
+  const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
+  const nextSunEv = sunAhead.find(e => e.t > now);
+  // The next sunset: its colour from the cloud forecast, and a calendar
+  // event with a reminder half an hour before.
+  const sunset = useMemo(() => {
+    const set = nextSunset(sunAhead, now);
+    return set && { ...set, when: dateKey(set.t, loc.tz) === dateKey(now, loc.tz) ? "today" : "tomorrow" };
+  }, [sunAhead, minute, loc.tz]);
+  const sunrise = useMemo(() => {
+    const rise = nextSunrise(sunAhead, now);
+    return rise && { ...rise, when: dateKey(rise.t, loc.tz) === dateKey(now, loc.tz) ? "today" : "tomorrow" };
+  }, [sunAhead, minute, loc.tz]);
+  // The colour of each, soonest first, while the forecast reaches it.
+  const glows = useMemo(() => {
+    const out = [];
+    const add = (ev, kind, toward, label) => {
+      if (!ev || ev.t - now > 30 * 3600000) return;
+      const g = skyGlow(cloudAt(wx, ev.t), toward ? cloudAt(toward, ev.t) : null, kind);
+      if (g) out.push({ ...g, kind, t: ev.t, label });
+    };
+    if (sunset) add(sunset, "sunset", wx && wx.west, (sunset.when === "today" ? "Tonight\u2019s" : "Tomorrow\u2019s") + " sunset");
+    if (sunrise) add(sunrise, "sunrise", wx && wx.east, (sunrise.when === "today" ? "This morning\u2019s" : "Tomorrow\u2019s") + " sunrise");
+    return out.sort((a, b) => a.t - b.t);
+  }, [wx, sunset, sunrise, hourKey]);
+  const saveICS = (text, name) => {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  // Calendar events with a reminder: the next sunset and sunrise, soonest first.
+  const reminders = [
+    sunset && { kind: "sunset", t: sunset.t, label: "Add sunset to calendar", aria: "Add " + (sunset.when === "today" ? "tonight" : "tomorrow") + "\u2019s sunset to your calendar",
+      onClick: () => saveICS(sunsetICS(sunset, loc.name, Date.now(), t => fmtT(t, loc.tz)), "sunset.ics") },
+    sunrise && { kind: "sunrise", t: sunrise.t, label: "Add sunrise to calendar", aria: "Add " + (sunrise.when === "today" ? "this morning" : "tomorrow") + "\u2019s sunrise to your calendar",
+      onClick: () => saveICS(sunriseICS(sunrise, loc.name, Date.now(), t => fmtT(t, loc.tz)), "sunrise.ics") }
+  ].filter(Boolean).sort((a, b) => a.t - b.t);
+  // Today's times while any are still to come; after the last, tomorrow's.
+  const twSched = useMemo(() => {
+    if (day.sunEv.some(e => e.t > now)) return { when: "today", ...twilightDay(day.sunEv, now) };
+    const mid = localMidnight(loc.tz, day.mid + 36 * 3600000);
+    return { when: "tomorrow", ...twilightDay(scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1), now) };
+  }, [day, minute, loc.lat, loc.lon, loc.tz]);
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -5120,6 +5392,15 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement(HorizonHero, {
     loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
     intro, locating: geoMsg === "Locating\u2026",
+    // Twilight right under the painting's facts, before the highlights
+    // (2026-09-25; the next stage and the day's times had been at the foot
+    // of the page).
+    twilight: React.createElement(TwilightToday, {
+      next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
+      onMore: () => goTab("ephemeris"),
+      glows, reminders
+    }),
+    corner: factCorner,
     onIntroDone: pick => {
       setIntro(false);
       try { localStorage.setItem('tw_welcomed', '1'); } catch (e) {}
@@ -5149,30 +5430,10 @@ function RealtimeTwilight({ redMode } = {}) {
   skyStripEl(wxScore, loc, h24),
   (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
   weekPlannerEl(wxWeek, loc, h24, pro),
-  // Below the fold, only what nothing above says: how long until the next
-  // twilight stage, and the way to the full day's times on the Ephemeris.
-  // The Sun's height, how much horizon is visible and the sextant window
-  // moved to the Stars tab's "For navigators"; the list of what was up
-  // repeated the painting and the highlights; the day's schedule and the
-  // band notes live on the Ephemeris (2026-09-25).
-  React.createElement("section", {
-    "aria-label": "Next twilight",
-    style: { maxWidth: 1080, margin: "10px auto 0", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px", display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }
-  },
-    nextSunEv && React.createElement("div", null,
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 3 }
-      }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
-      }, cdHMS(nextSunEv.t - now))),
-    React.createElement("button", {
-      className: "rtbtn",
-      onClick: () => goTab("ephemeris")
-    }, "Today\u2019s twilight times \u2192")
-  ),
   React.createElement("section", {
     ref: factRef,
+    tabIndex: -1,
+    "aria-label": "A Twilight Almanac",
     style: {
       maxWidth: 1080,
       margin: "0 auto",
@@ -5284,7 +5545,7 @@ function RealtimeTwilight({ redMode } = {}) {
       color: C.inkDim,
       lineHeight: 1.6
     }
-  }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
+  }, "Sun times from Meeus\u2019s solar position at each event\u2019s own moment, within half a minute of PyEphem from the equator to 70\xB0 N, and rounded to the nearest minute; moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
 }
 const LABELS = {
   astro: "Astronomical twilight",
@@ -5315,8 +5576,10 @@ const COLORS = {
 const RAD = Math.PI / 180;
 const rad = d => d * RAD;
 const deg = r => r / RAD;
-function solarParams(y, m, d) {
-  const JD = Date.UTC(y, m - 1, d, 12, 0, 0) / 86400000 + 2440587.5;
+// The Sun's declination and the equation of time on a date, at `utcMin`
+// minutes after that date's UTC midnight (noon when not given).
+function solarParams(y, m, d, utcMin = 720) {
+  const JD = Date.UTC(y, m - 1, d) / 86400000 + utcMin / 1440 + 2440587.5;
   const T = (JD - 2451545.0) / 36525;
   const L0 = ((280.46646 + T * (36000.76983 + T * 0.0003032)) % 360 + 360) % 360;
   const M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
@@ -5331,7 +5594,10 @@ function solarParams(y, m, d) {
   const eqTime = 4 * deg(vY * Math.sin(2 * rad(L0)) - 2 * e * Math.sin(rad(M)) + 4 * e * vY * Math.sin(rad(M)) * Math.cos(2 * rad(L0)) - 0.5 * vY * vY * Math.sin(4 * rad(L0)) - 1.25 * e * e * Math.sin(2 * rad(M)));
   return {
     decl,
-    eqTime
+    eqTime,
+    y,
+    m,
+    d
   };
 }
 
@@ -5410,9 +5676,22 @@ const ALT = {
   nautical: -12,
   astro: -18
 };
+// An event found with the Sun's place at noon (`p`), then found again twice
+// with the Sun's place at the event's own time (2026-09-25). With noon's
+// alone, an evening in the Americas was worked out with a Sun ten hours
+// stale: Boston's sunset 50 seconds late, and minutes far north.
+function sunEvent(lat, lon, p, a, r) {
+  let e = eventUTC(lat, lon, p, a, r);
+  for (let k = 0; k < 2 && e.utc !== undefined; k++) {
+    const e2 = eventUTC(lat, lon, solarParams(p.y, p.m, p.d, e.utc), a, r);
+    if (e2.utc === undefined) break;
+    e = e2;
+  }
+  return e;
+}
 function computeDay(lat, lon, y, m, d) {
   const p = solarParams(y, m, d);
-  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  const ev = (a, r) => sunEvent(lat, lon, p, a, r);
   return {
     p,
     astroDawn: ev(ALT.astro, true),
@@ -5435,7 +5714,7 @@ function computeDay(lat, lon, y, m, d) {
    Sun doesn't cross both edges that day (summer nights far north, polar
    days). */
 function photoWindows(lat, lon, p) {
-  const ev = (a, r) => eventUTC(lat, lon, p, a, r);
+  const ev = (a, r) => sunEvent(lat, lon, p, a, r);
   const win = (a, b) => (a.none || b.none ? null : [a.utc, b.utc]);
   return {
     morningBlue: win(ev(-6, true), ev(-4, true)),
@@ -5600,7 +5879,10 @@ function TwilightEphemeris({ redMode } = {}) {
   // Opens on today, at the place the Console last used, in that place's own
   // time zone. It used to open on a fixed New York solstice with a hand-set
   // UTC-5 +DST, so anyone elsewhere saw wrong times until they noticed.
+  // A place in the address (a city page's link) comes first.
   const [place] = useState(() => {
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
   });
   const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -7775,7 +8057,8 @@ function ObservingLog({ seen, names, open, onOpen, onToggle }) {
 function StarFinder({ redMode } = {}) {
   useH24();
   const [loc, setLoc] = useState(() => {
-    try { const p = new URLSearchParams(window.location.search); const la = parseFloat(p.get('lat')), lo = parseFloat(p.get('lon')); if (!isNaN(la) && !isNaN(lo)) return { lat: la, lon: lo, name: `${la.toFixed(2)}°, ${lo.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone }; } catch (e) {}
+    const fromUrl = urlPlace(window.location.search);
+    if (fromUrl) return fromUrl;
     try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
   });
   const [now, setNow] = useState(() => Date.now());
