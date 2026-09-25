@@ -17,7 +17,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', '
   'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
-  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights', 'auroraTonight', 'auroraWords']);
+  'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights', 'auroraTonight', 'auroraWords', 'MOON_FEATURES', 'moonLibration', 'moonSunAlt', 'terminatorFeatures']);
 
 const STOWE = [44.26, -72.58];
 function tonight(iso, [lat, lon], bortle = 3) {
