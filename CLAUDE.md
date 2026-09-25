@@ -71,6 +71,17 @@ stargazer is the default, navigator material is kept whole but folded.
   labels keep clear of it through `o.reserveRight`) deals a fact if none is
   showing and scrolls to the almanac once it is in (earlier, the page is too
   short and the scroll stops short). `sunset.test.js`.
+  **Sunrise too (2026-09-25):** `skyGlow(here, toward, kind)` (was
+  `sunsetGlow`) serves both; the request carries a third point toward the
+  next sunrise (`horizonBearing(lat, lon, now, "up")`, was `sunsetBearing`),
+  kept as `wx.east`. The section shows both colours soonest first ("Tonight's
+  sunset", "Tomorrow's sunrise") and two buttons, "Add sunset to calendar"
+  and "Add sunrise to calendar" (full words in `aria-label`); `sunriseICS`
+  runs from civil dawn to sunrise with a 30-minute reminder, from
+  `nextSunrise`. The "Sunset at 18:37" line is upright Cormorant 600 like the
+  hero label: italic pulled the 23 KB `cormorant-i.woff2` into first load
+  (about 250 ms on the throttled phone profile). axe clean after all three
+  2026-09-25 Console PRs; first load 5.2 → 5.35 s, 919 → 935 KB.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.
