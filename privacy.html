@@ -81,6 +81,13 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   no location or anything else about you, and the passes are worked out on
   your device. Like any web request it reaches CelesTrak from your IP
   address.</p>
+  <p>For the northern and southern lights it fetches the geomagnetic forecast
+  published by the US <strong>National Oceanic and Atmospheric Administration's
+  Space Weather Prediction Center</strong>
+  (<a href="https://www.swpc.noaa.gov/" target="_blank" rel="noopener noreferrer">swpc.noaa.gov</a>),
+  at most every 3 hours. That request is also the same for everyone and
+  contains nothing about you; whether the aurora could reach your sky is
+  worked out on your device.</p>
   <p>You can deny location access entirely and still use Twilyte by entering
   a ZIP code, searching for a place by name, or typing coordinates directly.</p>
 
@@ -110,6 +117,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <li>Display preferences (12/24-hour time, red-light night mode, sky-brightness setting)</li>
     <li>Your Aim Assist compass correction, if you've set one</li>
     <li>The space station's orbit, for up to a week, so passes can be shown offline</li>
+    <li>The geomagnetic forecast, for up to two days, for the aurora</li>
     <li>Your observing log: what you've marked as seen, and when</li>
     <li>A short-lived cache (about an hour) of the weather forecast, to avoid
     re-fetching it constantly</li>

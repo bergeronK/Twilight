@@ -13,7 +13,8 @@ coordinates sent to Open-Meteo for weather/place-search, (b) — native app
 only — an anonymous RevenueCat install ID + purchase receipt for IAP
 verification. The app also fetches the space station's orbit
 from CelesTrak (a fixed URL, the same for everyone, carrying no location or
-identifier), which is not collection of user data. The website also sends a request to the visit counter, which
+identifier) and NOAA's geomagnetic (Kp) forecast for the aurora (likewise
+fixed and anonymous), neither of which is collection of user data. The website also sends a request to the visit counter, which
 keeps a salted hash of the requester's IP address for 24 hours, but the apps
 never do (below), so the counter is not part of either store's answers. See
 `/privacy.html` for the human-readable version of this same information.

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-KKejUOldQ4Dq1W86JGVVujO4/PDDHVjCPMtW6elqjQo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-IJ887kqMK8q79tnpW9WQPbxQ5oTFBXss+72rOibAkDY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -797,6 +797,112 @@ function issWords(p, fmt) {
     : p.mag <= -1.5 ? 'As bright as the brightest stars, moving steadily.'
     : 'A steady, moving star, fainter than the brightest.';
   return `From ${fmt(p.start.t)} it rises out of the ${compassWord(p.start.az)}, climbs to ${top}°${top >= 75 ? ', almost overhead,' : ''} and ${end}. ${bright}`;
+}
+/* ---- The northern (and southern) lights ----
+   How far from the magnetic pole the aurora reaches is set by the Kp index,
+   the planetary measure of geomagnetic disturbance (0 quiet to 9 an extreme
+   storm), which NOAA's Space Weather Prediction Center forecasts three days
+   ahead in 3-hour blocks. The request is a fixed URL with nothing about the
+   user in it; the forecast is kept 3 hours in tw_kp. */
+const KP_URL = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json';
+// Rows of { t: start of the 3-hour block, kp }. NOAA has served this as an
+// array of arrays under a header row; objects keyed the same way are read
+// too, so a change of shape doesn't silently lose the forecast.
+function parseKp(json) {
+  if (!Array.isArray(json)) return [];
+  let head = null;
+  const out = [];
+  json.forEach(row => {
+    let o = row;
+    if (Array.isArray(row)) {
+      if (!head) { head = row.map(s => String(s).toLowerCase()); return; }
+      o = {}; head.forEach((k, i) => { o[k] = row[i]; });
+    }
+    if (!o || typeof o !== 'object') return;
+    const key = k => Object.keys(o).find(x => x.toLowerCase() === k);
+    const ts = o[key('time_tag')], kp = parseFloat(o[key('kp')]);
+    if (typeof ts !== 'string' || !isFinite(kp) || kp < 0 || kp > 9) return;
+    const s = ts.trim().replace(' ', 'T');
+    const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
+    if (isFinite(t)) out.push({ t, kp });
+  });
+  return out.sort((a, b) => a.t - b.t);
+}
+async function loadKp(now = Date.now(), fetchFn = typeof fetch !== 'undefined' ? fetch : null, store = typeof localStorage !== 'undefined' ? localStorage : null) {
+  let kept = null;
+  try { kept = JSON.parse(store.getItem('tw_kp') || 'null'); } catch (e) {}
+  if (!kept || !Array.isArray(kept.rows) || !(kept.at > 0)) kept = null;
+  if (kept && now - kept.at < 3 * 3600000) return kept.rows;
+  try {
+    const r = await fetchFn(KP_URL);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = parseKp(await r.json());
+    if (!rows.length) throw new Error('no forecast');
+    try { store.setItem('tw_kp', JSON.stringify({ rows, at: now })); } catch (e) {}
+    return rows;
+  } catch (e) {
+    // A forecast two days old still covers tonight; older is left alone.
+    return kept && now - kept.at < 2 * 86400000 ? kept.rows : null;
+  }
+}
+// Geomagnetic latitude: the angle from the magnetic equator of the Earth's
+// best-fitting dipole, whose axis is the first three WMM coefficients (at
+// this date, with their yearly change). WMM2025 puts the pole at 80.8° N,
+// 72.8° W.
+function geomagPole(date) {
+  const M = wmmModel(), d = date || new Date();
+  const dt = Math.min(WMM_EPOCH_YEARS, Math.max(0, d.getUTCFullYear() + d.getUTCMonth() / 12 - M.epoch));
+  const g10 = M.g[1][0] + dt * M.gd[1][0], g11 = M.g[1][1] + dt * M.gd[1][1], h11 = M.h[1][1] + dt * M.hd[1][1];
+  const b = Math.hypot(g10, g11, h11);
+  return { lat: 90 - Math.acos(-g10 / b) * R2D, lon: Math.atan2(-h11, -g11) * R2D };
+}
+function geomagLat(lat, lon, date) {
+  const p = geomagPole(date);
+  return Math.asin(Math.max(-1, Math.min(1, sin(lat) * sin(p.lat) + cos(lat) * cos(p.lat) * cos(lon - p.lon)))) * R2D;
+}
+// The geomagnetic latitude of the auroral oval's equatorward edge at a
+// given Kp: 66.5° when quiet, 48.1° in an extreme storm (NOAA's table,
+// about 2° a step). Seen from under the edge the aurora is overhead; it
+// stands high enough (100-300 km) to show low toward the pole from about
+// 5° farther out, and a camera, which sees fainter than the eye, from 9°.
+const auroraEdge = kp => 66.5 - 2.044 * kp;
+function auroraReach(mlat, kp) {
+  const d = Math.abs(mlat) - auroraEdge(kp);
+  return d >= 0 ? 'overhead' : d >= -5 ? 'low' : d >= -9 ? 'camera' : null;
+}
+// Tonight's chance, from the forecast blocks that overlap the dark hours
+// (the Sun 12° or more down). The strongest block decides; its time is when
+// to look. `hemi` is 'north' or 'south', the way to face.
+function auroraTonight(plan, lat, lon, rows, fmt) {
+  if (!plan || !rows || !rows.length) return null;
+  const mlat = geomagLat(lat, lon, new Date(plan.start));
+  let best = null, dark = null;
+  for (let t = plan.start; t <= plan.end; t += 15 * 60000) {
+    if (sunAltitude(new Date(t), lat, lon) > -12) continue;
+    if (dark === null) dark = t;
+    const row = rows.find(r => t >= r.t && t < r.t + 3 * 3600000);
+    // From the block's start, or from dark if it began before then.
+    if (row && (!best || row.kp > best.kp)) best = { kp: row.kp, t: Math.max(row.t, dark) };
+  }
+  if (!best) return null;
+  const reach = auroraReach(mlat, best.kp);
+  return reach && { reach, kp: best.kp, t: best.t, south: mlat < 0 };
+}
+function auroraWords(a, fmt) {
+  const lights = a.south ? 'southern lights' : 'northern lights', way = a.south ? 'south' : 'north';
+  const kp = `Kp ${Math.round(a.kp)} on the 0-9 scale of geomagnetic activity`;
+  if (a.reach === 'overhead') return {
+    title: `The ${lights} may be out tonight`,
+    detail: `${kp} is forecast around ${fmt(a.t)}, enough to bring the aurora over you. Look ${way} and up, away from lights, and give your eyes 20 minutes.`
+  };
+  if (a.reach === 'low') return {
+    title: `A chance of the ${lights} tonight`,
+    detail: `${kp} is forecast around ${fmt(a.t)}. From here it would show low in the ${way}: a pale glow or rays above the horizon, best from somewhere dark with a clear view ${way}.`
+  };
+  return {
+    title: `A faint chance of the ${lights}`,
+    detail: `${kp} is forecast around ${fmt(a.t)}. From here the eye probably won’t see it, but a phone camera’s night mode may catch a glow low in the ${way}.`
+  };
 }
 /* ---- Planetary visibility ---- */
 function planetAltAz(planetName, date, lat, lonE) {
@@ -1816,7 +1922,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v120";
+const BUILD = "v122";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3356,7 +3462,7 @@ const HIGHLIGHT_DSO = [
   ['the Beehive Cluster', 130.1, 19.67, 3.7, 'a hazy patch that binoculars turn into a swarm of stars'],
   ['the Lagoon Nebula', 270.9, -24.38, 6.0, 'a glow in the Milky Way just above the spout of the Sagittarius teapot']
 ];
-function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
+function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
   if (!plan) return [];
   const STEP = 15 * 60000, samples = [];
   for (let t = plan.start; t <= plan.end; t += STEP) {
@@ -3398,6 +3504,10 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss) {
       detail: issWords(best, fmt) + (iss.length > 1 ? ` ${iss.length - 1 === 1 ? 'It passes once more' : `It passes ${iss.length - 1} more times`} tonight.` : '')
     });
   }
+
+  // The aurora, when tonight's forecast brings it within reach of here.
+  const aur = auroraTonight(plan, lat, lon, kp, fmt);
+  if (aur) out.push(Object.assign({ kind: 'aurora', rank: aur.reach === 'overhead' ? 0 : aur.reach === 'low' ? 1 : 6 }, auroraWords(aur, fmt)));
 
   // Meteor showers, at the best hour's rate.
   const showers = {};
@@ -3959,10 +4069,13 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const [issTle, setIssTle] = useState(null);
   useEffect(() => { let live = true; loadIssTle().then(t => { if (live) setIssTle(t); }); return () => { live = false; }; }, []);
   const issSat = useMemo(() => issSatFrom(issTle), [issTle]);
+  // NOAA's geomagnetic forecast, for the aurora (kept 3 hours).
+  const [kpRows, setKpRows] = useState(null);
+  useEffect(() => { let live = true; loadKp().then(k => { if (live) setKpRows(k); }); return () => { live = false; }; }, []);
   // What is worth going out for tonight, every ten minutes like the plan.
   const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt,
-    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null),
-    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat]);
+    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null, kpRows),
+    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat, kpRows]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
     const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
