@@ -877,9 +877,8 @@ Quito to Tromsø, eight dates) the Console was 29 s out at the median and
   `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
   (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
   `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
-- **`alerts/src/sky.js` (on the held #102 branch) copies `sunAltitude`**:
-  its generator list needs `sunHcZn` and `sunRaDec` when it is next
-  regenerated.
+- `alerts/src/sky.js` copies `sunAltitude`; its generator list carries
+  `sunRaDec` and `sunHcZn` (regenerated 2026-09-25).
 
 ## Magnetic declination
 

@@ -81,7 +81,7 @@ test("the Worker's score is the Console's, generated from index.html and current
   assert.strictEqual(fs.readFileSync(OUT, 'utf8'), build(), 'alerts/src/sky.js is stale: run node scripts/generate-alerts-sky.js');
   // And it runs the same: one clear, moonless night scored both ways.
   const sky = await load('sky.js');
-  const app = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'acos', 'jd', 'gmst', 'sunAltitude', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'scoreHours', 'summarize', 'clearDarkScore']);
+  const app = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'acos', 'jd', 'gmst', 'sunRaDec', 'sunHcZn', 'sunAltitude', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'scoreHours', 'summarize', 'clearDarkScore']);
   const wx = forecast('2026-10-10', -14400, () => 10);
   const now = Date.UTC(2026, 9, 10, 20);
   assert.deepStrictEqual(sky.clearDarkScore(wx, { lat: 42.4, lon: -72.5 }, 0, now), app.clearDarkScore(wx, { lat: 42.4, lon: -72.5 }, 0, now));
