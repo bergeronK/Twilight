@@ -339,7 +339,9 @@ Three tabs, one `index.html`, no build step:
   otherwise the brightest planet up after dark. `skyLimit(sunAlt, moon,
   bortle)` is the Console's limiting-magnitude formula pulled out of `live`
   so the highlights use the same one. Flat list, hairlines only
-  (`TonightHighlights`). `highlights.test.js` runs it on published nights:
+  (`TonightHighlights`), each row led by a 20 px drawing of its kind
+  (`highlightIcon`; the first amber, the rest dim, aria-hidden; a new kind
+  without one gets a dot, and a test fails until it has its own). `highlights.test.js` runs it on published nights:
   the 2026 Perseid peak, Venus–Jupiter on 9 June 2026, Saturn's 4 October
   2026 opposition, plus a year's sweep for order and length.
 - **Share tonight's sky (2026-09-23).** A button under the highlights makes
@@ -392,7 +394,10 @@ Three tabs, one `index.html`, no build step:
   at its shown width, one viewBox unit per pixel, at 4:3 (it was 820×380
   scaled to ~340 px: 4 px labels; then nearly square, which made a correct
   48° noon look like a spike — the owner asked why the arch was so high);
-  wide screens keep 820×380. City search at the top of the form uses the same
+  wide screens keep 820×380. The band names (Civil,
+  Nautical, Astro., Night) sit under the Sun's highest or lowest point,
+  whichever is further from the band (`bandLabelX`); at the right edge they
+  ran into dusk and the "now" line. City search at the top of the form uses the same
   `geocodePlaces` as the Console (Open-Meteo geocoder); a chosen place
   brings its own IANA zone, and if the date shown was today it moves to the
   new place's today (it can already be tomorrow there). It does not write
