@@ -59,7 +59,7 @@ test('the section: heading, next stage and countdown, two columns, a way on', ()
   assert.match(all, /Sunset at T\d+in 2h 14m 5s/);
   assert.match(all, /Dawn.*Astronomical dawn.*Sunrise.*Dusk.*Sunset.*Astronomical dusk/);
   assert.ok(!JSON.stringify(out).includes('"border":'), 'no boxes: hairlines only');
-  const btn = out.c[out.c.length - 1];
+  const btns = out.c[out.c.length - 1].c, btn = btns[btns.length - 1];
   assert.strictEqual(btn.t, 'button');
   btn.p.onClick(); assert.strictEqual(clicked, 1);
   // Past rows dimmed.

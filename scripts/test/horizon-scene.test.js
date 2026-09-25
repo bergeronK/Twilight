@@ -70,6 +70,23 @@ test('a label that would cover the place-name header moves aside, or is left off
   assert.ok(names(paint(scene(Object.assign({}, night, { planets: [{ name: 'Jupiter', az: 150, alt: 60 }] })))).includes('Jupiter'));
 });
 
+test('a label that would run under the almanac button at the top right moves aside, or is left off', () => {
+  const night = { sunAlt: -20, sky: m.skyColors(-20) };
+  // Jupiter near the right edge, high up: its name would print right, into
+  // the button's strip, so it flips left of the body.
+  const x = m.panoX(240, 180, m.HZ_SPAN) * W;
+  const reserveRight = { w: W - x - 2, h: 200 };
+  const one = rr => paint(scene(Object.assign({}, night, { planets: [{ name: 'Jupiter', az: 240, alt: 60 }], reserveRight: rr })));
+  const j = one(reserveRight).texts.find(t => t.t === 'Jupiter');
+  assert.ok(j && j.x < x, `Jupiter label at ${j && j.x} would sit under the button`);
+  // The whole top strip taken: the dot stays, the name goes.
+  const g2 = one({ w: W, h: 300 });
+  assert.ok(!names(g2).includes('Jupiter'));
+  assert.ok(g2.dots.some(d => Math.abs(d.x - x) < 1));
+  // Below the strip, the name prints as always.
+  assert.ok(names(one({ w: W, h: 10 })).includes('Jupiter'));
+});
+
 test('the horizon is a soft ridge everywhere: no buildings, no vertical walls', () => {
   const hy = Math.round(H * 0.62);
   for (const bortle of [2, 8]) {
