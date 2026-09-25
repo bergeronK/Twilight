@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-D1E+73+kNNZ8EqYMwhNdbaDmuUP4pPcjTanx8F1MDuc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-vhiXHrHnyxQmpCZcR5Nmyon/ziC5GGGrvs5xgl1xQSs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -8089,6 +8089,18 @@ function StarFinder({ redMode } = {}) {
     setShowCalHelp(false);
   };
   const polaris = useMemo(() => starHcZn(2.530 * 15, 89.26, loc.lat, loc.lon, new Date(now)), [now, loc.lat, loc.lon]);
+  // The sextant window, recomputed every ten minutes.
+  const sextWins = useMemo(() => sextantWindows(Date.now(), loc.lat, loc.lon), [Math.floor(now / 600000), loc.lat, loc.lon]);
+  const sextWin = nextSextantWindow(sextWins, now);
+  const downloadSextantICS = () => {
+    if (!sextWin) return;
+    const url = URL.createObjectURL(new Blob([sextantICS(sextWin, loc.name, Date.now())], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sextant-window.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
     ? "Sun is up — positions shown for planning; stars become observable after sunset."
@@ -8208,21 +8220,43 @@ function StarFinder({ redMode } = {}) {
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 14, lineHeight: 1.5 } },
       navStars.length, " of the 57 navigational stars are more than 8° above your horizon. ◆ marks the three that would give the best fix. Altitude is how high a star sits above the horizon; azimuth is the compass bearing you'd face to see it.")
   );
+  // The whole sky on one disc, for everyone.
   const starFinderPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Stars up now"),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "The whole sky now"),
+    skyChart
+  );
+  // The navigation stars, the best three for a fix, and Polaris: for the
+  // sextant, so inside "For navigators".
+  const navStarsPanel = React.createElement("section", {
+    style: { maxWidth: 1080, margin: "0 auto", padding: "16px 0 20px" }
+  },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Navigation stars up now"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16 } }, navHint),
     polarisBox,
     navStars.length === 0
       ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No navigational stars above the horizon right now.")
-      : React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 22, alignItems: "flex-start" } },
-          skyChart,
-          React.createElement("div", { style: { flex: "1 1 300px", minWidth: 0 } },
-            fixCallout,
-            starTable
-          )
-        )
+      : React.createElement("div", { style: { maxWidth: 560 } }, fixCallout, starTable)
+  );
+  // The sextant window, from the Console: nautical twilight, when the
+  // horizon and the navigation stars can both be seen.
+  const sextantPanel = React.createElement("section", {
+    "aria-label": "Sextant window",
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
+  },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: sextWin && sextWin.open ? C.brass : C.inkFaint, textTransform: "uppercase" } },
+      sextWin ? sextWin.open ? "Sextant window open now" : `Next sextant window \u00b7 ${sextWin.kind.toLowerCase()}` : "Sextant window"),
+    sextWin
+      ? React.createElement(React.Fragment, null,
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 25, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", margin: "6px 0 2px" } },
+            fmtT(sextWin.s, loc.tz), " ", React.createElement("span", { style: { color: C.inkDim, fontSize: 18 } }, "\u2192"), " ", fmtT(sextWin.e, loc.tz)),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: sextWin.open ? C.brassHi : C.inkDim } },
+            sextWin.open ? `closes in ${cdText(sextWin.e - now)}` : `opens in ${cdText(sextWin.s - now)}`),
+          React.createElement("button", { className: "rtbtn", style: { marginTop: 12 }, onClick: downloadSextantICS }, "\uFF0B Add to calendar (.ics)"))
+      : React.createElement("div", { style: { fontSize: 13.5, color: C.inkDim, marginTop: 6 } }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight."),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim, marginTop: 12, fontVariantNumeric: "tabular-nums" } },
+      "Sun ", sunAlt >= 0 ? "+" : "", sunAlt.toFixed(1), "\u00b0 \u00b7 horizon visible ", (horizonVis(Math.max(0, -sunAlt)) * 100).toFixed(0), "%")
   );
   // ---- Navigator: sight reduction calculator + aim assist UI ----
   const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
@@ -8617,8 +8651,21 @@ function StarFinder({ redMode } = {}) {
       seen, open: logOpen, onOpen: () => setLogOpen(o => !o), onToggle: k => seenStore.toggle(k),
       names: deepSky ? Object.fromEntries(deepSky.filter(o => o.name).map(o => [o.id, o.name])) : null
     }),
-    navigatorPanel,
-    aimPanel,
+    // Everything for the sextant, folded shut until wanted: the app began
+    // as a navigator's tool, and none of it is removed, only out of the
+    // casual stargazer's way (2026-09-25).
+    React.createElement("details", {
+      id: "for-navigators",
+      style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "16px 0 8px" }
+    },
+      React.createElement("summary", {
+        style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: C.ink }
+      }, "For navigators",
+        React.createElement("span", { style: { fontWeight: 400, fontSize: 12.5, color: C.inkDim, marginLeft: 8 } }, "navigation stars, sextant window, sight reduction, Aim Assist")),
+      navStarsPanel,
+      sextantPanel,
+      navigatorPanel,
+      aimPanel),
     skyOpen && React.createElement(SkyDome, {
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000 + skyShift * 60000)) + loc.lon),
       time: {
