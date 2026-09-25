@@ -332,6 +332,46 @@ Three tabs, one `index.html`, no build step:
     (it used to say it couldn't get the orbit) and the Console simply has
     no station highlight.
   - `iss.test.js`.
+- **Tonight on the Moon (2026-09-24).** The Ephemeris's Moon section
+  names, for 9 PM on the date shown, up to three features with the Sun 1-10°
+  above them (long shadows, still lit; `terminatorFeatures`), sunrise or
+  sunset over each with the Sun's height there, and a "Tipped toward us"
+  row when the libration is 5°+ (`librationWords`). The Console offers one
+  (`kind: 'moonfeature'`, rank 6) on a night with the Moon 5-95% lit and
+  15°+ up after dark. `moonLibration(ms)`: Meeus ch. 53, the optical
+  libration and the Sun's selenographic place (colongitude), on
+  `moonEcliptic`; within 0.06° and 0.25° of PyEphem. `MOON_FEATURES` (24)
+  is **generated**: `node scripts/generate-moon-features.js
+  MOON_nomenclature_center_pts.dbf` rewrites the line from the IAU
+  gazetteer's file (download URL in the script); the descriptions live in
+  the script's `PICKS`, and the test checks the two are in step.
+  `moon-tonight.test.js`.
+- **Jupiter's moons and Saturn's rings (2026-09-24).** A flat section on
+  the Stars tab (`PlanetViews`, hook-free) draws each as it is now, or when
+  it is next 10°+ up with the Sun 6°+ down within 24 hours
+  (`planetViewTime`), north up and west on the right. `jupiterMoons(ms)` is
+  Meeus ch. 44's lower-accuracy method (x west-positive, y north, in Jupiter
+  radii along its equator; within 0.1 radius of PyEphem); `moonStatus` says
+  hidden, transit, or 'near' (within 0.3 radius of the edge, where the error
+  could put it either side); moons in Jupiter's *shadow* aren't worked out.
+  `saturnRings(date)` is the ring tilt B from Meeus ch. 45's pole and
+  Saturn's geocentric place (within 0.3° of PyEphem), positive showing the
+  north face. `planetAltAz` now calls `planetGeo` for its geocentric part
+  (tests that extract `planetAltAz` need `planetGeo` too).
+  `planet-moons.test.js`.
+- **The aurora (2026-09-24).** A highlight when tonight's geomagnetic
+  forecast brings the northern (or southern) lights within reach of here.
+  `loadKp` fetches SWPC's 3-day Kp forecast (`KP_URL`, fixed, nothing about
+  the user) at most every 3 hours into `tw_kp`, using a kept one offline for
+  2 days; `parseKp` reads the array-of-arrays shape and objects too.
+  `geomagLat` uses the WMM2025 dipole (pole 80.8° N, 72.8° W, as NOAA
+  publishes); `auroraEdge(kp)` is NOAA's table, 66.5° at Kp 0 to 48.1° at 9.
+  `auroraReach`: overhead under the edge, 'low' toward the pole within 5°,
+  'camera' within 9°. `auroraTonight` looks only at the dark hours (Sun 12°+
+  down); ranks 0 / 1 / 6. CSP `connect-src` allows `services.swpc.noaa.gov`;
+  `/privacy.html` and the store answers say so. **SWPC was blocked from the
+  sandbox**: its CORS and current JSON shape are unverified, and a failed
+  fetch simply means no aurora item. `aurora.test.js`.
 - **Worth a look tonight (2026-09-23).** Under the horizon view's facts,
   `tonightHighlights(plan, lat, lon, bortle, fmt)` (pure, real astronomy,
   every 15 min across tonight's night span) lists up to four things worth
@@ -946,6 +986,24 @@ things a syntax check cannot see:
   2 min and 0.004, including which side of totality's edge; the hybrids and
   gammas against NASA; and `eclipseWords` for places where the Moon sets
   mid-eclipse, is down, or barely grazes the shadow.
+- **`moon-tonight.test.js`** — `moonLibration` against PyEphem (30
+  dates), the Sun's height along the terminator (zero on it, overhead 90°
+  east), features only in low sun, facing us and in the list's order over
+  a month, first quarter's sunrise down the middle, the evening side after
+  full, a feature past the limb refused, the tilt's words, the Console
+  item on a part-lit night but not at full or new Moon, and
+  `MOON_FEATURES` in step with the generator's list.
+- **`planet-moons.test.js`** — Jupiter's moons against PyEphem (distance
+  from Jupiter, side, front or behind, one shared rotation for all four),
+  `moonStatus` at the disc and its edge, the ring tilt against PyEphem and
+  the 2025 edge-on and 2017 fully open dates, `planetViewTime` (now, later,
+  and by day not now), and `PlanetViews` with a stub React (hidden moons
+  not drawn, west on the right, the ring's far half behind the planet).
+- **`aurora.test.js`** — `parseKp` in both shapes, `loadKp`'s keeping,
+  the geomagnetic pole against WMM2025's published one, the Kp table,
+  `auroraTonight` on a Boston night (a storm in daylight or evening
+  twilight doesn't count; a southern place gets the southern lights), the
+  words, and the highlight's rank.
 - **`iss.test.js`** — SGP4 against the `sgp4` package (five element sets,
   a centimetre), `issLook` against PyEphem from New York (altitude,
   azimuth, range, shadow), visible passes from New York, London and Sydney
