@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-uHDNK5g6jBvWL0/osDWUlKG4W7ameBCEapBV2tuZKgs=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-YXYq7cXYHbpYBgf2ldeLaRPPS/QsLGF+N9K/2FMBc6s=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2112,7 +2112,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v132";
+const BUILD = "v133";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -6927,6 +6927,39 @@ const COUNTER_WINDOW_MS = 24 * 60 * 60 * 1000;
 // browser is the one place that actually knows it has been here before, so
 // the window is enforced here, and the Worker's own check stays as a backstop
 // for cleared storage.
+/* ---- Offering to install (2026-09-25) ----
+   The banner used to appear on the very first visit, and only where the
+   browser has an install prompt (Chrome, Edge): never on an iPhone or iPad,
+   where Add to Home Screen is also the only way to get notifications. It
+   also showed to people who had installed already, and its x hid it for
+   good. Now it waits for a second day, says how on iOS, never shows inside
+   an installed copy or the native apps or over the tabs tip, and x puts it
+   off for 60 days. */
+const INSTALL_SNOOZE_MS = 60 * 86400000;
+// The distinct days (device-local) this browser has opened Twilyte, the last
+// three kept in tw_visit_days; returns how many. Storage injected.
+function noteVisitDay(store, now) {
+  let days = [];
+  try { days = JSON.parse(store.getItem('tw_visit_days') || '[]'); } catch (e) {}
+  if (!Array.isArray(days)) days = [];
+  const d = new Date(now), key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  if (!days.includes(key)) days = days.concat(key).slice(-3);
+  try { store.setItem('tw_visit_days', JSON.stringify(days)); } catch (e) {}
+  return days.length;
+}
+// Whether to offer installing, and how: 'prompt' (the browser's own
+// dialog), 'ios' (the Share sheet's Add to Home Screen), or null.
+function installOffer(o) {
+  if (o.standalone || o.native || o.tipShowing) return null;
+  if (o.visitDays < 2) return null;
+  if (o.snoozedUntil && o.now < o.snoozedUntil) return null;
+  if (o.hasPrompt) return 'prompt';
+  if (o.ios) return 'ios';
+  return null;
+}
+function isIOS(nav) {
+  return /iPad|iPhone|iPod/.test(nav.userAgent || '') || (nav.platform === 'MacIntel' && nav.maxTouchPoints > 1);
+}
 function pingVisitorCounter(show) {
   if (COUNTER_WORKER_URL === 'REPLACE_WITH_YOUR_WORKER_URL') return;
   // Web only. In the native apps the page origin (capacitor://localhost,
@@ -9097,7 +9130,18 @@ function TwilightApp() {
     touchStartX.current = null;
   };
   const [installPrompt, setInstallPrompt] = React.useState(null);
-  const [installDismissed, setInstallDismissed] = React.useState(() => localStorage.getItem('tw_nodismiss') === '1');
+  // Counted once per load; the old forever-dismiss flag becomes a snooze.
+  const [visitDays] = React.useState(() => noteVisitDay(localStorage, Date.now()));
+  const [snoozedUntil, setSnoozedUntil] = React.useState(() => {
+    try {
+      if (localStorage.getItem('tw_nodismiss') === '1') {
+        localStorage.removeItem('tw_nodismiss');
+        localStorage.setItem('tw_install_snooze', String(Date.now() + INSTALL_SNOOZE_MS));
+      }
+      return +localStorage.getItem('tw_install_snooze') || 0;
+    } catch (e) { return 0; }
+  });
+  const [installed, setInstalled] = React.useState(false);
 
   React.useEffect(() => {
     if (!settingsOpen) return;
@@ -9108,8 +9152,10 @@ function TwilightApp() {
 
   React.useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    const done = () => { setInstalled(true); setInstallPrompt(null); };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', done);
+    return () => { window.removeEventListener('beforeinstallprompt', handler); window.removeEventListener('appinstalled', done); };
   }, []);
 
   const doInstall = () => {
@@ -9117,7 +9163,16 @@ function TwilightApp() {
     installPrompt.prompt();
     installPrompt.userChoice.then(() => setInstallPrompt(null));
   };
-  const dismissInstall = () => { setInstallDismissed(true); localStorage.setItem('tw_nodismiss', '1'); };
+  const dismissInstall = () => {
+    const until = Date.now() + INSTALL_SNOOZE_MS;
+    setSnoozedUntil(until);
+    try { localStorage.setItem('tw_install_snooze', String(until)); } catch (e) {}
+  };
+  const offer = installOffer({
+    standalone: installed || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true,
+    native: !!window.Capacitor, tipShowing: !hintDismissed, visitDays, snoozedUntil, now: Date.now(),
+    hasPrompt: !!installPrompt, ios: isIOS(navigator)
+  });
 
   React.useEffect(() => { pingVisitorCounter(setVisitorCount); }, []);
 
@@ -9149,7 +9204,7 @@ function TwilightApp() {
       /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
       .tw-stars,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
-    installPrompt && !installDismissed && React.createElement("div", {
+    offer && React.createElement("div", {
       role: "region", "aria-label": "Install Twilyte",
       style: {
         background: "var(--surface)",
@@ -9162,15 +9217,21 @@ function TwilightApp() {
         fontSize: 12
       }
     },
-      React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "Add Twilyte to your home screen for quick access"),
-      React.createElement("button", {
+      offer === 'ios'
+        ? React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1, lineHeight: 1.5 } },
+            "Add Twilyte to your Home Screen: tap Share ",
+            React.createElement("svg", { "aria-hidden": "true", width: 13, height: 15, viewBox: "0 0 13 15", style: { verticalAlign: "-2px", color: "var(--accent)" } },
+              React.createElement("path", { d: "M6.5 1v8.5M3.5 4l3-3 3 3M4 6.5H2.5v7.5h8V6.5H9", fill: "none", stroke: "currentColor", strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round" })),
+            ", then \u201cAdd to Home Screen\u201d. It opens like an app and works offline.")
+        : React.createElement("span", { style: { color: "var(--ink-dim)", flex: 1 } }, "Add Twilyte to your home screen: it opens like an app and works offline."),
+      offer === 'prompt' && React.createElement("button", {
         onClick: doInstall,
         style: { background: "var(--accent)", color: "var(--on-accent)", border: "none", borderRadius: 6, padding: "4px 12px", fontSize: 12, fontFamily: "var(--font-ui)", cursor: "pointer", fontWeight: 600 }
       }, "Install"),
       React.createElement("button", {
         onClick: dismissInstall,
-        "aria-label": "Dismiss install banner",
-        title: "Dismiss",
+        "aria-label": "Not now",
+        title: "Not now",
         style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 16, cursor: "pointer", padding: "2px 6px" }
       }, "✕")
     ),
@@ -9401,8 +9462,8 @@ function TwilightApp() {
         " for tonight's live sky, ",
         React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Ephemeris"),
         " for any date, and ",
-        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Star Finder"),
-        " for a navigation fix — tap the tabs, or swipe left or right."
+        React.createElement("b", { style: { color: "var(--ink)", fontWeight: 600 } }, "Stars"),
+        " to find what you're looking at \u2014 tap the tabs, or swipe left or right."
       ),
       React.createElement("button", {
         onClick: dismissHint,
