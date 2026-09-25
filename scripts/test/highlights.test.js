@@ -39,8 +39,8 @@ test('the Perseid peak, under a new Moon, leads the list', () => {
   const n = +/about (\d+) meteors/.exec(h[0].detail)[1];
   assert.ok(n >= 40 && n <= 100, `${n} an hour`);
   assert.match(h[0].detail, /from the (N|NNE|NE|ENE)\./, 'the radiant is in the north-east');
-  assert.ok(titles(h).includes('No Moon tonight'));
-  assert.ok(h.length <= 4);
+  // With three places, the dark sky's own sights outrank 'No Moon tonight'.
+  assert.deepStrictEqual(titles(h), ['The Perseids peak tonight', 'Mercury is on show', "The Milky Way's bright centre is up"]);
 });
 
 test('from a city the same shower is thinner, and the Milky Way is not offered', () => {
@@ -96,12 +96,12 @@ test('the list renders flat, one row per item, and not at all when empty', () =>
   made.forEach(k => assert.ok(kinds.includes(k), `${k} has an icon`));
 });
 
-test('across a year of nights: never more than four, most important first', () => {
+test('across a year of nights: never more than three, most important first', () => {
   let longest = 0;
   for (let t = Date.parse('2026-01-02T22:00:00Z'); t < Date.parse('2027-01-01T00:00:00Z'); t += 9 * 86400000) {
     const h = tonight(new Date(t).toISOString(), STOWE, 2);
     longest = Math.max(longest, h.length);
-    assert.ok(h.length <= 4, new Date(t).toISOString());
+    assert.ok(h.length <= 3, new Date(t).toISOString());
     for (let i = 1; i < h.length; i++) assert.ok(h[i].rank >= h[i - 1].rank, `${new Date(t).toISOString()}: ${titles(h).join(' / ')}`);
   }
   assert.ok(longest >= 3, 'some nights have plenty to offer');

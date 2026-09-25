@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-gwX+Ol1l7EUlro+N/m1CDgpNdtVc74LY0yz3QlfH4Cc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-z95XhSp2EYlHFUagRkzsHB9uHiUWDpzpNVxBlczr05I=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -755,6 +755,39 @@ function issPasses(sat, t0, t1, lat, lon) {
   }
   return out;
 }
+/* ---- How the other sites' data arrived ----
+   Each fetch of another site's data notes how it went in tw_src, and
+   twilyte.info/?sources lists it at the foot of the page. The point is the
+   live site: a browser refusing a site's answer (CORS) gives the page no
+   reason, only a TypeError, exactly as when offline, so the note says which
+   it could be and whether another source worked around the same time. */
+const SOURCE_NAMES = [['openmeteo', 'Open-Meteo, the weather forecast'], ['celestrak', 'CelesTrak, the space station’s orbit'], ['swpc', 'NOAA SWPC, the aurora forecast']];
+function noteSource(store, key, err, now = Date.now()) {
+  try {
+    let all = JSON.parse(store.getItem('tw_src') || '{}');
+    if (!all || typeof all !== 'object') all = {};
+    all[key] = err
+      ? { ok: false, at: now, why: err.name === 'TypeError' ? 'refused or offline' : String(err.message || err).slice(0, 60) }
+      : { ok: true, at: now };
+    store.setItem('tw_src', JSON.stringify(all));
+  } catch (e) {}
+}
+function agoWords(ms) {
+  const m = Math.round(ms / 60000);
+  return m < 1 ? 'just now' : m < 90 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+}
+// [name, what happened] for each source, in words.
+function sourceLines(all, now) {
+  all = all && typeof all === 'object' ? all : {};
+  return SOURCE_NAMES.map(([k, name]) => {
+    const r = all[k];
+    if (!r || !(r.at > 0)) return [name, 'not fetched in this browser yet'];
+    if (r.ok) return [name, `worked, ${agoWords(now - r.at)}`];
+    // Refused while another source answered within the hour: not offline.
+    const other = SOURCE_NAMES.some(([k2]) => k2 !== k && all[k2] && all[k2].ok && Math.abs(all[k2].at - r.at) < 3600000);
+    return [name, `failed, ${agoWords(now - r.at)}: ${r.why === 'refused or offline' && other ? 'refused by the browser (the site doesn’t allow it; another source worked)' : r.why}`];
+  });
+}
 /* The station's orbit from CelesTrak (the public element sets, no key, no
    account): fetched at most every 12 hours and kept in tw_iss_tle. A
    failed fetch falls back to what's kept while it's under a week old; past
@@ -774,8 +807,10 @@ async function loadIssTle(now = Date.now(), fetchFn = typeof fetch !== 'undefine
     if (!l1 || !l2 || l1.length < 69 || l2.length < 69) throw new Error('no element set');
     const got = { l1, l2, at: now };
     try { store.setItem('tw_iss_tle', JSON.stringify(got)); } catch (e) {}
+    noteSource(store, 'celestrak', null, now);
     return got;
   } catch (e) {
+    noteSource(store, 'celestrak', e, now);
     return kept;
   }
 }
@@ -839,8 +874,10 @@ async function loadKp(now = Date.now(), fetchFn = typeof fetch !== 'undefined' ?
     const rows = parseKp(await r.json());
     if (!rows.length) throw new Error('no forecast');
     try { store.setItem('tw_kp', JSON.stringify({ rows, at: now })); } catch (e) {}
+    noteSource(store, 'swpc', null, now);
     return rows;
   } catch (e) {
+    noteSource(store, 'swpc', e, now);
     // A forecast two days old still covers tonight; older is left alone.
     return kept && now - kept.at < 2 * 86400000 ? kept.rows : null;
   }
@@ -2055,7 +2092,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v126";
+const BUILD = "v128";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3566,8 +3603,8 @@ function TwilightBands() {
     }
   }, [{
     c: "var(--band-civil)",
-    n: "Civil 0° to −6° (Golden Hour)",
-    t: "Warm, low light and a crisp horizon — the hour photographers wait for. Only the brightest planets and stars have appeared."
+    n: "Civil 0° to −6°",
+    t: "Still light enough to read by, with a crisp horizon. Only the brightest planets and stars have appeared."
   }, {
     c: "var(--band-naut)",
     n: "Nautical −6° to −12°",
@@ -3750,7 +3787,8 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
 
   // The aurora, when tonight's forecast brings it within reach of here.
   const aur = auroraTonight(plan, lat, lon, kp, fmt);
-  if (aur) out.push(Object.assign({ kind: 'aurora', rank: aur.reach === 'overhead' ? 0 : aur.reach === 'low' ? 1 : 6 }, auroraWords(aur, fmt)));
+  // Only what the eye could see: a camera-only chance was noise here.
+  if (aur && aur.reach !== 'camera') out.push(Object.assign({ kind: 'aurora', rank: aur.reach === 'overhead' ? 0 : 1 }, auroraWords(aur, fmt)));
 
   // Meteor showers, at the best hour's rate.
   const showers = {};
@@ -3879,7 +3917,8 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
     up.sort((x, y) => order.indexOf(x.b.name) - order.indexOf(y.b.name) || x.s.t - y.s.t);
     if (up.length) out.push({ kind: 'planet', rank: 7, title: `${up[0].b.name} after dark`, detail: `Up ${where(up[0].b.alt)} ${compass16(up[0].b.az)} from ${fmt(up[0].s.t)}; it is the brightest thing there that isn't twinkling.` });
   }
-  return out.sort((x, y) => x.rank - y.rank).slice(0, 4);
+  // Three at most: past that the list stops reading as a short answer.
+  return out.sort((x, y) => x.rank - y.rank).slice(0, 3);
 }
 // A small drawing for each kind of highlight, in the ink colour, so the
 // list scans at a glance. 20x20, stroked or filled with currentColor.
@@ -4617,6 +4656,47 @@ function geocodePlaces(q, fetchFn = fetch) {
     tz: p.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   })));
 }
+// The sextant windows (nautical twilight, the Sun 6° to 12° down, when the
+// horizon and the navigation stars can both be seen) from two hours ago to
+// two days ahead, earliest first.
+function sextantWindows(now, lat, lon) {
+  const winEv = scanCrossings(now - 2 * 3600000, now + 48 * 3600000, lat, lon, sunAltitude, SUN_THR, 1);
+  const wins = [];
+  const civilD = winEv.filter(e => e.key === "civil" && e.dir === "down");
+  const nautD = winEv.filter(e => e.key === "naut" && e.dir === "down");
+  const nautU = winEv.filter(e => e.key === "naut" && e.dir === "up");
+  const civilU = winEv.filter(e => e.key === "civil" && e.dir === "up");
+  civilD.forEach(s => {
+    const e = nautD.find(x => x.t > s.t);
+    if (e) wins.push({
+      s: s.t,
+      e: e.t,
+      kind: "Evening"
+    });
+  });
+  nautU.forEach(s => {
+    const e = civilU.find(x => x.t > s.t);
+    if (e) wins.push({
+      s: s.t,
+      e: e.t,
+      kind: "Morning"
+    });
+  });
+  wins.sort((a, b) => a.s - b.s);
+  return wins;
+}
+// The one open now, or the next.
+function nextSextantWindow(wins, now) {
+  const open = wins.find(w => w.s <= now && now <= w.e);
+  if (open) return { ...open, open: true };
+  const next = wins.find(w => w.s > now);
+  return next ? { ...next, open: false } : null;
+}
+// A calendar file for a window, for the "Add to calendar" button.
+function sextantICS(win, place, stamp) {
+  const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT", "UID:" + Math.round(win.s) + "@twilightnav", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(win.s), "DTEND:" + dt(win.e), "SUMMARY:Sextant window — nautical twilight (" + win.kind + ")", "DESCRIPTION:Optimal window for celestial sights at " + place + ". Horizon still visible; navigational stars out.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+}
 function RealtimeTwilight({ redMode } = {}) {
   const h24 = useH24();
   const bortle = useBortle();
@@ -4762,8 +4842,9 @@ function RealtimeTwilight({ redMode } = {}) {
     if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(cached.d); setWxStale(null); return; }
     const seq = ++wxSeq.current;
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&hourly=cloud_cover,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
-      .then(r => { if (!r.ok) throw new Error("bad"); return r.json(); })
+      .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
+        try { noteSource(localStorage, 'openmeteo'); } catch (e) {}
         if (seq !== wxSeq.current) return;
         setWx(d);
         setWxStale(null);
@@ -4782,7 +4863,8 @@ function RealtimeTwilight({ redMode } = {}) {
       // Offline, or the forecast service down: a saved forecast up to a day
       // old still covers tonight (it runs 8 days ahead), so show that, said
       // to be older, rather than nothing.
-      .catch(() => {
+      .catch(err => {
+        try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
         if (wxCacheUse(cached, Date.now())) { setWx(cached.d); setWxStale(cached.t); }
         else { setWx(null); setWxStale(null); }
@@ -4802,34 +4884,10 @@ function RealtimeTwilight({ redMode } = {}) {
   const day = useMemo(() => {
     const mid = localMidnight(loc.tz, now);
     const sunEv = scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
-    const winEv = scanCrossings(now - 2 * 3600000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1);
     const moonEv = scanCrossings(now - 2 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
-    const wins = [];
-    const civilD = winEv.filter(e => e.key === "civil" && e.dir === "down");
-    const nautD = winEv.filter(e => e.key === "naut" && e.dir === "down");
-    const nautU = winEv.filter(e => e.key === "naut" && e.dir === "up");
-    const civilU = winEv.filter(e => e.key === "civil" && e.dir === "up");
-    civilD.forEach(s => {
-      const e = nautD.find(x => x.t > s.t);
-      if (e) wins.push({
-        s: s.t,
-        e: e.t,
-        kind: "Evening"
-      });
-    });
-    nautU.forEach(s => {
-      const e = civilU.find(x => x.t > s.t);
-      if (e) wins.push({
-        s: s.t,
-        e: e.t,
-        kind: "Morning"
-      });
-    });
-    wins.sort((a, b) => a.s - b.s);
     return {
       mid,
       sunEv,
-      wins,
       moonEv
     };
   }, [dKey, loc.lat, loc.lon, loc.tz]);
@@ -4852,42 +4910,7 @@ function RealtimeTwilight({ redMode } = {}) {
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
-  const win = useMemo(() => {
-    const open = day.wins.find(w => w.s <= now && now <= w.e);
-    if (open) return {
-      ...open,
-      open: true
-    };
-    const next = day.wins.find(w => w.s > now);
-    return next ? {
-      ...next,
-      open: false
-    } : null;
-  }, [day, now]);
   const nextSunEv = useMemo(() => day.sunEv.find(e => e.t > now), [day, now]);
-  const planets = useMemo(() => {
-    const names = ["Venus","Jupiter","Mars","Saturn","Mercury"];
-    const colors = { Venus:"#f5e6c8", Jupiter:"#e8d5b8", Mars:"#e8846a", Saturn:"#d4c28a", Mercury:"#b8b4a8" };
-    const symbols = { Venus:"♀", Jupiter:"♃", Mars:"♂", Saturn:"♄", Mercury:"☿" };
-    return names
-      .map(n => ({ name: n, color: colors[n], symbol: symbols[n], ...planetAltAz(n, new Date(now), loc.lat, loc.lon) }))
-      .filter(p => p && p.alt > 5)
-      .sort((a, b) => b.alt - a.alt);
-  }, [minute, loc]);
-  const downloadICS = () => {
-    if (!win) return;
-    const dt = t => new Date(t).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT", "UID:" + Math.round(win.s) + "@twilightnav", "DTSTAMP:" + dt(Date.now()), "DTSTART:" + dt(win.s), "DTEND:" + dt(win.e), "SUMMARY:Sextant window — nautical twilight (" + win.kind + ")", "DESCRIPTION:Optimal window for celestial sights at " + loc.name + ". Horizon still visible; navigational stars out.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
-    const url = URL.createObjectURL(new Blob([ics], {
-      type: "text/calendar"
-    }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sextant-window.ics";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-  const countdown = win ? win.open ? win.e - now : win.s - now : 0;
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -5113,8 +5136,9 @@ function RealtimeTwilight({ redMode } = {}) {
       style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "20px 16px", padding: "18px 0 24px" }
     },
       [
-        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: !wxScore ? "forecast unavailable" : wxStale ? wxScore.factor + " \u00b7 " + staleNote(wxStale, now) : wxScore.factor, hero: true },
-        { k: "Faintest star visible", v: live.mag <= -9 ? "—" : `${live.mag >= 0 ? "+" : ""}${live.mag.toFixed(1)}`, h: bortle ? skyWord(bortle) : "with your eyes alone" }
+        // (A faintest-star figure stood beside this: limiting
+        // magnitude, which the voice rule keeps off the Console.)
+        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: !wxScore ? "forecast unavailable" : wxStale ? wxScore.factor + " \u00b7 " + staleNote(wxStale, now) : wxScore.factor, hero: true }
       ].map(s => React.createElement("div", { key: s.k },
         React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: s.hero ? 450 : 300, color: s.hero ? C.brass : C.ink, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } }, s.v),
         React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginTop: 4 } }, s.k),
@@ -5125,174 +5149,29 @@ function RealtimeTwilight({ redMode } = {}) {
   skyStripEl(wxScore, loc, h24),
   (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
   weekPlannerEl(wxWeek, loc, h24, pro),
-  // Details: what the first screen doesn't say. The older sky panel's
-  // picture, its "Right now" verdict, its faintest-star figure and its Moon
-  // line repeated the horizon view and the facts above, so they are gone;
-  // the countdown to the next twilight stage, Sun height, how much of the
-  // horizon is visible, and the sextant window were only here, so they stay.
+  // Below the fold, only what nothing above says: how long until the next
+  // twilight stage, and the way to the full day's times on the Ephemeris.
+  // The Sun's height, how much horizon is visible and the sextant window
+  // moved to the Stars tab's "For navigators"; the list of what was up
+  // repeated the painting and the highlights; the day's schedule and the
+  // band notes live on the Ephemeris (2026-09-25).
   React.createElement("section", {
-    "aria-labelledby": "rt-details",
-    style: { maxWidth: 1080, margin: "10px auto 0", borderTop: `1px solid ${C.line}`, padding: "22px 0 20px" }
+    "aria-label": "Next twilight",
+    style: { maxWidth: 1080, margin: "10px auto 0", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px", display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }
   },
-  React.createElement("h2", {
-    id: "rt-details",
-    style: { fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 24, lineHeight: 1.1, margin: "0 0 14px", color: C.ink }
-  }, "Details"),
-  React.createElement("div", { className: "rt-detail-grid", style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "18px 32px", alignItems: "start" } },
-    React.createElement("div", null,
-  nextSunEv && React.createElement("div", {
-    style: {
-      marginTop: 4
-    }
-  },
-    React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 3 }
-    }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
-    React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
-    }, cdHMS(nextSunEv.t - now))
-  ),
-  React.createElement("div", {
-    className: "rt-readouts",
-    style: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 16,
-      marginTop: 18
-    }
-  }, React.createElement(RO, {
-    label: "Sun height",
-    value: `${live.alt >= 0 ? "+" : ""}${live.alt.toFixed(1)}°`
-  }), React.createElement(RO, {
-    label: "Horizon visible",
-    value: `${(live.hv * 100).toFixed(0)}%`,
-    accent: live.hv > 0.1 ? "#bcd0e6" : "#6a7488"
-  }))),
-    React.createElement("div", {
-    style: {
-      marginTop: 18,
-      padding: "14px 16px 16px",
-      borderRadius: 10,
-      borderLeft: `2px solid ${win && win.open ? C.brass : C.line}`,
-      background: win && win.open ? "var(--accent-soft)" : "transparent"
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10.5,
-      fontWeight: 600,
-      letterSpacing: "0.07em",
-      color: win && win.open ? C.brass : C.inkFaint,
-      textTransform: "uppercase"
-    }
-  }, win ? win.open ? "Window open now" : `Next sextant window · ${win.kind.toLowerCase()}` : "Sextant window"), win ? React.createElement(React.Fragment, null, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 25,
-      fontWeight: 300,
-      letterSpacing: "-0.02em",
-      color: C.ink,
-      fontVariantNumeric: "tabular-nums",
-      margin: "6px 0 2px"
-    }
-  }, fmtT(win.s, loc.tz), " ", React.createElement("span", {
-    style: {
-      color: C.inkDim,
-      fontSize: 18
-    }
-  }, "\u2192"), " ", fmtT(win.e, loc.tz)), React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 12,
-      color: win.open ? C.brassHi : C.inkDim
-    }
-  }, win.open ? `closes in ${cdText(countdown)}` : `opens in ${cdText(countdown)}`), React.createElement("button", {
-    className: "rtbtn",
-    style: {
-      marginTop: 12
-    },
-    onClick: downloadICS
-  }, "\uFF0B Add to calendar (.ics)")) : React.createElement("div", {
-    style: {
-      fontSize: 13.5,
-      color: C.inkDim,
-      marginTop: 6
-    }
-  }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight."))
-  )),
-  (planets.length > 0 || live.m.alt > 0) && React.createElement("section", {
-    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
-  },
-    React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 }
-    }, "Above the horizon now"),
-    React.createElement("div", {
-      style: { display: "flex", flexWrap: "wrap", gap: "12px 32px" }
-    },
-      live.m.alt > 0 && React.createElement("div", {
-        key: "moon",
-        style: { display: "flex", alignItems: "center", gap: 9 }
-      },
-        React.createElement("span", { style: { fontSize: 17, color: "#dfe3ea" } }, "\u263D"),
-        React.createElement("div", null,
-          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 550, color: C.ink } }, "Moon"),
-          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" } },
-            live.m.alt.toFixed(0), "\u00B0 alt \u00B7 ", compass16(live.m.az), " \u00B7 ", Math.round(live.m.illum * 100), "% lit"
-          )
-        )
-      ),
-      ...planets.map(p =>
-        React.createElement("div", {
-          key: p.name,
-          style: { display: "flex", alignItems: "center", gap: 9 }
-        },
-          React.createElement("span", { style: { fontSize: 17, color: p.color } }, p.symbol),
-          React.createElement("div", null,
-            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 550, color: C.ink } }, p.name),
-            React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, fontVariantNumeric: "tabular-nums" } },
-              p.alt.toFixed(0), "° alt · ",
-              (["N","NE","E","SE","S","SW","W","NW","N"])[Math.round(p.az / 45) % 8]
-            )
-          )
-        )
-      )
-    )
+    nextSunEv && React.createElement("div", null,
+      React.createElement("div", {
+        style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 3 }
+      }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
+      React.createElement("div", {
+        style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
+      }, cdHMS(nextSunEv.t - now))),
+    React.createElement("button", {
+      className: "rtbtn",
+      onClick: () => goTab("ephemeris")
+    }, "Today\u2019s twilight times \u2192")
   ),
   React.createElement("section", {
-    style: {
-      maxWidth: 1080,
-      margin: "0 auto",
-      borderTop: `1px solid ${C.line}`,
-      padding: "15px 0 20px"
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10.5,
-      fontWeight: 600,
-      letterSpacing: "0.07em",
-      color: C.inkFaint,
-      textTransform: "uppercase"
-    }
-  }, "Today's twilight schedule \xB7 ", loc.name), React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 22,
-      marginTop: 14
-    },
-    className: "rt-tl"
-  }, React.createElement(EventCol, {
-    title: "Morning",
-    dir: "up",
-    events: day.sunEv,
-    tz: loc.tz
-  }), React.createElement(EventCol, {
-    title: "Evening",
-    dir: "down",
-    events: day.sunEv,
-    tz: loc.tz
-  })), React.createElement("style", null, `@media(max-width:560px){.rt-tl{grid-template-columns:1fr !important}}`)), React.createElement(TwilightBands, null), React.createElement("section", {
     ref: factRef,
     style: {
       maxWidth: 1080,
@@ -5338,7 +5217,7 @@ function RealtimeTwilight({ redMode } = {}) {
       marginTop: 20
     },
     "aria-live": "polite"
-  }, fact === null || fact === "loading" || fact === "error" ? React.createElement("div", {
+  }, fact === null ? null : fact === "loading" || fact === "error" ? React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -5353,7 +5232,7 @@ function RealtimeTwilight({ redMode } = {}) {
       fontSize: 28,
       opacity: .7
     }
-  }, "\u2726"), fact === "loading" ? "Opening the almanac\u2026" : fact === "error" ? "The almanac didn\u2019t load. Check your connection and try again." : "Press the button for a different piece of twilight lore each time \u2014 etymology, optics, navigation, far-flung skies.") : React.createElement("article", {
+  }, "\u2726"), fact === "loading" ? "Opening the almanac\u2026" : "The almanac didn\u2019t load. Check your connection and try again.") : React.createElement("article", {
     key: fact.f.id + fact.seen,
     style: {
       animation: "factIn .5s ease both"
@@ -5407,34 +5286,6 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }, "Sun event times computed from a NOAA solar-position model and verified against published almanac data (\xB11 min); moon position from Meeus\u2019s series (ELP-2000/82, within about 10\u2033). Clear-sky, sea-level assumptions; not a substitute for the current Nautical Almanac."));
 }
-function RO({
-  label,
-  value,
-  accent
-}) {
-  return React.createElement("div", {
-    style: {
-      minWidth: 84
-    }
-  }, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 10,
-      letterSpacing: 1.5,
-      color: C.inkDim,
-      textTransform: "uppercase"
-    }
-  }, label), React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 24,
-      fontWeight: 600,
-      color: accent || C.ink,
-      lineHeight: 1.2,
-      marginTop: 2
-    }
-  }, value));
-}
 const LABELS = {
   astro: "Astronomical twilight",
   naut: "Nautical twilight",
@@ -5453,59 +5304,6 @@ const COLORS = {
   naut: "#5a7fb0",
   astro: "#2b3358"
 };
-function EventCol({
-  title,
-  dir,
-  events,
-  tz
-}) {
-  const order = dir === "up" ? ["astro", "naut", "civil", "rise"] : ["rise", "civil", "naut", "astro"];
-  const rows = order.map(k => events.find(e => e.key === k && e.dir === dir)).filter(Boolean);
-  return React.createElement("div", null, React.createElement("div", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 13,
-      fontWeight: 600,
-      color: "var(--ink)",
-      marginBottom: 8
-    }
-  }, title), rows.length === 0 ? React.createElement("div", {
-    style: {
-      fontSize: 13,
-      color: C.inkDim
-    }
-  }, "No crossings \u2014 continuous daylight or twilight at this latitude today.") : rows.map((e, i) => React.createElement("div", {
-    key: i,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      padding: "7px 0",
-      borderTop: i ? `1px dotted ${C.line}` : "none"
-    }
-  }, React.createElement("span", {
-    style: {
-      width: 9,
-      height: 9,
-      borderRadius: 2,
-      background: COLORS[e.key],
-      flexShrink: 0,
-      boxShadow: `0 0 7px ${COLORS[e.key]}`
-    }
-  }), React.createElement("span", {
-    style: {
-      flex: 1,
-      fontSize: 13.5,
-      color: "#cdc6b2"
-    }
-  }, dir === "up" ? LABELS[e.key] : LABELS_PM[e.key]), React.createElement("span", {
-    style: {
-      fontFamily: "var(--font-ui)",
-      fontSize: 14,
-      color: C.ink
-    }
-  }, fmtT(e.t, tz)))));
-}
 
 /* ---- Ephemeris-specific utilities (not in console) ---- */
 /* ============================================================
@@ -6197,12 +5995,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const upcomingEvents = useMemo(() => {
     const now2 = Date.now();
     const events = [];
-    const lunarCycle = 29.53 * 24 * 3600000;
     // To the minute (moonPhases); this stepped a day at a time before.
-    moonPhases(now2, now2 + 6 * lunarCycle).forEach(ph => {
-      if (ph.kind === 0) events.push({ t: ph.t, type: "New Moon", color: "#7a8a9e", kind: "new" });
-      if (ph.kind === 180) events.push({ t: ph.t, type: "Full Moon", color: "#e8ecf4", kind: "full" });
-    });
+    // New and full Moons are in the Moon calendar just above, so not here.
     const yr = new Date().getFullYear();
     [
       { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f" },
@@ -6230,7 +6024,8 @@ function TwilightEphemeris({ redMode } = {}) {
       const t2 = new Date(yr + 1, s.month, s.day).getTime();
       if (t2 > now2 && t2 < now2 + 400 * 86400000) events.push({ t: t2, type: s.name + " meteors", color: s.color, kind: "meteors", note: s.peak });
     });
-    return events.sort((a, b) => a.t - b.t).slice(0, 8);
+    // The next five: without the Moon's phases, eight reached a year ahead.
+    return events.sort((a, b) => a.t - b.t).slice(0, 5);
   }, []);
   const stars = useMemo(() => Array.from({
     length: 70
@@ -6252,7 +6047,7 @@ function TwilightEphemeris({ redMode } = {}) {
   const atMs = t => fmtLocal((t - Date.UTC(Y, Mo - 1, D)) / 60000, offMin);
   // What a telescope shows on the Moon that evening, at 9 PM.
   const moonLib = valid ? moonLibration(dayStartMs + 21 * 3600000) : null;
-  const moonFeats = moonLib ? terminatorFeatures(moonLib) : [];
+  const moonFeats = moonLib ? terminatorFeatures(moonLib, 2) : [];
   const libWords = moonLib ? librationWords(moonLib) : '';
   // The next eclipses from this place, three years ahead. ~100 ms of
   // arithmetic, so after the page has painted, and again only when the
@@ -6898,6 +6693,14 @@ function TwilightEphemeris({ redMode } = {}) {
         /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
       /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", font: "600 16px var(--font-ui)", color: /^No|^Not/.test(val) ? dim : ink, fontVariantNumeric: "tabular-nums" } }, val))))),
   moonCal))
+  , /*#__PURE__*/React.createElement("details", {
+    className: "tw-bands",
+    style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "14px 0" }
+  },
+    /*#__PURE__*/React.createElement("summary", {
+      style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
+    }, "What the three twilights mean"),
+    /*#__PURE__*/React.createElement(TwilightBands, null))
   , eclipseSection, /*#__PURE__*/React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
@@ -8437,6 +8240,18 @@ function StarFinder({ redMode } = {}) {
     setShowCalHelp(false);
   };
   const polaris = useMemo(() => starHcZn(2.530 * 15, 89.26, loc.lat, loc.lon, new Date(now)), [now, loc.lat, loc.lon]);
+  // The sextant window, recomputed every ten minutes.
+  const sextWins = useMemo(() => sextantWindows(Date.now(), loc.lat, loc.lon), [Math.floor(now / 600000), loc.lat, loc.lon]);
+  const sextWin = nextSextantWindow(sextWins, now);
+  const downloadSextantICS = () => {
+    if (!sextWin) return;
+    const url = URL.createObjectURL(new Blob([sextantICS(sextWin, loc.name, Date.now())], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sextant-window.ics";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
     ? "Sun is up — positions shown for planning; stars become observable after sunset."
@@ -8556,21 +8371,43 @@ function StarFinder({ redMode } = {}) {
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 14, lineHeight: 1.5 } },
       navStars.length, " of the 57 navigational stars are more than 8° above your horizon. ◆ marks the three that would give the best fix. Altitude is how high a star sits above the horizon; azimuth is the compass bearing you'd face to see it.")
   );
+  // The whole sky on one disc, for everyone.
   const starFinderPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Stars up now"),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "The whole sky now"),
+    skyChart
+  );
+  // The navigation stars, the best three for a fix, and Polaris: for the
+  // sextant, so inside "For navigators".
+  const navStarsPanel = React.createElement("section", {
+    style: { maxWidth: 1080, margin: "0 auto", padding: "16px 0 20px" }
+  },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Navigation stars up now"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16 } }, navHint),
     polarisBox,
     navStars.length === 0
       ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No navigational stars above the horizon right now.")
-      : React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 22, alignItems: "flex-start" } },
-          skyChart,
-          React.createElement("div", { style: { flex: "1 1 300px", minWidth: 0 } },
-            fixCallout,
-            starTable
-          )
-        )
+      : React.createElement("div", { style: { maxWidth: 560 } }, fixCallout, starTable)
+  );
+  // The sextant window, from the Console: nautical twilight, when the
+  // horizon and the navigation stars can both be seen.
+  const sextantPanel = React.createElement("section", {
+    "aria-label": "Sextant window",
+    style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
+  },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: sextWin && sextWin.open ? C.brass : C.inkFaint, textTransform: "uppercase" } },
+      sextWin ? sextWin.open ? "Sextant window open now" : `Next sextant window \u00b7 ${sextWin.kind.toLowerCase()}` : "Sextant window"),
+    sextWin
+      ? React.createElement(React.Fragment, null,
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 25, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", margin: "6px 0 2px" } },
+            fmtT(sextWin.s, loc.tz), " ", React.createElement("span", { style: { color: C.inkDim, fontSize: 18 } }, "\u2192"), " ", fmtT(sextWin.e, loc.tz)),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: sextWin.open ? C.brassHi : C.inkDim } },
+            sextWin.open ? `closes in ${cdText(sextWin.e - now)}` : `opens in ${cdText(sextWin.s - now)}`),
+          React.createElement("button", { className: "rtbtn", style: { marginTop: 12 }, onClick: downloadSextantICS }, "\uFF0B Add to calendar (.ics)"))
+      : React.createElement("div", { style: { fontSize: 13.5, color: C.inkDim, marginTop: 6 } }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight."),
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim, marginTop: 12, fontVariantNumeric: "tabular-nums" } },
+      "Sun ", sunAlt >= 0 ? "+" : "", sunAlt.toFixed(1), "\u00b0 \u00b7 horizon visible ", (horizonVis(Math.max(0, -sunAlt)) * 100).toFixed(0), "%")
   );
   // ---- Navigator: sight reduction calculator + aim assist UI ----
   const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
@@ -8965,8 +8802,21 @@ function StarFinder({ redMode } = {}) {
       seen, open: logOpen, onOpen: () => setLogOpen(o => !o), onToggle: k => seenStore.toggle(k),
       names: deepSky ? Object.fromEntries(deepSky.filter(o => o.name).map(o => [o.id, o.name])) : null
     }),
-    navigatorPanel,
-    aimPanel,
+    // Everything for the sextant, folded shut until wanted: the app began
+    // as a navigator's tool, and none of it is removed, only out of the
+    // casual stargazer's way (2026-09-25).
+    React.createElement("details", {
+      id: "for-navigators",
+      style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "16px 0 8px" }
+    },
+      React.createElement("summary", {
+        style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: C.ink }
+      }, "For navigators",
+        React.createElement("span", { style: { fontWeight: 400, fontSize: 12.5, color: C.inkDim, marginLeft: 8 } }, "navigation stars, sextant window, sight reduction, Aim Assist")),
+      navStarsPanel,
+      sextantPanel,
+      navigatorPanel,
+      aimPanel),
     skyOpen && React.createElement(SkyDome, {
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000 + skyShift * 60000)) + loc.lon),
       time: {
@@ -8995,12 +8845,36 @@ function StarFinder({ redMode } = {}) {
   );
 }
 
+// Switch tabs from inside one (TwilightApp listens).
+function goTab(t) { window.dispatchEvent(new CustomEvent('tw:tab', { detail: t })); }
+// The ?sources list at the foot of the page. Hook-free: `lines` from
+// sourceLines.
+function SourceList({ lines }) {
+  return React.createElement('div', { role: 'region', 'aria-label': 'Data sources', style: { flexBasis: '100%', margin: '6px 0 10px' } },
+    React.createElement('div', { style: { fontWeight: 600, color: 'var(--ink-dim)', marginBottom: 2 } }, 'Data sources, as this browser last fetched them'),
+    lines.map(([name, what]) => React.createElement('div', { key: name }, name, ': ', what)));
+}
+// Rereads tw_src every few seconds, since the fetches finish after the
+// page has drawn.
+function SourcesNote() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 3000); return () => clearInterval(t); }, []);
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem('tw_src') || '{}'); } catch (e) {}
+  return React.createElement(SourceList, { lines: sourceLines(all, now) });
+}
 function TwilightApp() {
   const [activeTab, setActiveTab] = React.useState(() => {
     try { const t = new URLSearchParams(window.location.search).get('tab'); if (t === 'console' || t === 'ephemeris' || t === 'stars') return t; } catch (e) {}
     return localStorage.getItem('tw_tab') || 'console';
   });
   const switchTab = t => { window.scrollTo(0, 0); setActiveTab(t); localStorage.setItem('tw_tab', t); };
+  // Any tab can send the reader to another (goTab).
+  React.useEffect(() => {
+    const h = e => { if (['console', 'ephemeris', 'stars'].includes(e.detail)) switchTab(e.detail); };
+    window.addEventListener('tw:tab', h);
+    return () => window.removeEventListener('tw:tab', h);
+  }, []);
   const [visitorCount, setVisitorCount] = React.useState(null);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
@@ -9381,7 +9255,9 @@ function TwilightApp() {
         gap: "4px 18px", justifyContent: "space-between", alignItems: "baseline"
       }
     },
-      React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris."),
+      (() => { try { return new URLSearchParams(window.location.search).has('sources'); } catch (e) { return false; } })() && React.createElement(SourcesNote),
+      React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris. ",
+        React.createElement("a", { href: "https://github.com/bergeronK/Twilight/issues/new?template=feedback.md", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
       React.createElement("span", null,
         "Sun: NOAA · Moon: Meeus (ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),

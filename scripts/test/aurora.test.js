@@ -16,7 +16,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', '
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
   'HIGHLIGHT_DSO', 'tonightHighlights',
-  'WMM_COF', 'WMM_EPOCH_YEARS', 'wmmCache', 'wmmModel', 'KP_URL', 'parseKp', 'loadKp', 'geomagPole', 'geomagLat', 'auroraEdge', 'auroraReach', 'auroraTonight', 'auroraWords']);
+  'WMM_COF', 'WMM_EPOCH_YEARS', 'wmmCache', 'wmmModel', 'KP_URL', 'noteSource', 'parseKp', 'loadKp', 'geomagPole', 'geomagLat', 'auroraEdge', 'auroraReach', 'auroraTonight', 'auroraWords']);
 
 const fmt = t => new Date(t).toISOString().slice(11, 16);
 function planFor(iso, lat, lon) {
@@ -125,14 +125,14 @@ test('the words, and the Console list', () => {
   assert.strictEqual(m.auroraWords({ reach: 'overhead', kp: 5, t, south: true }, fmt).title, 'The southern lights may be out tonight');
   assert.match(m.auroraWords({ reach: 'overhead', kp: 5, t, south: true }, fmt).detail, /Look south and up/);
   assert.match(m.auroraWords({ reach: 'camera', kp: 5, t, south: false }, fmt).detail, /phone camera/);
-  // In the highlights: a storm overhead leads; a camera-only chance doesn't.
+  // In the highlights: a storm overhead leads; a camera-only chance isn't listed.
   const lat = 42.36, lon = -71.06, plan = planFor('2026-09-24T20:00:00Z', lat, lon), from = '2026-09-24T00:00:00Z';
   const storm = m.tonightHighlights(plan, lat, lon, 5, fmt, null, rows(from, 8.33));
   assert.strictEqual(storm[0].kind, 'aurora');
   assert.strictEqual(storm[0].title, 'The northern lights may be out tonight');
   const faint = m.tonightHighlights(plan, lat, lon, 5, fmt, null, rows(from, 4));
   const i = faint.findIndex(h => h.kind === 'aurora');
-  assert.ok(i === -1 || faint[i].rank === 6);
+  assert.strictEqual(i, -1, 'a camera-only chance is not offered');
   assert.ok(!m.tonightHighlights(plan, lat, lon, 5, fmt, null, rows(from, 1)).some(h => h.kind === 'aurora'));
   assert.ok(!m.tonightHighlights(plan, lat, lon, 5, fmt).some(h => h.kind === 'aurora'), 'no forecast, no item');
 });
