@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zBJYaMRPukwbEUNpWyfn6e+BpbBTcuqBxTwEdAQEWE4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-SkPkci+iqaOe1Qn2i68FRQbt+3jOF0fOv4i67nNvctU=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v136";
+const BUILD = "v137";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -7900,6 +7900,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
 /* The space station's next visible passes, on the Stars tab. Hook-free:
    `passes` from issPasses (null while the orbit loads), `failed` when it
    couldn't be had, `when(t)` gives a day and time. */
+const ISS_OPEN = 2;
 function IssPanel({ passes, failed, when, fmt }) {
   // No orbit (offline on a first visit, or the source refusing): nothing to
   // show and nothing the reader can do about it, so no panel, as the
@@ -7907,11 +7908,19 @@ function IssPanel({ passes, failed, when, fmt }) {
   if (failed) return null;
   const head = React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'The space station');
   const note = t => React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } }, t);
+  const row = (p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
+    React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
+    React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink-dim)', marginTop: 2, maxWidth: 640 } }, issWords(p, fmt)));
+  // The next two passes; the rest of the three days folded (2026-09-25: a
+  // week of good passes could list eight, the tallest thing on the tab).
+  const later = passes ? passes.slice(ISS_OPEN) : [];
   const body = !passes ? note('Working out when it passes over…')
     : !passes.length ? note('It doesn’t pass over in a dark enough sky from here in the next three days.')
-    : passes.map((p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
-        React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
-        React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink-dim)', marginTop: 2, maxWidth: 640 } }, issWords(p, fmt))));
+    : [passes.slice(0, ISS_OPEN).map(row),
+       later.length > 0 && React.createElement('details', { key: 'later', style: { borderTop: '1px solid rgba(255,255,255,.06)', paddingTop: 10 } },
+         React.createElement('summary', { style: { cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 550, color: 'var(--ink-dim)' } },
+           later.length === 1 ? 'One more pass in the next three days' : later.length + ' more passes in the next three days'),
+         later.map(row))];
   return React.createElement('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
     head, body,
     React.createElement('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 10 } }, 'Orbit from CelesTrak, predicted on this device.'));
@@ -9166,7 +9175,7 @@ function StarFinder({ redMode } = {}) {
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       facing: previewFacing, onOpen: openSky,
       header: React.createElement("header", null,
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Star Finder"),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Sky View"),
         React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
           React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
