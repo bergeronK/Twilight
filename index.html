@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-t/2eWXxeWNcKGTmVyMliziZdeiyO1ham7prSEfLOelQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zBJYaMRPukwbEUNpWyfn6e+BpbBTcuqBxTwEdAQEWE4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1018,7 +1018,24 @@ function jupiterMoons(ms) {
   const uc = [u[0] + 0.473 * sin(2 * (u[0] - u[1])), u[1] + 1.065 * sin(2 * (u[1] - u[2])), u[2] + 0.165 * sin(G), u[3] + 0.843 * sin(H)];
   const lam = 34.35 + 0.083091 * d + 0.329 * sin(V) + B;
   const De = 3.12 * sin(lam + 42.8) - 2.22 * sin(psi) * cos(lam + 22) - 1.30 * (r - dl) / dl * sin(lam - 100.5);
-  return JUPITER_MOONS.map((name, i) => ({ name, x: rr[i] * sin(uc[i]), y: -rr[i] * cos(uc[i]) * sin(De), front: cos(uc[i]) > 0 }));
+  // As the Sun sees them (2026-09-25): the same angles less Jupiter's phase
+  // angle psi, which is what turns the Sun's view into ours. A moon behind
+  // Jupiter from the Sun is in its shadow (eclipsed, dark though we may see
+  // past the disc to where it is); one in front of it from the Sun casts its
+  // shadow on the cloud tops. That shadow is where the Sun-moon line meets
+  // the globe, at an angle th from the sub-solar point; from Earth it is at
+  // th + psi, and on our side while cos(th + psi) > 0. The Sun's latitude on
+  // Jupiter differs from the Earth's by a fraction of a degree: De serves.
+  return JUPITER_MOONS.map((name, i) => {
+    const us = uc[i] - psi, xs = rr[i] * sin(us), ys = -rr[i] * cos(us) * sin(De);
+    const onDiscFromSun = xs * xs + ys * ys / 0.87 < 1, sunward = cos(us) > 0;
+    let shadow = null;
+    if (onDiscFromSun && sunward) {
+      const th = asin(Math.max(-1, Math.min(1, xs)));
+      if (cos(th + psi) > 0) shadow = { x: sin(th + psi), y: ys };
+    }
+    return { name, x: rr[i] * sin(uc[i]), y: -rr[i] * cos(uc[i]) * sin(De), front: cos(uc[i]) > 0, eclipsed: onDiscFromSun && !sunward, shadow };
+  });
 }
 // Which moons can't be seen: behind the disc, or crossing its face (there,
 // but lost against the bright cloud tops). Within a third of a radius of
@@ -1029,7 +1046,7 @@ function moonStatus(mo) {
   return rho < 1 ? (mo.front ? 'transit' : 'hidden') : rho < 1.3 ? 'near' : 'clear';
 }
 function jupiterWords(moons) {
-  const seen = moons.filter(mo => moonStatus(mo) === 'clear' || moonStatus(mo) === 'near');
+  const seen = moons.filter(mo => (moonStatus(mo) === 'clear' || moonStatus(mo) === 'near') && !mo.eclipsed);
   // West is on the right as the sky is seen facing it with north up.
   const row = [...seen.map(mo => ({ name: mo.name, x: mo.x })), { name: 'Jupiter', x: 0 }].sort((a, b) => a.x - b.x).map(o => o.name);
   let s = `Left to right: ${row.join(', ')}.`;
@@ -1037,9 +1054,13 @@ function jupiterWords(moons) {
   const tr = moons.filter(mo => moonStatus(mo) === 'transit').map(mo => mo.name);
   const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
   if (hid.length) s += ` ${list(hid)} ${hid.length === 1 ? 'is' : 'are'} behind Jupiter.`;
+  const ecl = moons.filter(mo => mo.eclipsed && moonStatus(mo) !== 'hidden').map(mo => mo.name);
+  if (ecl.length) s += ` ${list(ecl)} ${ecl.length === 1 ? 'is' : 'are'} in Jupiter\u2019s shadow, dark for now.`;
   if (tr.length) s += ` ${list(tr)} ${tr.length === 1 ? 'is' : 'are'} crossing in front of it, too close to the disc to pick out.`;
   const near = moons.filter(mo => moonStatus(mo) === 'near').map(mo => mo.name);
   if (near.length) s += ` ${list(near)} ${near.length === 1 ? 'is' : 'are'} right at Jupiter’s edge and hard to pick out.`;
+  const sh = moons.filter(mo => mo.shadow).map(mo => mo.name);
+  if (sh.length) s += ` ${list(sh.map(n => n + '\u2019s'))} shadow${sh.length > 1 ? 's are' : ' is'} on Jupiter\u2019s cloud tops: a small black dot in a telescope.`;
   return s;
 }
 /* Saturn's rings: their tilt toward us (B, degrees; positive shows the
@@ -2117,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v135";
+const BUILD = "v136";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -7907,6 +7928,69 @@ function planetViewTime(name, now, lat, lon) {
   }
   return null;
 }
+/* Jupiter as a telescope shows it (2026-09-25): the globe flattened 0.935,
+   its belts and zones where they sit in latitude, coloured from Juno and
+   Cassini natural-colour images, soft-edged and darker toward the limb;
+   the Galilean moons as discs of their own size and colour where they are
+   (in front of the globe when crossing it, left out when behind it or in
+   its shadow), and their shadows on the cloud tops as black dots. `R` is
+   Jupiter's radius in px, `id` keeps two drawings' gradients apart, `cy0`
+   places the globe (the middle when not given). The Great Red Spot isn't
+   drawn: its longitude drifts and has to be taken from observers' reports.
+   Bands are drawn level: Jupiter's axis is never more than 3.5 degrees
+   from square to us. North up, west on the right. */
+const JUPITER_R = 71492;
+const JUPITER_MOON_LOOK = { Io: [1822, '#e6cf78'], Europa: [1561, '#efe8d8'], Ganymede: [2634, '#c7b9a3'], Callisto: [2410, '#8d8475'] };
+const JUPITER_BANDS = [ // [planetographic latitude the colour starts at, going north]
+  [-90, '#a99d8b'], [-45, '#c8baa2'], [-33, '#b99c7d'], [-27, '#e3d6be'], [-20, '#a97d5c'], [-7, '#ebe0c9'],
+  [7, '#9c6d4c'], [18, '#e5d9c2'], [24, '#b69576'], [30, '#d9cbb3'], [45, '#ab9f8c']];
+function jupiterDrawing(moons, W, R, id, cy0) {
+  const el = React.createElement, cx = W / 2, Rp = R * 0.935;
+  const size = name => Math.max(R > 20 ? 1.8 : 1.5, R * JUPITER_MOON_LOOK[name][0] / JUPITER_R);
+  const inView = x => Math.abs(cx + x * R - cx) < W / 2 - 4;
+  const H = cy0 == null ? Math.ceil(2 * Rp + 24) : null, cy = cy0 == null ? H / 2 : cy0;
+  const band = (lat, next) => {
+    const y0 = cy - Rp * Math.sin((next == null ? 90 : next) * D2R), y1 = cy - Rp * Math.sin(lat * D2R);
+    return [y0 - (next == null ? 2 : 0), y1 + (lat === -90 ? 2 : 0)];
+  };
+  const kids = [
+    el('defs', { key: 'd' },
+      el('clipPath', { id: 'jup-disc-' + id }, el('ellipse', { cx, cy, rx: R, ry: Rp })),
+      el('radialGradient', { id: 'jup-limb-' + id, cx: '50%', cy: '50%', r: '50%' },
+        el('stop', { offset: '0', stopColor: '#1a1006', stopOpacity: 0 }),
+        el('stop', { offset: '0.6', stopColor: '#1a1006', stopOpacity: 0.05 }),
+        el('stop', { offset: '0.88', stopColor: '#1a1006', stopOpacity: 0.28 }),
+        el('stop', { offset: '1', stopColor: '#1a1006', stopOpacity: 0.6 })),
+      el('filter', { id: 'jup-soft-' + id, x: '-5%', y: '-5%', width: '110%', height: '110%' }, el('feGaussianBlur', { stdDeviation: Math.max(0.3, R * 0.035) }))),
+    el('g', { key: 'globe', className: 'jup-globe', clipPath: `url(#jup-disc-${id})` },
+      el('ellipse', { cx, cy, rx: R, ry: Rp, fill: JUPITER_BANDS[0][1] }),
+      el('g', { filter: `url(#jup-soft-${id})` }, JUPITER_BANDS.map(([lat, fill], i) => {
+        const [y0, y1] = band(lat, JUPITER_BANDS[i + 1] && JUPITER_BANDS[i + 1][0]);
+        return el('rect', { key: lat, x: cx - R - 2, y: y0, width: 2 * R + 4, height: y1 - y0, fill });
+      })),
+      el('ellipse', { cx, cy, rx: R, ry: Rp, fill: `url(#jup-limb-${id})` }),
+      // Shadows on the cloud tops.
+      moons.filter(mo => mo.shadow).map(mo => el('circle', { key: 'sh' + mo.name, className: 'jup-shadow', cx: cx + mo.shadow.x * R, cy: cy - mo.shadow.y * R, r: size(mo.name), fill: '#0b0806', opacity: 0.88 }))),
+    el('g', { key: 'moons', className: 'jup-moons' },
+      moons.filter(mo => moonStatus(mo) !== 'hidden' && !mo.eclipsed && inView(mo.x)).map(mo => el('circle', {
+        key: mo.name, cx: cx + mo.x * R, cy: cy - mo.y * R, r: size(mo.name), fill: JUPITER_MOON_LOOK[mo.name][1]
+      }))),
+    // Close up, each moon off the disc gets its initial; the line of moons labels its own.
+    R > 20 && el('g', { key: 'labels', className: 'jup-labels' },
+      moons.filter(mo => moonStatus(mo) !== 'hidden' && moonStatus(mo) !== 'transit' && !mo.eclipsed && inView(mo.x)).map(mo => el('text', {
+        key: mo.name, x: cx + mo.x * R, y: cy - mo.y * R + 12, textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif'
+      }, mo.name[0])))];
+  return { H, kids };
+}
+// What the close-up shows, in words: shadows and moons on the disc.
+function jupiterSurfaceWords(moons) {
+  const sh = moons.filter(mo => mo.shadow).map(mo => mo.name), tr = moons.filter(mo => moonStatus(mo) === 'transit').map(mo => mo.name);
+  const list = a => a.length === 1 ? a[0] : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  const parts = [];
+  if (tr.length) parts.push(`${list(tr)} crossing its face`);
+  if (sh.length) parts.push(`${list(sh.map(n => n + '’s'))} shadow${sh.length > 1 ? 's' : ''} on the cloud tops`);
+  return parts.length ? parts.join('; ') + '.' : 'its cloud belts, with no moon or shadow on the disc.';
+}
 /* Saturn as it looks tonight (2026-09-25): the globe flattened as it is
    (polar radius 0.902 of the equator's), its cloud bands curving with the
    tilt, darker toward the limb, and the rings at their real radii (Cassini
@@ -8003,21 +8087,24 @@ function PlanetViews({ jup, sat, when }) {
   const W = 320, cx = W / 2, el = React.createElement;
   const rows = [];
   if (jup) {
-    const k = 5.6, r = k, H = 56, cy = 24;
-    const shown = jup.moons.filter(mo => moonStatus(mo) !== 'hidden')
-      .map(mo => ({ mo, x: cx + mo.x * k, y: cy - mo.y * k })).sort((a, b) => a.x - b.x);
-    // Letters alternate below and above where two moons are close.
+    // Two views: the globe close up, with any moon or shadow on or near it
+    // at true scale, and the line of all four moons with the same globe
+    // small, spaced so the farthest fits.
+    const shown = jup.moons.filter(mo => moonStatus(mo) !== 'hidden' && !mo.eclipsed);
+    const far = Math.max(4, ...shown.map(mo => Math.abs(mo.x) + 1.5));
+    const k = Math.min(14, (W / 2 - 8) / far), H = Math.max(58, Math.ceil(2 * k + 40)), cy = H / 2 - 4;
+    const pts = shown.map(mo => ({ mo, x: cx + mo.x * k, y: cy - mo.y * k })).sort((p1, p2) => p1.x - p2.x);
+    // Letters alternate below and above where two moons are close, and keep clear of the globe.
     let last = -99, up = false;
-    shown.forEach(o => { up = o.x - last < 12 ? !up : false; o.up = up; last = o.x; });
+    pts.forEach(o => { up = o.x - last < 12 ? !up : false; o.up = up; last = o.x; });
+    const labelY = o => { const off = Math.abs(o.x - cx) < k + 5 ? k + 9 : 8; return o.up ? cy - off : cy + off + 7; };
+    const close = jupiterDrawing(jup.moons, W, 34, 'c'), strip = jupiterDrawing(jup.moons, W, k, 's', cy, pts.length ? null : []);
     rows.push(el('div', { key: 'j', style: { padding: '4px 0 12px' } },
-      title('Jupiter’s moons', jup.t),
-      el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 2px' }, role: 'img', 'aria-label': 'Jupiter and its moons: ' + jupiterWords(jup.moons) },
-        el('ellipse', { cx, cy, rx: r, ry: r * 0.93, fill: '#d9c3a0' }),
-        el('line', { x1: cx - r, x2: cx + r, y1: cy - 1.4, y2: cy - 1.4, stroke: '#a88a66', strokeWidth: 0.9 }),
-        el('line', { x1: cx - r, x2: cx + r, y1: cy + 1.6, y2: cy + 1.6, stroke: '#a88a66', strokeWidth: 0.9 }),
-        shown.map(o => el('g', { key: o.mo.name },
-          el('circle', { cx: o.x, cy: o.y, r: 1.9, fill: moonStatus(o.mo) === 'transit' ? '#f4ead8' : '#e9edf5', opacity: moonStatus(o.mo) === 'transit' ? 0.7 : 1 }),
-          moonStatus(o.mo) !== 'transit' && el('text', { x: o.x, y: o.up ? cy - 8 : cy + 15, textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, o.mo.name[0]))),
+      title('Jupiter\u2019s moons', jup.t),
+      el('svg', { viewBox: `0 0 ${W} ${close.H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 0' }, role: 'img', 'aria-label': 'Jupiter close up: ' + jupiterSurfaceWords(jup.moons) }, close.kids),
+      el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '2px 0 2px' }, role: 'img', 'aria-label': 'Jupiter and its moons: ' + jupiterWords(jup.moons) },
+        strip.kids,
+        pts.filter(o => moonStatus(o.mo) !== 'transit').map(o => el('text', { key: o.mo.name, x: o.x, y: labelY(o), textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, o.mo.name[0])),
         el('text', { x: 4, y: H - 4, fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'East'),
         el('text', { x: W - 4, y: H - 4, textAnchor: 'end', fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'West')),
       words(jupiterWords(jup.moons) + ' Binoculars held steady show them as tiny stars in a line; they move from night to night, Io within hours.')));

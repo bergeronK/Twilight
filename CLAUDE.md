@@ -461,6 +461,20 @@ stargazer is the default, navigator material is kept whole but folded.
   by side left a hairline seam); the faint C ring lets the globe through.
   The svg's ids (`sat-disc`, `sat-limb`, `sat-soft`) are fixed, so two
   Saturns on one page would borrow each other's; the app shows one.
+  **Jupiter too (2026-09-25):** a close-up (`jupiterDrawing(moons, W, 34,
+  'c')`: flattened 0.935, level belts and zones `JUPITER_BANDS`, soft
+  edges, limb darkening, moons as discs of their own size and colour
+  `JUPITER_MOON_LOOK` with their initials) over the line of all four,
+  whose scale now fits the farthest moon (`k` up to 14). `jupiterMoons`
+  also works out the Sun's view, the same angles less the phase angle
+  psi: `eclipsed` (in Jupiter's shadow: not drawn, and said) and `shadow`
+  (its place on the cloud tops as we see it, drawn as a black dot, and
+  said). Against PyEphem (`scripts/jupiter-shadow-reference.py`: its
+  sun_visible, and a ray from the Sun through each moon onto the globe):
+  3,837 of 3,840 eclipse states, 109 of 112 shadows, none on the wrong
+  side, shadow-to-moon offset median 0.02 R. The Great Red Spot isn't
+  drawn: its longitude drifts and must come from observers' reports. Gradient
+  ids carry a suffix per drawing ('c', 's').
   `planetAltAz` now calls `planetGeo` for its geocentric part
   (tests that extract `planetAltAz` need `planetGeo` too).
   `planet-moons.test.js`.
