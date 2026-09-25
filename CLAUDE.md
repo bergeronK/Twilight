@@ -22,12 +22,38 @@ fresh session (or a Cowork session) never has to re-derive project state.
 ## What this app is
 
 Three tabs, one `index.html`, no build step:
-- **Console** — live sky dashboard for right now: sun/moon/planet positions,
-  twilight countdowns, sextant window, the "Clear & Dark" observing score
-  (tonight + hourly strip + 7-night Pro planner), a curiosities/almanac card.
+- **Console** — for the casual stargazer: the painted sky now, the verdict,
+  tonight's timeline, up to three things worth a look, the "Clear & Dark"
+  score (tonight + hourly strip + 7-night Pro planner), the next twilight
+  countdown and the almanac. (Decluttered 2026-09-25: see below.)
 - **Ephemeris** — twilight times for any date/place, solar altitude chart,
   iCal/CSV export, upcoming sky events.
-- **Stars** — navigational stars up now, recommended 3-star fix, compass dial.
+- **Stars** — Sky View, the whole-sky chart, Jupiter and Saturn, the space
+  station, the observing log, and one folded **"For navigators"**: the
+  navigation stars, the 3-star fix, the sextant window, sight reduction and
+  Aim Assist.
+
+**The declutter (2026-09-25, owner-approved, one PR).** Each tab had grown
+to ~4½ phone screens; Console 3,325 → 2,221 px and Stars 3,645 → 2,012 px
+at 390 px wide. The rule it applied is the voice rule's: the casual
+stargazer is the default, navigator material is kept whole but folded.
+- Console: the faintest-star figure (limiting magnitude), "Above the
+  horizon now", the twilight schedule and band notes, the Sun's height,
+  horizon visible and the sextant window all left. "Details" is now the
+  next-twilight countdown and a button to the Ephemeris (`goTab`, a
+  `tw:tab` event TwilightApp listens for). The almanac shows only its
+  button until tapped. Highlights: three at most, and no camera-only
+  aurora.
+- Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
+  them) and show the next five; "Tonight on the Moon" two rows; the band
+  notes (`TwilightBands`) live here, folded.
+- Stars: `<details id="for-navigators">`, shut by default; the sextant
+  window runs on pure `sextantWindows` / `nextSextantWindow` /
+  `sextantICS`.
+- A footer "Tell us what you think" opens
+  `.github/ISSUE_TEMPLATE/feedback.md`.
+- `declutter.test.js` pins both halves: nothing of this returns to the
+  Console, and the fold holds all four navigator parts.
 
 ## Architecture
 
@@ -384,7 +410,8 @@ Three tabs, one `index.html`, no build step:
   Way's centre when `milkyWayVisibility` allows, new or full Moon, and
   otherwise the brightest planet up after dark. `skyLimit(sunAlt, moon,
   bortle)` is the Console's limiting-magnitude formula pulled out of `live`
-  so the highlights use the same one. Flat list, hairlines only
+  so the highlights use the same one. **Three at most since 2026-09-25**
+  (it was four). Flat list, hairlines only
   (`TonightHighlights`), each row led by a 20 px drawing of its kind
   (`highlightIcon`; the first amber, the rest dim, aria-hidden; a new kind
   without one gets a dot, and a test fails until it has its own). `highlights.test.js` runs it on published nights:
