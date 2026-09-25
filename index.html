@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ycoYiLA9h2XC20K7PlGIrkfUEKSKLdt4yNthBtiQE9M=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HLNO/N+8o7DiKCFTqn2n4SCkO7cMLV4SoHVV/zcNvpk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -8184,47 +8184,47 @@ function StarFinder({ redMode } = {}) {
       loc.name, ". Two or three sights of bodies in different directions will give you a fix."),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Body"),
+        React.createElement("div", { style: navLabelSt }, "Body"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, "aria-pressed": sightBody === b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
         )
       ),
       sightBody === "star" && React.createElement("div", { style: { flex: "1 1 160px", minWidth: 140 } },
-        React.createElement("div", navLabelSt, "Star"),
+        React.createElement("div", { style: navLabelSt }, "Star"),
         React.createElement("select", {
           "aria-label": "Star", value: sightStarName, onChange: e => setSightStarName(e.target.value), style: { ...navInputSt, cursor: "pointer" }
         }, NAV_STARS.slice().sort((a, b) => a[0].localeCompare(b[0])).map(s => React.createElement("option", { key: s[0], value: s[0] }, s[0])))
       ),
       (sightBody === "sun" || sightBody === "moon") && React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Limb"),
+        React.createElement("div", { style: navLabelSt }, "Limb"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           ["lower", "upper"].map(l => React.createElement("button", { key: l, "aria-pressed": sightLimb === l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
         )
       ),
       React.createElement("div", { style: { flex: "1 1 180px", minWidth: 160 } },
-        React.createElement("div", navLabelSt, "Sight time"),
+        React.createElement("div", { style: navLabelSt }, "Sight time"),
         React.createElement("input", { type: "datetime-local", "aria-label": "Sight time", value: sightTime, onChange: e => setSightTime(e.target.value), style: navInputSt })
       )
     ),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 90px" } },
-        React.createElement("div", navLabelSt, "Hs deg"),
+        React.createElement("div", { style: navLabelSt }, "Hs deg"),
         React.createElement("input", { type: "number", "aria-label": "Hs, degrees", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
       ),
       React.createElement("div", { style: { flex: "0 0 90px" } },
-        React.createElement("div", navLabelSt, "Hs min"),
+        React.createElement("div", { style: navLabelSt }, "Hs min"),
         React.createElement("input", { type: "number", step: "0.1", "aria-label": "Hs, minutes", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
       ),
       React.createElement("div", { style: { flex: "0 0 120px" } },
-        React.createElement("div", navLabelSt, "Height of eye (m)"),
+        React.createElement("div", { style: navLabelSt }, "Height of eye (m)"),
         React.createElement("input", { type: "number", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 100px" } },
-        React.createElement("div", navLabelSt, "Index error '"),
+        React.createElement("div", { style: navLabelSt }, "Index error '"),
         React.createElement("input", { type: "number", step: "0.1", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 auto" } },
-        React.createElement("div", navLabelSt, "Index error is"),
+        React.createElement("div", { style: navLabelSt }, "Index error is"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
           React.createElement("button", { "aria-pressed": sightIeOnArc, style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
           React.createElement("button", { "aria-pressed": !sightIeOnArc, style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
@@ -8446,21 +8446,21 @@ function StarFinder({ redMode } = {}) {
                 : React.createElement("div", null,
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
                       React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Turn"),
+                        React.createElement("div", { style: navLabelSt }, "Turn"),
                         React.createElement("div", {
                           style: bigNum,
                           "aria-label": "Turn " + Math.abs(aimTurn).toFixed(0) + " degrees " + (aimTurn >= 0 ? "right" : "left")
                         }, Math.abs(aimTurn).toFixed(0), "° ", aimTurn >= 0 ? "right" : "left")
                       ),
                       aimTilt !== null && React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Tilt"),
+                        React.createElement("div", { style: navLabelSt }, "Tilt"),
                         React.createElement("div", {
                           style: bigNum,
                           "aria-label": "Tilt " + Math.abs(aimTilt).toFixed(0) + " degrees " + (aimTilt >= 0 ? "up" : "down")
                         }, Math.abs(aimTilt).toFixed(0), "° ", aimTilt >= 0 ? "up" : "down")
                       ),
                       aimTarget && React.createElement("div", null,
-                        React.createElement("div", navLabelSt, "Target altitude"),
+                        React.createElement("div", { style: navLabelSt }, "Target altitude"),
                         React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 20, color: C.ink } }, aimTarget.alt.toFixed(0), "°")
                       ),
                       onTarget && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On target")

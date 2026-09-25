@@ -376,3 +376,13 @@ test('Sky View: “I’ve seen it” marks the picked thing in the log, but neve
   const sun = buttons(renderSkyDome({ bodies: [{ name: 'Sun', kind: 'sun', az: 180, alt: 30, mag: -26 }], targetName: 'Sun' }));
   assert.ok(!sun.some(n => /seen it/i.test(textOf(n))));
 });
+
+test('no element is given a style object as its props', () => {
+  // createElement("div", navLabelSt, …) sets font, letterSpacing and so on
+  // as attributes, not styles: twelve sextant-form labels rendered at the
+  // browser's default 16 px for weeks. Style objects are named ...St or
+  // ...Style here; one in the props position is always this mistake.
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'index.html'), 'utf8');
+  const bad = [...html.matchAll(/createElement\(\s*["'][a-z]+["'],\s*([A-Za-z_$][\w$]*(?:St|Style))\s*[,)]/g)].map(m => m[0]);
+  assert.deepStrictEqual(bad, []);
+});
