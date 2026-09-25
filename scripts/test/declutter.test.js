@@ -45,8 +45,8 @@ test('the Console keeps only what nothing above it says', () => {
   for (const gone of ['Faintest star visible', '"Above the horizon now"', 'Today\'s twilight schedule', 'EventCol', 'TwilightBands', 'downloadICS', 'Sextant window', 'Horizon visible']) {
     assert.ok(!rt.includes(gone), `${gone} is back on the Console`);
   }
-  assert.match(rt, /onClick: \(\) => goTab\("ephemeris"\)/, 'a way to the day\'s times');
-  assert.match(rt, /cdHMS\(nextSunEv\.t - now\)/, 'the countdown stays');
+  assert.match(rt, /onMore: \(\) => goTab\("ephemeris"\)/, 'a way to the day\'s times');
+  assert.match(rt, /React\.createElement\(TwilightToday, \{\s*next: nextSunEv,/, 'the countdown stays');
   // The almanac says nothing until asked.
   assert.match(rt, /fact === null \? null :/);
   // Tabs listen for goTab.

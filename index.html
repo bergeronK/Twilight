@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HAkN90m1jR3ky0RWJeEQWbJSFctcAaPE7d2wIIokFFA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-/QAiwUBg6FtJreKI5iK/SHS+N5ZQEiPBnScDQrLnAt0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2092,7 +2092,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v127";
+const BUILD = "v128";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3001,6 +3001,58 @@ const cdHMS = ms => {
   const s = Math.floor((t % 60000) / 1000);
   return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
 };
+
+/* ---- Twilight today (2026-09-25) ----
+   The day's Sun crossings as the Console shows them, right under the
+   painting: morning stages as dawn, evening stages as dusk. The app is
+   about twilight, and this had sat at the foot of the page. */
+const TWILIGHT_WORDS = {
+  up: { astro: "Astronomical dawn", naut: "Nautical dawn", civil: "Civil dawn", rise: "Sunrise" },
+  down: { rise: "Sunset", civil: "Civil dusk", naut: "Nautical dusk", astro: "Astronomical dusk" }
+};
+const TWILIGHT_DOTS = { rise: "#e0b96f", civil: "#e08a3c", naut: "#5a7fb0", astro: "#4b5794" };
+const twilightWord = e => TWILIGHT_WORDS[e.dir][e.key];
+function twilightDay(sunEv, now) {
+  const row = e => ({ key: e.key, t: e.t, label: twilightWord(e), past: e.t <= now });
+  return {
+    dawn: sunEv.filter(e => e.dir === "up").map(row),
+    dusk: sunEv.filter(e => e.dir === "down").map(row)
+  };
+}
+// Hook-free: the next stage with its countdown, then the day's times in two
+// columns (past ones dimmed), then the way to the full day on the Ephemeris.
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore }) {
+  const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
+    rows.map(r => React.createElement("div", {
+      key: r.key,
+      style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.line}`, fontFamily: "var(--font-ui)", fontSize: 13, color: r.past ? C.inkFaint : C.ink }
+    },
+      React.createElement("span", { "aria-hidden": "true", style: { width: 7, height: 7, borderRadius: "50%", flex: "0 0 7px", background: TWILIGHT_DOTS[r.key], opacity: r.past ? 0.4 : 1 } }),
+      React.createElement("span", { style: { flex: 1, minWidth: 0 } }, r.label),
+      React.createElement("span", { style: { fontVariantNumeric: "tabular-nums" } }, fmt(r.t)))));
+  const empty = !sched.dawn.length && !sched.dusk.length;
+  return React.createElement("section", {
+    "aria-label": "Twilight " + sched.when,
+    style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
+  },
+    React.createElement("h2", {
+      style: { margin: "0 0 12px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" }
+    }, "Twilight " + sched.when),
+    next && React.createElement("div", { style: { marginBottom: 16 } },
+      React.createElement("div", { style: { fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: 22, color: C.brass, lineHeight: 1.1 } },
+        twilightWord(next), " at ", fmt(next.t)),
+      React.createElement("div", {
+        style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
+      }, "in ", cdHMS(next.t - now))),
+    empty
+      ? React.createElement("p", { style: { margin: "0 0 14px", fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } },
+          sunUp ? "The Sun doesn’t set " + sched.when + "." : "The Sun doesn’t rise " + sched.when + ".")
+      : React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "14px 28px", marginBottom: 16 } },
+          sched.dawn.length > 0 && col("Dawn", sched.dawn),
+          sched.dusk.length > 0 && col("Dusk", sched.dusk)),
+    React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris →"));
+}
 
 /* ---- Orientation fusion ----
    Two kinds of sensor data, with opposite strengths:
@@ -4243,7 +4295,7 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4522,6 +4574,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
+      twilight || null,
       React.createElement(TonightHighlights, { items: highlights }),
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
         React.createElement('button', {
@@ -4800,7 +4853,16 @@ function RealtimeTwilight({ redMode } = {}) {
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
-  const nextSunEv = useMemo(() => day.sunEv.find(e => e.t > now), [day, now]);
+  // Two days ahead, so the next stage is found after the day's last one too
+  // (the old midnight-to-midnight scan had none from astronomical dusk on).
+  const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
+  const nextSunEv = sunAhead.find(e => e.t > now);
+  // Today's times while any are still to come; after the last, tomorrow's.
+  const twSched = useMemo(() => {
+    if (day.sunEv.some(e => e.t > now)) return { when: "today", ...twilightDay(day.sunEv, now) };
+    const mid = localMidnight(loc.tz, day.mid + 36 * 3600000);
+    return { when: "tomorrow", ...twilightDay(scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1), now) };
+  }, [day, minute, loc.lat, loc.lon, loc.tz]);
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -5010,6 +5072,13 @@ function RealtimeTwilight({ redMode } = {}) {
   React.createElement(HorizonHero, {
     loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
     intro, locating: geoMsg === "Locating\u2026",
+    // Twilight right under the painting's facts, before the highlights
+    // (2026-09-25; the next stage and the day's times had been at the foot
+    // of the page).
+    twilight: React.createElement(TwilightToday, {
+      next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
+      onMore: () => goTab("ephemeris")
+    }),
     onIntroDone: pick => {
       setIntro(false);
       try { localStorage.setItem('tw_welcomed', '1'); } catch (e) {}
@@ -5038,28 +5107,6 @@ function RealtimeTwilight({ redMode } = {}) {
   ),
   skyStripEl(wxScore, loc, h24),
   weekPlannerEl(wxWeek, loc, h24, pro),
-  // Below the fold, only what nothing above says: how long until the next
-  // twilight stage, and the way to the full day's times on the Ephemeris.
-  // The Sun's height, how much horizon is visible and the sextant window
-  // moved to the Stars tab's "For navigators"; the list of what was up
-  // repeated the painting and the highlights; the day's schedule and the
-  // band notes live on the Ephemeris (2026-09-25).
-  React.createElement("section", {
-    "aria-label": "Next twilight",
-    style: { maxWidth: 1080, margin: "10px auto 0", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px", display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }
-  },
-    nextSunEv && React.createElement("div", null,
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 3 }
-      }, "Next \xB7 ", nextSunEv.key === "naut" ? "Nautical twilight" : nextSunEv.key === "civil" ? "Civil twilight" : nextSunEv.key === "astro" ? "Astronomical twilight" : nextSunEv.key === "rise" ? (nextSunEv.dir === "up" ? "Sunrise" : "Sunset") : nextSunEv.key === "day" ? "Sunrise" : "Sunset"),
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 27, fontWeight: 300, lineHeight: 1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums" }
-      }, cdHMS(nextSunEv.t - now))),
-    React.createElement("button", {
-      className: "rtbtn",
-      onClick: () => goTab("ephemeris")
-    }, "Today\u2019s twilight times \u2192")
-  ),
   React.createElement("section", {
     ref: factRef,
     style: {

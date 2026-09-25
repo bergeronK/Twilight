@@ -39,11 +39,21 @@ at 390 px wide. The rule it applied is the voice rule's: the casual
 stargazer is the default, navigator material is kept whole but folded.
 - Console: the faintest-star figure (limiting magnitude), "Above the
   horizon now", the twilight schedule and band notes, the Sun's height,
-  horizon visible and the sextant window all left. "Details" is now the
-  next-twilight countdown and a button to the Ephemeris (`goTab`, a
-  `tw:tab` event TwilightApp listens for). The almanac shows only its
+  horizon visible and the sextant window all left. The almanac shows only its
   button until tapped. Highlights: three at most, and no camera-only
   aurora.
+- **Twilight today (2026-09-25, owner's ask: "the app is centered around
+  twilight"):** the next stage and the day's times moved from the foot of
+  the Console to right under the painting's facts, before the highlights
+  (`HorizonHero`'s `twilight` prop). `TwilightToday` (hook-free): "Sunset at
+  18:37" in the voice face, a ticking `cdHMS` countdown, then Dawn and Dusk
+  columns (`twilightDay`, `TWILIGHT_WORDS`: Astronomical/Nautical/Civil dawn,
+  Sunrise; Sunset, Civil/Nautical/Astronomical dusk; past ones dimmed,
+  missing stages simply absent), and "The whole day on the Ephemeris"
+  (`goTab`, a `tw:tab` event TwilightApp listens for). After the day's last
+  stage it shows tomorrow's. The next stage is scanned 48 h ahead
+  (`sunAhead`); the old midnight-to-midnight scan had none from
+  astronomical dusk to midnight. `twilight-today.test.js`.
 - Ephemeris: upcoming events drop new/full Moons (the Moon calendar has
   them) and show the next five; "Tonight on the Moon" two rows; the band
   notes (`TwilightBands`) live here, folded.
