@@ -144,6 +144,7 @@ test('the Ephemeris shows it; the events list leaves its phases to it', () => {
   assert.match(src, /React\.createElement\(MoonMonth, \{ days: moonDays/);
   // New and full Moons are in the calendar, so the events list leaves them out.
   assert.doesNotMatch(src, /type: "New Moon"|type: "Full Moon"/);
+  assert.match(src, /return events\.sort\(\(a, b\) => a\.t - b\.t\)\.slice\(0, 5\);/, 'the next five');
   assert.match(src, /terminatorFeatures\(moonLib, 2\)/, 'two features at most');
   assert.match(src, /React\.createElement\(TwilightBands, null\)/, 'the band notes live here now');
   assert.match(src, /onPick: day => setDateStr\(/);
