@@ -16,7 +16,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', '
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
   'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
   'HIGHLIGHT_DSO', 'tonightHighlights',
-  'WMM_COF', 'WMM_EPOCH_YEARS', 'wmmCache', 'wmmModel', 'KP_URL', 'parseKp', 'loadKp', 'geomagPole', 'geomagLat', 'auroraEdge', 'auroraReach', 'auroraTonight', 'auroraWords']);
+  'WMM_COF', 'WMM_EPOCH_YEARS', 'wmmCache', 'wmmModel', 'KP_URL', 'noteSource', 'parseKp', 'loadKp', 'geomagPole', 'geomagLat', 'auroraEdge', 'auroraReach', 'auroraTonight', 'auroraWords']);
 
 const fmt = t => new Date(t).toISOString().slice(11, 16);
 function planFor(iso, lat, lon) {

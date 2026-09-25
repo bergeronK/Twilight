@@ -332,6 +332,15 @@ Three tabs, one `index.html`, no build step:
     (it used to say it couldn't get the orbit) and the Console simply has
     no station highlight.
   - `iss.test.js`.
+- **`?sources` (2026-09-25).** Every fetch of another site's data
+  (Open-Meteo's forecast, CelesTrak, NOAA SWPC) notes how it went in
+  `tw_src` (`noteSource`), and `twilyte.info/?sources` lists them at the
+  foot of the page (`SourcesNote` → `SourceList`, `sourceLines`). A CORS
+  refusal reaches the page only as a TypeError, like being offline; when
+  another source worked within the hour the words say the site refused.
+  This is how to settle the CelesTrak and SWPC questions above on a real
+  browser. Playwright's routed responses skip CORS, so it can't fake a
+  refusal; an aborted request stands in. `sources.test.js`.
 - **Tonight on the Moon (2026-09-24).** The Ephemeris's Moon section
   names, for 9 PM on the date shown, up to three features with the Sun 1-10°
   above them (long shadows, still lit; `terminatorFeatures`), sunrise or

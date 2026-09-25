@@ -15,7 +15,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'sunAltitude', 'SGP4_RE', 'SGP4_XKE', 'SGP4_J2', 'SGP4_J3',
   'SGP4_J4', 'SGP4_J3OJ2', 'parseTle', 'sgp4Init', 'sgp4At', 'gstimeRad', 'issSunDir', 'issLook', 'issPasses', 'ISS_TLE_URL',
-  'loadIssTle', 'issSatFrom', 'COMPASS_WORDS', 'compassWord', 'issWords']);
+  'noteSource', 'loadIssTle', 'issSatFrom', 'COMPASS_WORDS', 'compassWord', 'issWords']);
 
 // sgp4 2.27 (Python, WGS-72): [line 1, line 2, [[minutes, TEME km]]]. The
 // space station, a low decaying orbit, a sun-synchronous one, Spacetrack
