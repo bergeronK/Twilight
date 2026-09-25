@@ -167,3 +167,15 @@ test('the app loads them, adds them to the sky, and ships the file', () => {
   assert.match(fs.readFileSync(path.join(ROOT, 'native/sync-web.js'), 'utf8'), /'deep-sky\.json'/);
   assert.match(fs.readFileSync(path.join(ROOT, 'constellations.LICENSE.txt'), 'utf8'), /deep-sky\.json from data\/messier\.json/);
 });
+
+test('a name near the edge of the view is pulled in whole', () => {
+  const bd = body('Wild Duck Cluster', 'M11', 'oc', 5.8, 0, 30, 14);
+  for (const x of [386, 4]) {
+    const c = ctx();
+    m.drawDeepSky(c.g, bd, { x, y: 400 }, false, 844, 63, null, 390, [], []);
+    const t = c.texts.find(q => q.t === 'Wild Duck Cluster');
+    assert.ok(t, 'named');
+    const half = 'Wild Duck Cluster'.length * 6 / 2;
+    assert.ok(t.x - half >= 0 && t.x + half <= 390, `x ${t.x} keeps ${half * 2} px inside 390`);
+  }
+});
