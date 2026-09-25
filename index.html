@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-HLNO/N+8o7DiKCFTqn2n4SCkO7cMLV4SoHVV/zcNvpk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-RM6NXNyEJuXASYbQLQmYdFAog+WHFm7IjWYju2n8x3c=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -8129,7 +8129,9 @@ function StarFinder({ redMode } = {}) {
   );
   // ---- Navigator: sight reduction calculator + aim assist UI ----
   const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
-  const navLabelSt = { font: "600 10.5px var(--font-ui)", letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ink-faint)" };
+  // Small and quiet like the app's other labels, but not upper-cased: "Hs"
+  // is how every sextant manual writes it.
+  const navLabelSt = { font: "600 12px var(--font-ui)", letterSpacing: ".01em", color: "var(--ink-dim)" };
   const navInputSt = { width: "100%", minWidth: 0, marginTop: 6, padding: "9px 11px", color: C.ink, background: "var(--field-bg)", border: "1px solid var(--line)", borderRadius: 9, font: "15px var(--font-ui)", outline: "none" };
   const segBtn = active => ({
     fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 550, padding: "7px 14px", cursor: "pointer",
@@ -8165,7 +8167,7 @@ function StarFinder({ redMode } = {}) {
   const fixPanel = sightFix && React.createElement("div", {
     style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
   },
-    React.createElement("div", { style: { ...navLabelSt, color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
+    React.createElement("div", { style: { ...navLabelSt, fontSize: 10.5, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 18, color: C.ink, fontWeight: 600 } },
       Math.abs(sightFix.lat).toFixed(4), "° ", sightFix.lat >= 0 ? "N" : "S", ", ",
       Math.abs(sightFix.lon).toFixed(4), "° ", sightFix.lon >= 0 ? "E" : "W"),
@@ -8220,7 +8222,7 @@ function StarFinder({ redMode } = {}) {
         React.createElement("input", { type: "number", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 100px" } },
-        React.createElement("div", { style: navLabelSt }, "Index error '"),
+        React.createElement("div", { style: navLabelSt }, "Index error (\u2032)"),
         React.createElement("input", { type: "number", step: "0.1", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 auto" } },
