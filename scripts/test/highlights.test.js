@@ -72,7 +72,7 @@ test('no night, no list', () => {
 test('the list renders flat, one row per item, and not at all when empty', () => {
   const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
   const src = require('./extract.js').declSource;
-  const [render, icon] = new Function('React', 'C', `${src('highlightIcon')}; ${src('TonightHighlights')}; return [TonightHighlights, highlightIcon];`)(R, { ink: 'INK', inkDim: 'DIM', inkFaint: '', accent: 'AMBER' });
+  const [render, icon] = new Function('React', 'C', `${src('highlightIcon')}; ${src('TonightHighlights')}; return [TonightHighlights, highlightIcon];`)(R, { ink: 'INK', inkDim: 'DIM', inkFaint: '', brass: 'AMBER' });
   assert.strictEqual(render({ items: [] }), null);
   const out = render({ items: [{ title: 'A', detail: 'a', kind: 'meteors' }, { title: 'B', detail: 'b', kind: 'planet' }] });
   assert.strictEqual(out.c.length, 3, 'a heading and two rows');
