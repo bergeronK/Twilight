@@ -94,6 +94,9 @@ stargazer is the default, navigator material is kept whole but folded.
   the dark window, the times, golden and blue hours, the Moon tonight, the
   eclipses that can be seen, the events. The accuracy note and the footer
   credit no longer say NOAA. `ephemeris-tidy.test.js`.
+- Stars (tidied again 2026-09-25): the space station's later passes folded,
+  and the top's eyebrow says "Sky View", not the old "Star Finder". The tab
+  was otherwise already lean (1,949 px), so nothing else was folded.
 - Stars: `<details id="for-navigators">`, shut by default; the sextant
   window runs on pure `sextantWindows` / `nextSextantWindow` /
   `sextantICS`.
@@ -417,6 +420,10 @@ stargazer is the default, navigator material is kept whole but folded.
     browser refuses the response, the Stars tab leaves its panel out
     (it used to say it couldn't get the orbit) and the Console simply has
     no station highlight.
+  - **The Stars tab's panel shows the next two passes** (`ISS_OPEN`); the
+    rest of the three days sit behind "N more passes in the next three
+    days" (2026-09-25: five to eight passes were the tallest thing on the
+    tab; 2,536 → 2,262 px with five). `stars-tidy.test.js`.
   - `iss.test.js`.
 - **`?sources` (2026-09-25).** Every fetch of another site's data
   (Open-Meteo's forecast, CelesTrak, NOAA SWPC) notes how it went in
