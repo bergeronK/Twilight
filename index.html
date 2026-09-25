@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-9J9mph8qR7E31bd3ASSqcq5hK7RQwocBzWkBg4Ujdf8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-ycoYiLA9h2XC20K7PlGIrkfUEKSKLdt4yNthBtiQE9M=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://celestrak.org; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -6535,7 +6535,7 @@ function TwilightEphemeris({ redMode } = {}) {
           key: i,
           style: { display: "flex", gap: 12, alignItems: "flex-start" }
         },
-          /*#__PURE__*/React.createElement("div", { style: { color: ev.color, marginTop: 2 } }, eventIcon(ev.kind)),
+          /*#__PURE__*/React.createElement("div", { style: { color: ev.color, marginTop: 2, width: 22, display: "flex", justifyContent: "center", flexShrink: 0 } }, eventIcon(ev.kind)),
           /*#__PURE__*/React.createElement("div", null,
             /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: dim, fontVariantNumeric: "tabular-nums" } },
               new Date(ev.t).toLocaleDateString([], { month: "short", day: "numeric" })
