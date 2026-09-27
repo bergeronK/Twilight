@@ -272,6 +272,45 @@ stargazer is the default, navigator material is kept whole but folded.
   `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
   before. `sky-motion.test.js` covers the rates, directions, twinkle and
   the layer split.
+- **The weather in the painting (2026-09-27, owner's ask: "the hero
+  always displays a clear sky").** The Console's painting (and the welcome
+  and the share picture, same painter) shows this hour's forecast: the
+  request asks Open-Meteo for `weather_code` too, `cloudAt` returns it as
+  `code` (null from a forecast saved before), and `skyWeather` turns the
+  hour into `{low, mid, high, fall: rain|drizzle|snow|null, amount, storm,
+  fog}` (`WMO_FALL` by code; rain thickens the low deck to 60%+ rather
+  than falling from a clear sky). Null without a forecast: clear, as before.
+  - **Amounts are the forecast's, places are not**: a forecast gives a
+    fraction, not a map. `cloudPuffs` takes a fixed list of candidate clouds
+    for the place (`cloudSeed`), ordered by a smooth field periodic across
+    the width, and adds them until each layer hides its fraction of the
+    painted sky; past `sheet` (70%, cirrus 35%) a sheet over the whole sky
+    makes up the rest, complete at 100%. So thin cloud gathers in groups
+    with clear sky between, and a thicker forecast adds to the same sky
+    (30% is literally the start of 50%). Cumulus heaped on flat bases,
+    altocumulus in patches, cirrus in tilted streaks.
+  - **Lit like cloud** (`cloudShade`): pale by day and greyer the heavier;
+    warm on the Sun's side at dawn and dusk, high cloud last
+    (`CLOUD_LIFT`); by night dark, silvered by the Moon (most near it),
+    orange from below over a town (Bortle 5+). Fog (`fogShade`) takes the
+    sky's own colour, over the sky and on the ground. A thick low or middle
+    sheet leaves planets off (their names showed through it). By day the top
+    of a cloudy sky is dimmed a little, and the place name and date got a
+    tighter shadow: white cloud washed them out.
+  - **Cheap enough to drift**: shapes are stamped once per forecast into
+    half-resolution masks (`cloudMasks`, a tile two widths wide, from one
+    sprite); each drawing slides each layer's mask (`cloudDrift`, low cloud
+    across the painting in `CLOUD_CROSS_S` = 15 min, higher layers slower)
+    and colours it from a 24x12 grid of `cloudShade`, kept until the light
+    changes. A gradient per puff took 85-380 ms on the throttled phone
+    profile; now ~3 ms a redraw (13 at 4x), ~35 ms for the shapes once.
+  - In the moving hero the clouds have their own canvas between the
+    twinkling stars and the ground, redrawn once a second by the animation
+    loop, idle tick included; rain and snow are one strip drawn twice and
+    slid down a sky height on the compositor (`animate`,
+    `PRECIP_FALL_MS`). Reduced motion gets it all still, on one canvas.
+  - `/privacy.html` says the forecast also feeds the painting.
+    `weather-painting.test.js` (25 mutations, all caught).
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
   grid of its brightness (0..250, run-length coded), built by
   `scripts/generate-milky-way.js` from d3-celestial's `mw.json` (five nested
@@ -1300,6 +1339,15 @@ things a syntax check cannot see:
   (permission first, key bytes, rounded place), `AlertsRow`'s words, and the
   CSP/sw.js/`ALERTS_LIVE` wiring. `extract.js` now keeps `async` on an
   extracted `async function` (it dropped it, and `await` failed to parse).
+- **`weather-painting.test.js`** — the weather in the painting: every WMO
+  code, rain never from a clear sky, each layer covering the forecast's
+  fraction (measured on a finer grid than the code's), thin cloud leaving a
+  clear stretch a fifth of the width (random spots don't), 30% as the start
+  of 50%, the light (day, dusk by the Sun, high cloud last, Moon, town),
+  draw order over the stars and under the ground, the moving hero's layer
+  split, each layer's drift, shapes stamped once, planets off under a sheet,
+  fog, rain and snow and their seamless strips, and the hero's wiring at
+  source level. Canvases come from an injected `makeCanvas`.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage

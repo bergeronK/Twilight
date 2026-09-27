@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-03R39kb833mnG1PI9NzlldrUiWfFDjQnwkafKBoRCOg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zB8L1dfWkQ8aAlzSfeT7A3wJ/5ROGGY9w27qaKGzF1g=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v140";
+const BUILD = "v141";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2547,7 +2547,10 @@ function tonightGlance(live) {
    then tonight as one ribbon, then three facts. Nothing in the painting is
    decoration: the colours come from the Sun's altitude, the stars shown are
    the ones the app estimates you can actually see (Moon and light pollution
-   included), and the Moon and planets sit at their real bearing and height.
+   included), the Moon and planets sit at their real bearing and height, and
+   the cloud, fog, rain and snow are this hour's forecast (how much cloud is
+   the forecast's; where each cloud sits is placed, since a forecast has no
+   map).
    The Console's first screen since 2026-09-23 (it was behind
    ?preview=horizon before that). */
 try { localStorage.removeItem('tw_preview_horizon'); } catch (e) {}
@@ -2754,8 +2757,14 @@ function drawHorizonScene(g, w, h, o) {
   const X = az => { const f = panoX(az, o.facing, HZ_SPAN); return f === null ? null : f * w; };
   const Y = alt => panoY(alt, hy);
   const night = o.sunAlt < -6;
-  if (o.part !== 'ground') drawHorizonSky(g, w, h, o, hy, X, Y, night);
-  if (o.part !== 'sky') drawHorizonGround(g, w, h, o, hy, X);
+  // Layers, nearest last. The moving hero draws each part on its own canvas;
+  // with no part (reduced motion, the welcome, the share picture) it is all
+  // one picture, rain and snow held still.
+  const p = o.part;
+  if (!p || p === 'sky') drawHorizonSky(g, w, h, o, hy, X, Y, night);
+  if (o.weather && (!p || p === 'clouds')) drawHorizonClouds(g, w, hy, o);
+  if (o.weather && !p) drawPrecip(g, w, hy, o.weather, hzRandom(cloudSeed(o.lat, o.lon) + 17), precipShade(cloudLight(o, w, hy)));
+  if (!p || p === 'ground') drawHorizonGround(g, w, h, o, hy, X);
 }
 function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
 
@@ -2823,7 +2832,10 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
   // Planets only once the sky is dark enough to show them: in daylight they
   // are there but invisible, and painting them over a blue sky promised
   // something no one could see. By mid civil twilight the bright ones are out.
-  if (o.sunAlt < -3) o.planets.forEach(p => {
+  // Nor under a thick sheet of low or middle cloud, where their names
+  // showed through it.
+  const overcast = !!o.weather && Math.max(cloudSheet(o.weather, 'low'), cloudSheet(o.weather, 'mid')) >= 0.5;
+  if (o.sunAlt < -3 && !overcast) o.planets.forEach(p => {
     const x = X(p.az);
     if (x === null) return;
     const y = Y(p.alt);
@@ -2883,6 +2895,13 @@ function drawHorizonGround(g, w, h, o, hy, X) {
       g.fillRect(rnd() * (w + 2 * b) - b, hy + 1 + rnd() * 9, 1.4, 1.4);
     }
   }
+  // Fog lies on the ground too, softening the treeline and the town's lights.
+  if (o.weather && o.weather.fog) {
+    const rgb = fogShade(o, cloudLight(o, w, hy));
+    const fog = g.createLinearGradient(0, hy - 34, 0, hy + 30);
+    fog.addColorStop(0, `rgba(${rgb},0)`); fog.addColorStop(0.55, `rgba(${rgb},.6)`); fog.addColorStop(1, `rgba(${rgb},.3)`);
+    g.fillStyle = fog; g.fillRect(-b, hy - 34, w + 2 * b, 64);
+  }
   // Settle into the page below, so the text over the ground stays readable.
   const fade = g.createLinearGradient(0, hy - 30, 0, h);
   fade.addColorStop(0, 'rgba(5,7,15,0)'); fade.addColorStop(0.45, 'rgba(5,7,15,.78)'); fade.addColorStop(1, 'rgba(5,7,15,.98)');
@@ -2901,6 +2920,347 @@ function drawHorizonGround(g, w, h, o, hy, X) {
     g.fillStyle = 'rgba(238,241,250,.62)';
     g.fillText(compass16(az), x, hy + 21);
   }
+}
+/* ---- Clouds, fog, rain and snow in the painting (2026-09-27) ----
+   How much of the sky each cloud layer covers, and what is falling, come
+   from this hour's forecast (skyWeather). Where each cloud sits cannot: a
+   forecast gives a fraction of the sky, not a map. So clouds are placed from
+   a seed fixed for the place, cluster by cluster, until the painted sky is
+   covered by that fraction; a thicker forecast adds clouds to the same sky
+   rather than dealing a new one. The layout repeats across the painting's
+   width, so it can drift sideways without a seam. */
+const CLOUD_LAYERS = [
+  // y0, y1: where clouds form (fractions of the sky's height, top to
+  // horizon); rx, ry: a puff's size overhead (fractions of the width and
+  // the sky's height); n: puffs to a cloud; a: a puff's opacity at its
+  // heart; drift: speed against the low cloud (higher cloud looks slower);
+  // sheet: the cover past which separate clouds give way to a sheet over
+  // the whole sky, as thick as it takes to hide the rest (complete at
+  // 100%). Cirrus becomes a veil early; a veil is what thick high cloud is.
+  { key: 'high', y0: 0.02, y1: 0.7, rx: 0.2, ry: 0.026, n: [1, 3], a: 0.34, drift: 0.4, sheet: 0.35 },
+  { key: 'mid', y0: 0.08, y1: 0.85, rx: 0.05, ry: 0.04, n: [4, 8], a: 0.78, drift: 0.7, sheet: 0.7 },
+  { key: 'low', y0: 0.3, y1: 1, rx: 0.07, ry: 0.07, n: [5, 9], a: 0.92, drift: 1, sheet: 0.7 }
+];
+const CLOUD_CROSS_S = 900; // seconds for the low cloud to drift one painting width
+// How far layer `key` has closed into a sheet over the whole sky, 0..1.
+function cloudSheet(wx, key) {
+  const L = CLOUD_LAYERS.find(l => l.key === key), c = ((wx && wx[key]) || 0) / 100;
+  return Math.max(0, Math.min(1, (c - L.sheet) / (1 - L.sheet)));
+}
+const cloudSeed = (lat, lon) => Math.round((lat + 90) * 613) * 7919 + Math.round((lon + 180) * 409);
+const cloudDrift = (w, sec) => ((sec * w / CLOUD_CROSS_S) % w + w) % w;
+/* The clouds for weather `wx` over a sky `w` px wide and `hy` tall. ->
+   { w, hy, puffs: [{ layer, x, y, rx, ry, rot, a }], deck: { high, mid,
+   low } (a whole-sky sheet's opacity), cover: { high, mid, low } (the
+   fraction of the painted sky each hides: what its clouds cover, plus the
+   sheet over the rest in proportion to its opacity) }. A puff hides what is
+   inside three-quarters of its radii.
+   Each place has a fixed list of candidate clouds for each layer, in order
+   of where cloud forms first: where a smooth field, periodic across the
+   width, runs high, inside the layer's band. They are taken in that order
+   until the sky is covered by the forecast's fraction, so thin cloud
+   gathers in groups with clear sky between, as real cloud does, rather than
+   spreading evenly like spots; thicker cloud fills the gaps and spreads
+   overhead; and a thicker forecast adds clouds to the same sky rather than
+   dealing a new one. Cumulus is heaped on a flat base, bigger in the
+   middle; altocumulus comes in patches of small puffs; cirrus in long,
+   tilted streaks. Pure. */
+const CLOUD_CANDIDATES = 900;
+function cloudPuffs(wx, w, hy, seed) {
+  const COLS = 60, ROWS = 40, TAU = 2 * Math.PI;
+  const out = { w, hy, puffs: [], deck: {}, cover: {} };
+  CLOUD_LAYERS.forEach((L, li) => {
+    const c = Math.max(0, Math.min(100, (wx && wx[L.key]) || 0)) / 100;
+    const sheet = cloudSheet(wx, L.key), s0 = L.sheet;
+    out.deck[L.key] = L.a * sheet;
+    const target = Math.min(c, s0); // beyond that the sheet does the rest
+    const cells = new Uint8Array(COLS * ROWS);
+    const cw = w / COLS, ch = hy / ROWS;
+    let covered = 0;
+    const add = p => {
+      out.puffs.push(p);
+      const ex = 0.75 * p.rx, ey = 0.75 * Math.max(p.ry, Math.abs(Math.sin(p.rot)) * p.rx);
+      const j0 = Math.max(0, Math.floor((p.y - ey) / ch)), j1 = Math.min(ROWS - 1, Math.floor((p.y + ey) / ch));
+      const i0 = Math.floor((p.x - ex) / cw), i1 = Math.floor((p.x + ex) / cw);
+      const cs = Math.cos(p.rot), sn = Math.sin(p.rot);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const ii = ((i % COLS) + COLS) % COLS, idx = j * COLS + ii;
+        if (cells[idx]) continue;
+        const dx = (((ii + 0.5) * cw - p.x + 1.5 * w) % w) - w / 2, dy = (j + 0.5) * ch - p.y;
+        const u = (dx * cs + dy * sn) / (0.75 * p.rx), v = (-dx * sn + dy * cs) / (0.75 * p.ry);
+        if (u * u + v * v <= 1) { cells[idx] = 1; covered++; }
+      }
+    };
+    if (target <= 0) { out.cover[L.key] = sheet; return; }
+    const rand = hzRandom(seed * 3 + li + 1);
+    const ph = [rand() * TAU, rand() * TAU, rand() * TAU];
+    const field = (x, y) => 0.5 + 0.25 * Math.sin(TAU * x / w + ph[0] + 3 * y / hy)
+      + 0.15 * Math.sin(2 * TAU * x / w + ph[1] - 5 * y / hy) + 0.1 * Math.sin(3 * TAU * x / w + ph[2] + 7 * y / hy);
+    const cands = [];
+    for (let q = 0; q < CLOUD_CANDIDATES; q++) {
+      const cx = rand() * w, u = rand();
+      const f = L.key === 'low' ? Math.sqrt(u) : u; // low cloud crowds toward the horizon
+      const cy = hy * f;
+      const outside = f < L.y0 ? L.y0 - f : f > L.y1 ? f - L.y1 : 0;
+      const priority = field(cx, cy) + 0.3 * rand() - 2 * outside;
+      const s = 0.45 + 0.8 * (1 - f); // nearer overhead, bigger
+      const k = 0.6 + 1.3 * Math.pow(rand(), 1.5); // a few big clouds, many small
+      const n = L.n[0] + Math.floor(rand() * (L.n[1] - L.n[0] + 1));
+      const RX = L.rx * w * s * k, RY = L.ry * hy * s * k;
+      const puffs = [];
+      if (L.key === 'high') {
+        const rot = (rand() - 0.5) * 0.5;
+        for (let i = 0; i < n; i++) puffs.push({ layer: 'high', x: cx + (rand() - 0.5) * RX, y: cy + (i - n / 2) * RY * 2.2,
+          rx: RX * (0.7 + 0.6 * rand()), ry: RY * (0.6 + 0.8 * rand()), rot: rot + (rand() - 0.5) * 0.15, a: L.a * (0.7 + 0.3 * rand()) });
+      } else if (L.key === 'mid') {
+        for (let i = 0; i < n; i++) {
+          const g = 0.45 + 0.6 * rand();
+          puffs.push({ layer: 'mid', x: cx + (rand() - 0.5) * RX * 5, y: cy + (rand() - 0.5) * RY * 2.4,
+            rx: RX * g * 1.3, ry: RY * g, rot: 0, a: L.a * (0.65 + 0.35 * rand()) });
+        }
+      } else {
+        for (let i = 0; i < n; i++) {
+          const t = rand() - 0.5, mid = 1 - 2 * Math.abs(t); // along the base, 1 in the middle
+          const g = (0.5 + 0.55 * mid) * (0.8 + 0.4 * rand());
+          const ry = RY * g;
+          puffs.push({ layer: 'low', x: cx + t * RX * 2.6, y: cy - ry * 0.55 - rand() * mid * RY * 0.8,
+            rx: RX * g * 1.15, ry, rot: 0, a: L.a * (0.8 + 0.2 * rand()) });
+        }
+      }
+      puffs.forEach(p => { p.x = ((p.x % w) + w) % w; p.a = +p.a.toFixed(3); });
+      const my = puffs.reduce((a, p) => a + p.y, 0) / n;
+      cands.push({ priority, puffs, cell: Math.min(ROWS - 1, Math.max(0, Math.floor(my / ch))) * COLS + Math.min(COLS - 1, Math.floor(cx / cw)) });
+    }
+    cands.sort((a, b) => b.priority - a.priority);
+    for (const cand of cands) {
+      if (covered >= (target - 0.004) * cells.length) break;
+      // A cloud whose middle is already under cloud would add little but
+      // weight: passed over, in the same order however thick the forecast.
+      if (cells[cand.cell]) continue;
+      cand.puffs.forEach(add);
+    }
+    const f = covered / cells.length;
+    out.cover[L.key] = f + (1 - f) * sheet;
+  });
+  return out;
+}
+/* What lights the clouds, from the painting's scene `o`: the Sun (and, by
+   dawn and dusk, from where below the horizon), the Moon, a town's glow,
+   and how heavy the cloud is. */
+function cloudLight(o, w, hy) {
+  const px = az => (0.5 + (((az - o.facing + 540) % 360) - 180) / HZ_SPAN) * w;
+  const m = o.moon, wx = o.weather || {};
+  const moonUp = !!m && m.alt > -0.5;
+  return {
+    w, hy, sunAlt: o.sunAlt, sunX: px(o.sun.az), sunY: panoY(Math.max(0, o.sunAlt), hy),
+    moonK: moonUp ? m.illum * Math.min(1, Math.max(0, (m.alt + 2) / 20)) : 0,
+    moonX: moonUp ? px(m.az) : 0, moonY: moonUp ? panoY(Math.max(0, m.alt), hy) : 0,
+    city: o.bortle >= 5 ? Math.min(1, (o.bortle - 4) / 4) : 0,
+    heavy: Math.min(1, (wx.low || 0) / 100 * 0.6 + (wx.amount || 0) * 0.4 + (wx.storm ? 0.3 : 0))
+  };
+}
+const CLOUD_DAY = { high: [246, 248, 252], mid: [232, 235, 241], low: [214, 218, 227] };
+const CLOUD_NIGHT = { high: [30, 35, 52], mid: [12, 14, 22], low: [9, 11, 18] };
+const CLOUD_LIFT = { high: 5, mid: 2.5, low: 0 }; // degrees: higher cloud keeps the Sun longer
+/* The colour of cloud of layer `key` at (x, y) px under light `L`, as
+   'r,g,b'. White by day, greyer the heavier it is; lit warm from below on
+   the Sun's side at dawn and dusk, high cloud last; by night dark, silvered
+   by the Moon, most near it, or lit orange from below by a town. */
+function cloudShade(key, x, y, L) {
+  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+  const alt = L.sunAlt + CLOUD_LIFT[key];
+  const day = Math.max(0, Math.min(1, (alt + 4) / 10)), night = 1 - day;
+  const dim = key === 'high' ? 1 : 1 - 0.38 * L.heavy;
+  let c = mix(CLOUD_NIGHT[key], CLOUD_DAY[key].map(v => v * dim), day);
+  const side = 0.3 + 0.7 * Math.exp(-Math.pow((x - L.sunX) / (0.55 * L.w), 2));
+  const warm = Math.exp(-Math.pow((alt + 1) / 4, 2)) * side;
+  c = mix(c, key === 'low' ? [206, 118, 92] : [252, 160, 112], warm * (key === 'low' ? 0.55 : 0.85));
+  if (L.moonK > 0) {
+    const near = Math.exp(-(Math.pow(x - L.moonX, 2) + Math.pow(y - L.moonY, 2)) / Math.pow(0.16 * L.w, 2));
+    c = c.map((v, i) => v + [70, 76, 90][i] * L.moonK * night * (0.55 + 1.6 * near));
+  }
+  if (L.city > 0 && key !== 'high') c = c.map((v, i) => v + [104, 66, 36][i] * L.city * night * (0.3 + 0.7 * y / L.hy));
+  // By day the Sun behind a cloud shows as a bright patch in it.
+  if (L.sunAlt > -1) {
+    const near = Math.exp(-(Math.pow(x - L.sunX, 2) + Math.pow(y - L.sunY, 2)) / Math.pow(0.14 * L.w, 2));
+    c = mix(c, [255, 248, 230], near * 0.6);
+  }
+  return c.map(v => Math.round(Math.max(0, Math.min(255, v)))).join(',');
+}
+// Fog is lit by the sky around it: the sky's colour near the horizon,
+// greyed, paler by day, and warm over a town at night.
+function fogShade(o, L) {
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const sky = hex(o.sky.h), day = Math.max(0, Math.min(1, (L.sunAlt + 4) / 10));
+  const grey = (sky[0] + sky[1] + sky[2]) / 3;
+  return sky.map((v, i) => Math.round(Math.min(255, v + (grey - v) * 0.6 + (205 - grey) * 0.35 * day
+    + [70, 42, 20][i] * L.city * (1 - day)))).join(',');
+}
+// Rain and snow take the light too: pale by day, grey-blue by night, warmer over a town.
+function precipShade(L) {
+  const day = Math.max(0, Math.min(1, (L.sunAlt + 4) / 10));
+  return [150, 160, 180].map((v, i) => Math.round(Math.min(255, v + ([228, 233, 242][i] - v) * day + [60, 30, 0][i] * L.city * (1 - day)))).join(',');
+}
+/* The clouds are drawn in two steps. Their shapes, which change only with
+   the forecast, are stamped once into masks: puff by puff from one soft
+   sprite, into a tile two painting-widths wide that repeats every width, a
+   mask for each layer's lit tops and one for its shaded undersides. Each
+   drawing then slides each mask by its drift and colours it all at once
+   from a coarse grid of cloudShade, drawn scaled up so the light varies
+   smoothly across the sky: the Moon's glow and the sunset's side stay where
+   they belong while the clouds move under them. Stamping a gradient per
+   puff each time took a slow phone a third of a second. `mk(W, H)` makes a
+   canvas; a test passes its own. */
+const cloudCanvas = (W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+const CLOUD_FIELD = [24, 12]; // columns and rows of the colour grid
+const CLOUD_RES = 0.5; // clouds are soft: drawn at half resolution, then scaled up
+let cloudSprite = null;
+function cloudMasks(cl, mk) {
+  if (cl.masks && cl.masks.mk === mk) return cl.masks;
+  const k = CLOUD_RES, w = cl.w, hy = cl.hy;
+  const TW = Math.ceil(2 * w * k), TH = Math.ceil(hy * k);
+  if (!cloudSprite || cloudSprite.mk !== mk) {
+    const c = mk(64, 64), sg = c.getContext('2d');
+    const gr = sg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,.85)');
+    gr.addColorStop(0.8, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    sg.fillStyle = gr; sg.fillRect(0, 0, 64, 64);
+    cloudSprite = { mk, c };
+  }
+  const stamp = (c, x, y, rx, ry, rot, a) => {
+    c.globalAlpha = a;
+    for (const xx of [x - w, x, x + w, x + 2 * w]) {
+      if (xx + rx < 0 || xx - rx > 2 * w) continue;
+      if (!rot) { c.drawImage(cloudSprite.c, xx - rx, y - ry, 2 * rx, 2 * ry); continue; }
+      c.save(); c.translate(xx, y); c.rotate(rot); c.drawImage(cloudSprite.c, -rx, -ry, 2 * rx, 2 * ry); c.restore();
+    }
+  };
+  const masks = { mk, top: {}, base: {} };
+  CLOUD_LAYERS.forEach(Ly => {
+    const key = Ly.key, deck = cl.deck[key];
+    const mine = cl.puffs.filter(p => p.layer === key);
+    if (!mine.length && !(deck > 0)) return;
+    const top = mk(TW, TH), T = top.getContext('2d');
+    T.setTransform(k, 0, 0, k, 0, 0); // stamped in painting px
+    masks.top[key] = top;
+    if (deck > 0) {
+      T.globalAlpha = deck * 0.8; T.fillStyle = '#fff'; T.fillRect(0, 0, 2 * w, hy);
+      // Broad soft patches keep the sheet from looking painted flat.
+      for (let i = 0; i < 6; i++) for (let j = 0; j <= 3; j++) stamp(T, i * w / 6, j * hy / 3, w / 5, hy / 3, 0, deck * 0.45);
+    }
+    // Low and middle cloud get a shaded underside and a lit top a little
+    // above it, which is what makes a cloud look like it has depth.
+    if (key === 'high') { mine.forEach(p => stamp(T, p.x, p.y, p.rx, p.ry, p.rot, p.a)); return; }
+    const base = mk(TW, TH), B = base.getContext('2d');
+    B.setTransform(k, 0, 0, k, 0, 0);
+    masks.base[key] = base;
+    mine.forEach(p => {
+      stamp(B, p.x, p.y + p.ry * 0.18, p.rx, p.ry * 0.95, 0, p.a);
+      stamp(T, p.x, p.y - p.ry * 0.12, p.rx * 0.9, p.ry * 0.82, 0, p.a * 0.9);
+    });
+  });
+  Object.defineProperty(cl, 'masks', { value: masks, configurable: true, enumerable: false });
+  return masks;
+}
+let cloudWork = null; // a canvas to colour each mask in, and the colour grids, kept
+/* The cloud layers (and fog) of scene `o` over the sky, `hy` px tall. The
+   low cloud has drifted `o.cloudOff` px, the higher layers less. High cloud
+   first, since low cloud is nearest and hides it. */
+function drawHorizonClouds(g, w, hy, o) {
+  const wx = o.weather;
+  const cl = o.clouds && o.clouds.w === w && o.clouds.hy === hy ? o.clouds : cloudPuffs(wx, w, hy, cloudSeed(o.lat, o.lon));
+  const mk = o.makeCanvas || cloudCanvas;
+  const M = cloudMasks(cl, mk);
+  const L = cloudLight(o, w, hy);
+  const day = Math.max(0, Math.min(1, (o.sunAlt + 4) / 10));
+  const k = CLOUD_RES, CW = Math.ceil(w * k), CH = Math.ceil(hy * k), [FC, FR] = CLOUD_FIELD;
+  if (!cloudWork || cloudWork.mk !== mk || cloudWork.CW !== CW || cloudWork.CH !== CH) {
+    cloudWork = { mk, CW, CH, cv: mk(CW, CH), fields: {}, light: '' };
+  }
+  const { cv } = cloudWork, c = cv.getContext('2d');
+  // The colour grids change only with the light (once a minute at most),
+  // not as the clouds drift, so they are kept until it changes.
+  const light = [w, hy, L.sunAlt, L.sunX, L.moonK, L.moonX, L.moonY, L.city, L.heavy].map(v => v.toFixed(2)).join();
+  if (cloudWork.light !== light) { cloudWork.fields = {}; cloudWork.light = light; }
+  const fieldFor = (key, dark) => {
+    const id = key + dark.toFixed(3);
+    if (cloudWork.fields[id]) return cloudWork.fields[id];
+    const f = mk(FC, FR), fg = f.getContext('2d');
+    for (let j = 0; j < FR; j++) for (let i = 0; i < FC; i++) {
+      const rgb = cloudShade(key, (i + 0.5) * w / FC, (j + 0.5) * hy / FR, L).split(',').map(v => Math.round(v * dark));
+      fg.fillStyle = `rgb(${rgb.join(',')})`; fg.fillRect(i, j, 1, 1);
+    }
+    return (cloudWork.fields[id] = f);
+  };
+  // One mask, slid by `off`, kept only where it has cloud, in the light
+  // layer `key` gets across the sky, then laid over the picture.
+  const lay = (mask, off, key, dark) => {
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    c.clearRect(0, 0, CW, CH);
+    c.drawImage(mask, -off * k, 0);
+    c.globalCompositeOperation = 'source-in';
+    c.imageSmoothingEnabled = true;
+    c.drawImage(fieldFor(key, dark), 0, 0, FC, FR, 0, 0, CW, CH);
+    c.globalCompositeOperation = 'source-over';
+    g.drawImage(cv, 0, 0, CW, CH, 0, 0, w, hy);
+  };
+  g.save(); g.globalAlpha = 1;
+  CLOUD_LAYERS.forEach(Ly => {
+    const key = Ly.key;
+    if (!M.top[key]) return;
+    const off = ((((o.cloudOff || 0) * Ly.drift) % w) + w) % w;
+    if (M.base[key]) lay(M.base[key], off, key, 1 - 0.22 * day);
+    lay(M.top[key], off, key, 1);
+  });
+  g.restore();
+  // White cloud by day washed out the place name and date written over the
+  // top of the painting, so the top of a cloudy day sky is dimmed a little.
+  if (day > 0 && cl.puffs.length) {
+    const sc = g.createLinearGradient(0, 0, 0, hy * 0.4);
+    sc.addColorStop(0, `rgba(10,16,32,${(0.3 * day).toFixed(3)})`); sc.addColorStop(1, 'rgba(10,16,32,0)');
+    g.fillStyle = sc; g.fillRect(0, 0, w, hy * 0.4);
+  }
+  // Fog: a grey world, thickest at the horizon, the brightest things
+  // overhead only just through it.
+  if (wx.fog) {
+    const rgb = fogShade(o, L);
+    const fog = g.createLinearGradient(0, 0, 0, hy);
+    fog.addColorStop(0, `rgba(${rgb},.45)`); fog.addColorStop(0.55, `rgba(${rgb},.75)`); fog.addColorStop(1, `rgba(${rgb},.96)`);
+    g.fillStyle = fog; g.fillRect(0, 0, w, hy + 2);
+  }
+}
+/* Rain, drizzle or snow over a strip `w` by `th` px, the pattern repeating
+   every `th` down, drawn over `reps` strips so a canvas `reps` x `th` tall
+   can slide down by `th` without a seam. Rain leans a little, as it does in
+   any breeze. How much falls follows the weather code's amount. */
+const PRECIP_FALL_MS = { rain: 700, drizzle: 1400, snow: 14000 }; // to fall one sky height
+function drawPrecip(g, w, th, wx, rand, rgb, reps = 1) {
+  if (!wx || !wx.fall) return;
+  const snow = wx.fall === 'snow', drizzle = wx.fall === 'drizzle';
+  const n = Math.round(wx.amount * w * th / (snow ? 520 : drizzle ? 380 : 650));
+  const drops = [];
+  for (let i = 0; i < n; i++) drops.push({ x: rand() * w, y: rand() * th, k: rand() });
+  // Near and far: two brightnesses, one path each.
+  [[d => d.k >= 0.6, 1], [d => d.k < 0.6, 0.55]].forEach(([pick, a]) => {
+    g.beginPath();
+    drops.filter(pick).forEach(d => {
+      for (let r = -1; r < reps; r++) {
+        const y = d.y + r * th;
+        if (snow) { const fr = 0.7 + 1.7 * d.k * d.k; g.moveTo(d.x + fr, y); g.arc(d.x, y, fr, 0, 7); }
+        else { const len = drizzle ? 3 + 4 * d.k : 8 + 12 * d.k; g.moveTo(d.x, y); g.lineTo(d.x - len * 0.12, y + len); }
+      }
+    });
+    if (snow) { g.fillStyle = `rgba(${rgb},${(0.8 * a).toFixed(2)})`; g.fill(); }
+    else { g.strokeStyle = `rgba(${rgb},${((drizzle ? 0.32 : 0.4) * a).toFixed(2)})`; g.lineWidth = drizzle ? 0.8 : 1; g.lineCap = 'round'; g.stroke(); }
+  });
+}
+// The cloud canvas of the moving hero, redrawn with the drift `ms` gives.
+function paintClouds(cv, w, H, o, ms) {
+  const g = cv.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, cv.width, cv.height);
+  if (o && o.weather) drawHorizonScene(g, w, H, Object.assign({}, o, { part: 'clouds', cloudOff: cloudDrift(w, ms / 1000) }));
 }
 /* ---- The painting in motion ----
    Stars brighter than TWINKLE_MAG twinkle, on a canvas of their own over the
@@ -3089,8 +3449,9 @@ function wxOf(d) {
   if (!Array.isArray(d)) return d || null;
   return d[0] ? Object.assign({}, d[0], { west: d[1] || null, east: d[2] || null }) : null;
 }
-// Cloud layers (%) at the forecast hour nearest t, or null if the forecast
-// has no layers or no hour within 90 minutes.
+// Cloud layers (%) and the hour's WMO weather code (`code`, null in a
+// forecast saved before it was asked for) at the forecast hour nearest t, or
+// null if the forecast has no layers or no hour within 90 minutes.
 function cloudAt(wx, t) {
   const H = wx && wx.hourly;
   if (!H || !H.time || !H.cloud_cover_low || !H.cloud_cover_mid || !H.cloud_cover_high) return null;
@@ -3102,7 +3463,37 @@ function cloudAt(wx, t) {
   }
   if (best < 0 || gap > 90 * 60000) return null;
   const v = a => a && a[best] != null ? a[best] : 0;
-  return { total: v(H.cloud_cover), low: v(H.cloud_cover_low), mid: v(H.cloud_cover_mid), high: v(H.cloud_cover_high), precip: v(H.precipitation_probability) };
+  const code = H.weather_code && H.weather_code[best] != null ? H.weather_code[best] : null;
+  return { total: v(H.cloud_cover), low: v(H.cloud_cover_low), mid: v(H.cloud_cover_mid), high: v(H.cloud_cover_high), precip: v(H.precipitation_probability), code };
+}
+/* ---- The weather in the painting (2026-09-27) ----
+   What the Console's painted sky shows of this hour's forecast: Open-Meteo's
+   three cloud layers, and what the hour's WMO weather code says is falling
+   or hanging in the air. The chance of rain alone can't say it is raining
+   now; the code can. [kind, how hard 0..1] by code. */
+const WMO_FALL = {
+  51: ['drizzle', 0.35], 53: ['drizzle', 0.6], 55: ['drizzle', 0.85], 56: ['drizzle', 0.45], 57: ['drizzle', 0.8],
+  61: ['rain', 0.35], 63: ['rain', 0.65], 65: ['rain', 1], 66: ['rain', 0.4], 67: ['rain', 0.8],
+  71: ['snow', 0.35], 73: ['snow', 0.65], 75: ['snow', 1], 77: ['snow', 0.3],
+  80: ['rain', 0.45], 81: ['rain', 0.75], 82: ['rain', 1], 85: ['snow', 0.5], 86: ['snow', 1],
+  95: ['rain', 0.85], 96: ['rain', 1], 99: ['rain', 1]
+};
+// cloudAt's result -> { low, mid, high (%), fall: 'rain' | 'drizzle' |
+// 'snow' | null, amount 0..1, storm, fog }, or null with no forecast (the
+// painting then stays clear, as it always was).
+function skyWeather(c) {
+  if (!c) return null;
+  const f = WMO_FALL[c.code] || null;
+  const w = {
+    low: c.low || 0, mid: c.mid || 0, high: c.high || 0,
+    fall: f ? f[0] : null, amount: f ? f[1] : 0,
+    storm: c.code >= 95 && c.code <= 99, fog: c.code === 45 || c.code === 48
+  };
+  // Rain and snow fall from cloud. The layers and the hour's weather are
+  // separate predictions and now and then disagree; the low deck is
+  // thickened to match rather than painting rain out of a clear sky.
+  if (w.fall) w.low = Math.max(w.low, 60 + 35 * w.amount);
+  return w;
 }
 // `toward` is the cloud 150 km toward the Sun; `kind` "sunset" or "sunrise".
 function skyGlow(here, toward, kind = "sunset") {
@@ -4545,6 +4936,11 @@ function WelcomeSky({ o, line, onDone }) {
     window.addEventListener('keydown', esc);
     return () => { window.removeEventListener('resize', r); window.removeEventListener('keydown', esc); };
   }, []);
+  // The scene arrives anew with every tick; the clouds' layout (and the
+  // shapes stamped from it) only when the forecast or the screen changes.
+  const ph = Math.round(size.h * 0.9);
+  const clouds = useMemo(() => o.weather ? cloudPuffs(o.weather, size.w, Math.round(ph * 0.62), cloudSeed(o.lat, o.lon)) : null,
+    [o.weather, size.w, ph, o.lat, o.lon]);
   useEffect(() => {
     const cv = cvRef.current;
     if (!cv) return;
@@ -4553,8 +4949,8 @@ function WelcomeSky({ o, line, onDone }) {
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // The horizon a little below the middle, so the words sit on the ground.
-    drawHorizonScene(g, size.w, Math.round(size.h * 0.9), Object.assign({}, o, { reserve: null }));
-  }, [o, size.w, size.h]);
+    drawHorizonScene(g, size.w, ph, Object.assign({}, o, { reserve: null, clouds }));
+  }, [o, size.w, size.h, clouds]);
   const close = pick => { setLeaving(true); setTimeout(() => onDone(pick), 450); };
   // Into <body> directly: the tab content's own layering (its fade-in) would
   // otherwise keep this under the bottom tab bar, whatever its z-index.
@@ -4580,10 +4976,12 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner }) {
+function HorizonHero({ loc, now, live, glance, bortle, weather, header, panel, intro, locating, onIntroDone, twilight, corner }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
+  const cloudRef = useRef(null), precipRef = useRef(null);
+  const cloudScene = useRef(null); // what the drift redraws, set with the still sky
   // Reduced motion gets the still picture, drawn whole on one canvas.
   const [still] = useState(() => {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; }
@@ -4662,7 +5060,11 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
   const H = width < 560 ? 380 : 420;
+  const hy = Math.round(H * 0.62);
   const facing = heroFacing(loc.lat, live.m);
+  // This hour's clouds, laid out once for the place and the painting's size.
+  const clouds = useMemo(() => weather ? cloudPuffs(weather, width, hy, cloudSeed(loc.lat, loc.lon)) : null,
+    [weather, width, hy, loc.lat, loc.lon]);
   // The Milky Way over the painting, once a minute, only when the sky is dark
   // enough to show some of it. Sampled every 4 px and drawn scaled up; it
   // fades toward the horizon, where the extra air dims it.
@@ -4714,10 +5116,19 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
       bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight,
-      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null,
+      weather, clouds
     };
     const gc = groundRef.current;
     if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
+    // Clouds on their own canvas over the twinkling stars, so they hide them
+    // and can drift; soft enough to draw at one pixel a px.
+    const cc = cloudRef.current;
+    cloudScene.current = { o, w: width, H };
+    if (cc) {
+      cc.width = width; cc.height = hy; cc.style.width = width + 'px'; cc.style.height = hy + 'px';
+      paintClouds(cc, width, H, o, performance.now());
+    }
     // Moving: the bright stars leave the still sky for the twinkling layer,
     // and the ground goes on its own canvas so it can slide under tilt.
     drawHorizonScene(g, width, H, Object.assign({}, o, { part: 'sky', stars: scene.stars.filter(s => s.mag > TWINKLE_MAG) }));
@@ -4726,7 +5137,28 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
     drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
     if (animRef.current) size(animRef.current, width, H);
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint]);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint, weather, clouds]);
+
+  /* Rain or snow: one strip drawn twice, one above the other, sliding down
+     a sky height and round again on the compositor, with no drawing per
+     frame. Redrawn only when the weather or the light changes much. */
+  const fallKey = weather && weather.fall ? weather.fall + ':' + weather.amount : '';
+  const lightStep = Math.max(0, Math.min(5, Math.round((live.alt + 4) / 2)));
+  useEffect(() => {
+    const cv = precipRef.current;
+    if (still || !cv || !fallKey) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(width * dpr); cv.height = Math.round(2 * hy * dpr);
+    cv.style.width = width + 'px'; cv.style.height = 2 * hy + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const L = cloudLight({ sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, bortle, weather }, width, hy);
+    drawPrecip(g, width, hy, weather, hzRandom(cloudSeed(loc.lat, loc.lon) + 17), precipShade(L), 2);
+    if (typeof cv.animate !== 'function') return;
+    const a = cv.animate([{ transform: `translateY(${-hy}px)` }, { transform: 'translateY(0)' }],
+      { duration: PRECIP_FALL_MS[weather.fall], iterations: Infinity });
+    return () => a.cancel();
+  }, [still, fallKey, width, hy, loc.lat, loc.lon, lightStep, bortle]);
 
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
@@ -4737,7 +5169,15 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   useEffect(() => {
     const cv = animRef.current, gd = groundRef.current, wrap = wrapRef.current;
     if (still || !cv || !gd) return;
-    let raf = 0, timer = 0, last = 0, onScreen = true, meteors = [];
+    let raf = 0, timer = 0, last = 0, onScreen = true, meteors = [], lastCloud = 0;
+    // The clouds drift, redrawn once a second: slow enough that a second's
+    // step is under a pixel, and cheap enough to do by day too.
+    const drift = ts => {
+      const cc = cloudRef.current, c = cloudScene.current;
+      if (!cc || !c || !c.o.weather || ts - lastCloud < 1000) return;
+      lastCloud = ts;
+      paintClouds(cc, c.w, c.H, c.o, ts);
+    };
     const tilt = { x: 0, y: 0, tx: 0, ty: 0, h0: null, v0: null };
     const clamp = v => Math.max(-HERO_BLEED, Math.min(HERO_BLEED, v));
     const onOrient = e => {
@@ -4756,6 +5196,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     const frame = ts => {
       raf = 0;
       const m = motion.current, t = ts / 1000;
+      drift(ts);
       tilt.x += (tilt.tx - tilt.x) * 0.1; tilt.y += (tilt.ty - tilt.y) * 0.1;
       gd.style.transform = `translate3d(${tilt.x.toFixed(2)}px,${tilt.y.toFixed(2)}px,0)`;
       if (ts - last >= 33) { // ~30 frames a second is plenty for a twinkle
@@ -4781,7 +5222,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       else {
         // Daytime, no tilt: clear what was drawn, then check back in a second.
         if (last) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); last = 0; }
-        timer = setTimeout(() => { timer = 0; schedule(); }, 1000);
+        timer = setTimeout(() => { timer = 0; drift(performance.now()); schedule(); }, 1000);
       }
     };
     const onVis = () => schedule();
@@ -4809,7 +5250,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       scene: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
         planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null, weather
       },
       place: loc.name,
       when: `${fmtDate(now, loc.tz)} \u00B7 ${fmt(now)}`,
@@ -4832,6 +5273,14 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         ref: animRef, className: 'hz-sky', 'aria-hidden': 'true',
         style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }
       }),
+      !still && React.createElement('canvas', {
+        ref: cloudRef, className: 'hz-sky', 'aria-hidden': 'true',
+        style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }
+      }),
+      !still && React.createElement('div', {
+        'aria-hidden': 'true',
+        style: { position: 'absolute', left: 0, top: 0, width: '100%', height: hy, overflow: 'hidden', pointerEvents: 'none', display: fallKey ? 'block' : 'none' }
+      }, React.createElement('canvas', { ref: precipRef, className: 'hz-sky', style: { position: 'absolute', left: 0, top: 0, willChange: 'transform' } })),
       !still && React.createElement('canvas', {
         ref: groundRef, className: 'hz-sky', 'aria-hidden': 'true',
         style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
@@ -4863,7 +5312,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       o: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
         planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null, weather
       }
     }),
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
@@ -5105,7 +5554,7 @@ function RealtimeTwilight({ redMode } = {}) {
     // colour of each.
     const west = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "down"), 150);
     const east = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "up"), 150);
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat},${west.lat},${east.lat}&longitude=${loc.lon},${west.lon},${east.lon}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability&forecast_days=8&timezone=auto`)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat},${west.lat},${east.lat}&longitude=${loc.lon},${west.lon},${east.lon}&hourly=cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation_probability,weather_code&forecast_days=8&timezone=auto`)
       .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(d => {
         try { noteSource(localStorage, 'openmeteo'); } catch (e) {}
@@ -5173,6 +5622,9 @@ function RealtimeTwilight({ redMode } = {}) {
     };
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
+  // The weather now, for the painting: clouds, and anything falling. Null
+  // until a forecast arrives, and the painted sky stays clear.
+  const skyWx = useMemo(() => skyWeather(cloudAt(wx, now)), [wx, Math.floor(now / 600000)]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
   // Two days ahead, so the next stage is found after the day's last one too
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
@@ -5277,14 +5729,14 @@ function RealtimeTwilight({ redMode } = {}) {
         background: "transparent", border: "none", cursor: "pointer", color: C.ink,
         fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: "clamp(20px,4.4vw,26px)",
         letterSpacing: "-0.015em", lineHeight: 1.1, textAlign: "left",
-        textShadow: "0 1px 10px rgba(3,5,12,.85)"
+        textShadow: "0 1px 2px rgba(3,5,12,.55), 0 1px 10px rgba(3,5,12,.85)"
       }
     }, loc.name,
       React.createElement("svg", { "aria-hidden": "true", width: 14, height: 14, viewBox: "0 0 14 14", style: { flexShrink: 0, transform: pickerOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } },
         React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
     )),
     React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
+      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 2px rgba(3,5,12,.6), 0 1px 8px rgba(3,5,12,.9)" }
     }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
       timeZone: loc.tz, hour: "numeric", minute: "2-digit", hourCycle: h24 ? "h23" : "h12"
     }).format(new Date(now)), geoMsg && !pickerOpen ? " \xB7 " + geoMsg : "")
@@ -5428,7 +5880,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }))),
   React.createElement(HorizonHero, {
-    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
+    loc, now, live, glance, bortle, weather: skyWx, header: placeHeader, panel: placePanel,
     intro, locating: geoMsg === "Locating\u2026",
     // Twilight right under the painting's facts, before the highlights
     // (2026-09-25; the next stage and the day's times had been at the foot
