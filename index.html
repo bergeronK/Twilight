@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-xYH+MASjAxal5SoXzwedosYV4x20Oc7j/O/vGt5HfmI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-jk9QeJNNaG2wGCua/5YnDXL7VcfMaGexWk5EdExAiAQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v142";
+const BUILD = "v143";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2759,11 +2759,11 @@ function drawHorizonScene(g, w, h, o) {
   const night = o.sunAlt < -6;
   // Layers, nearest last. The moving hero draws each part on its own canvas;
   // with no part (reduced motion, the welcome, the share picture) it is all
-  // one picture, rain and snow held still.
+  // one picture. Rain and snow are held still everywhere, over the clouds.
   const p = o.part;
   if (!p || p === 'sky') drawHorizonSky(g, w, h, o, hy, X, Y, night);
   if (o.weather && (!p || p === 'clouds')) drawHorizonClouds(g, w, hy, o);
-  if (o.weather && !p) drawPrecip(g, w, hy, o.weather, hzRandom(cloudSeed(o.lat, o.lon) + 17), precipShade(cloudLight(o, w, hy)));
+  if (o.weather && (!p || p === 'clouds')) drawPrecip(g, w, hy, o.weather, hzRandom(cloudSeed(o.lat, o.lon) + 17), precipShade(cloudLight(o, w, hy)));
   if (!p || p === 'ground') drawHorizonGround(g, w, h, o, hy, X);
 }
 function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
@@ -3245,12 +3245,11 @@ function drawHorizonClouds(g, w, hy, o) {
     g.fillStyle = fog; g.fillRect(0, 0, w, hy + 2);
   }
 }
-/* Rain, drizzle or snow over a strip `w` by `th` px, the pattern repeating
-   every `th` down, drawn over `reps` strips so a canvas `reps` x `th` tall
-   can slide down by `th` without a seam. Rain leans a little, as it does in
-   any breeze. How much falls follows the weather code's amount. */
-const PRECIP_FALL_MS = { rain: 700, drizzle: 1400, snow: 14000 }; // to fall one sky height
-function drawPrecip(g, w, th, wx, rand, rgb, reps = 1) {
+/* Rain, drizzle or snow over the sky, `w` by `th` px, held still: the
+   painting says it is raining without animating every drop. Rain leans a
+   little, as it does in any breeze. How much falls follows the weather
+   code's amount. */
+function drawPrecip(g, w, th, wx, rand, rgb) {
   if (!wx || !wx.fall) return;
   const snow = wx.fall === 'snow', drizzle = wx.fall === 'drizzle';
   const n = Math.round(wx.amount * w * th / (snow ? 520 : drizzle ? 380 : 650));
@@ -3259,12 +3258,9 @@ function drawPrecip(g, w, th, wx, rand, rgb, reps = 1) {
   // Near and far: two brightnesses, one path each.
   [[d => d.k >= 0.6, 1], [d => d.k < 0.6, 0.55]].forEach(([pick, a]) => {
     g.beginPath();
-    drops.filter(pick).forEach(d => {
-      for (let r = -1; r < reps; r++) {
-        const y = d.y + r * th;
-        if (snow) { const fr = 0.7 + 1.7 * d.k * d.k; g.moveTo(d.x + fr, y); g.arc(d.x, y, fr, 0, 7); }
-        else { const len = drizzle ? 3 + 4 * d.k : 8 + 12 * d.k; g.moveTo(d.x, y); g.lineTo(d.x - len * 0.12, y + len); }
-      }
+    drops.filter(pick).forEach(({ x, y, k }) => {
+      if (snow) { const fr = 0.7 + 1.7 * k * k; g.moveTo(x + fr, y); g.arc(x, y, fr, 0, 7); }
+      else { const len = drizzle ? 3 + 4 * k : 8 + 12 * k; g.moveTo(x, y - len); g.lineTo(x - len * 0.12, y); }
     });
     if (snow) { g.fillStyle = `rgba(${rgb},${(0.8 * a).toFixed(2)})`; g.fill(); }
     else { g.strokeStyle = `rgba(${rgb},${((drizzle ? 0.32 : 0.4) * a).toFixed(2)})`; g.lineWidth = drizzle ? 0.8 : 1; g.lineCap = 'round'; g.stroke(); }
@@ -4993,7 +4989,7 @@ function HorizonHero({ loc, now, live, glance, bortle, weather, header, panel, i
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
-  const cloudRef = useRef(null), precipRef = useRef(null);
+  const cloudRef = useRef(null);
   const cloudScene = useRef(null); // what the drift redraws, set with the still sky
   // Reduced motion gets the still picture, drawn whole on one canvas.
   const [still] = useState(() => {
@@ -5149,27 +5145,6 @@ function HorizonHero({ loc, now, live, glance, bortle, weather, header, panel, i
     if (animRef.current) size(animRef.current, width, H);
   }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint, weather]);
 
-  /* Rain or snow: one strip drawn twice, one above the other, sliding down
-     a sky height and round again on the compositor, with no drawing per
-     frame. Redrawn only when the weather or the light changes much. */
-  const fallKey = weather && weather.fall ? weather.fall + ':' + weather.amount : '';
-  const lightStep = Math.max(0, Math.min(5, Math.round((live.alt + 4) / 2)));
-  useEffect(() => {
-    const cv = precipRef.current;
-    if (still || !cv || !fallKey) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.round(width * dpr); cv.height = Math.round(2 * hy * dpr);
-    cv.style.width = width + 'px'; cv.style.height = 2 * hy + 'px';
-    const g = cv.getContext('2d');
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const L = cloudLight({ sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, bortle, weather }, width, hy);
-    drawPrecip(g, width, hy, weather, hzRandom(cloudSeed(loc.lat, loc.lon) + 17), precipShade(L), 2);
-    if (typeof cv.animate !== 'function') return;
-    const a = cv.animate([{ transform: `translateY(${-hy}px)` }, { transform: 'translateY(0)' }],
-      { duration: PRECIP_FALL_MS[weather.fall], iterations: Infinity });
-    return () => a.cancel();
-  }, [still, fallKey, width, hy, loc.lat, loc.lon, lightStep, bortle]);
-
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
      window. One loop for the life of the hero; it sleeps when the painting
@@ -5287,10 +5262,6 @@ function HorizonHero({ loc, now, live, glance, bortle, weather, header, panel, i
         ref: cloudRef, className: 'hz-sky', 'aria-hidden': 'true',
         style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }
       }),
-      !still && React.createElement('div', {
-        'aria-hidden': 'true',
-        style: { position: 'absolute', left: 0, top: 0, width: '100%', height: hy, overflow: 'hidden', pointerEvents: 'none', display: fallKey ? 'block' : 'none' }
-      }, React.createElement('canvas', { ref: precipRef, className: 'hz-sky', style: { position: 'absolute', left: 0, top: 0, willChange: 'transform' } })),
       !still && React.createElement('canvas', {
         ref: groundRef, className: 'hz-sky', 'aria-hidden': 'true',
         style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
