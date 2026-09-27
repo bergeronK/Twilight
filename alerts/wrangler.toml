@@ -1,0 +1,24 @@
+# Cloudflare Worker that sends Twilyte's clear-and-dark alerts.
+# Deploy from this directory: see README.md. Create the KV namespace and set
+# the VAPID_PRIVATE secret first.
+name = "twilyte-alerts"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+workers_dev = true
+preview_urls = false
+
+[vars]
+# The public half of the VAPID key pair (base64url, 65 bytes). Public by
+# design: browsers subscribe with it. Written by scripts/generate-vapid.js.
+VAPID_PUBLIC = ""
+VAPID_SUBJECT = "https://twilyte.info"
+
+[[kv_namespaces]]
+binding = "SUBS"
+# Replace with the id printed by: npx wrangler kv namespace create TWILYTE-ALERTS
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[triggers]
+# On the hour, every hour: each run alerts the subscribers for whom it is now
+# 4 PM (ALERT_HOUR in src/index.js).
+crons = ["0 * * * *"]
