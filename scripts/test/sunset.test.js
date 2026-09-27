@@ -69,7 +69,8 @@ test('cloud layers at the hour nearest the sunset', () => {
   w.hourly.cloud_cover_high[26] = 77; // 22:00 local on the 24th = 02:00 UTC on the 25th
   const t = Date.UTC(2026, 8, 25, 2, 20);
   assert.strictEqual(m.cloudAt(w, t).high, 77, 'local wall clock read with the offset');
-  assert.deepStrictEqual(Object.keys(m.cloudAt(w, t)).sort(), ['high', 'low', 'mid', 'precip', 'total']);
+  assert.deepStrictEqual(Object.keys(m.cloudAt(w, t)).sort(), ['code', 'high', 'low', 'mid', 'precip', 'total']);
+  assert.strictEqual(m.cloudAt(w, t).code, null, 'no weather code in this forecast (weather-painting.test.js has one)');
   assert.strictEqual(m.cloudAt(w, Date.UTC(2026, 8, 28)), null, 'past the end of the forecast');
   const old = wx({ total: 50, low: 10, mid: 20, high: 40 });
   delete old.hourly.cloud_cover_low;
