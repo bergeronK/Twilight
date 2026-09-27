@@ -323,9 +323,11 @@ stargazer is the default, navigator material is kept whole but folded.
     (4x CPU); the textures, ~20-40 ms once a place (100-170 at 4x).
   - In the moving hero the clouds have their own canvas between the
     twinkling stars and the ground, redrawn once a second by the animation
-    loop, idle tick included; rain and snow are one strip drawn twice and
-    slid down a sky height on the compositor (`animate`,
-    `PRECIP_FALL_MS`). Reduced motion gets it all still, on one canvas.
+    loop, idle tick included. **Rain and snow are drawn still** (owner,
+    2026-09-27: the painting only has to say it's raining), on the cloud
+    canvas over the clouds, the same drops each second; they fell on the
+    compositor for a day (#136-#137). Reduced motion gets it all still, on
+    one canvas.
   - `/privacy.html` says the forecast also feeds the painting.
     `weather-painting.test.js`.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
@@ -1366,8 +1368,8 @@ things a syntax check cannot see:
   along the wind; a west wind carrying clouds left, low cloud furthest; low
   cloud hiding high; the light (day, dusk by the Sun, high cloud last,
   Moon, town); draw order over the stars and under the ground; the
-  alternate-row drift; planets off under overcast; fog, rain and snow and
-  their seamless strips; the hero's wiring at source level. Canvases come
+  alternate-row drift; planets off under overcast; fog, rain and snow,
+  the rain still and over the clouds; the hero's wiring at source level. Canvases come
   from an injected `makeCanvas`. 30 mutations, all caught; the light-side
   shading, the dark cores and the close-up octave are looks, untested.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,

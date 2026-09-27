@@ -28,7 +28,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'atan2', 'hx', 'toHex', 'lerpC', 
   'cloudAt', 'WMO_FALL', 'skyWeather', 'CLOUD_LAYERS', 'CLOUD_TEX', 'cloudSeed', 'overcastOf', 'cloudTexKept',
   'cloudTexture', 'cloudThreshold', 'texAt', 'panoAlt', 'cloudReach', 'cloudPlaneUV', 'cloudLight', 'CLOUD_DAY',
   'CLOUD_NIGHT', 'CLOUD_LIFT', 'cloudShade', 'fogShade', 'precipShade', 'CLOUD_FIELD', 'CLOUD_RES', 'cloudGridKept',
-  'cloudPixels', 'cloudCanvas', 'cloudWork', 'drawHorizonClouds', 'PRECIP_FALL_MS', 'drawPrecip', 'paintClouds']);
+  'cloudPixels', 'cloudCanvas', 'cloudWork', 'drawHorizonClouds', 'drawPrecip', 'paintClouds']);
 
 /* ---- A recording canvas ---- */
 function recCtx() {
@@ -426,33 +426,34 @@ test('fog over the sky and on the ground', () => {
   assert.strictEqual(groundFog(plain), 0);
 });
 
-test('rain, drizzle and snow: how much, what shape, and a pattern that repeats', () => {
-  const run = (w, reps = 1) => { const g = recCtx(); m.drawPrecip(g, W, HY, w, m.hzRandom(7), '200,200,200', reps); return g.ops; };
+test('rain, drizzle and snow: how much, what shape, and held still', () => {
+  const run = w => { const g = recCtx(); m.drawPrecip(g, W, HY, w, m.hzRandom(7), '200,200,200'); return g.ops; };
   assert.strictEqual(run(null).length, 0);
   assert.strictEqual(run(wx({ low: 90 })).length, 0, 'cloud without rain');
   const streaks = ops => { const out = []; ops.forEach((op, i) => { if (op[0] === 'moveTo' && ops[i + 1] && ops[i + 1][0] === 'lineTo') out.push([op[1], op[2], ops[i + 1][1] - op[1], ops[i + 1][2] - op[2]]); }); return out; };
   const heavy = streaks(run(wx({ fall: 'rain', amount: 1 }))), light = streaks(run(wx({ fall: 'rain', amount: 0.35 })));
   const n = a => Math.round(a * W * HY / 650);
-  assert.strictEqual(heavy.length, 2 * n(1), 'each drop in its strip and the one above');
-  assert.strictEqual(light.length, 2 * n(0.35));
-  heavy.forEach(([, , dx, dy]) => { assert.ok(dy >= 8 && dy <= 20); assert.ok(Math.abs(dx + 0.12 * dy) < 1e-9, 'leaning a little'); });
+  assert.strictEqual(heavy.length, n(1), 'each drop drawn once');
+  assert.strictEqual(light.length, n(0.35));
+  heavy.forEach(([, y, dx, dy]) => { assert.ok(dy >= 8 && dy <= 20); assert.ok(Math.abs(dx + 0.12 * dy) < 1e-9, 'leaning a little'); assert.ok(y + dy <= HY + 1e-9, 'no streak runs past the horizon'); });
   const drizzle = streaks(run(wx({ fall: 'drizzle', amount: 0.6 })));
   assert.ok(drizzle.length > 0 && drizzle.every(([, , , dy]) => dy >= 3 && dy <= 7), 'drizzle is finer');
   const snow = run(wx({ fall: 'snow', amount: 0.65 })).filter(op => op[0] === 'arc');
   assert.ok(snow.length > 0 && snow.every(op => op[3] >= 0.7 && op[3] <= 2.4), 'snow is flakes');
   assert.strictEqual(run(wx({ fall: 'snow', amount: 0.65 })).filter(op => op[0] === 'lineTo').length, 0);
-  // Two strips: every drop drawn at the same place in each, so the canvas
-  // can slide one strip down and look the same.
-  const two = streaks(run(wx({ fall: 'rain', amount: 0.65 }), 2));
-  const key = ([x, y]) => `${x.toFixed(3)},${(((y % HY) + HY) % HY).toFixed(3)}`;
-  const counts = {};
-  two.forEach(s => { counts[key(s)] = (counts[key(s)] || 0) + 1; });
-  assert.ok(Object.values(counts).every(c => c === 3), 'three copies of each drop, one strip apart');
-  assert.ok(m.PRECIP_FALL_MS.rain < m.PRECIP_FALL_MS.drizzle && m.PRECIP_FALL_MS.drizzle < m.PRECIP_FALL_MS.snow, 'snow drifts down slowest');
-  // The still picture carries the rain; the moving hero's clouds layer doesn't.
+  // The still picture carries the rain, and so does the moving hero's
+  // clouds layer, over the clouds; the sky and ground layers don't.
   const o = scene({ weather: wx({ low: 90, fall: 'rain', amount: 1 }) });
-  assert.ok(paint(o).ops.some(op => op[0] === 'stroke'));
-  assert.ok(!paint(Object.assign({}, o, { part: 'clouds' })).ops.some(op => op[0] === 'stroke'));
+  const rained = g => g.ops.some(op => op[0] === 'stroke' && /^rgba/.test(op[1]));
+  assert.ok(rained(paint(o)));
+  const layer = part => paint(Object.assign({}, o, { part }));
+  assert.ok(rained(layer('clouds')));
+  assert.ok(!rained(layer('sky')) && !rained(layer('ground')));
+  const cl = layer('clouds').ops, lay = cl.findIndex(op => op[0] === 'drawImage' && op[1] && op[1].ctx);
+  assert.ok(lay >= 0 && lay < cl.findIndex(op => op[0] === 'stroke'), 'the rain over the clouds');
+  // Held still: the once-a-second redraw puts every drop where it was.
+  const drops = t => streaks(paint(Object.assign({}, o, { part: 'clouds', cloudT: t })).ops);
+  assert.deepStrictEqual(drops(0), drops(60000));
 });
 
 /* ---- Wiring, at source level ---- */
@@ -464,14 +465,14 @@ test('the forecast asks for the weather code, and the Console passes the hour’
   assert.match(src, /React\.createElement\(HorizonHero, \{[^}]*weather: skyWx/);
 });
 
-test('the hero: clouds between the twinkling stars and the ground, redrawn once a second, rain on the compositor', () => {
+test('the hero: clouds between the twinkling stars and the ground, redrawn once a second, rain still', () => {
   const src = appScript(fs.readFileSync(INDEX, 'utf8'));
   const hero = src.slice(src.indexOf('function HorizonHero('), src.indexOf('/* Place search, shared by the Console'));
   const at = s => { const i = hero.indexOf(s); assert.ok(i > 0, s); return i; };
-  assert.ok(at('ref: animRef') < at('ref: cloudRef') && at('ref: cloudRef') < at('ref: precipRef') && at('ref: precipRef') < at('ref: groundRef'));
+  assert.ok(at('ref: animRef') < at('ref: cloudRef') && at('ref: cloudRef') < at('ref: groundRef'));
   assert.match(hero, /ts - lastCloud < 1000/);
   assert.match(hero, /drift\(performance\.now\(\)\); schedule\(\);/, 'the idle tick drifts the clouds too');
-  assert.match(hero, /duration: PRECIP_FALL_MS\[weather\.fall\]/);
+  assert.doesNotMatch(hero, /\.animate\(/, 'no drop is animated');
   // The welcome and the share picture paint the same weather.
   assert.strictEqual((hero.match(/mw: mwPaint \? \{ img: mwPaint, alpha: 0\.55 \* mwVis \} : null, weather/g) || []).length, 2);
   // Each drawing shows the clouds where they are now, and the drift asks
