@@ -17,6 +17,14 @@ const { angErr, rng } = O;
 
 const run = (samples, state = O.FUSION_INIT) => samples.reduce(O.fuseOrientation, state);
 const repeat = (n, s) => Array.from({ length: n }, () => s);
+// NORTH_SETTLE_SAMPLES is used below as a loop bound. Check it is sane first,
+// so a bad value fails the test instead of looping for hours — a mutation
+// setting it to 1e9 once hung CI-style runs this way.
+const settleN = () => {
+  assert.ok(O.NORTH_SETTLE_SAMPLES >= 1 && O.NORTH_SETTLE_SAMPLES <= 1000,
+    `NORTH_SETTLE_SAMPLES is ${O.NORTH_SETTLE_SAMPLES}, not a usable sample count`);
+  return O.NORTH_SETTLE_SAMPLES;
+};
 // The same physical pose, but with the yaw origin shifted — what a relative
 // stream reports.
 const relOf = (truth, offset) => O.quatMul(O.yawQ(offset), truth);
@@ -194,9 +202,52 @@ test('iOS: the north estimate keeps following the compass', () => {
   assert.ok(aimErr(s, truth).az < 0.05, `estimate failed to follow the drift: off by ${aimErr(s, truth).az} deg`);
 });
 
+test('the first north readings are averaged, not the first one adopted', () => {
+  // With a steady phone and a noisy compass, the estimate after the opening
+  // readings must be their mean. It used to be the first reading, with the
+  // rest trickled in at NORTH_SMOOTH: one reading's noise took ~50 more to
+  // wear off.
+  const truth = O.quatFromEuler(0, 110, 0);
+  const rand = rng(31);
+  let s = run([{ kind: 'rel', q: truth }]);
+  const errs = [];
+  for (let i = 0; i < settleN(); i++) {
+    const e = (rand() - 0.5) * 12;                  // ±6 deg of compass noise
+    errs.push(e);
+    s = O.fuseOrientation(s, { kind: 'abs', q: O.quatMul(O.yawQ(-e), truth), magnetic: true });
+  }
+  const mean = errs.reduce((a, b) => a + b, 0) / errs.length;
+  // yawQ(-e) moves the compass's azimuths by +e, so the offset is -e.
+  assert.ok(angErr(s.yaw, -mean) < 1e-6, `expected the mean offset ${(-mean).toFixed(3)}, got ${s.yaw}`);
+  assert.ok(Math.abs(mean) < Math.abs(errs[0]) || Math.abs(errs[0]) < 1,
+    'the average should beat relying on the first reading alone');
+});
+
+test('averaging beats adopting the first reading, across many sessions', () => {
+  // The same comparison, statistically: over 300 simulated starts the
+  // averaged estimate's error should be well under the old scheme's.
+  const truth = O.quatFromEuler(0, 110, 0);
+  const rand = rng(77);
+  let sqNew = 0, sqOld = 0;
+  for (let run_ = 0; run_ < 300; run_++) {
+    let s = run([{ kind: 'rel', q: truth }]);
+    let old = null;
+    for (let i = 0; i < settleN(); i++) {
+      const e = (rand() - 0.5) * 12;
+      s = O.fuseOrientation(s, { kind: 'abs', q: O.quatMul(O.yawQ(-e), truth), magnetic: true });
+      old = O.smoothAngle(old, -e, old === null ? 1 : O.NORTH_SMOOTH);   // the previous scheme
+    }
+    sqNew += angErr(s.yaw, 0) ** 2;
+    sqOld += angErr(old, 0) ** 2;
+  }
+  const rmsNew = Math.sqrt(sqNew / 300), rmsOld = Math.sqrt(sqOld / 300);
+  assert.ok(rmsNew < rmsOld * 0.6, `rms error ${rmsNew.toFixed(2)} averaged vs ${rmsOld.toFixed(2)} before`);
+});
+
 test('the north estimate settles smoothly rather than snapping', () => {
   const truth = O.quatFromEuler(0, 120, 0);
-  let s = run([{ kind: 'rel', q: truth }, { kind: 'abs', q: truth, magnetic: true }]);
+  // Past the opening average, so what follows is the slow filter.
+  let s = run([{ kind: 'rel', q: truth }].concat(repeat(settleN(), { kind: 'abs', q: truth, magnetic: true })));
   assert.ok(angErr(s.yaw, 0) < 1e-9);
   // The compass now puts the camera 20 deg further round (a recalibration,
   // say). yawQ(psi) lowers azimuths by psi, so the offset that maps the
@@ -379,6 +430,7 @@ test('north-gate tuning is sensible', () => {
   assert.ok(O.NORTH_FACE_UP > 0 && O.NORTH_FACE_UP < 0.5);
   assert.ok(O.NORTH_JUMP_DEG >= 30 && O.NORTH_JUMP_DEG <= 90);
   assert.ok(O.NORTH_JUMP_SAMPLES >= 20 && O.NORTH_JUMP_SAMPLES <= 120);
+  assert.ok(O.NORTH_SETTLE_SAMPLES >= 5 && O.NORTH_SETTLE_SAMPLES <= 60, 'long enough to average, short enough to settle quickly');
 });
 
 // ---------------------------------------------------- readings from a real iPhone
@@ -449,3 +501,71 @@ test('iPhone reading: reading the heading as the top of the phone reverses the v
   assert.ok(angErr(aimAz, r.moonAz) > 170,
     `the old rule should be ~180 deg out here, it was ${angErr(aimAz, r.moonAz).toFixed(0)}`);
 });
+
+// ------------------------------------------- two steeper readings, and one rule for all six
+/*
+ * Two more Sensor details readouts from an iPhone, 2026-09-16 at 42.10,
+ * -72.45 (declination 13.4° W), both with the phone tipped further back than
+ * any reading above — beta 132.6 and 136.1, against 102 to 121.
+ *
+ *   #1 pointed where the app drew Polaris, which the observer judged about
+ *      30° left of the real one: camera true bearing ~330 (an estimate).
+ *   #2 real Polaris centred in the crosshair, camera on: camera true bearing
+ *      0.7 (Polaris sits at az 0 ± 1, alt 41.4 to 42.8 from there).
+ *
+ * #1 fits the camera axis, like all four above. #2 does not: read as the
+ * camera it is 176° out, read as the top of the phone it lands on Polaris.
+ *
+ * One rule fits all six: the heading is the bearing of whichever of the
+ * phone's top and its camera axis is MORE HORIZONTAL. With no roll they swap
+ * at beta 135, with the camera 45° above the horizon — just past #2, and
+ * roughly where an observer at 42° N points to find Polaris. Every reading
+ * above is below the swap; #2 is the only one past it.
+ *
+ * Caveat: that swap rests on a single reading taken close to it (#2 is 0.72
+ * horizontal at the top against 0.69 at the camera). It is the only rule the
+ * evidence allows so far, not a settled one.
+ */
+const IPHONE_STEEP = [
+  { name: '#1 app\'s Polaris, ~30° left', alpha: 60, beta: 132.6, gamma: 0.9, heading: 346, trueAz: 330, estimate: true },
+  { name: '#2 real Polaris centred', alpha: 190.3, beta: 136.1, gamma: -2.6, heading: 190, trueAz: 0.7 }
+];
+const IPHONE_DECL = -13.35;
+// Error of reading the heading (as magnetic) as the bearing of `axis`, given
+// the camera truly points at trueAz. The top's true bearing follows from the
+// camera's, since both come from the same rotation.
+function axisErr(r, axis) {
+  const q = O.quatFromEuler(r.alpha, r.beta, r.gamma);
+  const cam = O.quatRotate(q, [0, 0, -1]), top = O.quatRotate(q, [0, 1, 0]);
+  const shift = r.trueAz - O.vecAz(cam);
+  const trueOf = { camera: r.trueAz, top: (O.vecAz(top) + shift + 720) % 360 };
+  const pick = axis !== 'more-horizontal' ? axis : (O.vecHoriz(top) > O.vecHoriz(cam) ? 'top' : 'camera');
+  return angErr((r.heading + IPHONE_DECL + 360) % 360, trueOf[pick]);
+}
+const ALL_SIX = IPHONE.map(r => Object.assign({ trueAz: r.moonAz }, r)).concat(IPHONE_STEEP);
+
+test('one rule fits all six iPhone readings: the more horizontal axis', () => {
+  for (const r of ALL_SIX) {
+    const e = axisErr(r, 'more-horizontal');
+    assert.ok(e < (r.estimate ? 15 : 12), `${r.name}: ${e.toFixed(1)}° out under the more-horizontal rule`);
+  }
+});
+
+test('neither fixed axis fits all six', () => {
+  // The camera-only rule — what yawFromHeading does today — fails #2.
+  assert.ok(axisErr(IPHONE_STEEP[1], 'camera') > 150, 'camera-only should be ~176° out on #2');
+  // The top-only rule fails every one of the four readings above.
+  for (const r of IPHONE) {
+    assert.ok(axisErr(Object.assign({ trueAz: r.moonAz }, r), 'top') > 150, `top-only should fail ${r.name}`);
+  }
+});
+
+test('reading #2 through the fusion lands on Polaris',
+  { todo: 'yawFromHeading reads the heading as the camera axis only, which is ~176° out here. Needs the owner to decide whether to adopt the more-horizontal rule the six readings support.' },
+  () => {
+    const r = IPHONE_STEEP[1];
+    const s = run(repeat(40, { kind: 'heading', q: O.quatFromEuler(r.alpha, r.beta, r.gamma), heading: r.heading, trueNorth: false, acc: 10 }));
+    const aim = O.aimOf(O.fusedView(s).q);
+    const trueAim = (aim.az + IPHONE_DECL + 360) % 360;
+    assert.ok(angErr(trueAim, r.trueAz) < 12, `view ${trueAim.toFixed(0)} vs Polaris ${r.trueAz} — off by ${angErr(trueAim, r.trueAz).toFixed(0)}°`);
+  });
