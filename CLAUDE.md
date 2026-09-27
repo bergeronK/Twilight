@@ -281,14 +281,28 @@ stargazer is the default, navigator material is kept whole but folded.
   fog}` (`WMO_FALL` by code; rain thickens the low deck to 60%+ rather
   than falling from a clear sky). Null without a forecast: clear, as before.
   - **Amounts are the forecast's, places are not**: a forecast gives a
-    fraction, not a map. `cloudPuffs` takes a fixed list of candidate clouds
-    for the place (`cloudSeed`), ordered by a smooth field periodic across
-    the width, and adds them until each layer hides its fraction of the
-    painted sky; past `sheet` (70%, cirrus 35%) a sheet over the whole sky
-    makes up the rest, complete at 100%. So thin cloud gathers in groups
-    with clear sky between, and a thicker forecast adds to the same sky
-    (30% is literally the start of 50%). Cumulus heaped on flat bases,
-    altocumulus in patches, cirrus in tilted streaks.
+    fraction, not a map. **The clouds are a fractal noise field
+    (2026-09-27, second pass)**: the first version stamped soft oval puffs,
+    and the owner found it "very unnatural and cartoonish". Each layer
+    (`CLOUD_LAYERS`: cirrus 9 km, mid 4 km, low 1.6 km) is a tileable fBm
+    texture per place (`cloudTexture(cloudSeed, key)`, 128², value noise
+    whose lattices wrap, domain-warped; cirrus's lattice is stretched along
+    the wind into streaks; made once, ~10 ms a layer, kept in
+    `cloudTexKept`), laid flat at the layer's height and seen from the
+    ground: a pixel meets the layer `cloudReach(h, alt)` away (h / tan alt;
+    above 45° it keeps shrinking in proportion but never reaches zero,
+    since the flat panorama's top row is a whole half-circle of sky and the
+    real geometry drew rays from the top; `cloudPlaneUV`). So clouds are
+    big overhead and recede into small flat rows that merge into an even
+    band on the horizon. It is cloud where the field is above
+    `cloudThreshold(tex, c)`, the forecast's quantile, so a thicker forecast
+    only adds cloud and a clear one draws nothing. Opacity thickens toward
+    the horizon (the sight line crosses more of the layer); as a pixel's
+    footprint grows (`fp`, texels a pixel) the field gives way to coarser
+    copies (`mid`, `lo`, same mean and spread) and edges soften (without it,
+    blocky stair-steps); up close a finer octave adds edge detail. Thick
+    cloud is darker underneath by day, edges toward the Sun or a bright
+    Moon lighter.
   - **Lit like cloud** (`cloudShade`): pale by day and greyer the heavier;
     warm on the Sun's side at dawn and dusk, high cloud last
     (`CLOUD_LIFT`); by night dark, silvered by the Moon (most near it),
@@ -297,20 +311,23 @@ stargazer is the default, navigator material is kept whole but folded.
     sheet leaves planets off (their names showed through it). By day the top
     of a cloudy sky is dimmed a little, and the place name and date got a
     tighter shadow: white cloud washed them out.
-  - **Cheap enough to drift**: shapes are stamped once per forecast into
-    half-resolution masks (`cloudMasks`, a tile two widths wide, from one
-    sprite); each drawing slides each layer's mask (`cloudDrift`, low cloud
-    across the painting in `CLOUD_CROSS_S` = 15 min, higher layers slower)
-    and colours it from a 24x12 grid of `cloudShade`, kept until the light
-    changes. A gradient per puff took 85-380 ms on the throttled phone
-    profile; now ~3 ms a redraw (13 at 4x), ~35 ms for the shapes once.
+  - **Cheap enough to drift**: `cloudPixels` works the three layers out at
+    half resolution into one RGBA image (colour from a 24x12 grid of
+    `cloudShade`, kept in `cloudGridKept` until the light changes), put on a
+    canvas and scaled up. The layers drift east on a wind (`wind`, km/s; in
+    a painting facing south that is leftward, low cloud fastest), at the
+    wall clock (`o.cloudT`, epoch ms), so the still painting, the welcome
+    and the share picture show them where they are now. The hero's drift
+    redraws once a second, alternate rows each time (`cloudRows`, same
+    `cloudScene`): 3-6 ms a tick, 13-21 ms on the throttled phone profile
+    (4x CPU); the textures, ~20-40 ms once a place (100-170 at 4x).
   - In the moving hero the clouds have their own canvas between the
     twinkling stars and the ground, redrawn once a second by the animation
     loop, idle tick included; rain and snow are one strip drawn twice and
     slid down a sky height on the compositor (`animate`,
     `PRECIP_FALL_MS`). Reduced motion gets it all still, on one canvas.
   - `/privacy.html` says the forecast also feeds the painting.
-    `weather-painting.test.js` (25 mutations, all caught).
+    `weather-painting.test.js`.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
   grid of its brightness (0..250, run-length coded), built by
   `scripts/generate-milky-way.js` from d3-celestial's `mw.json` (five nested
@@ -1340,14 +1357,19 @@ things a syntax check cannot see:
   CSP/sw.js/`ALERTS_LIVE` wiring. `extract.js` now keeps `async` on an
   extracted `async function` (it dropped it, and `await` failed to parse).
 - **`weather-painting.test.js`** — the weather in the painting: every WMO
-  code, rain never from a clear sky, each layer covering the forecast's
-  fraction (measured on a finer grid than the code's), thin cloud leaving a
-  clear stretch a fifth of the width (random spots don't), 30% as the start
-  of 50%, the light (day, dusk by the Sun, high cloud last, Moon, town),
-  draw order over the stars and under the ground, the moving hero's layer
-  split, each layer's drift, shapes stamped once, planets off under a sheet,
-  fog, rain and snow and their seamless strips, and the hero's wiring at
-  source level. Canvases come from an injected `makeCanvas`.
+  code, rain never from a clear sky; the cloud field seamless, made once a
+  place, the forecast's quantile exactly; seen from the ground, each layer
+  covering the forecast's fraction of the dome (24 places: one sees too few
+  clouds overhead to average) and of the painted open sky; a thicker
+  forecast only adding; perspective (runs longer overhead, thicker low
+  down, an even band on the horizon, no speckle far off); cirrus streaky
+  along the wind; a west wind carrying clouds left, low cloud furthest; low
+  cloud hiding high; the light (day, dusk by the Sun, high cloud last,
+  Moon, town); draw order over the stars and under the ground; the
+  alternate-row drift; planets off under overcast; fog, rain and snow and
+  their seamless strips; the hero's wiring at source level. Canvases come
+  from an injected `makeCanvas`. 30 mutations, all caught; the light-side
+  shading, the dark cores and the close-up octave are looks, untested.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
