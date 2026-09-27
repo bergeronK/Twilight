@@ -12,7 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'hx', 'toHex', 'lerpC', 'skyColors',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'atan2', 'hx', 'toHex', 'lerpC', 'skyColors',
   'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
 
 function stubCtx() {
@@ -51,6 +51,15 @@ test('no planets in a daylight sky: they are up, but no one can see them', () =>
 test('planets appear once the sky is dark enough, from mid civil twilight', () => {
   assert.ok(names(paint(scene({ sunAlt: -4, sky: m.skyColors(-4) }))).includes('Jupiter'));
   assert.ok(!names(paint(scene({ sunAlt: -2, sky: m.skyColors(-2) }))).includes('Jupiter'), 'not with the Sun just down');
+});
+
+test('the Moon is drawn but not named: its disc says what it is', () => {
+  const g = paint(scene({ sunAlt: -20, sky: m.skyColors(-20), moon: { az: 180, alt: 30, illum: 0.6 } }));
+  const md = m.heroMoonDisc(W, Math.round(H * 0.62), { az: 180, alt: 30, illum: 0.6 }, 180);
+  assert.ok(md, 'the Moon is in frame');
+  assert.ok(g.dots.some(d => Math.abs(d.x - md.x) < 1 && Math.abs(d.y - md.y) < 1), 'the disc is painted');
+  assert.ok(!names(g).includes('Moon'));
+  assert.ok(names(g).includes('Jupiter'), 'planets keep their names');
 });
 
 test('a label that would cover the place-name header moves aside, or is left off', () => {
