@@ -54,6 +54,12 @@ stargazer is the default, navigator material is kept whole but folded.
   stage it shows tomorrow's. The next stage is scanned 48 h ahead
   (`sunAhead`); the old midnight-to-midnight scan had none from
   astronomical dusk to midnight. `twilight-today.test.js`.
+- **The score under tonight's ribbon (2026-09-29, owner's ask).** "Sky
+  tonight" and the "Clear & dark · tonight" strip (and the alerts row, once
+  `ALERTS_LIVE`) are `HorizonHero`'s `score` prop, drawn after the ribbon
+  and its three facts and before the twilight section. They had sat below
+  the highlights and Share, about 950 px further down at 390 px wide. The
+  week planner stays where it was.
 - **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
   In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
   middle cloud 20-80% with little low cloud is "Likely colourful"; low cloud

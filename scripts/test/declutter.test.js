@@ -72,3 +72,20 @@ test('the feedback link and its template', () => {
   const tpl = fs.readFileSync(path.join(root, '.github', 'ISSUE_TEMPLATE', 'feedback.md'), 'utf8');
   assert.match(tpl, /^---\nname: Feedback\n/);
 });
+
+test('the clear-and-dark score sits right under tonight’s ribbon and facts, before the twilight times', () => {
+  // The hero draws the ribbon, its facts, then the score, then twilight.
+  const hero = declSource('HorizonHero');
+  const at = s => { const i = hero.indexOf(s); assert.ok(i > 0, s); return i; };
+  assert.ok(at('React.createElement(NightRibbon') < at('React.createElement(NightFacts'));
+  assert.ok(at('React.createElement(NightFacts') < at('score || null') && at('score || null') < at('twilight || null'));
+  assert.ok(at('twilight || null') < at('React.createElement(TonightHighlights'));
+  // The Console hands the hero the "Sky tonight" figure and the strip as
+  // that prop, and neither is left below the hero as well.
+  const app = declSource('RealtimeTwilight');
+  const call = app.slice(app.indexOf('React.createElement(HorizonHero, {'), app.indexOf('weekPlannerEl(wxWeek'));
+  const score = call.slice(call.indexOf('score: '), call.indexOf('corner: factCorner'));
+  assert.ok(score.length > 0 && /k: "Sky tonight"/.test(score) && /skyStripEl\(wxScore, loc, h24\)/.test(score));
+  assert.strictEqual((app.match(/skyStripEl\(/g) || []).length, 1);
+  assert.strictEqual((app.match(/k: "Sky tonight"/g) || []).length, 1);
+});
