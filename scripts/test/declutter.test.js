@@ -80,12 +80,11 @@ test('the clear-and-dark score sits right under tonight’s ribbon and facts, be
   assert.ok(at('React.createElement(NightRibbon') < at('React.createElement(NightFacts'));
   assert.ok(at('React.createElement(NightFacts') < at('score || null') && at('score || null') < at('twilight || null'));
   assert.ok(at('twilight || null') < at('React.createElement(TonightHighlights'));
-  // The Console hands the hero the "Sky tonight" figure and the strip as
-  // that prop, and neither is left below the hero as well.
+  // The Console hands the hero the "Sky tonight" block as that prop, and
+  // doesn't draw it below the hero as well.
   const app = declSource('RealtimeTwilight');
   const call = app.slice(app.indexOf('React.createElement(HorizonHero, {'), app.indexOf('weekPlannerEl(wxWeek'));
   const score = call.slice(call.indexOf('score: '), call.indexOf('corner: factCorner'));
-  assert.ok(score.length > 0 && /React\.createElement\(SkyScore, \{ sum: wxScore/.test(score) && /skyStripEl\(wxScore, loc, h24\)/.test(score));
-  assert.strictEqual((app.match(/skyStripEl\(/g) || []).length, 1);
+  assert.ok(score.length > 0 && /React\.createElement\(SkyScore, \{ sum: wxScore/.test(score));
   assert.strictEqual((app.match(/React\.createElement\(SkyScore/g) || []).length, 1);
 });

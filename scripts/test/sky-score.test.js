@@ -12,7 +12,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'acos', 'jd', 'gmst',
   'sunRaDec', 'sunHcZn', 'sunAltitude', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'scoreHours', 'summarize', 'clearDarkScore',
-  'scoreRating', 'scoreReason', 'SCORE_SHORT']);
+  'scoreRating', 'scoreReason', 'SCORE_SHORT', 'bestWindow']);
 
 // Every factor summarize() can return, read from its source, so a new one
 // can't go without words.
@@ -75,32 +75,44 @@ test('real nights: a clear sky under the full Moon is poor, and says why; at new
 });
 
 const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
-const SkyScore = new Function('React', 'C', 'scoreRating', 'scoreReason', `${declSource('SkyScore')}; return SkyScore;`)(
-  R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER' }, m.scoreRating, m.scoreReason);
+const SkyScore = new Function('React', 'C', 'scoreRating', 'scoreReason', 'bestWindow', `${declSource('SkyScore')}; return SkyScore;`)(
+  R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER' }, m.scoreRating, m.scoreReason, m.bestWindow);
 const texts = n => typeof n === 'string' ? [n] : (n.c || []).flatMap(texts);
+const line = n => typeof n === 'string' ? n : (n.c || []).map(line).join('');
+const H = 3600000, T0 = Date.UTC(2026, 9, 11, 1); // 21:00 EDT
+const fmt = t => new Date(t - 4 * H).toISOString().slice(11, 16);
+const hours = n => Array.from({ length: n }, (_, i) => ({ t: T0 + i * H }));
 
-test('the Console says the score is out of 100, rates it, says why and how it is worked out', () => {
-  const t = texts(SkyScore({ sum: { score: 1, factor: 'moonlit' } }));
+test('the Console says the score is out of 100, rates it, says why, and when to look', () => {
+  const poor = SkyScore({ sum: { score: 1, factor: 'moonlit', bestMs: T0, hours: hours(8) }, fmt });
+  const t = texts(poor);
   assert.deepStrictEqual(t.slice(0, 3), ['1', 'out of 100', 'Poor night for stargazing']);
   assert.match(t[3], /bright Moon/);
-  assert.match(t[4], /^Scored for the best two hours still ahead tonight: 100 is a clear sky with no Moon/);
-  assert.ok(!/Forecast from/.test(t[4]));
-  const good = texts(SkyScore({ sum: { score: 84, factor: 'clear & dark' } }));
-  assert.deepStrictEqual(good.slice(0, 3), ['84', 'out of 100', 'Excellent night for stargazing']);
-  // An old forecast says so, as a sentence.
-  const old = texts(SkyScore({ sum: { score: 57, factor: 'some cloud' }, stale: 'forecast from 3 hours ago' }));
-  assert.match(old[4], / Forecast from 3 hours ago\.$/);
+  // Nothing worth a best time on a poor night, and no line on the method.
+  assert.strictEqual(poor.c.length, 3);
+  assert.ok(!/Scored for|Best between/.test(t.join(' ')));
+  // From 40 up, the best two hours as times.
+  const good = SkyScore({ sum: { score: 62, factor: 'some cloud', bestMs: T0, hours: hours(8) }, fmt });
+  assert.deepStrictEqual(texts(good).slice(0, 3), ['62', 'out of 100', 'Good night for stargazing']);
+  assert.strictEqual(line(good.c[3]), 'Best between 21:00 and 23:00.');
+  assert.strictEqual(line(SkyScore({ sum: { score: 40, factor: 'some cloud', bestMs: T0, hours: hours(8) }, fmt }).c[3]), 'Best between 21:00 and 23:00.');
+  assert.strictEqual(SkyScore({ sum: { score: 39, factor: 'some cloud', bestMs: T0, hours: hours(8) }, fmt }).c.length, 3);
+  // A best stretch at the very end of the night stops at dawn's last hour.
+  const late = SkyScore({ sum: { score: 90, factor: 'clear & dark', bestMs: T0 + 7 * H, hours: hours(8) }, fmt });
+  assert.strictEqual(line(late.c[3]), 'Best between 04:00 and 05:00.');
+  // An old forecast says so, as a sentence of its own.
+  const old = SkyScore({ sum: { score: 57, factor: 'some cloud', bestMs: T0, hours: hours(8) }, stale: 'forecast from 3 hours ago', fmt });
+  assert.strictEqual(line(old.c[old.c.length - 1]), 'Forecast from 3 hours ago.');
   // No forecast: a dash, no scale, and the reason.
-  const none = texts(SkyScore({ sum: null }));
+  const none = texts(SkyScore({ sum: null, fmt }));
   assert.deepStrictEqual(none.slice(0, 2), ['—', 'Sky tonight']);
   assert.ok(!none.includes('out of 100'));
   assert.match(none[2], /couldn’t be loaded/);
 });
 
-test('the strip and the week planner say what their numbers are too', () => {
-  const strip = declSource('skyStripEl');
-  assert.match(strip, /\$\{Math\.round\(hr\.score\)\} out of 100/);
-  assert.ok(!/wxScore\.factor/.test(strip), 'the factor word is said, as a sentence, just above');
+test('the hourly strip is gone; the week planner says what its numbers are', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'index.html'), 'utf8');
+  assert.ok(!/skyStripEl|taller & brighter/.test(src), 'the bar strip and its legend are gone');
   const week = declSource('weekPlannerEl');
   assert.match(week, /"scores out of 100"/);
   assert.match(week, /\$\{scoreRating\(n\.sum\.score\)\} · /);

@@ -24,7 +24,7 @@ fresh session (or a Cowork session) never has to re-derive project state.
 Three tabs, one `index.html`, no build step:
 - **Console** — for the casual stargazer: the painted sky now, the verdict,
   tonight's timeline, up to three things worth a look, the "Clear & Dark"
-  score (tonight + hourly strip + 7-night Pro planner), the next twilight
+  score (tonight, with its best time, + 7-night Pro planner), the next twilight
   countdown and the almanac. (Decluttered 2026-09-25: see below.)
 - **Ephemeris** — twilight times for any date/place, solar altitude chart,
   iCal/CSV export, upcoming sky events.
@@ -74,6 +74,14 @@ stargazer is the default, navigator material is kept whole but folded.
   each night gets its rating and a short phrase (`SCORE_SHORT`). The scoring
   itself is unchanged, so `alerts/src/sky.js` needs no regeneration.
   `sky-score.test.js`.
+  **Then trimmed (2026-09-29, owner):** the line on how it is worked out
+  and the hourly bar strip under it ("taller & brighter = clearer, darker
+  sky") both went: neither told a stargazer anything to act on, the bars
+  were flat on any moonlit or cloudy night, only the ends were labelled and
+  their values were in hover text phones can't reach. What they carried
+  that mattered is one line from 40 up, "Best between 21:00 and 23:00."
+  (`bestWindow`: the two hours from `summarize`'s `bestMs`, stopped at the
+  last dark hour). A stale forecast is its own line. `skyStripEl` is gone.
 - **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
   In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
   middle cloud 20-80% with little low cloud is "Likely colourful"; low cloud
@@ -297,7 +305,7 @@ stargazer is the default, navigator material is kept whole but folded.
   day (#136 puffs, #137 a fractal cloud field, #138 still rain) and taken
   out again: they made the Console read like a weather app, not a view of
   twilight. The painting shows the sky as if clear. The forecast still
-  feeds the score, the strip, the planner and the sunset and sunrise
+  feeds the score, its best time, the planner and the sunset and sunrise
   colour, in words. See git history (#136-#138) before trying again.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
   grid of its brightness (0..250, run-length coded), built by
@@ -737,7 +745,7 @@ stargazer is the default, navigator material is kept whole but folded.
     no dependencies; `encryptPush` matches the RFC's appendix A example byte
     for byte (taken from the working group's source; rfc-editor.org is
     blocked here).
-  - **App**: `ClearAlerts` (hooks) → `AlertsRow` (hook-free) under the strip,
+  - **App**: `ClearAlerts` (hooks) → `AlertsRow` (hook-free) under the score,
     `alertsOn`/`alertsOff` with the window injected, `tw_alerts` holds what the
     Worker was told so a place change resubscribes quietly. Permission is
     asked **before** any other await (Safari drops a prompt after one).
@@ -1331,9 +1339,10 @@ things a syntax check cannot see:
   thresholds, a sentence and a short form for every factor `summarize` can
   return (read from its source), real nights (clear under a high full Moon
   is Poor and blames the Moon; the same night at 6 PM is Good; new Moon is
-  Excellent), `SkyScore` with a stub React (out of 100, rating, reason, how
-  it is scored, a stale forecast said as a sentence, a dash and no scale
-  without a forecast), and the strip and week planner at source level.
+  Excellent), `SkyScore` with a stub React (out of 100, rating, reason,
+  when to look from 40 up and not below, the best time stopped at the last
+  dark hour, a stale forecast said as a sentence, a dash and no scale
+  without a forecast), the strip gone, and the week planner at source level.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
