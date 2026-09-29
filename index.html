@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-v7+Mt8DPUcuh2jVSweNj0kr8ep6PGU7dhHIuACE9WcE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-7QJSwwvZxF9rHL+TO5M5d8lExttb843kKwkNHMplzvo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v144";
+const BUILD = "v145";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4580,7 +4580,7 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, score }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4869,6 +4869,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
+      score || null,
       twilight || null,
       React.createElement(TonightHighlights, { items: highlights }),
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
@@ -5438,6 +5439,28 @@ function RealtimeTwilight({ redMode } = {}) {
       onMore: () => goTab("ephemeris"),
       glows, reminders
     }),
+    // The verdict, the Moon and the planets are in the horizon view above;
+    // what it doesn't carry is the clear-and-dark score. It sits right under
+    // tonight's ribbon and facts (2026-09-29; it had been below the
+    // highlights and Share, about 950 px further down).
+    score: React.createElement("section", {
+      style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
+    },
+      React.createElement("div", {
+        style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "20px 16px", padding: "0 0 18px" }
+      },
+        [
+          // (A faintest-star figure stood beside this: limiting
+          // magnitude, which the voice rule keeps off the Console.)
+          { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: !wxScore ? "forecast unavailable" : wxStale ? wxScore.factor + " \u00b7 " + staleNote(wxStale, now) : wxScore.factor, hero: true }
+        ].map(s => React.createElement("div", { key: s.k },
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: s.hero ? 450 : 300, color: s.hero ? C.brass : C.ink, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } }, s.v),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginTop: 4 } }, s.k),
+          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, color: C.inkFaint, marginTop: 1 } }, s.h)
+        ))
+      ),
+      skyStripEl(wxScore, loc, h24),
+      (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 })),
     corner: factCorner,
     onIntroDone: pick => {
       setIntro(false);
@@ -5445,28 +5468,6 @@ function RealtimeTwilight({ redMode } = {}) {
       if (pick) setPickerOpen(true);
     }
   }),
-  // The verdict, the Moon and the planets are in the horizon view above;
-  // what it doesn't carry is the clear-and-dark score and how faint a star
-  // the sky allows.
-  React.createElement("section", {
-    style: { maxWidth: 1080, margin: "0 auto" }
-  },
-    React.createElement("div", {
-      style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "20px 16px", padding: "18px 0 24px" }
-    },
-      [
-        // (A faintest-star figure stood beside this: limiting
-        // magnitude, which the voice rule keeps off the Console.)
-        { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: !wxScore ? "forecast unavailable" : wxStale ? wxScore.factor + " \u00b7 " + staleNote(wxStale, now) : wxScore.factor, hero: true }
-      ].map(s => React.createElement("div", { key: s.k },
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: s.hero ? 450 : 300, color: s.hero ? C.brass : C.ink, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } }, s.v),
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginTop: 4 } }, s.k),
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, color: C.inkFaint, marginTop: 1 } }, s.h)
-      ))
-    )
-  ),
-  skyStripEl(wxScore, loc, h24),
-  (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
   weekPlannerEl(wxWeek, loc, h24, pro),
   React.createElement("section", {
     ref: factRef,
