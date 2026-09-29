@@ -16,3 +16,7 @@ native/android/app/build/
 native/android/build/
 native/android/local.properties
 __pycache__/
+
+# scripts/light-pollution/lp.py's working files: the satellite download and
+# its intermediate grids (gigabytes). Only lp/ (the tiles) is committed.
+data/

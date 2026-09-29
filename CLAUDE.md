@@ -64,7 +64,9 @@ stargazer is the default, navigator material is kept whole but folded.
   9), and "1 is the darkest sky on Earth, 9 an inner city" with where the
   class came from (estimated from the towns around, or set in settings).
   The estimate is only as good as `estimateBortle`'s town populations:
-  Cherry Springs, a Bortle 2 park, comes out 4. The spot went through the
+  Cherry Springs, a Bortle 2 park, comes out 4, which is why satellite
+  tiles are on their way (see "Light pollution from satellite night
+  lights"). The spot went through the
   0-100 clear-and-dark score the same day: moved up from under the
   highlights (#140), given words (#141: "out of 100", a rating, a reason),
   trimmed to its best time (the method line and the hourly bar strip,
@@ -304,6 +306,46 @@ stargazer is the default, navigator material is kept whole but folded.
   twilight. The painting shows the sky as if clear. The forecast still
   feeds the week planner and the sunset and sunrise
   colour, in words. See git history (#136-#138) before trying again.
+- **Light pollution from satellite night lights (2026-09-29; built, the
+  data still to come).** The Bortle class from what the VIIRS satellite
+  measures instead of town populations. `scripts/light-pollution/lp.py`
+  (Python: numpy, scipy, h5py or tifffile) in stages that each write a file
+  the next reads: `download` NASA Black Marble VNP46A4 yearly tiles from
+  LAADS (`EARTHDATA_TOKEN`); `grid` them, or any radiance GeoTIFF
+  (`--geotiff`, e.g. EOG's VNL), to 1 arcminute; `sky`, the light-spread
+  model: each lit cell's radiance times its area, spread by
+  `(d^2 + D0^2)^-1.25 * exp(-d/L)` (Walker's d^-2.5, softened within D0 = 1
+  km, fading beyond with L = 100 km) out to RMAX = 250 km, in 1-degree
+  latitude bands by FFT, wrapping in longitude, cells under FLOOR = 0.5
+  nW/cm²/sr unlit; `calibrate` the one scale factor from glow to the ratio
+  of artificial to natural sky against `reference-sites.json` (dark-sky
+  places, towns, city centres, with generous Bortle ranges); `tiles`: 10°
+  tiles at 2 arcminutes, one byte `q = round(20 (log10 ratio + 3))`, rows
+  south to north, run-length coded like `milkyway.bin`, only tiles with any
+  light, `lp/index.json` listing them and the latitudes covered. `selftest`
+  checks the scale, the kernel's slope, falloff against the model, the
+  date-line wrap, calibration recovering a known scale, tiles and GeoTIFF
+  input on synthetic data; `fixture` writes `scripts/test/fixtures/lp/` (one
+  town through the real pipeline, with the values expected around it).
+  Ratio to class by the SQM table (`SQM_BOUNDS` / `LP_SQM`: 21.99, 21.89,
+  21.69, 20.49, 19.50, 18.94, 18.38, and 18.00 splitting 8 from 9) over a
+  natural 22.0 sky. **App:** `skyBortle(lat, lon)` reads `lp/index.json`
+  and the one tile a place needs (bilinear in q), returning null outside
+  the latitudes covered or when anything fails to load, when the Console's
+  auto effect falls back to `estimateBortle`; an unlisted tile is natural
+  sky, Bortle 1. `SkyDarkness`'s last line says which answered (`from`).
+  The service worker caches tiles as they're fetched; `native/sync-web.js`
+  copies `lp/` whole. Footer credit: NASA Black Marble. **Until `lp/` is
+  committed nothing changes** but one missed request for `lp/index.json`.
+  **To finish** (needs `ladsweb.modaps.eosdis.nasa.gov` allowed and a free
+  Earthdata token as `EARTHDATA_TOKEN`): `python3 scripts/light-pollution/
+  lp.py download`, `grid --black-marble data/vnp46a4`, `sky`, `calibrate`
+  (read which sites miss; retune D0/L/FLOOR if a whole kind misses), `tiles
+  --scale S --source "..."`, then add a test reading the real tiles at the
+  reference sites, add `/lp/index.json` to `sw.js`'s precache, and check
+  the tiles' total size. Why not the others: the Falchi 2016 world atlas is
+  CC BY-NC (the app sells Pro); EOG's VNL now charges for scripted
+  downloads. `light-pollution.test.js`.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
   grid of its brightness (0..250, run-length coded), built by
   `scripts/generate-milky-way.js` from d3-celestial's `mw.json` (five nested
@@ -1337,6 +1379,13 @@ things a syntax check cannot see:
   can return (read from its source), real nights (clear under a high full
   Moon is Poor; the same night at 6 PM is Good; new Moon is Excellent), and
   the planner at source level.
+- **`light-pollution.test.js`** — the satellite tiles' reader against a
+  fixture the Python pipeline wrote: the SQM table in step with `lp.py`,
+  classes at every boundary, the fixture town read back cell by cell and
+  class by class, bilinear between cells, natural sky for an unlisted tile,
+  null (the towns) outside the latitudes or when the index or a tile won't
+  load or won't decode, longitudes wrapping to the right tile, the Console
+  asking the tiles first and saying which answered, native sync and credit.
 - **`sky-darkness.test.js`** — the Console's Bortle block: a sentence for
   every class, the Milky Way there to 6 and gone from 7, `SkyDarkness` with
   a stub React (the class, "of 9 on the Bortle scale", the word, what shows,
@@ -1563,6 +1612,10 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 
 **Blocked on the repo owner, not on engineering:**
+- **Satellite light-pollution data**: allow `ladsweb.modaps.eosdis.nasa.gov`
+  in the environment's network settings and add a free NASA Earthdata token
+  (urs.earthdata.nasa.gov > Generate Token) as `EARTHDATA_TOKEN`; then a
+  session runs the steps in "Light pollution from satellite night lights".
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in

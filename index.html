@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-f4tKBTs/zMNcPBEn3cv2VRZeBD/koMJjVVZOXjSaTF0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-rMMlxQy6kthc3HBnig6DgE8PAYKc+VUTNJmUDf3uybc=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1749,6 +1749,68 @@ function estimateBortle(lat0, lon0, data) {
   for (let i = 0; i < BORTLE_THRESH.length; i++) if (score < BORTLE_THRESH[i]) return i + 1;
   return 9;
 }
+/* ---- Light pollution from satellite night lights (lp/) ----
+   How bright the sky is made by the lights around a place, from what the
+   VIIRS satellite measures rather than from town populations. Tiles of 10 x
+   10 degrees at 2 arcminutes are built offline by
+   scripts/light-pollution/lp.py (NASA Black Marble yearly night lights,
+   spread over the sky by a light-spread model calibrated to known dark-sky
+   places and city centres). Each cell is one byte q, the ratio of artificial
+   to natural sky brightness being 10^(q/20 - 3) (0: under 0.1%); rows south
+   to north, run-length coded like milkyway.bin. lp/index.json lists the
+   tiles with any light and the latitudes covered: a tile it doesn't list is
+   natural sky (Bortle 1), a place outside those latitudes gets the town
+   estimate above. Only the one tile a place needs is fetched. */
+// Sky-quality readings (mag/arcsec^2) at the Bortle class boundaries 1|2 ...
+// 8|9, as lp.py has them, and the same as ratios over a natural 22.0 sky.
+const LP_SQM = [21.99, 21.89, 21.69, 20.49, 19.50, 18.94, 18.38, 18.00];
+const LP_RATIO = LP_SQM.map(s => Math.pow(10, (22 - s) / 2.5) - 1);
+function lpBortle(ratio) {
+  let b = 1;
+  while (b <= 8 && ratio >= LP_RATIO[b - 1]) b++;
+  return b;
+}
+function decodeLpTile(u) {
+  const W = u[0] | u[1] << 8, H = u[2] | u[3] << 8, v = new Uint8Array(W * H);
+  let k = 0;
+  for (let i = 4; i + 1 < u.length && k < v.length; i += 2) v.fill(u[i], k, k += u[i + 1]);
+  return k === W * H ? { W, H, v } : null;
+}
+// The ratio at a place inside a tile whose south-west corner is (lat0,
+// lon0), read between the four nearest cell centres (in q, so in log ratio).
+function lpRatioAt(t, res, lat0, lon0, lat, lon) {
+  const x = Math.max(0, Math.min(t.W - 1, (lon - lon0) * res - 0.5));
+  const y = Math.max(0, Math.min(t.H - 1, (lat - lat0) * res - 0.5));
+  const i = Math.min(t.W - 2, Math.floor(x)), j = Math.min(t.H - 2, Math.floor(y));
+  const fx = x - i, fy = y - j, at = (a, b) => t.v[b * t.W + a];
+  const q = (at(i, j) * (1 - fx) + at(i + 1, j) * fx) * (1 - fy) + (at(i, j + 1) * (1 - fx) + at(i + 1, j + 1) * fx) * fy;
+  return q > 0 ? Math.pow(10, q / 20 - 3) : 0;
+}
+// { bortle, ratio } from the tiles, or null where they can't say (no index,
+// outside the latitudes covered, a tile that won't load). `get` fetches a
+// path to an ArrayBuffer or JSON, so a test can hand it files.
+const lpCache = new Map();
+function lpFetch(path, kind) {
+  if (!lpCache.has(path)) {
+    lpCache.set(path, fetch(path)
+      .then(r => { if (!r.ok) throw new Error('bad'); return kind === 'json' ? r.json() : r.arrayBuffer(); })
+      .catch(() => null));
+  }
+  return lpCache.get(path);
+}
+async function skyBortle(lat, lon, get = lpFetch) {
+  const idx = await get('lp/index.json', 'json');
+  if (!idx || !idx.tiles || !(lat >= idx.lat[0] && lat < idx.lat[1])) return null;
+  const T = idx.tile, lonW = ((lon + 180) % 360 + 360) % 360 - 180;
+  const lat0 = Math.floor(lat / T) * T, lon0 = Math.floor((lonW + 180) / T) * T - 180;
+  const name = `${lat0}_${lon0}`;
+  if (!idx.tiles.includes(name)) return { bortle: 1, ratio: 0 };
+  const buf = await get(`lp/${name}.bin`, 'bin');
+  const t = buf && decodeLpTile(new Uint8Array(buf));
+  if (!t) return null;
+  const ratio = lpRatioAt(t, idx.res, lat0, lon0, lat, lonW);
+  return { bortle: lpBortle(ratio), ratio };
+}
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
   let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
@@ -2138,7 +2200,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v148";
+const BUILD = "v149";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3646,7 +3708,8 @@ const SCORE_SHORT = { 'clear & dark': 'clear and dark', moonlit: 'bright Moon', 
    identify the location's Bortle number"; it replaced the 0-100
    clear-and-dark score, which the week planner still shows). The class
    comes from prefStore: estimated from the towns around the place in auto
-   mode, or chosen in settings. Hook-free, so a test can render it. */
+   mode (from satellite night lights, or nearby towns where those can't
+   say: `from`), or chosen in settings. Hook-free, so a test can render it. */
 const BORTLE_SEE = {
   1: 'the Milky Way is bright enough to cast shadows.',
   2: 'the Milky Way is richly detailed, and clouds show as black gaps among the stars.',
@@ -3658,7 +3721,7 @@ const BORTLE_SEE = {
   8: 'only the brighter constellations can be picked out.',
   9: 'only the Moon, the planets and a few of the brightest stars show.'
 };
-function SkyDarkness({ bortle, auto }) {
+function SkyDarkness({ bortle, auto, from }) {
   const b = BORTLE_SEE[bortle] ? bortle : 0;
   const ui = { fontFamily: 'var(--font-ui)' };
   return React.createElement('div', { style: { padding: '0 0 18px', display: 'grid', gap: 4 } },
@@ -3670,7 +3733,9 @@ function SkyDarkness({ bortle, auto }) {
       b ? 'On a clear, moonless night ' + BORTLE_SEE[b]
         : auto ? 'Working out how much light the towns around you give off\u2026' : 'Not set yet. Choose it in settings.'),
     b > 0 && React.createElement('div', { style: { ...ui, fontSize: 11.5, color: C.inkFaint, maxWidth: '60ch' } },
-      '1 is the darkest sky on Earth, 9 an inner city. ' + (auto ? 'Estimated from the towns around you.' : 'Set by you in settings.'))
+      '1 is the darkest sky on Earth, 9 an inner city. ' + (!auto ? 'Set by you in settings.'
+        : from === 'satellite' ? 'Estimated from satellite measurements of the lights around you.'
+        : from === 'towns' ? 'Estimated from the towns around you.' : 'Estimated from the lights around you.'))
   );
 }
 /* Clear-and-dark alerts: a web push notification around 4 PM on days when
@@ -5153,11 +5218,16 @@ function RealtimeTwilight({ redMode } = {}) {
   // Auto light-pollution estimate: recompute whenever the location changes
   // or the user switches back to auto mode. A manual override in Settings
   // sets bortleMode to 'manual', which stops this from overwriting it.
+  // Satellite night lights first (lp/); the town estimate where the tiles
+  // can't say. `bortleFrom` tells the Console which it was.
+  const [bortleFrom, setBortleFrom] = useState(null);
   React.useEffect(() => {
     if (bortleMode !== 'auto') return;
     let cancelled = false;
-    loadBortleCities()
-      .then(data => { if (!cancelled) prefStore.setBortle(estimateBortle(loc.lat, loc.lon, data)); })
+    skyBortle(loc.lat, loc.lon)
+      .then(r => r ? { b: r.bortle, from: 'satellite' }
+        : loadBortleCities().then(data => ({ b: estimateBortle(loc.lat, loc.lon, data), from: 'towns' })))
+      .then(r => { if (!cancelled) { prefStore.setBortle(r.b); setBortleFrom(r.from); } })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [loc.lat, loc.lon, bortleMode]);
@@ -5459,7 +5529,7 @@ function RealtimeTwilight({ redMode } = {}) {
     // highlights the same day).
     darkness: React.createElement("section", {
       style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
-    }, React.createElement(SkyDarkness, { bortle, auto: bortleMode === 'auto' })),
+    }, React.createElement(SkyDarkness, { bortle, auto: bortleMode === 'auto', from: bortleFrom })),
     corner: factCorner,
     onIntroDone: pick => {
       setIntro(false);
@@ -9808,7 +9878,9 @@ function TwilightApp() {
       React.createElement("span", null,
         "Sun and Moon: Meeus (Astronomical Algorithms; ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
-        " + GeoNames (CC BY 4.0) · Sky brightness estimate: SimpleMaps World Cities (CC BY 4.0) · Sky View star catalogue: ",
+        " + GeoNames (CC BY 4.0) · Light pollution: ",
+        React.createElement("a", { href: "https://blackmarble.gsfc.nasa.gov/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "NASA Black Marble"),
+        " VIIRS night lights, and SimpleMaps World Cities (CC BY 4.0) beyond them · Sky View star catalogue: ",
         React.createElement("a", { href: "https://github.com/astronexus/HYG-Database", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "HYG Database"),
         " (CC BY-SA 4.0) · Constellation lines and names, Milky Way: ",
         React.createElement("a", { href: "https://github.com/ofrohn/d3-celestial", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "d3-celestial"),

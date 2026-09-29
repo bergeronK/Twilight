@@ -85,7 +85,7 @@ test('how dark the sky is sits right under tonight’s ribbon and facts, before 
   const app = declSource('RealtimeTwilight');
   const call = app.slice(app.indexOf('React.createElement(HorizonHero, {'), app.indexOf('weekPlannerEl(wxWeek'));
   const dark = call.slice(call.indexOf('darkness: '), call.indexOf('corner: factCorner'));
-  assert.ok(dark.length > 0 && /React\.createElement\(SkyDarkness, \{ bortle, auto: bortleMode === 'auto' \}\)/.test(dark));
+  assert.ok(dark.length > 0 && /React\.createElement\(SkyDarkness, \{ bortle, auto: bortleMode === 'auto', from: bortleFrom \}\)/.test(dark));
   assert.strictEqual((app.match(/React\.createElement\(SkyDarkness/g) || []).length, 1);
   assert.ok(!/clearDarkScore\(|SkyScore/.test(app), 'the score has left the Console');
 });
