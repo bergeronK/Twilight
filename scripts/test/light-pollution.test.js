@@ -60,6 +60,20 @@ test('the fixture town reads back as the pipeline wrote it, class by class, out 
   assert.strictEqual(expect.points.find(p => p.km === 100).bortle, 1);
 });
 
+test('a cell’s value is at its centre, both ways, and edges hold their cell', () => {
+  // A 2 x 2 tile, one cell per degree, south-west corner at (10, 20):
+  // q 0 | 40 on the south row, 20 | 60 on the north.
+  const t = { W: 2, H: 2, v: Uint8Array.from([0, 40, 20, 60]) };
+  const q = (lat, lon) => { const r = m.lpRatioAt(t, 1, 10, 20, lat, lon); return r > 0 ? Math.round(20 * (Math.log10(r) + 3)) : 0; };
+  assert.strictEqual(q(10.5, 20.5), 0, 'south-west centre');
+  assert.strictEqual(q(10.5, 21.5), 40, 'south-east centre');
+  assert.strictEqual(q(11.5, 20.5), 20, 'north-west centre');
+  assert.strictEqual(q(11.5, 21.5), 60, 'north-east centre');
+  assert.strictEqual(q(10.5, 21.0), 20, 'halfway east');
+  assert.strictEqual(q(11.0, 20.5), 10, 'halfway north');
+  assert.strictEqual(q(10.1, 21.9), 40, 'past the last centre, the edge cell');
+});
+
 test('between cell centres the reading is between its neighbours', async () => {
   const get = files(FIX);
   const [a, b] = [expect.points[1], expect.points[2]]; // 10 and 25 km north

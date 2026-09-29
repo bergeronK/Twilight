@@ -1382,7 +1382,9 @@ things a syntax check cannot see:
 - **`light-pollution.test.js`** — the satellite tiles' reader against a
   fixture the Python pipeline wrote: the SQM table in step with `lp.py`,
   classes at every boundary, the fixture town read back cell by cell and
-  class by class, bilinear between cells, natural sky for an unlisted tile,
+  class by class, each cell's value at its centre both ways (a 2 x 2 made-up
+  tile: the fixture town is too symmetric east-west to catch a half-cell
+  shift), bilinear between cells, natural sky for an unlisted tile,
   null (the towns) outside the latitudes or when the index or a tile won't
   load or won't decode, longitudes wrapping to the right tile, the Console
   asking the tiles first and saying which answered, native sync and credit.
