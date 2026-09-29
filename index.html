@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-7QJSwwvZxF9rHL+TO5M5d8lExttb843kKwkNHMplzvo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-koex14rcDu4aik9uiCt/uEzcr7MpQPBHJgwVIyslJ0U=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v145";
+const BUILD = "v146";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3625,6 +3625,51 @@ function weekOutlook(wx, loc, bortle, nowMs) {
   }
   return nights;
 }
+/* What a clear-and-dark score means, in words (2026-09-29: the owner found a
+   bare "1" meant nothing to anyone). The score is out of 100 for the best
+   two hours still ahead tonight (seen at 11 PM under a high full Moon it is
+   3; at 6 PM, with the Moon still low for the first dark hours, the same
+   clear night is 67): the forecast's clearness times how dark the Moon
+   leaves the sky. A rating word, and a sentence for what holds it back,
+   from summarize()'s factor. 78 is where the factor says "clear & dark" (and
+   the alerts fire); 40 is where the strip starts naming a best window. */
+function scoreRating(score) {
+  return score == null ? null : score >= 78 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Poor';
+}
+function scoreReason(sum) {
+  if (!sum) return 'The forecast couldn\u2019t be loaded, so tonight can\u2019t be scored.';
+  if (sum.score == null) return 'There\u2019s no dark stretch of night in the forecast ahead.';
+  switch (sum.factor) {
+    case 'clear & dark': return 'Clear skies, with the Moon out of the way.';
+    case 'moonlit': return sum.score >= 60 ? 'Moonlight will hide the faintest stars.'
+      : 'A bright Moon will wash out all but the Moon, the planets and the brightest stars.';
+    case 'some cloud': return 'Some cloud is forecast, with clear gaps between.';
+    case 'cloudy': return 'Cloud is forecast to cover most of the sky.';
+    case 'rain likely': return 'Rain is likely during the darkest hours.';
+    case 'no astro-dark': return 'The sky never gets fully dark tonight, so this is for twilight.';
+    default: return '';
+  }
+}
+// The same factors, short, for a row of the week planner.
+const SCORE_SHORT = { 'clear & dark': 'clear and dark', moonlit: 'bright Moon', 'some cloud': 'some cloud', cloudy: 'cloudy', 'rain likely': 'rain likely', 'no astro-dark': 'never fully dark' };
+/* The Console's "Sky tonight": the score out of 100, its rating, why, and
+   one line on how it is worked out. Hook-free, so a test can render it. */
+function SkyScore({ sum, stale }) {
+  const score = sum && sum.score != null ? sum.score : null;
+  const rating = scoreRating(score);
+  const ui = { fontFamily: 'var(--font-ui)' };
+  return React.createElement('div', { style: { padding: '0 0 18px', display: 'grid', gap: 4 } },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
+      React.createElement('div', { style: { ...ui, fontSize: 33, fontWeight: 450, color: C.brass, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' } }, score == null ? '\u2014' : String(score)),
+      score != null && React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkFaint } }, 'out of 100')),
+    React.createElement('div', { style: { ...ui, fontSize: 13.5, fontWeight: 550, color: C.ink, marginTop: 2 } },
+      rating ? `${rating} night for stargazing` : 'Sky tonight'),
+    React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkDim, maxWidth: '52ch' } }, scoreReason(sum)),
+    React.createElement('div', { style: { ...ui, fontSize: 11.5, color: C.inkFaint, maxWidth: '60ch' } },
+      'Scored for the best two hours still ahead tonight: 100 is a clear sky with no Moon, and cloud and moonlight bring it down.' +
+      (stale ? ` ${stale[0].toUpperCase()}${stale.slice(1)}.` : ''))
+  );
+}
 // Hourly "clear & dark" strip across tonight's dark window: one segment per
 // hour, tinted dim->gold by its score, with the best ~2h block ticked in.
 function skyStripEl(wxScore, loc, h24) {
@@ -3639,14 +3684,14 @@ function skyStripEl(wxScore, loc, h24) {
       React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.ink, fontVariantNumeric: "tabular-nums" } },
         wxScore.score >= 40
           ? React.createElement(React.Fragment, null, "best ", React.createElement("span", { style: { color: C.brass, fontWeight: 550 } }, `${fmtH(wxScore.bestMs)}–${fmtH(wxScore.bestMs + 2 * 3600000)}`))
-          : React.createElement("span", { style: { color: C.inkDim } }, wxScore.factor))
+          : React.createElement("span", { style: { color: C.inkDim } }, "no good stretch tonight"))
     ),
     React.createElement("div", { style: { display: "flex", gap: 3, alignItems: "flex-end", height: 42 } },
       hours.map((hr, i) => {
         const s = Math.max(0, Math.min(1, hr.score / 100));
         return React.createElement("div", {
           key: i,
-          title: `${fmtH(hr.t)} · ${Math.round(hr.cloud)}% cloud${hr.moonPen > 0.5 ? " · moonlit" : ""} · score ${Math.round(hr.score)}`,
+          title: `${fmtH(hr.t)} · ${Math.round(hr.cloud)}% cloud${hr.moonPen > 0.5 ? " · moonlit" : ""} · ${Math.round(hr.score)} out of 100`,
           style: { flex: 1, height: `${Math.round(14 + s * 86)}%`, background: C.brass, opacity: 0.18 + s * 0.82, borderRadius: "2px 2px 0 0" }
         });
       })
@@ -3786,7 +3831,7 @@ function weekPlannerEl(nights, loc, h24, pro) {
       React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
       React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
       !rcPlugin() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
-      React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "best nights")
+      React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
     ),
     React.createElement("div", null,
       nights.map((n, idx) => {
@@ -3804,7 +3849,7 @@ function weekPlannerEl(nights, loc, h24, pro) {
             style: { width: 38, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.brass : C.inkDim, fontVariantNumeric: "tabular-nums" }
           }, ok ? String(n.sum.score) : "—"),
           React.createElement("div", { style: { flex: 1, minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.ink : C.inkDim, fontVariantNumeric: "tabular-nums" } },
-            ok ? `${n.sum.score >= 40 ? fmtH(n.sum.bestMs) + "–" + fmtH(n.sum.bestMs + 2 * 3600000) + " · " : ""}${n.sum.factor}` : "no dark window"),
+            ok ? `${scoreRating(n.sum.score)} · ${n.sum.score >= 40 ? fmtH(n.sum.bestMs) + "–" + fmtH(n.sum.bestMs + 2 * 3600000) + " · " : ""}${SCORE_SHORT[n.sum.factor] || n.sum.factor}` : "no dark window"),
           isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 11.5, fontWeight: 550, color: C.brass } }, "◆ finest")
         );
       })
@@ -5446,19 +5491,7 @@ function RealtimeTwilight({ redMode } = {}) {
     score: React.createElement("section", {
       style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
     },
-      React.createElement("div", {
-        style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "20px 16px", padding: "0 0 18px" }
-      },
-        [
-          // (A faintest-star figure stood beside this: limiting
-          // magnitude, which the voice rule keeps off the Console.)
-          { k: "Sky tonight", v: wxScore && wxScore.score != null ? String(wxScore.score) : "—", h: !wxScore ? "forecast unavailable" : wxStale ? wxScore.factor + " \u00b7 " + staleNote(wxStale, now) : wxScore.factor, hero: true }
-        ].map(s => React.createElement("div", { key: s.k },
-          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: s.hero ? 450 : 300, color: s.hero ? C.brass : C.ink, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" } }, s.v),
-          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginTop: 4 } }, s.k),
-          React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, color: C.inkFaint, marginTop: 1 } }, s.h)
-        ))
-      ),
+      React.createElement(SkyScore, { sum: wxScore, stale: wxScore && wxStale ? staleNote(wxStale, now) : null }),
       skyStripEl(wxScore, loc, h24),
       (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 })),
     corner: factCorner,

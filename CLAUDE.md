@@ -60,6 +60,20 @@ stargazer is the default, navigator material is kept whole but folded.
   and its three facts and before the twilight section. They had sat below
   the highlights and Share, about 950 px further down at 390 px wide. The
   week planner stays where it was.
+- **The score says what it means (2026-09-29, owner: "there is no logic to
+  explain what that 1 means").** `SkyScore` (hook-free) shows "1 out of
+  100", a rating (`scoreRating`: Excellent 78+, the "clear & dark" and alerts
+  threshold; Good 60+; Fair 40+, where the strip starts naming a best
+  window; Poor), a sentence for what holds it back (`scoreReason`, from
+  `summarize`'s factor), and how it is worked out: the best two hours
+  **still ahead** tonight, 100 a clear sky with no Moon. "Still ahead"
+  matters: a clear night after full Moon is 67 at 6 PM (Moon low for the
+  first dark hours) and 3 at 11 PM. The strip's header no longer repeats
+  the factor word ("no good stretch tonight" under 40) and its bars say
+  "57 out of 100"; the week planner's header says "scores out of 100" and
+  each night gets its rating and a short phrase (`SCORE_SHORT`). The scoring
+  itself is unchanged, so `alerts/src/sky.js` needs no regeneration.
+  `sky-score.test.js`.
 - **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
   In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
   middle cloud 20-80% with little low cloud is "Likely colourful"; low cloud
@@ -1313,6 +1327,13 @@ things a syntax check cannot see:
   (permission first, key bytes, rounded place), `AlertsRow`'s words, and the
   CSP/sw.js/`ALERTS_LIVE` wiring. `extract.js` now keeps `async` on an
   extracted `async function` (it dropped it, and `await` failed to parse).
+- **`sky-score.test.js`** — the score's words: ratings at their
+  thresholds, a sentence and a short form for every factor `summarize` can
+  return (read from its source), real nights (clear under a high full Moon
+  is Poor and blames the Moon; the same night at 6 PM is Good; new Moon is
+  Excellent), `SkyScore` with a stub React (out of 100, rating, reason, how
+  it is scored, a stale forecast said as a sentence, a dash and no scale
+  without a forecast), and the strip and week planner at source level.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
