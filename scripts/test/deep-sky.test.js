@@ -102,7 +102,7 @@ test('Sky View passes the constellation names it wrote to the galaxy labels', ()
     const c = ctx();
     m.drawSkyView(c.g, 390, 844, { basis, fov: 63, cam: false, lines: [{ id: 'Tri', rank: 1, pts: [{ az: 70, alt: 40 }, { az: 71, alt: 41 }] }], showLines: true, reticle: false,
       names: withName ? [{ id: 'Tri', name: 'Triangulum', rank: 1, az: 80, alt: 55 }] : [],
-      bodies: [body('Triangulum Galaxy', 'M33', 's', 5.7, 80, 56.27, 20)] });
+      bodies: [body('Triangulum Galaxy', 'M33', 's', 5.7, 80, 56.27, 20)], targetName: 'Triangulum Galaxy' });
     return c.texts.find(t => t.t === 'Triangulum Galaxy');
   };
   const alone = scene(false), crowded = scene(true);
@@ -134,35 +134,49 @@ function ctx() {
   return { g, shapes, texts };
 }
 
-test('Sky View draws them their real size, by kind, and names only the findable ones', () => {
+test('Sky View draws one only once it is picked: its real size, by kind, in amber', () => {
+  // Owner, 2026-09-29, from a phone looking toward Sagittarius: the rings
+  // "take away from the stars view". All 110 were drawn, most of them
+  // telescope objects, fifteen-odd in that one stretch of sky.
   const basis = m.viewBasis(m.quatFromEuler(360 - 80, 90 + 55, 0), 0);
   const o = (bodies, targetName = null) => ({ basis, fov: 63, cam: false, bodies, lines: [], names: [], showLines: false, targetName, reticle: false });
+  const sky = [body('Andromeda Galaxy', 'M31', 's', 3.4, 80, 57, 190), body('M35', 'M35', 'oc', 5.1, 85, 50, 28), body('M97', 'M97', 'pn', 11.2, 75, 52, 3)];
+  const none = ctx();
+  m.drawSkyView(none.g, 390, 844, o(sky));
+  assert.deepStrictEqual(none.shapes.filter(s => s.kind === 'ellipse' || s.dash.length || s.color.startsWith('rgba(190,172,255')), [], 'no outline unpicked');
+  const names = ['Andromeda Galaxy', 'M35', 'M97'];
+  assert.deepStrictEqual(none.texts.map(t => t.t).filter(t => names.includes(t)), [], 'and no name');
+  // Picked, the galaxy is an ellipse its real size, the others stay off.
   const r = ctx();
-  m.drawSkyView(r.g, 390, 844, o([body('Andromeda Galaxy', 'M31', 's', 3.4, 80, 57, 190)]));
+  m.drawSkyView(r.g, 390, 844, o(sky, 'Andromeda Galaxy'));
   const e = r.shapes.find(s => s.kind === 'ellipse');
   assert.ok(e, 'a galaxy is an ellipse');
   const pxPerDeg = 844 / 63;
   assert.ok(Math.abs(e.rx - (190 / 60) * pxPerDeg / 2) < 1, `drawn ${e.rx.toFixed(1)} px across its half-width`);
-  assert.ok(r.texts.some(t => t.t === 'Andromeda Galaxy'));
-  // A cluster is dashed; a faint unnamed object gets a mark but no label.
+  assert.deepStrictEqual(r.texts.map(t => t.t).filter(t => names.includes(t)), ['Andromeda Galaxy']);
+  assert.ok(r.shapes.filter(s => s.kind === 'ellipse' || s.dash.length).length === 1, 'only the one picked');
+  // A cluster is dashed; a small nebula is a 4 px mark; both amber.
   const c = ctx();
-  m.drawSkyView(c.g, 390, 844, o([body('M35', 'M35', 'oc', 5.1, 85, 50, 28), body('M97', 'M97', 'pn', 11.2, 75, 52, 3)]));
-  assert.ok(c.shapes.some(s => s.kind === 'arc' && s.dash.length), 'a cluster is dashed');
-  assert.ok(c.shapes.some(s => s.kind === 'arc' && !s.dash.length && s.r === 4), 'a small nebula is a small solid mark');
-  assert.deepStrictEqual(c.texts.map(t => t.t).filter(t => /^M\d/.test(t)), [], 'no catalogue numbers written across the sky');
-  // Picked: named, in the target's amber.
+  m.drawSkyView(c.g, 390, 844, o(sky, 'M35'));
+  assert.ok(c.shapes.some(s => s.kind === 'arc' && s.dash.length && s.color === '#e8b563'), 'a cluster is dashed');
   const t = ctx();
-  m.drawSkyView(t.g, 390, 844, o([body('M97', 'M97', 'pn', 11.2, 80, 55, 3)], 'M97'));
+  m.drawSkyView(t.g, 390, 844, o(sky, 'M97'));
   assert.ok(t.texts.some(x => x.t === 'M97' && x.color === '#e8b563'));
-  assert.ok(t.shapes.some(x => x.r === 4 && x.color === '#e8b563'), 'its outline too');
-  assert.ok(c.shapes.every(x => x.color !== '#e8b563'), 'and nothing else is amber');
+  assert.ok(t.shapes.some(x => x.r === 4 && !x.dash.length && x.color === '#e8b563'), 'its outline too');
+});
+
+test('what isn’t drawn can’t be tapped or read out; Find still offers them', () => {
+  const dome = declSource('SkyDome');
+  assert.match(dome, /if \(bd\.kind === 'dso' && bd\.name !== targetName\) return; \/\/ not drawn, so not tappable/);
+  assert.match(dome, /skyViewSummary\(centre, bodies\.filter\(b => \(b\.kind === 'dso' \? b\.name === targetName :/);
+  assert.match(dome, /findList\(bodies, names\)/);
 });
 
 test('the app loads them, adds them to the sky, and ships the file', () => {
   const src = declSource('StarFinder');
   assert.match(src, /loadDeepSky\(\)\.then/);
   assert.match(src, /kind: 'dso', type: o\.type, mag: o\.mag, size: o\.size/);
-  assert.match(declSource('drawSkyView'), /if \(bd\.kind === 'dso'\) \{ drawDeepSky\(/);
+  assert.match(declSource('drawSkyView'), /if \(bd\.kind === 'dso'\) \{ if \(isTarget\) drawDeepSky\(/);
   assert.match(fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8'), /'\/deep-sky\.json'/);
   assert.match(fs.readFileSync(path.join(ROOT, 'native/sync-web.js'), 'utf8'), /'deep-sky\.json'/);
   assert.match(fs.readFileSync(path.join(ROOT, 'constellations.LICENSE.txt'), 'utf8'), /deep-sky\.json from data\/messier\.json/);

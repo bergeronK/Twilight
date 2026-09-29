@@ -447,6 +447,12 @@ stargazer is the default, navigator material is kept whole but folded.
   minimum): galaxies as tilted ellipses, clusters dashed, nebulae solid, in
   violet; only named objects of magnitude 6 or brighter are labelled (no
   catalogue numbers across the sky) unless picked, when it goes amber.
+  **In Sky View and its preview only the one picked is drawn** (owner,
+  2026-09-29, from a phone looking toward Sagittarius: the rings "take away
+  from the stars view"): unpicked they are not drawn, not tappable and not
+  in the screen-reader summary; Find still lists them, and picking one draws
+  it in amber with its name. The Stars chart still draws those of magnitude
+  6 or brighter.
   Find gains a "Galaxies, nebulae and clusters" group: magnitude 6 or
   brighter and 15°+ up, brightest first, with the kind ("galaxy, high in the
   east"). `theName` says "the Andromeda Galaxy". `deep-sky.test.js`.
@@ -1274,8 +1280,9 @@ things a syntax check cannot see:
 - **`deep-sky.test.js`** — `deep-sky.json` against published J2000
   positions (M31, M42, M45, M13, M57, M1, M44 within 0.5°), not its own
   contents; Find's group (faint, low, order, the kind's words); the drawing
-  with a recording canvas (size from arcminutes, ellipse, dashes, no catalogue
-  numbers written, amber when picked); and that the file ships. A galaxy's
+  with a recording canvas (nothing unpicked; picked: size from arcminutes,
+  ellipse, dashes, amber), not tappable or read out unpicked; and that the
+  file ships. A galaxy's
   label moves above its outline when a constellation's name is below
   (`nameBoxes`, recorded as the names are written), and is left off when
   both are taken.
