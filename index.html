@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-OHAnZapZF7NhxXYaVMHqUB2lKey5rQimgtisJnovh+U=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-f4tKBTs/zMNcPBEn3cv2VRZeBD/koMJjVVZOXjSaTF0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#070a14" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1485,7 +1485,7 @@ const BORTLE_WORD = {
   6: "Bright suburban", 7: "Suburban/urban", 8: "City", 9: "Inner-city"
 };
 // The same word as a phrase that stands on its own ("Inner-city sky"), for the
-// Console, where the class number and the scale's name don't belong.
+// Console's "how dark is your sky" block (SkyDarkness).
 const skyWord = b => {
   const w = BORTLE_WORD[b];
   return !w ? "Your sky" : /sky$/i.test(w) ? w : w + " sky";
@@ -2138,7 +2138,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v147";
+const BUILD = "v148";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -3175,7 +3175,7 @@ function nextSunset(sunEv, now) {
 }
 // Hook-free: the next stage with its countdown, then the day's times in two
 // columns (past ones dimmed), then the way to the full day on the Ephemeris.
-function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders }) {
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale }) {
   const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
     rows.map(r => React.createElement("div", {
@@ -3211,7 +3211,9 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders 
           React.createElement("div", { style: { fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 3 } }, g.label, " colour"),
           React.createElement("div", { style: { fontSize: 15, color: g.level === "vivid" ? C.brass : C.ink } }, g.title),
           React.createElement("div", { style: { fontSize: 12.5, color: C.inkDim, marginTop: 2, maxWidth: "52ch" } }, g.detail)))),
-      React.createElement("div", { style: { fontSize: 11.5, color: C.inkFaint, marginTop: 8 } }, glows.length > 1 ? "Estimates from the cloud forecast." : "An estimate from the cloud forecast.")),
+      React.createElement("div", { style: { fontSize: 11.5, color: C.inkFaint, marginTop: 8 } },
+        (glows.length > 1 ? "Estimates from the cloud forecast." : "An estimate from the cloud forecast.") +
+        (stale ? ` ${stale[0].toUpperCase()}${stale.slice(1)}.` : ""))),
     React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
       (reminders || []).map(m => React.createElement("button", { key: m.kind, className: "rtbtn", onClick: m.onClick, "aria-label": m.aria }, m.label)),
       React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris \u2192")));
@@ -3636,49 +3638,39 @@ function weekOutlook(wx, loc, bortle, nowMs) {
 function scoreRating(score) {
   return score == null ? null : score >= 78 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Poor';
 }
-function scoreReason(sum) {
-  if (!sum) return 'The forecast couldn\u2019t be loaded, so tonight can\u2019t be scored.';
-  if (sum.score == null) return 'There\u2019s no dark stretch of night in the forecast ahead.';
-  switch (sum.factor) {
-    case 'clear & dark': return 'Clear skies, with the Moon out of the way.';
-    case 'moonlit': return sum.score >= 60 ? 'Moonlight will hide the faintest stars.'
-      : 'A bright Moon will wash out all but the Moon, the planets and the brightest stars.';
-    case 'some cloud': return 'Some cloud is forecast, with clear gaps between.';
-    case 'cloudy': return 'Cloud is forecast to cover most of the sky.';
-    case 'rain likely': return 'Rain is likely during the darkest hours.';
-    case 'no astro-dark': return 'The sky never gets fully dark tonight, so this is for twilight.';
-    default: return '';
-  }
-}
 // The same factors, short, for a row of the week planner.
 const SCORE_SHORT = { 'clear & dark': 'clear and dark', moonlit: 'bright Moon', 'some cloud': 'some cloud', cloudy: 'cloudy', 'rain likely': 'rain likely', 'no astro-dark': 'never fully dark' };
-/* The Console's "Sky tonight": the score out of 100, its rating, why, and
-   from 40 up the best two hours as times (2026-09-29: a line on how the
-   score is worked out, and the hourly bar strip under it, both went; the
-   owner found neither told a stargazer anything they could act on).
-   Hook-free, so a test can render it. */
-function bestWindow(sum) {
-  if (!sum || sum.score == null || sum.score < 40 || sum.bestMs == null) return null;
-  const hrs = sum.hours || [];
-  const last = hrs.length ? hrs[hrs.length - 1].t + 3600000 : Infinity;
-  return { from: sum.bestMs, to: Math.min(sum.bestMs + 2 * 3600000, last) };
-}
-function SkyScore({ sum, stale, fmt }) {
-  const score = sum && sum.score != null ? sum.score : null;
-  const rating = scoreRating(score);
-  const best = bestWindow(sum);
+/* The Console's "how dark is your sky": the place's Bortle class, 1 (the
+   darkest skies on Earth) to 9 (an inner city), with what that means you
+   can see on a clear, moonless night (2026-09-29, owner: "the idea was to
+   identify the location's Bortle number"; it replaced the 0-100
+   clear-and-dark score, which the week planner still shows). The class
+   comes from prefStore: estimated from the towns around the place in auto
+   mode, or chosen in settings. Hook-free, so a test can render it. */
+const BORTLE_SEE = {
+  1: 'the Milky Way is bright enough to cast shadows.',
+  2: 'the Milky Way is richly detailed, and clouds show as black gaps among the stars.',
+  3: 'the Milky Way still shows its structure, with a faint glow from towns on the horizon.',
+  4: 'the Milky Way is visible but plain, with light domes over nearby towns.',
+  5: 'the Milky Way is faint, and washed out toward the horizon.',
+  6: 'the Milky Way shows only overhead, if at all.',
+  7: 'the Milky Way is gone, and the whole sky glows grey.',
+  8: 'only the brighter constellations can be picked out.',
+  9: 'only the Moon, the planets and a few of the brightest stars show.'
+};
+function SkyDarkness({ bortle, auto }) {
+  const b = BORTLE_SEE[bortle] ? bortle : 0;
   const ui = { fontFamily: 'var(--font-ui)' };
   return React.createElement('div', { style: { padding: '0 0 18px', display: 'grid', gap: 4 } },
     React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
-      React.createElement('div', { style: { ...ui, fontSize: 33, fontWeight: 450, color: C.brass, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' } }, score == null ? '\u2014' : String(score)),
-      score != null && React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkFaint } }, 'out of 100')),
-    React.createElement('div', { style: { ...ui, fontSize: 13.5, fontWeight: 550, color: C.ink, marginTop: 2 } },
-      rating ? `${rating} night for stargazing` : 'Sky tonight'),
-    React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkDim, maxWidth: '52ch' } }, scoreReason(sum)),
-    best && React.createElement('div', { style: { ...ui, fontSize: 13, color: C.ink, fontVariantNumeric: 'tabular-nums' } },
-      'Best between ', React.createElement('span', { style: { color: C.brass, fontWeight: 550 } }, fmt(best.from)),
-      ' and ', React.createElement('span', { style: { color: C.brass, fontWeight: 550 } }, fmt(best.to)), '.'),
-    stale && React.createElement('div', { style: { ...ui, fontSize: 11.5, color: C.inkFaint } }, `${stale[0].toUpperCase()}${stale.slice(1)}.`)
+      React.createElement('div', { style: { ...ui, fontSize: 33, fontWeight: 450, color: C.brass, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' } }, b ? String(b) : '\u2014'),
+      b > 0 && React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkFaint } }, 'of 9 on the Bortle scale')),
+    React.createElement('div', { style: { ...ui, fontSize: 13.5, fontWeight: 550, color: C.ink, marginTop: 2 } }, b ? skyWord(b) : 'How dark your sky is'),
+    React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkDim, maxWidth: '52ch' } },
+      b ? 'On a clear, moonless night ' + BORTLE_SEE[b]
+        : auto ? 'Working out how much light the towns around you give off\u2026' : 'Not set yet. Choose it in settings.'),
+    b > 0 && React.createElement('div', { style: { ...ui, fontSize: 11.5, color: C.inkFaint, maxWidth: '60ch' } },
+      '1 is the darkest sky on Earth, 9 an inner city. ' + (auto ? 'Estimated from the towns around you.' : 'Set by you in settings.'))
   );
 }
 /* Clear-and-dark alerts: a web push notification around 4 PM on days when
@@ -4603,7 +4595,7 @@ function WelcomeSky({ o, line, onDone }) {
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, score }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, darkness }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4892,7 +4884,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
       React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
-      score || null,
+      darkness || null,
       twilight || null,
       React.createElement(TonightHighlights, { items: highlights }),
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
@@ -5196,7 +5188,6 @@ function RealtimeTwilight({ redMode } = {}) {
       phase: phaseOf(alt)
     };
   }, [minute, loc.lat, loc.lon, bortle]);
-  const wxScore = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
   // Two days ahead, so the next stage is found after the day's last one too
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
@@ -5460,17 +5451,15 @@ function RealtimeTwilight({ redMode } = {}) {
     twilight: React.createElement(TwilightToday, {
       next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
       onMore: () => goTab("ephemeris"),
-      glows, reminders
+      glows, reminders, stale: wx && wxStale ? staleNote(wxStale, now) : null
     }),
-    // The verdict, the Moon and the planets are in the horizon view above;
-    // what it doesn't carry is the clear-and-dark score. It sits right under
-    // tonight's ribbon and facts (2026-09-29; it had been below the
-    // highlights and Share, about 950 px further down).
-    score: React.createElement("section", {
+    // How dark this place's sky is, right under tonight's ribbon and facts
+    // (2026-09-29: the owner's original idea for this spot; it replaced the
+    // clear-and-dark score, which had moved up here from below the
+    // highlights the same day).
+    darkness: React.createElement("section", {
       style: { borderTop: `1px solid ${C.line}`, paddingTop: 18 }
-    },
-      React.createElement(SkyScore, { sum: wxScore, stale: wxScore && wxStale ? staleNote(wxStale, now) : null, fmt: t => fmtT(t, loc.tz) }),
-      (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 })),
+    }, React.createElement(SkyDarkness, { bortle, auto: bortleMode === 'auto' })),
     corner: factCorner,
     onIntroDone: pick => {
       setIntro(false);
@@ -5478,6 +5467,7 @@ function RealtimeTwilight({ redMode } = {}) {
       if (pick) setPickerOpen(true);
     }
   }),
+  (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
   weekPlannerEl(wxWeek, loc, h24, pro),
   React.createElement("section", {
     ref: factRef,

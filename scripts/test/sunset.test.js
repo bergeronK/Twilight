@@ -200,7 +200,7 @@ test('the Console asks for the cloud layers here and toward the sunset', () => {
   // Every way the forecast arrives goes through wxOf.
   assert.strictEqual((rt.match(/setWx\(wxOf\(/g) || []).length, 3);
   assert.ok(!/setWx\((?!wxOf|null)/.test(rt), 'no raw reply reaches setWx');
-  assert.match(rt, /glows, reminders\n/);
+  assert.match(rt, /glows, reminders(, stale: [^\n]+)?\n/);
   // The colour memo run from source: sunset against the west, sunrise
   // against the east, soonest first, nothing past 30 hours.
   const body = rt.slice(rt.indexOf('const glows = useMemo(() => {') + 'const glows = useMemo(() => {'.length, rt.indexOf('}, [wx, sunset, sunrise, hourKey]);'));

@@ -73,18 +73,19 @@ test('the feedback link and its template', () => {
   assert.match(tpl, /^---\nname: Feedback\n/);
 });
 
-test('the clear-and-dark score sits right under tonight’s ribbon and facts, before the twilight times', () => {
-  // The hero draws the ribbon, its facts, then the score, then twilight.
+test('how dark the sky is sits right under tonight’s ribbon and facts, before the twilight times', () => {
+  // The hero draws the ribbon, its facts, then the sky's darkness, then twilight.
   const hero = declSource('HorizonHero');
   const at = s => { const i = hero.indexOf(s); assert.ok(i > 0, s); return i; };
   assert.ok(at('React.createElement(NightRibbon') < at('React.createElement(NightFacts'));
-  assert.ok(at('React.createElement(NightFacts') < at('score || null') && at('score || null') < at('twilight || null'));
+  assert.ok(at('React.createElement(NightFacts') < at('darkness || null') && at('darkness || null') < at('twilight || null'));
   assert.ok(at('twilight || null') < at('React.createElement(TonightHighlights'));
-  // The Console hands the hero the "Sky tonight" block as that prop, and
-  // doesn't draw it below the hero as well.
+  // The Console hands the hero the Bortle block as that prop, draws it
+  // nowhere else, and no longer shows the 0-100 score at all.
   const app = declSource('RealtimeTwilight');
   const call = app.slice(app.indexOf('React.createElement(HorizonHero, {'), app.indexOf('weekPlannerEl(wxWeek'));
-  const score = call.slice(call.indexOf('score: '), call.indexOf('corner: factCorner'));
-  assert.ok(score.length > 0 && /React\.createElement\(SkyScore, \{ sum: wxScore/.test(score));
-  assert.strictEqual((app.match(/React\.createElement\(SkyScore/g) || []).length, 1);
+  const dark = call.slice(call.indexOf('darkness: '), call.indexOf('corner: factCorner'));
+  assert.ok(dark.length > 0 && /React\.createElement\(SkyDarkness, \{ bortle, auto: bortleMode === 'auto' \}\)/.test(dark));
+  assert.strictEqual((app.match(/React\.createElement\(SkyDarkness/g) || []).length, 1);
+  assert.ok(!/clearDarkScore\(|SkyScore/.test(app), 'the score has left the Console');
 });
