@@ -23,8 +23,8 @@ fresh session (or a Cowork session) never has to re-derive project state.
 
 Three tabs, one `index.html`, no build step:
 - **Console** — for the casual stargazer: the painted sky now, the verdict,
-  tonight's timeline, up to three things worth a look, the "Clear & Dark"
-  score (tonight + hourly strip + 7-night Pro planner), the next twilight
+  tonight's timeline, how dark the place's sky is (its Bortle class), up to
+  three things worth a look, the 7-night "Clear & Dark" Pro planner, the next twilight
   countdown and the almanac. (Decluttered 2026-09-25: see below.)
 - **Ephemeris** — twilight times for any date/place, solar altitude chart,
   iCal/CSV export, upcoming sky events.
@@ -54,25 +54,28 @@ stargazer is the default, navigator material is kept whole but folded.
   stage it shows tomorrow's. The next stage is scanned 48 h ahead
   (`sunAhead`); the old midnight-to-midnight scan had none from
   astronomical dusk to midnight. `twilight-today.test.js`.
-- **The score under tonight's ribbon (2026-09-29, owner's ask).** "Sky
-  tonight" and the "Clear & dark · tonight" strip (and the alerts row, once
-  `ALERTS_LIVE`) are `HorizonHero`'s `score` prop, drawn after the ribbon
-  and its three facts and before the twilight section. They had sat below
-  the highlights and Share, about 950 px further down at 390 px wide. The
-  week planner stays where it was.
-- **The score says what it means (2026-09-29, owner: "there is no logic to
-  explain what that 1 means").** `SkyScore` (hook-free) shows "1 out of
-  100", a rating (`scoreRating`: Excellent 78+, the "clear & dark" and alerts
-  threshold; Good 60+; Fair 40+, where the strip starts naming a best
-  window; Poor), a sentence for what holds it back (`scoreReason`, from
-  `summarize`'s factor), and how it is worked out: the best two hours
-  **still ahead** tonight, 100 a clear sky with no Moon. "Still ahead"
-  matters: a clear night after full Moon is 67 at 6 PM (Moon low for the
-  first dark hours) and 3 at 11 PM. The strip's header no longer repeats
-  the factor word ("no good stretch tonight" under 40) and its bars say
-  "57 out of 100"; the week planner's header says "scores out of 100" and
-  each night gets its rating and a short phrase (`SCORE_SHORT`). The scoring
-  itself is unchanged, so `alerts/src/sky.js` needs no regeneration.
+- **How dark the sky is, under tonight's ribbon (2026-09-29, owner: "the
+  idea was to identify the location's Bortle number").** `HorizonHero`'s
+  `darkness` prop, after the ribbon and its three facts and before the
+  twilight section: `SkyDarkness` (hook-free) shows "5 of 9 on the Bortle
+  scale", the word (`skyWord`: "Suburban sky"), what that sky shows on a
+  clear, moonless night (`BORTLE_SEE`, from Bortle's own descriptions: the
+  Milky Way casts shadows at 1, is gone from 7, only the brightest show at
+  9), and "1 is the darkest sky on Earth, 9 an inner city" with where the
+  class came from (estimated from the towns around, or set in settings).
+  The estimate is only as good as `estimateBortle`'s town populations:
+  Cherry Springs, a Bortle 2 park, comes out 4. The spot went through the
+  0-100 clear-and-dark score the same day: moved up from under the
+  highlights (#140), given words (#141: "out of 100", a rating, a reason),
+  trimmed to its best time (the method line and the hourly bar strip,
+  `skyStripEl`, removed as telling a stargazer nothing to act on), then
+  replaced: a bare "1" meant nothing, and the score counts cloud and Moon
+  but not light pollution. The score stays in the week planner (header
+  "scores out of 100", each night `scoreRating` and `SCORE_SHORT`) and in the
+  alerts Worker; `clearDarkScore` stays in `index.html`, which
+  `alerts/src/sky.js` is generated from. The alerts row (hidden until
+  `ALERTS_LIVE`) sits just before the week planner, and a stale forecast is
+  said on the twilight section's forecast line. `sky-darkness.test.js`,
   `sky-score.test.js`.
 - **Sunset colour, a sunset reminder and the almanac button (2026-09-25).**
   In the Twilight section: "Tonight's sunset colour" (`sunsetGlow`: high or
@@ -168,8 +171,10 @@ stargazer is the default, navigator material is kept whole but folded.
     **the Navigator's vocabulary must not leak outward.** A sextant user
     needs `Hs`, `index error`, `on the arc`, so those field names stay — but
     each is glossed in plain language nearby, and terms like *limiting
-    magnitude*, *Bortle*, *cut* and *marine horizon* do not belong on the
-    Console, which is where a casual stargazer lands first. Reference
+    magnitude*, *cut* and *marine horizon* do not belong on the
+    Console, which is where a casual stargazer lands first. (*Bortle* was on
+    that list until 2026-09-29, when the owner put the place's class on the
+    Console, with its scale said in plain words.) Reference
     sentence for the intended register: *"Dark skies and the Moon is down."*
 - **Accessibility (2026-09-24)**: axe-core reports no violations on any tab
   or in Sky View (run it with Playwright and `bypassCSP: true`; axe is on
@@ -210,8 +215,8 @@ stargazer is the default, navigator material is kept whole but folded.
   before (stale-while-revalidate answers from the cache first), often hours
   old, and the visit count lagged. Offline, the Console falls back to its own
   saved forecast (`tw_wx_*`: `wxCacheUse` says 'fresh' under an hour, 'stale'
-  up to a day, used only when a fetch fails, and the score's line says
-  "forecast from 3 hours ago", `staleNote`). `CACHE` version string must be bumped on every asset-affecting change.
+  up to a day, used only when a fetch fails, and the twilight section's
+  forecast line says "Forecast from 3 hours ago.", `staleNote`). `CACHE` version string must be bumped on every asset-affecting change.
   Skips registration entirely when `window.Capacitor` is present (native shell
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
@@ -297,7 +302,7 @@ stargazer is the default, navigator material is kept whole but folded.
   day (#136 puffs, #137 a fractal cloud field, #138 still rain) and taken
   out again: they made the Console read like a weather app, not a view of
   twilight. The painting shows the sky as if clear. The forecast still
-  feeds the score, the strip, the planner and the sunset and sunrise
+  feeds the week planner and the sunset and sunrise
   colour, in words. See git history (#136-#138) before trying again.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
   grid of its brightness (0..250, run-length coded), built by
@@ -737,7 +742,7 @@ stargazer is the default, navigator material is kept whole but folded.
     no dependencies; `encryptPush` matches the RFC's appendix A example byte
     for byte (taken from the working group's source; rfc-editor.org is
     blocked here).
-  - **App**: `ClearAlerts` (hooks) → `AlertsRow` (hook-free) under the strip,
+  - **App**: `ClearAlerts` (hooks) → `AlertsRow` (hook-free) before the week planner,
     `alertsOn`/`alertsOff` with the window injected, `tw_alerts` holds what the
     Worker was told so a place change resubscribes quietly. Permission is
     asked **before** any other await (Safari drops a prompt after one).
@@ -1327,13 +1332,16 @@ things a syntax check cannot see:
   (permission first, key bytes, rounded place), `AlertsRow`'s words, and the
   CSP/sw.js/`ALERTS_LIVE` wiring. `extract.js` now keeps `async` on an
   extracted `async function` (it dropped it, and `await` failed to parse).
-- **`sky-score.test.js`** — the score's words: ratings at their
-  thresholds, a sentence and a short form for every factor `summarize` can
-  return (read from its source), real nights (clear under a high full Moon
-  is Poor and blames the Moon; the same night at 6 PM is Good; new Moon is
-  Excellent), `SkyScore` with a stub React (out of 100, rating, reason, how
-  it is scored, a stale forecast said as a sentence, a dash and no scale
-  without a forecast), and the strip and week planner at source level.
+- **`sky-score.test.js`** — the week planner's words for the score:
+  ratings at their thresholds, a short form for every factor `summarize`
+  can return (read from its source), real nights (clear under a high full
+  Moon is Poor; the same night at 6 PM is Good; new Moon is Excellent), and
+  the planner at source level.
+- **`sky-darkness.test.js`** — the Console's Bortle block: a sentence for
+  every class, the Milky Way there to 6 and gone from 7, `SkyDarkness` with
+  a stub React (the class, "of 9 on the Bortle scale", the word, what shows,
+  the scale's ends, auto or set by you; a dash and why before it is known),
+  and a stale forecast said on the twilight section's line.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
@@ -1548,6 +1556,9 @@ The Console shots were retaken when the horizon view became the default
   window, chosen so the privacy policy can describe it plainly (2026-09-22).
 - **No weather in the Console's painting** (2026-09-28): it shows the
   sky's twilight colours as if clear. Weather stays in words and scores.
+- **The Console shows the place's Bortle class, not the 0-100
+  clear-and-dark score** (2026-09-29). The score lives on in the week
+  planner and the alerts.
 - **The visit counter is website-only**; the native apps never contact it
   (2026-09-22).
 
