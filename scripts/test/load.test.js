@@ -113,5 +113,6 @@ test('offline, the Console shows the saved forecast and says how old it is', () 
   const src = declSource('RealtimeTwilight');
   // The failure path falls back to the saved copy instead of blanking the score.
   assert.match(src, /\.catch\(err => \{\s*try \{ noteSource\(localStorage, 'openmeteo', err\); \} catch \(e\) \{\}\s*if \(seq !== wxSeq\.current\) return;\s*if \(wxCacheUse\(cached, Date\.now\(\)\)\) \{ setWx\(wxOf\(cached\.d\)\); setWxStale\(cached\.t\); \}/);
-  assert.match(src, /wxStale \? wxScore\.factor \+ " \\u00b7 " \+ staleNote\(wxStale, now\)/);
+  // ...and SkyScore says how old it is (its words are tested in sky-score.test.js).
+  assert.match(src, /React\.createElement\(SkyScore, \{ sum: wxScore, stale: wxScore && wxStale \? staleNote\(wxStale, now\) : null \}\)/);
 });

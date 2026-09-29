@@ -85,7 +85,7 @@ test('the clear-and-dark score sits right under tonight’s ribbon and facts, be
   const app = declSource('RealtimeTwilight');
   const call = app.slice(app.indexOf('React.createElement(HorizonHero, {'), app.indexOf('weekPlannerEl(wxWeek'));
   const score = call.slice(call.indexOf('score: '), call.indexOf('corner: factCorner'));
-  assert.ok(score.length > 0 && /k: "Sky tonight"/.test(score) && /skyStripEl\(wxScore, loc, h24\)/.test(score));
+  assert.ok(score.length > 0 && /React\.createElement\(SkyScore, \{ sum: wxScore/.test(score) && /skyStripEl\(wxScore, loc, h24\)/.test(score));
   assert.strictEqual((app.match(/skyStripEl\(/g) || []).length, 1);
-  assert.strictEqual((app.match(/k: "Sky tonight"/g) || []).length, 1);
+  assert.strictEqual((app.match(/React\.createElement\(SkyScore/g) || []).length, 1);
 });
