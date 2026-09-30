@@ -73,6 +73,11 @@ jobs:
           path: data/vnp46a4
           key: vnp46a4-${{ env.YEAR }}-${{ env.COLLECTION }}-slim
 
+      # What the token is (never the token itself) and whether Earthdata
+      # accepts it: LAADS answers a bad one with a login page, not a reason.
+      - name: Earthdata check
+        run: python3 "$LP" check-token
+
       - name: Download
         run: python3 "$LP" download --year "$YEAR" --collection "$COLLECTION" --slim
 

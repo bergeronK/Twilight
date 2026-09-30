@@ -513,8 +513,69 @@ def fetch(url, token=None, dest=None, tries=5):
         time.sleep(2 ** (k + 1))
 
 
+def token_facts(token):
+    """The token as it should be sent, and what can be said about it without
+    showing it: its shape, and for an Earthdata Login token (a JWT) the
+    account and expiry its payload carries (a payload is base64, not
+    secret; the account is shown only by its first two letters, since the
+    workflow's logs are public)."""
+    import base64
+    import datetime
+    t, facts = (token or '').strip(), []
+    if t != token:
+        facts.append('had spaces or a newline around it (dropped)')
+    if t.lower().startswith('bearer '):
+        t = t[7:].strip()
+        facts.append('began with "Bearer " (dropped)')
+    parts = t.split('.')
+    if len(parts) != 3:
+        return t, facts + [f'is not an Earthdata Login token: those are three parts joined by dots,'
+                           f' and this is {len(parts)} part(s), {len(t)} characters']
+    try:
+        p = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (-len(parts[1]) % 4)))
+    except Exception:
+        return t, facts + ['has three parts, but the middle one does not decode']
+    uid = str(p.get('uid', ''))
+    facts.append(f'belongs to the account {uid[:2]}{"*" * max(0, len(uid) - 2)}' if uid else 'names no account')
+    if 'exp' in p:
+        exp = datetime.datetime.fromtimestamp(p['exp'], datetime.timezone.utc)
+        gone = exp < datetime.datetime.now(datetime.timezone.utc)
+        facts.append(f'expire{"d" if gone else "s"} {exp:%Y-%m-%d %H:%M} UTC' + (' (EXPIRED)' if gone else ''))
+    if p.get('iss'):
+        facts.append(f'was issued by {p["iss"]}')
+    return t, facts
+
+
+def check_token():
+    """Say what the token is and whether Earthdata takes it: CMR, NASA's
+    search, accepts the same bearer token and refuses a bad one plainly,
+    which LAADS doesn't (it sends the download to a login page). Also
+    where one VNP46A4 file of the year can be fetched from."""
+    import urllib.error
+    t, facts = token_facts(os.environ.get('EARTHDATA_TOKEN', ''))
+    for f in facts:
+        print('  the token', f)
+    cmr = 'https://cmr.earthdata.nasa.gov/search'
+    try:
+        with open_url(f'{cmr}/collections.json?short_name=VNP46A4&page_size=1', t) as r:
+            print(f'  CMR accepts it (HTTP {r.status})')
+    except urllib.error.HTTPError as e:
+        print(f'  CMR refuses it: HTTP {e.code}{why(e)}')
+    except OSError as e:
+        print(f'  CMR could not be reached: {e}')
+    try:
+        with open_url(f'{cmr}/granules.json?short_name=VNP46A4&page_size=2'
+                      '&temporal=2024-01-01T00:00:00Z,2024-01-01T23:59:59Z') as r:
+            for g in json.load(r)['feed']['entry']:
+                for link in g.get('links', []):
+                    if link.get('href', '').endswith('.h5'):
+                        print('  a file:', link['href'])
+    except Exception as e:
+        print(f'  CMR granule search failed: {e}')
+
+
 def download(year, collection, outdir, slim=None):
-    token = os.environ.get('EARTHDATA_TOKEN')
+    token, _ = token_facts(os.environ.get('EARTHDATA_TOKEN', ''))
     if not token:
         raise SystemExit('Set EARTHDATA_TOKEN (urs.earthdata.nasa.gov > Generate Token).')
     base = f'{LAADS}/{collection}/VNP46A4/{year}/001'
@@ -730,6 +791,15 @@ def selftest():
             ' -> 302 ladsweb.modaps.eosdis.nasa.gov/oauth/login -> 500 urs.earthdata.nasa.gov/oauth/authorize')
     check(licence_wanted(seen) and not licence_wanted(seen.replace('profiles/licenses/', '')),
           'a licence not yet accepted is recognised (the chain LAADS gave the workflow)')
+    import base64
+    enc = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip('=')
+    jwt = f'{enc({"typ": "JWT"})}.{enc({"uid": "kenb", "exp": 1700000000, "iss": "https://urs.earthdata.nasa.gov"})}.sig'
+    t, facts = token_facts(f' Bearer {jwt}\n')
+    check(t == jwt and 'belongs to the account ke**' in facts and any('EXPIRED' in f for f in facts)
+          and not any('kenb' in f or jwt in f for f in facts),
+          f'a token is described without being shown: {"; ".join(facts)}')
+    check(token_facts('abc123')[1][-1].startswith('is not an Earthdata Login token'),
+          'a token that is not a JWT is said not to be one')
     check(nasa_host('ladsweb.modaps.eosdis.nasa.gov') and nasa_host('urs.earthdata.nasa.gov')
           and not nasa_host('nasa.gov.example.com') and not nasa_host('s3.amazonaws.com'),
           "the token goes to NASA's hosts only")
@@ -801,10 +871,13 @@ def main():
     t.add_argument('--out', default='lp')
     t.add_argument('--source', required=True, help='what the tiles were made from, for index.json')
     sub.add_parser('selftest')
+    sub.add_parser('check-token')
     fx = sub.add_parser('fixture')
     fx.add_argument('--out', default=os.path.join(os.path.dirname(__file__), '..', 'test', 'fixtures', 'lp'))
     a = ap.parse_args()
 
+    if a.cmd == 'check-token':
+        return check_token()
     if a.cmd == 'selftest':
         sys.exit(0 if selftest() else 1)
     if a.cmd == 'fixture':
