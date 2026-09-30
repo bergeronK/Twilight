@@ -8,8 +8,8 @@
  * These read a fixture the Python pipeline wrote (`lp.py fixture`: one town,
  * through the real light-spread model and tile writer) with the app's own
  * reader, so the two sides can't drift apart: the byte layout, the q scale,
- * the class boundaries. The real tiles and their reference sites come with
- * the data.
+ * the class boundaries. Then the real tiles, read the same way at the
+ * reference sites the pipeline was calibrated against.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -123,9 +123,57 @@ test('the Console asks the satellite tiles first, the towns where they can’t s
   assert.match(last({ bortle: 2, auto: false, from: 'satellite' }), /Set by you in settings\.$/);
 });
 
-test('the native apps carry the tiles, and the footer credits the data', () => {
+test('the native apps carry the tiles, the service worker keeps the index, and the footer credits the data', () => {
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', '..', 'sw.js'), 'utf8').includes("'/lp/index.json'"), 'sw.js ASSETS');
   const sync = fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'sync-web.js'), 'utf8');
   assert.match(sync, /path\.join\(ROOT, 'lp'\)/);
   const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
   assert.match(html, /blackmarble\.gsfc\.nasa\.gov/);
+});
+
+// ---- The real tiles (lp/, from NASA Black Marble by the Light pollution
+// tiles workflow), read with the app's own reader at the reference sites the
+// pipeline calibrated against. lp.py calibrates by reading each site as the
+// app reads the tiles (app_read, app_ratio), so its report is what the app
+// shows: the same class, and the sky reading to the report's two decimals.
+const LP = path.join(__dirname, '..', '..', 'lp');
+const SITES = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'light-pollution', 'reference-sites.json'), 'utf8')).sites;
+const REPORT = fs.readFileSync(path.join(__dirname, '..', 'light-pollution', 'calibration.txt'), 'utf8');
+
+test('the real tiles: an index the app can read, and every tile it lists decodes', () => {
+  const idx = JSON.parse(fs.readFileSync(path.join(LP, 'index.json'), 'utf8'));
+  assert.strictEqual(idx.tile, 10);
+  assert.strictEqual(idx.res, 30);
+  assert.match(idx.source, /Black Marble VNP46A4/);
+  assert.ok(idx.tiles.length > 50, `${idx.tiles.length} tiles`);
+  for (const name of idx.tiles) {
+    const b = fs.readFileSync(path.join(LP, `${name}.bin`));
+    const t = m.decodeLpTile(new Uint8Array(b));
+    assert.ok(t && t.W === 300 && t.H === 300, name);
+  }
+});
+
+test('the real tiles put each reference site where the pipeline did, and in its range', async () => {
+  const get = files(LP);
+  for (const s of SITES) {
+    const r = await m.skyBortle(s.lat, s.lon, get);
+    assert.ok(r, s.name);
+    const line = REPORT.split('\n').find(l => l.trim().startsWith(s.name));
+    assert.ok(line, `${s.name} in calibration.txt`);
+    assert.ok(r.bortle >= s.bortle[0] && r.bortle <= s.bortle[1], `${s.name}: ${r.bortle}, range ${s.bortle}`);
+    const [, py, sqm] = line.match(/Bortle (\d)\s+SQM ([\d.]+)/);
+    assert.strictEqual(r.bortle, +py, `${s.name}: app ${r.bortle}, pipeline ${py}`);
+    const appSqm = 22 - 2.5 * Math.log10(1 + r.ratio);
+    assert.ok(Math.abs(appSqm - +sqm) <= 0.006, `${s.name}: app SQM ${appSqm.toFixed(3)}, pipeline ${sqm}`);
+  }
+});
+
+test('the real tiles: the dark-sky park the town estimate got wrong is dark, city centres are bright', async () => {
+  const get = files(LP);
+  const at = async name => { const s = SITES.find(x => x.name.startsWith(name)); return (await m.skyBortle(s.lat, s.lon, get)).bortle; };
+  assert.ok(await at('Cherry Springs') <= 3, 'Cherry Springs, which the towns put at 4');
+  for (const c of ['Manhattan', 'Chicago', 'Los Angeles', 'Tokyo', 'Hong Kong']) assert.ok(await at(c) >= 8, c);
+  // Brighter toward Boston: the park, a college town, a suburb, downtown.
+  const run = [await at('Cherry Springs'), await at('Amherst'), await at('Lexington'), await at('Boston')];
+  for (let i = 1; i < run.length; i++) assert.ok(run[i] >= run[i - 1], `${run}`);
 });

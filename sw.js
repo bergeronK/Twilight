@@ -19,6 +19,7 @@ const ASSETS = [
   '/deep-sky.json',
   '/milkyway.bin',
   '/facts.json',
+  '/lp/index.json',
   '/fonts/inter-latin.woff2',
   '/fonts/cormorant.woff2',
   '/fonts/cormorant-i.woff2'

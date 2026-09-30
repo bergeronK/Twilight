@@ -1,0 +1,131 @@
+name: Light pollution tiles
+
+# Builds lp/ (the Console's Bortle class from satellite night lights) with
+# scripts/light-pollution/lp.py: NASA Black Marble VNP46A4 yearly tiles ->
+# the light-spread model -> calibration against reference-sites.json ->
+# 10-degree tiles. It runs here, not in a Claude Code session, because the
+# download needs a free NASA Earthdata token, kept as the repository secret
+# EARTHDATA_TOKEN (Settings > Secrets and variables > Actions), and a few GB
+# of data.
+#
+# On a claude/** branch it runs when the pipeline or this file changes, and
+# commits lp/ and the calibration report back to that branch. Run by hand
+# (Actions > Light pollution tiles > Run workflow) it only uploads them as an
+# artifact, so main is never written to without review.
+
+on:
+  push:
+    branches: ['claude/**']
+    paths:
+      - 'scripts/light-pollution/**'
+      - '.github/workflows/light-pollution.yml'
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 'VNP46A4 year'
+        default: '2024'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: light-pollution-${{ github.ref }}
+  cancel-in-progress: true
+
+# Named explicitly so steps run with pipefail: the default shell doesn't set
+# it, and a failed calibrate piped through tee would read as success.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tiles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      EARTHDATA_TOKEN: ${{ secrets.EARTHDATA_TOKEN }}
+      YEAR: ${{ inputs.year || '2024' }}
+      COLLECTION: '5200'
+      LP: scripts/light-pollution/lp.py
+    steps:
+      - name: Earthdata token
+        run: |
+          if [ -z "$EARTHDATA_TOKEN" ]; then
+            echo "::error::Add a free NASA Earthdata token (urs.earthdata.nasa.gov > Generate Token) as the repository secret EARTHDATA_TOKEN, then re-run this job."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install numpy scipy h5py tifffile
+
+      - name: Self-test
+        run: python3 "$LP" selftest
+
+      # The slimmed download (one dataset per tile, ~1 GB in all) is kept
+      # between runs, so retuning the model doesn't fetch it again.
+      - uses: actions/cache/restore@v4
+        with:
+          path: data/vnp46a4
+          key: vnp46a4-${{ env.YEAR }}-${{ env.COLLECTION }}-slim
+
+      # What the token is (never the token itself) and whether Earthdata
+      # accepts it: LAADS answers a bad one with a login page, not a reason.
+      - name: Earthdata check
+        run: python3 "$LP" check-token
+
+      - name: Download
+        run: python3 "$LP" download --year "$YEAR" --collection "$COLLECTION" --slim
+
+      - uses: actions/cache/save@v4
+        with:
+          path: data/vnp46a4
+          key: vnp46a4-${{ env.YEAR }}-${{ env.COLLECTION }}-slim
+        continue-on-error: true
+
+      - name: Grid
+        run: python3 "$LP" grid --black-marble data/vnp46a4
+
+      - name: Sky glow
+        run: python3 "$LP" sky
+
+      - name: Calibrate
+        run: |
+          python3 "$LP" calibrate | tee scripts/light-pollution/calibration.txt
+          sed -n 's/^scale \([^:]*\):.*/\1/p' scripts/light-pollution/calibration.txt > data/scale
+
+      - name: Tiles
+        run: |
+          rm -rf lp
+          python3 "$LP" tiles --scale "$(cat data/scale)" \
+            --source "NASA Black Marble VNP46A4 $YEAR (VIIRS night lights, LAADS collection $COLLECTION)" \
+            | tee -a scripts/light-pollution/calibration.txt
+          {
+            echo '### Calibration'
+            echo '```'
+            cat scripts/light-pollution/calibration.txt
+            echo '```'
+            echo "lp/: $(ls lp | wc -l) files, $(du -sh lp | cut -f1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lp-${{ env.YEAR }}
+          path: |
+            lp/
+            scripts/light-pollution/calibration.txt
+
+      - name: Commit to the branch
+        if: startsWith(github.ref_name, 'claude/')
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A lp scripts/light-pollution/calibration.txt
+          if git diff --cached --quiet; then echo 'tiles unchanged'; exit 0; fi
+          git commit -m "Light pollution: tiles from NASA Black Marble VNP46A4 $YEAR" \
+            -m "Built by the Light pollution tiles workflow, run $GITHUB_RUN_ID, from $GITHUB_SHA. scripts/light-pollution/calibration.txt has the fitted scale and where each reference site lands."
+          git push origin "HEAD:$GITHUB_REF_NAME"
