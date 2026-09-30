@@ -1,0 +1,30 @@
+scale 0.0776247: 28 of 28 sites in range
+  Cherry Springs State Park, PA      Bortle 2  SQM 21.98
+  Big Bend NP (Panther Junction), TX Bortle 1  SQM 22.00
+  Natural Bridges NM, UT             Bortle 1  SQM 22.00
+  Great Basin NP, NV                 Bortle 1  SQM 22.00
+  Death Valley NP (Badwater), CA     Bortle 2  SQM 21.99
+  Mauna Kea summit, HI               Bortle 1  SQM 22.00
+  Headlands Dark Sky Park, MI        Bortle 3  SQM 21.86
+  NamibRand Nature Reserve, Namibia  Bortle 1  SQM 22.00
+  Aoraki Mackenzie reserve, NZ       Bortle 2  SQM 21.96
+  Atacama, near San Pedro, Chile     Bortle 2  SQM 21.97
+  Kerry Dark Sky Reserve, Ireland    Bortle 2  SQM 21.93
+  Galloway Forest Park, Scotland     Bortle 2  SQM 21.98
+  Elan Valley, Wales                 Bortle 2  SQM 21.97
+  Western Kansas farmland            Bortle 3  SQM 21.87
+  Flagstaff, AZ (dark-sky city)      Bortle 6  SQM 19.37
+  Wellfleet, Cape Cod, MA            Bortle 3  SQM 21.71
+  Amherst, MA                        Bortle 5  SQM 19.76
+  Lexington, MA (Boston suburb)      Bortle 6  SQM 19.44
+  Tucson, AZ (downtown)              Bortle 8  SQM 18.12
+  Springfield, MA (downtown)         Bortle 9  SQM 17.80
+  Boston (downtown)                  Bortle 9  SQM 16.80
+  Manhattan (Midtown), NY            Bortle 9  SQM 16.35
+  Chicago (the Loop), IL             Bortle 9  SQM 16.77
+  Los Angeles (downtown), CA         Bortle 9  SQM 16.87
+  London (Trafalgar Square)          Bortle 9  SQM 17.02
+  Paris (centre)                     Bortle 9  SQM 17.78
+  Tokyo (Shinjuku)                   Bortle 9  SQM 17.09
+  Hong Kong (Kowloon)                Bortle 9  SQM 17.34
+383 tiles, 18.35 MB, in lp
