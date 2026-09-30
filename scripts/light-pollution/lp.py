@@ -135,49 +135,54 @@ def grid_from_geotiff(path, lat_s, lat_n):
     """Mean radiance on the 1' grid from one lat/lon GeoTIFF (.tif or
     .tif.gz), read a strip or tile at a time."""
     import tifffile
+    unpacked = None  # a .gz is unpacked to a temporary file, removed after
     if path.endswith('.gz'):
         tmp = tempfile.NamedTemporaryFile(suffix='.tif', delete=False)
         with gzip.open(path, 'rb') as src:
             shutil.copyfileobj(src, tmp, 1 << 24)
         tmp.close()
-        path = tmp.name
-    with tifffile.TiffFile(path) as tf:
-        page = tf.pages[0]
-        tags = page.tags
-        scale = tags['ModelPixelScaleTag'].value
-        tie = tags['ModelTiepointTag'].value
-        dx, dy = scale[0], scale[1]
-        lon0, lat0 = tie[3], tie[4]  # the top-left corner
-        f = int(round((1 / GRID) / dx))
-        if f < 1 or abs(f * dx - 1 / GRID) > 1e-6 or abs(dx - dy) > 1e-9:
-            raise SystemExit(f'expected square pixels dividing 1 arcminute; got {dx} x {dy}')
-        rows = (lat_n - lat_s) * GRID
-        acc = np.zeros((rows, 360 * GRID))
-        cnt = np.zeros_like(acc)
-        # Fine row r lies at latitude lat0 - (r + 0.5) dy; on the 1' grid,
-        # row 0 is the southernmost, so flip after accumulating.
-        row_off = int(round((lat0 - lat_n) / dy))  # fine rows above lat_n
-        col_off = int(round((lon0 + 180) / dx))
-        if page.is_memmappable:
-            # Uncompressed (as EOG's .tif.gz unpack): whole rows of f-row
-            # chunks, so every read takes the aligned path.
-            mm = page.asarray(out='memmap')
-            step = f * 240
-            start = (-row_off) % f
-            if start:
-                downsample_into(acc, cnt, mm[:start], row_off, col_off, f)
-            for y in range(start, mm.shape[0], step):
-                blk = np.asarray(mm[y:y + step])
-                downsample_into(acc, cnt, blk, y + row_off, col_off, f)
-            segs = []
-        else:
-            segs = page.segments()
-        for seg, idx, shape in segs:
-            if seg is None:
-                continue
-            y0, x0 = idx[-3], idx[-2]  # (..., y, x, sample) in tifffile
-            block = np.asarray(seg).reshape(shape[-3], shape[-2])
-            downsample_into(acc, cnt, block, y0 + row_off, x0 + col_off, f)
+        path = unpacked = tmp.name
+    try:
+        with tifffile.TiffFile(path) as tf:
+            page = tf.pages[0]
+            tags = page.tags
+            scale = tags['ModelPixelScaleTag'].value
+            tie = tags['ModelTiepointTag'].value
+            dx, dy = scale[0], scale[1]
+            lon0, lat0 = tie[3], tie[4]  # the top-left corner
+            f = int(round((1 / GRID) / dx))
+            if f < 1 or abs(f * dx - 1 / GRID) > 1e-6 or abs(dx - dy) > 1e-9:
+                raise SystemExit(f'expected square pixels dividing 1 arcminute; got {dx} x {dy}')
+            rows = (lat_n - lat_s) * GRID
+            acc = np.zeros((rows, 360 * GRID))
+            cnt = np.zeros_like(acc)
+            # Fine row r lies at latitude lat0 - (r + 0.5) dy; on the 1' grid,
+            # row 0 is the southernmost, so flip after accumulating.
+            row_off = int(round((lat0 - lat_n) / dy))  # fine rows above lat_n
+            col_off = int(round((lon0 + 180) / dx))
+            if page.is_memmappable:
+                # Uncompressed (as EOG's .tif.gz unpack): whole rows of f-row
+                # chunks, so every read takes the aligned path.
+                mm = page.asarray(out='memmap')
+                step = f * 240
+                start = (-row_off) % f
+                if start:
+                    downsample_into(acc, cnt, mm[:start], row_off, col_off, f)
+                for y in range(start, mm.shape[0], step):
+                    blk = np.asarray(mm[y:y + step])
+                    downsample_into(acc, cnt, blk, y + row_off, col_off, f)
+                segs = []
+            else:
+                segs = page.segments()
+            for seg, idx, shape in segs:
+                if seg is None:
+                    continue
+                y0, x0 = idx[-3], idx[-2]  # (..., y, x, sample) in tifffile
+                block = np.asarray(seg).reshape(shape[-3], shape[-2])
+                downsample_into(acc, cnt, block, y0 + row_off, x0 + col_off, f)
+    finally:
+        if unpacked:
+            os.remove(unpacked)
     grid = np.divide(acc, cnt, out=np.zeros_like(acc), where=cnt > 0)
     return np.flipud(grid).astype(np.float32)
 
@@ -299,35 +304,61 @@ def sky_glow(rad, lat_s, d0=D0, l=L, rmax=RMAX, floor=FLOOR, band_deg=1):
 
 # ---- Calibration ---------------------------------------------------------
 
-def glow_at(glow, lat_s, lat, lon):
-    r = int((lat - lat_s) * GRID)
-    c = int((lon + 180) * GRID) % glow.shape[1]
-    if r < 0 or r >= glow.shape[0]:
+def coarse(glow):
+    """The 1' glow as the tiles hold it: means of 2 x 2 cells."""
+    f = GRID // OUT
+    rows, cols = glow.shape
+    return glow[:rows // f * f, :cols // f * f].reshape(rows // f, f, cols // f, f).mean(axis=(1, 3))
+
+
+def app_read(g2, lat_s, lat, lon):
+    """The four tile cells the app reads for a place, and their weights,
+    as its lpRatioAt takes them: in the place's own 10-degree tile, clamped
+    to it, between the nearest cell centres. None outside the grid."""
+    lonw = (lon + 180) % 360 - 180
+    lat0, lon0 = math.floor(lat / TILE) * TILE, math.floor((lonw + 180) / TILE) * TILE - 180
+    n = TILE * OUT
+    x = min(max((lonw - lon0) * OUT - 0.5, 0), n - 1)
+    y = min(max((lat - lat0) * OUT - 0.5, 0), n - 1)
+    i, j = min(n - 2, math.floor(x)), min(n - 2, math.floor(y))
+    fx, fy = x - i, y - j
+    r, c = round((lat0 - lat_s) * OUT) + j, round((lon0 + 180) * OUT) + i
+    if r + 1 < 0 or r >= g2.shape[0]:
         return None
-    return float(glow[r, c])
+    at = lambda rr, cc: float(g2[rr, cc]) if 0 <= rr < g2.shape[0] else 0.0
+    g = np.array([at(r, c), at(r, c + 1), at(r + 1, c), at(r + 1, c + 1)])
+    w = np.array([(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy])
+    return g, w
+
+
+def app_ratio(scale, g, w):
+    """What the app reads from those cells once scaled and written as q."""
+    q = float(np.dot(w, q_of_ratio(scale * g)))
+    return 10 ** (q / 20 - 3) if q > 0 else 0.0
 
 
 def calibrate(glow, lat_s, sites):
     """The one scale factor from glow to ratio that puts the most reference
     sites inside their Bortle range, ties broken by how near each lands to
-    the middle of its range (in log ratio)."""
-    pts = []
-    for s in sites:
-        g = glow_at(glow, lat_s, s['lat'], s['lon'])
-        if g is not None:
-            pts.append((s, g))
+    the middle of its range (in log ratio). Each site is read as the app will
+    read it from the tiles (2' cells, between centres, in q), not from the 1'
+    grid: a city's peak is narrower than a tile cell, and a site calibrated
+    on the finer grid read two classes brighter than the app then showed."""
+    g2 = coarse(glow)
+    pts = [(s, a) for s in sites for a in [app_read(g2, lat_s, s['lat'], s['lon'])] if a is not None]
     best = None
     for lc in np.arange(-12, 6, 0.01):
         c = 10 ** lc
         miss, err = 0, 0.0
-        for s, g in pts:
+        for s, (g, w) in pts:
             lo, hi = s['bortle']
-            b = int(bortle_of_ratio(c * g))
+            r = app_ratio(c, g, w)
+            b = int(bortle_of_ratio(r))
             miss += b < lo or b > hi
             mid = math.log10(max(1e-4, math.sqrt(
                 (RATIO_BOUNDS[lo - 2] if lo > 1 else 1e-3) *
                 (RATIO_BOUNDS[hi - 1] if hi < 9 else 100))))
-            err += (math.log10(max(1e-4, c * g)) - mid) ** 2
+            err += (math.log10(max(1e-4, r)) - mid) ** 2
         key = (miss, err)
         if best is None or key < best[0]:
             best = (key, c)
@@ -367,10 +398,7 @@ def tile_name(lat, lon):
 
 def write_tiles(glow, lat_s, lat_n, c, outdir, meta):
     """glow on the 1' grid -> ratio -> 2' tiles of q."""
-    f = GRID // OUT
-    rows, cols = glow.shape
-    g2 = glow[:rows // f * f, :cols // f * f].reshape(rows // f, f, cols // f, f).mean(axis=(1, 3))
-    q = q_of_ratio(c * g2)
+    q = q_of_ratio(c * coarse(glow))
     os.makedirs(outdir, exist_ok=True)
     names, total = [], 0
     n = TILE * OUT
@@ -684,10 +712,9 @@ def selftest():
     c_true = 3e-3
     sites = []
     for k, dist in enumerate((2, 20, 60, 120)):
-        g = glow[r_town + dist, c_town]
-        b = int(bortle_of_ratio(c_true * g))
-        sites.append({'name': f's{k}', 'lat': lat_s + (r_town + dist + 0.5) / GRID,
-                      'lon': -180 + (c_town + 0.5) / GRID, 'bortle': [b, b]})
+        lat, lon = lat_s + (r_town + dist + 0.5) / GRID, -180 + (c_town + 0.5) / GRID
+        b = int(bortle_of_ratio(app_ratio(c_true, *app_read(coarse(glow), lat_s, lat, lon))))
+        sites.append({'name': f's{k}', 'lat': lat, 'lon': lon, 'bortle': [b, b]})
     c_fit, miss, _ = calibrate(glow, lat_s, sites)
     check(miss == 0, f'calibration puts every site in its class (scale {c_fit:.3g}, made with {c_true:.3g})')
 
@@ -702,6 +729,27 @@ def selftest():
         g2 = glow[r_town // 2 * 2:r_town // 2 * 2 + 2, 4:6].mean()
         tq = int(t[(r_town - (40 - lat_s) * GRID) // 2, c_town // 2])
         check(tq == int(q_of_ratio(c_true * g2)), 'the town cell reads back its q')
+        # What calibration reads is what the tile holds, read as the app reads
+        # it: at a cell centre, between centres, and at the tile's edge.
+        def from_tile(lat, lon):
+            lat0, lon0 = math.floor(lat / 10) * 10, math.floor((lon + 180) / 10) * 10 - 180
+            with open(os.path.join(tmp, f'{lat0}_{lon0}.bin'), 'rb') as fh:
+                tt = unrle(fh.read())
+            x = min(max((lon - lon0) * OUT - 0.5, 0), 299)
+            y = min(max((lat - lat0) * OUT - 0.5, 0), 299)
+            i, j = min(298, math.floor(x)), min(298, math.floor(y))
+            fx, fy = x - i, y - j
+            qq = (float(tt[j, i]) * (1 - fx) + float(tt[j, i + 1]) * fx) * (1 - fy) \
+                + (float(tt[j + 1, i]) * (1 - fx) + float(tt[j + 1, i + 1]) * fx) * fy
+            return 10 ** (qq / 20 - 3) if qq > 0 else 0.0
+        g2c = coarse(glow)
+        # A cell centre, between centres, the tile's south-west corner, its
+        # far side, and the east edge of the tile across the date line.
+        pts = [(40.5 + 1 / 60, -179.9 + 1 / 60), (40.53, -179.87), (40.005, -179.995), (40.9, -179.5), (40.5, 179.995)]
+        check(all(abs(app_ratio(c_true, *app_read(g2c, lat_s, la, lo)) - from_tile(la, lo))
+                  <= 1e-9 * max(1, from_tile(la, lo)) for la, lo in pts),
+              'calibration reads a place as the app reads the tile: '
+              + ', '.join(f'{app_ratio(c_true, *app_read(g2c, lat_s, la, lo)):.4g}' for la, lo in pts))
         idx = json.load(open(os.path.join(tmp, 'index.json')))
         check(idx['lat'] == [lat_s, lat_n] and idx['res'] == 30 and idx['tile'] == 10, 'index.json')
         print(f'     {total} bytes for the tile')
@@ -949,8 +997,8 @@ def main():
         sites = json.load(open(a.sites))['sites']
         scale, miss, pts = calibrate(z['glow'], int(z['lat_s']), sites)
         print(f'scale {scale:.6g}: {len(pts) - miss} of {len(pts)} sites in range')
-        for s, g in pts:
-            r = scale * g
+        for s, (g, w) in pts:
+            r = app_ratio(scale, g, w)
             b = int(bortle_of_ratio(r))
             lo, hi = s['bortle']
             flag = '' if lo <= b <= hi else '   <-- outside ' + (f'{lo}' if lo == hi else f'{lo}-{hi}')
