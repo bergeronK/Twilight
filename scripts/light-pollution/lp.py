@@ -423,7 +423,7 @@ class _NoFollow(urllib.request.HTTPRedirectHandler):
 _opener = None
 
 
-def open_url(url, token=None, trusted=nasa_host, hops=12):
+def open_url(url, token=None, trusted=nasa_host, hops=12, headers=None):
     """Open url, following redirects here rather than in urllib. NASA's file
     servers send a download through Earthdata Login and on to storage:
     Login's session cookie has to be kept from hop to hop (urllib's default
@@ -443,7 +443,7 @@ def open_url(url, token=None, trusted=nasa_host, hops=12):
     for _ in range(hops):
         parts = urllib.parse.urlsplit(url)
         chain.append(parts.netloc + parts.path)  # no query: it can carry a signature
-        h = {'User-Agent': UA}
+        h = {'User-Agent': UA, **(headers or {})}
         if token and trusted(parts.hostname or ''):
             h['Authorization'] = 'Bearer ' + token
         try:
@@ -528,9 +528,20 @@ def token_facts(token):
         t = t[7:].strip()
         facts.append('began with "Bearer " (dropped)')
     parts = t.split('.')
+
+    def head(part):  # a JOSE header's format fields: never secret
+        try:
+            h = json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+            return {k: h[k] for k in ('typ', 'alg', 'enc', 'origin', 'sig', 'cty') if k in h}
+        except Exception:
+            return None
     if len(parts) != 3:
+        heads = [f'part {i + 1} header {h}' for i, h in enumerate(map(head, parts)) if h]
         return t, facts + [f'is not an Earthdata Login token: those are three parts joined by dots,'
-                           f' and this is {len(parts)} part(s), {len(t)} characters']
+                           f' and this is {len(parts)} part(s), {len(t)} characters, of lengths'
+                           f' {[len(x) for x in parts]}' + ('; ' + '; '.join(heads) if heads else '')]
+    if head(parts[0]):
+        facts.append(f'has the header {head(parts[0])}')
     try:
         p = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (-len(parts[1]) % 4)))
     except Exception:
@@ -563,6 +574,7 @@ def check_token():
         print(f'  CMR refuses it: HTTP {e.code}{why(e)}')
     except OSError as e:
         print(f'  CMR could not be reached: {e}')
+    cloud = []
     try:
         with open_url(f'{cmr}/granules.json?short_name=VNP46A4&page_size=2'
                       '&temporal=2024-01-01T00:00:00Z,2024-01-01T23:59:59Z') as r:
@@ -570,8 +582,20 @@ def check_token():
                 for link in g.get('links', []):
                     if link.get('href', '').endswith('.h5'):
                         print('  a file:', link['href'])
+                        if link['href'].startswith('https://'):
+                            cloud.append(link['href'])
     except Exception as e:
         print(f'  CMR granule search failed: {e}')
+    # The same file from NASA's cloud copy, whose server takes the bearer
+    # token directly: the first 16 bytes, to see whether it would.
+    for url in cloud[:1]:
+        try:
+            with open_url(url, t, headers={'Range': 'bytes=0-15'}) as r:
+                print(f'  the cloud copy serves it (HTTP {r.status}, {len(r.read())} bytes)')
+        except urllib.error.HTTPError as e:
+            print(f'  the cloud copy refuses: HTTP {e.code}{why(e)}')
+        except (RedirectLoop, OSError) as e:
+            print(f'  the cloud copy failed: {e}')
 
 
 def download(year, collection, outdir, slim=None):
@@ -800,6 +824,9 @@ def selftest():
           f'a token is described without being shown: {"; ".join(facts)}')
     check(token_facts('abc123')[1][-1].startswith('is not an Earthdata Login token'),
           'a token that is not a JWT is said not to be one')
+    doubled = token_facts(jwt + jwt)[1][-1]
+    check('[' in doubled and '"typ": "JWT"' not in doubled and "'typ': 'JWT'" in doubled and 'kenb' not in doubled,
+          f'a token pasted twice shows its parts and headers, nothing else: {doubled}')
     check(nasa_host('ladsweb.modaps.eosdis.nasa.gov') and nasa_host('urs.earthdata.nasa.gov')
           and not nasa_host('nasa.gov.example.com') and not nasa_host('s3.amazonaws.com'),
           "the token goes to NASA's hosts only")
