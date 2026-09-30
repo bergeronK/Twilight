@@ -19,12 +19,62 @@ flag).
 
 ## Building
 
+CI compiles the app for the simulator on every change under `native/`
+(`.github/workflows/ios-build.yml`: unsigned, no Apple account needed), so a
+Swift or project error shows up there first. Signing, running on a phone and
+uploading to App Store Connect happen in Xcode on a Mac.
+
+### iOS on a Mac
+
+One-time setup:
+1. Install **Xcode** from the Mac App Store and open it once (it installs
+   its components). Xcode → Settings → Accounts → **+** → your Apple ID
+   (the one in the Apple Developer Program).
+2. Install **Node 22 or later** (nodejs.org, or `brew install node`);
+   Capacitor 8's tools need it.
+3. Get the code and open the project:
+   ```sh
+   git clone https://github.com/bergeronK/Twilight.git
+   cd Twilight/native
+   npm install
+   npm run sync        # stage the web app + update the native project
+   npx cap open ios    # opens native/ios/App/App.xcodeproj in Xcode
+   ```
+4. In Xcode, select the **App** target → **Signing & Capabilities** →
+   **Team**: your team. Leave "Automatically manage signing" on; Xcode
+   registers the bundle id `info.twilyte.app` and makes the certificates
+   and profiles itself.
+
+Run on your iPhone: plug it in (or pair it over Wi-Fi), pick it as the run
+destination at the top of the window, press **Run** (⌘R). The first time,
+the phone asks you to turn on Developer Mode (Settings → Privacy & Security)
+and to trust the developer (Settings → General → VPN & Device Management).
+
+After pulling changes: `git pull && npm run sync`, then Run again.
+
+Upload a build for TestFlight and the App Store:
+1. App Store Connect → Apps → **+** → New App: platform iOS, name
+   **Twilyte**, bundle ID `info.twilyte.app`, SKU e.g. `twilyte-ios`
+   (once).
+2. Raise **Build** (the App target's General tab) above the last upload;
+   **Version** stays 1.0 until the next release.
+3. Run destination **Any iOS Device (arm64)**, then Product → **Archive**.
+   In the Organizer: **Distribute App** → **App Store Connect** →
+   **Upload**. The build appears in TestFlight after Apple processes it
+   (about 15 minutes).
+
+`ITSAppUsesNonExemptEncryption` is false in `Info.plist` (the app uses
+only HTTPS), so App Store Connect doesn't ask about encryption for each
+build. `App/PrivacyInfo.xcprivacy` is the app's privacy manifest; keep it in
+step with `../docs/app-store-privacy-answers.md`.
+
+### Android
+
 ```sh
 cd native
 npm install
-npm run sync          # stage web app + update native projects
+npm run sync
 npm run open:android  # Android Studio (or: cd android && ./gradlew assembleDebug)
-npm run open:ios      # Xcode (macOS only)
 ```
 
 After **any** change to the web app, re-run `npm run sync` before building.
@@ -47,8 +97,9 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
 ## Release checklist (owner actions — cannot be automated)
 
 1. **Apple:** Apple Developer Program membership ($99/yr) → create the app
-   in App Store Connect with bundle id `info.twilyte.app` → build & sign in
-   Xcode on a Mac (or a cloud mac CI like Codemagic) → TestFlight → submit.
+   in App Store Connect with bundle id `info.twilyte.app` → build, sign and
+   upload in Xcode on a Mac (see "iOS on a Mac" above) → TestFlight →
+   submit.
 2. **Google:** Play Console account ($25 once) → create the app → build a
    signed AAB (`cd android && ./gradlew bundleRelease`, then sign, or use
    Play App Signing) → internal testing track → production.
@@ -93,9 +144,9 @@ separate, whole-degree, magnetic compass heading.
   `iosAttitudeToEnu` uses gravity to settle which way round CoreMotion's
   matrix goes, once the phone has turned a little from where it started.
 
-**Not yet built or run on a device**: this sandbox has no Mac. To try it:
+**Not yet run on a device** (CI compiles it for the simulator). To try it:
 1. `npm run sync`.
-2. `npx cap open ios`, then build to an iPhone.
+2. `npx cap open ios`, then run it on an iPhone (see "iOS on a Mac").
 3. Open Sky View and aim at the Moon.
 4. Open Sensor details. **Fusion** should read "iOS CoreMotion (native, gyro +
    compass)", and **CoreMotion frame** should read "true north · matrix …"

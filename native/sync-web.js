@@ -26,6 +26,9 @@ const FILES = [
   'facts.json',
   // BSD 3-Clause: binary redistribution must carry the notice with it.
   'constellations.LICENSE.txt',
+  // CC BY-SA 4.0 (the HYG catalogue behind stars.bin): the licence travels
+  // with the data the app redistributes.
+  'stars.LICENSE.txt',
   'favicon-64.png',
   'icon-192.png',
   'icon-512.png',

@@ -1,0 +1,82 @@
+name: iOS build
+
+# Compiles the iOS app (native/ios, Capacitor 8 over the web app) for the
+# simulator, unsigned, so a Swift or project-file error shows up here rather
+# than on the owner's Mac. The app's own Swift (the CoreMotion plugin in
+# AppDelegate.swift) had never been compiled before this job existed.
+#
+# No Apple account or secrets: signing, archiving and uploading to App Store
+# Connect happen in Xcode on the owner's Mac (native/README.md).
+
+on:
+  push:
+    paths:
+      - 'native/**'
+      - '.github/workflows/ios-build.yml'
+  pull_request:
+    paths:
+      - 'native/**'
+      - '.github/workflows/ios-build.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # Capacitor 8's CLI needs Node 22 or later.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The newest Xcode on the runner: App Store builds need a current SDK,
+      # and this is the closest stand-in for what the owner's Mac will run.
+      - name: Newest Xcode
+        run: |
+          x=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$x/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install and sync the web app into the native project
+        working-directory: native
+        run: |
+          npm ci
+          npm run sync
+
+      - name: Build for the iOS simulator (unsigned)
+        working-directory: native/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build \
+            | tee build.log | grep -E '(error|warning):|BUILD (SUCCEEDED|FAILED)' || true
+          grep -q 'BUILD SUCCEEDED' build.log
+
+      # What went into the app: the bundled web app, the privacy manifest and
+      # the Info.plist settings App Store Connect checks.
+      - name: Check the built app
+        run: |
+          app=$(find native/ios/App/build -name 'App.app' -path '*iphonesimulator*' | head -1)
+          echo "$app"
+          test -f "$app/PrivacyInfo.xcprivacy"
+          test -f "$app/public/index.html"
+          test -f "$app/public/lp/index.json"
+          plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|ITSAppUsesNonExemptEncryption|UIRequiredDeviceCapabilities' -A2
+          du -sh "$app"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-build-log
+          path: native/ios/App/build.log

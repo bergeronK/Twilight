@@ -224,6 +224,12 @@ stargazer is the default, navigator material is kept whole but folded.
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
   `native/README.md`. `npm run sync` stages the web app into `native/www/`.
+  **CI compiles the iOS app** for the simulator, unsigned, on every change
+  under `native/` (`.github/workflows/ios-build.yml`, macOS runner, newest
+  Xcode, Node 22 for Capacitor 8's CLI) and checks the built app carries
+  the web app, `lp/`, `PrivacyInfo.xcprivacy` and the Info.plist keys App
+  Store Connect reads (`ITSAppUsesNonExemptEncryption` false: HTTPS only;
+  `arm64`). Signing and uploading are done in Xcode on the owner's Mac.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
@@ -1659,8 +1665,18 @@ The Console shots were retaken when the horizon view became the default
   `TWILIGHT-VISITORS` namespace (delete the hash keys, never `__total__`).
   Until then `/privacy.html`'s "kept 24 hours" isn't true of those entries.
   Deleting stored data is the owner's call.
-- Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
-  here until the owner has one available.
+- **The iOS release, on the owner's Mac** (plan agreed 2026-09-30; the
+  owner has a Mac now): (1) prep, done in the PR that added
+  `.github/workflows/ios-build.yml`; (2) Xcode + Node 22 + Apple ID on the
+  Mac, `npm run sync`, set the Team; (3) run on the iPhone, including Sky
+  View's Sensor details readout, the first device test of the CoreMotion
+  path; (4) create the app in App Store Connect and upload an archive; (5)
+  listing (subtitle, description, keywords, Reference category, review
+  notes; retake the screenshots, which predate the Bortle block); (6)
+  submit. Recommended, not yet confirmed: 1.0 free with everything
+  unlocked, Pro via RevenueCat in 1.1; a `twilyte.info/support` page for
+  the support URL; Android after iOS. Steps are in `native/README.md`
+  ("iOS on a Mac").
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.
