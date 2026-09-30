@@ -400,29 +400,84 @@ def write_tiles(glow, lat_s, lat_n, c, outdir, meta):
 # ---- Download ------------------------------------------------------------
 
 LAADS = 'https://ladsweb.modaps.eosdis.nasa.gov/archive/allData'
+UA = 'twilyte-light-pollution/1 (+https://github.com/bergeronK/Twilight)'
 
 
-def fetch(req, dest=None, tries=5):
-    """A request's body (or, with dest, written to that file), retrying
-    network failures and server errors with a doubling wait. A 4xx other
-    than 429 is the request's fault and fails at once."""
+def nasa_host(host):
+    return host == 'nasa.gov' or host.endswith('.nasa.gov')
+
+
+class RedirectLoop(Exception):
+    pass
+
+
+class _NoFollow(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None  # a redirect comes back as an HTTPError; open_url follows it
+
+
+_opener = None
+
+
+def open_url(url, token=None, trusted=nasa_host, hops=12):
+    """Open url, following redirects here rather than in urllib. NASA's file
+    servers send a download through Earthdata Login and on to storage:
+    Login's session cookie has to be kept from hop to hop (urllib's default
+    opener has no cookie jar, and loops), and the token goes only to NASA's
+    own hosts, never to wherever else a redirect points (a storage URL is
+    already signed, and a second credential makes it refuse). Raises
+    HTTPError for anything but a redirect, RedirectLoop after too many."""
+    import http.cookiejar
+    import urllib.error
+    import urllib.parse
+    global _opener
+    if _opener is None:
+        _opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()), _NoFollow)
+    chain = []
+    for _ in range(hops):
+        parts = urllib.parse.urlsplit(url)
+        chain.append(parts.netloc + parts.path)  # no query: it can carry a signature
+        h = {'User-Agent': UA}
+        if token and trusted(parts.hostname or ''):
+            h['Authorization'] = 'Bearer ' + token
+        try:
+            return _opener.open(urllib.request.Request(url, headers=h), timeout=120)
+        except urllib.error.HTTPError as e:
+            loc = e.headers.get('Location')
+            if e.code not in (301, 302, 303, 307, 308) or not loc:
+                raise
+            e.close()
+            url = urllib.parse.urljoin(url, loc)
+    raise RedirectLoop(' -> '.join(chain))
+
+
+def fetch(url, token=None, dest=None, tries=5):
+    """A URL's body (or, with dest, written to that file), retrying network
+    failures and server errors with a doubling wait. A 4xx other than 429
+    is the request's fault and fails at once, as does a redirect loop."""
     import time
     import urllib.error
     for k in range(tries):
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with open_url(url, token) as r:
                 if dest is None:
                     return r.read()
                 with open(dest, 'wb') as fh:
                     shutil.copyfileobj(r, fh, 1 << 20)
                 return None
+        except RedirectLoop as e:
+            raise SystemExit(
+                f'{url}: redirected in a loop: {e}\nIf that passes through urs.earthdata.nasa.gov,'
+                ' Earthdata Login did not accept the token: check it has not expired, and that'
+                ' LAADS DAAC is an authorized application in the Earthdata profile.')
         except urllib.error.HTTPError as e:
             if 400 <= e.code < 500 and e.code != 429 or k == tries - 1:
-                raise SystemExit(f'{req.full_url}: HTTP {e.code} {e.reason}')
+                raise SystemExit(f'{url}: HTTP {e.code} {e.reason}')
         except OSError as e:
             if k == tries - 1:
-                raise SystemExit(f'{req.full_url}: {e}')
-        print(f'  retrying {req.full_url} in {2 ** (k + 1)} s', file=sys.stderr)
+                raise SystemExit(f'{url}: {e}')
+        print(f'  retrying {url} in {2 ** (k + 1)} s', file=sys.stderr)
         time.sleep(2 ** (k + 1))
 
 
@@ -430,9 +485,8 @@ def download(year, collection, outdir, slim=None):
     token = os.environ.get('EARTHDATA_TOKEN')
     if not token:
         raise SystemExit('Set EARTHDATA_TOKEN (urs.earthdata.nasa.gov > Generate Token).')
-    auth = {'Authorization': 'Bearer ' + token}
     base = f'{LAADS}/{collection}/VNP46A4/{year}/001'
-    listing = json.loads(fetch(urllib.request.Request(base + '.json', headers=auth)))
+    listing = json.loads(fetch(base + '.json', token))
     files = listing.get('content', listing) if isinstance(listing, dict) else listing
     names = [f['name'] for f in files if f.get('name', '').endswith('.h5')]
     if not names:
@@ -442,7 +496,7 @@ def download(year, collection, outdir, slim=None):
         dest = os.path.join(outdir, name)
         if os.path.exists(dest):
             continue
-        fetch(urllib.request.Request(f'{base}/{name}', headers=auth), dest + '.part')
+        fetch(f'{base}/{name}', token, dest + '.part')
         if slim:
             slim_black_marble(dest + '.part', dest, slim)
             os.remove(dest + '.part')
@@ -574,6 +628,74 @@ def selftest():
         check(np.array_equal(grid_from_black_marble(sl, lat_s, lat_n), g),
               f'and grids the same ({os.path.getsize(os.path.join(sl, name))} bytes'
               f' from {os.path.getsize(os.path.join(bm, name))})')
+
+    # Downloads, against a file server that works as NASA's do (seen from
+    # the workflow: a bare urllib request looped on 303s): a file redirects
+    # to a login page, which takes the bearer token, sets a session cookie
+    # and sends it back; with the cookie the file redirects to storage,
+    # which refuses a request carrying a second credential.
+    import http.server
+    import threading
+    import urllib.error
+    to_storage = []
+
+    class Nasa(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            auth, path = self.headers.get('Authorization'), self.path.split('?')[0]
+            self.send_response({'/file': 302 if 's=1' in (self.headers.get('Cookie') or '') else 303,
+                                '/login': 302 if auth == 'Bearer T' else 401, '/loop': 303}.get(path, 404))
+            if path == '/file':
+                cookie = 's=1' in (self.headers.get('Cookie') or '')
+                self.send_header('Location', f'http://localhost:{store.server_port}/obj?sig=x' if cookie else '/login?to=/file')
+            elif path == '/login' and auth == 'Bearer T':
+                self.send_header('Set-Cookie', 's=1; Path=/')
+                self.send_header('Location', '/file')
+            elif path == '/loop':
+                self.send_header('Location', '/loop')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+
+    class Storage(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            to_storage.append(self.headers.get('Authorization'))
+            body = b'DATA' if to_storage[-1] is None else b''
+            self.send_response(200 if body else 400)
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    nasa = http.server.HTTPServer(('127.0.0.1', 0), Nasa)
+    store = http.server.HTTPServer(('127.0.0.1', 0), Storage)
+    for srv in (nasa, store):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base, trusted = f'http://127.0.0.1:{nasa.server_port}', (lambda host: host == '127.0.0.1')
+    try:
+        open_url(base + '/file', 'wrong', trusted)
+        check(False, 'a wrong token is refused')
+    except urllib.error.HTTPError as e:
+        check(e.code == 401, f'a wrong token is refused (HTTP {e.code})')
+    try:
+        open_url(base + '/loop', 'T', trusted)
+        check(False, 'a redirect loop stops')
+    except RedirectLoop as e:
+        check(str(e).count('/loop') == 12, 'a redirect loop stops, and says where it went')
+    try:
+        with open_url(base + '/file', 'T', trusted) as r:
+            body = r.read()
+    except (RedirectLoop, OSError) as e:
+        body = repr(e)
+    check(body == b'DATA' and to_storage == [None],
+          'a download goes through the login, keeps its cookie, and reaches storage without the token')
+    check(nasa_host('ladsweb.modaps.eosdis.nasa.gov') and nasa_host('urs.earthdata.nasa.gov')
+          and not nasa_host('nasa.gov.example.com') and not nasa_host('s3.amazonaws.com'),
+          "the token goes to NASA's hosts only")
+    nasa.shutdown(), store.shutdown()
     print('selftest', 'passed' if ok else 'FAILED')
     return ok
 
