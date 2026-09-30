@@ -527,6 +527,14 @@ def token_facts(token):
     if t.lower().startswith('bearer '):
         t = t[7:].strip()
         facts.append('began with "Bearer " (dropped)')
+    # A token pasted with more around it ("EARTHDATA_TOKEN=eyJ...", text
+    # copied after it): an Earthdata Login token is a JWT, so a header and
+    # a payload that start eyJ, and a signature, joined by dots.
+    m = re.search(r'eyJ[\w-]+\.eyJ[\w-]+\.[\w-]+', t)
+    if m and m.group(0) != t:
+        facts.append(f'had {m.start()} characters before it and {len(t) - m.end()} after it'
+                     ' (the Earthdata Login token inside is used)')
+        t = m.group(0)
     parts = t.split('.')
 
     def head(part):  # a JOSE header's format fields: never secret
@@ -824,9 +832,13 @@ def selftest():
           f'a token is described without being shown: {"; ".join(facts)}')
     check(token_facts('abc123')[1][-1].startswith('is not an Earthdata Login token'),
           'a token that is not a JWT is said not to be one')
-    doubled = token_facts(jwt + jwt)[1][-1]
+    t, facts = token_facts(f'EARTHDATA_TOKEN={jwt} and more.')
+    check(t == jwt and facts[0].startswith('had 16 characters before it and 10 after it')
+          and 'belongs to the account ke**' in facts,
+          f'a token pasted as a whole line is found inside it: {facts[0]}')
+    doubled = token_facts(jwt[:-3] + '.' + jwt[:-3] + '.x.')[1][-1]
     check('[' in doubled and '"typ": "JWT"' not in doubled and "'typ': 'JWT'" in doubled and 'kenb' not in doubled,
-          f'a token pasted twice shows its parts and headers, nothing else: {doubled}')
+          f'a value with no whole token in it shows its parts and headers, nothing else: {doubled}')
     check(nasa_host('ladsweb.modaps.eosdis.nasa.gov') and nasa_host('urs.earthdata.nasa.gov')
           and not nasa_host('nasa.gov.example.com') and not nasa_host('s3.amazonaws.com'),
           "the token goes to NASA's hosts only")
