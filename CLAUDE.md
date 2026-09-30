@@ -346,7 +346,10 @@ stargazer is the default, navigator material is kept whole but folded.
   --slim` (only `NearNadir_Composite_Snow_Free` of each file kept, gzip;
   the slim set cached between runs), `grid`, `sky`, `calibrate` (into
   `scripts/light-pollution/calibration.txt`), `tiles` with the fitted scale,
-  then commits `lp/` and the report back to the branch. Run by hand from
+  then commits `lp/` and the report back to the branch. Downloads follow
+  redirects in `open_url` (a cookie jar, the token only to `*.nasa.gov`,
+  each hop logged on failure): urllib's own handling looped on LAADS's 303s.
+  Run by hand from
   Actions it only uploads an artifact. Measured on synthetic tiles: about
   4 GB peak. **To finish:** read `calibration.txt` (retune D0/L/FLOOR in a
   push if a whole kind of place misses), add a test reading the real tiles
@@ -1629,11 +1632,16 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 
 **Blocked on the repo owner, not on engineering:**
-- **Satellite light-pollution data**: add a free NASA Earthdata token
-  (urs.earthdata.nasa.gov > Generate Token) as the repository secret
-  `EARTHDATA_TOKEN` (GitHub: Settings > Secrets and variables > Actions),
-  then re-run the "Light pollution tiles" workflow; see "Light pollution
-  from satellite night lights".
+- **Satellite light-pollution data**: the repository secret
+  `EARTHDATA_TOKEN` is set (2026-09-30), and the token is accepted, but
+  LAADS sends every Black Marble download to `/profiles/licenses/...` and
+  on to a browser-only login (Earthdata Login answers a script with 500):
+  the account has to accept the collection's licence once. Sign in at
+  ladsweb.modaps.eosdis.nasa.gov with that Earthdata account, open a
+  VNP46A4 file URL (e.g. the first in
+  `archive/allData/5200/VNP46A4/2024/001/`) in the browser, accept, then
+  re-run the "Light pollution tiles" workflow. `lp.py` says so itself when
+  it meets the licence redirect (`licence_wanted`).
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in

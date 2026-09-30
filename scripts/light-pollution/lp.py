@@ -401,6 +401,10 @@ def write_tiles(glow, lat_s, lat_n, c, outdir, meta):
 
 LAADS = 'https://ladsweb.modaps.eosdis.nasa.gov/archive/allData'
 UA = 'twilyte-light-pollution/1 (+https://github.com/bergeronK/Twilight)'
+LICENCE = ('LAADS wants this collection\'s licence accepted first. Sign in at'
+           ' https://ladsweb.modaps.eosdis.nasa.gov/ with the Earthdata account the token'
+           ' belongs to, open this file\'s URL in that browser, accept the licence it shows,'
+           ' then run the download again.')
 
 
 def nasa_host(host):
@@ -468,6 +472,13 @@ def why(e):
     return out + (f'\n  said: {text[:400]}' if text else '')
 
 
+def licence_wanted(chain):
+    """LAADS sends a download to /profiles/licenses/... when the account
+    hasn't accepted that collection's licence, and from there to a browser
+    login, which a script can't get through (Earthdata Login answers 500)."""
+    return '/profiles/licenses/' in chain
+
+
 def fetch(url, token=None, dest=None, tries=5):
     """A URL's body (or, with dest, written to that file), retrying network
     failures and server errors with a doubling wait. A 4xx other than 429
@@ -483,11 +494,15 @@ def fetch(url, token=None, dest=None, tries=5):
                     shutil.copyfileobj(r, fh, 1 << 20)
                 return None
         except RedirectLoop as e:
+            if licence_wanted(str(e)):
+                raise SystemExit(f'{url}: {LICENCE}\n  via {e}')
             raise SystemExit(
                 f'{url}: redirected in a loop: {e}\nIf that passes through urs.earthdata.nasa.gov,'
                 ' Earthdata Login did not accept the token: check it has not expired, and that'
                 ' LAADS DAAC is an authorized application in the Earthdata profile.')
         except urllib.error.HTTPError as e:
+            if licence_wanted(getattr(e, 'chain', '')):
+                raise SystemExit(f'{url}: {LICENCE}\n  via {e.chain}')
             if 400 <= e.code < 500 and e.code != 429 or k == tries - 1:
                 raise SystemExit(f'{url}: HTTP {e.code} {e.reason}{why(e)}')
             print(f'  HTTP {e.code} via {getattr(e, "chain", "?")}', file=sys.stderr)
@@ -710,6 +725,11 @@ def selftest():
         body = repr(e)
     check(body == b'DATA' and to_storage == [None],
           'a download goes through the login, keeps its cookie, and reaches storage without the token')
+    seen = ('303 ladsweb.modaps.eosdis.nasa.gov/archive/allData/5200/VNP46A4/2024/001/f.h5 -> 302'
+            ' ladsweb.modaps.eosdis.nasa.gov/profiles/licenses/archive/allData/5200/VNP46A4/2024/001/f.h5'
+            ' -> 302 ladsweb.modaps.eosdis.nasa.gov/oauth/login -> 500 urs.earthdata.nasa.gov/oauth/authorize')
+    check(licence_wanted(seen) and not licence_wanted(seen.replace('profiles/licenses/', '')),
+          'a licence not yet accepted is recognised (the chain LAADS gave the workflow)')
     check(nasa_host('ladsweb.modaps.eosdis.nasa.gov') and nasa_host('urs.earthdata.nasa.gov')
           and not nasa_host('nasa.gov.example.com') and not nasa_host('s3.amazonaws.com'),
           "the token goes to NASA's hosts only")
