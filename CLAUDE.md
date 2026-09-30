@@ -64,9 +64,10 @@ stargazer is the default, navigator material is kept whole but folded.
   9), and "1 is the darkest sky on Earth, 9 an inner city" with where the
   class came from (estimated from the towns around, or set in settings).
   The estimate is only as good as `estimateBortle`'s town populations:
-  Cherry Springs, a Bortle 2 park, comes out 4, which is why satellite
-  tiles are on their way (see "Light pollution from satellite night
-  lights"). The spot went through the
+  Cherry Springs, a Bortle 2 park, comes out 4. The Console now asks the
+  satellite tiles first (2 there; see "Light pollution from satellite
+  night lights") and the towns only where the tiles can't say. The spot
+  went through the
   0-100 clear-and-dark score the same day: moved up from under the
   highlights (#140), given words (#141: "out of 100", a rating, a reason),
   trimmed to its best time (the method line and the hourly bar strip,
@@ -306,8 +307,8 @@ stargazer is the default, navigator material is kept whole but folded.
   twilight. The painting shows the sky as if clear. The forecast still
   feeds the week planner and the sunset and sunrise
   colour, in words. See git history (#136-#138) before trying again.
-- **Light pollution from satellite night lights (2026-09-29; built, the
-  data still to come).** The Bortle class from what the VIIRS satellite
+- **Light pollution from satellite night lights (2026-09-29; the data
+  since 2026-09-30).** The Bortle class from what the VIIRS satellite
   measures instead of town populations. `scripts/light-pollution/lp.py`
   (Python: numpy, scipy, h5py or tifffile) in stages that each write a file
   the next reads: `download` NASA Black Marble VNP46A4 yearly tiles from
@@ -335,9 +336,17 @@ stargazer is the default, navigator material is kept whole but folded.
   auto effect falls back to `estimateBortle`; an unlisted tile is natural
   sky, Bortle 1. `SkyDarkness`'s last line says which answered (`from`).
   The service worker caches tiles as they're fetched; `native/sync-web.js`
-  copies `lp/` whole. Footer credit: NASA Black Marble. **Until `lp/` is
-  committed nothing changes** but one missed request for `lp/index.json`.
-  **The data is built in GitHub Actions**, not in a session
+  copies `lp/` whole. Footer credit: NASA Black Marble. **The data:**
+  `lp/` from VNP46A4 2024, 383 tiles, 18.8 MB (7.2 MB gzipped; a place
+  fetches one, 43 KB median, 149 KB at most; the native apps carry all
+  of it), `index.json` 3.7 KB, precached by `sw.js`. Scale 0.0977 puts
+  all 28 reference sites in range (`calibration.txt`): the parks 1-3
+  (Cherry Springs 2), Flagstaff and Amherst 5, Lexington 6, Tucson and
+  Springfield downtown 8, every big city centre 9. **Calibration reads a
+  site as the app reads the tiles** (`app_read`, `app_ratio`: 2' means,
+  clamped to the place's tile, blended in q between cell centres), so the
+  report is what the app shows; read on the 1' grid, Springfield's report
+  said 9 and the app 7. **The data is built in GitHub Actions**, not in a session
   (`.github/workflows/light-pollution.yml`, 2026-09-30): a cloud session's
   environment variables didn't reach the session, and the download is
   gigabytes. It needs a free Earthdata token as the **repository secret**
@@ -346,15 +355,19 @@ stargazer is the default, navigator material is kept whole but folded.
   --slim` (only `NearNadir_Composite_Snow_Free` of each file kept, gzip;
   the slim set cached between runs), `grid`, `sky`, `calibrate` (into
   `scripts/light-pollution/calibration.txt`), `tiles` with the fitted scale,
-  then commits `lp/` and the report back to the branch. Downloads follow
+  then commits `lp/` and the report back to the branch (about 40 minutes
+  with the download, 5 with the slim set cached). Downloads follow
   redirects in `open_url` (a cookie jar, the token only to `*.nasa.gov`,
   each hop logged on failure): urllib's own handling looped on LAADS's 303s.
-  Run by hand from
-  Actions it only uploads an artifact. Measured on synthetic tiles: about
-  4 GB peak. **To finish:** read `calibration.txt` (retune D0/L/FLOOR in a
-  push if a whole kind of place misses), add a test reading the real tiles
-  at the reference sites, add `/lp/index.json` to `sw.js`'s precache, and
-  check the tiles' total size. Why not the others: the Falchi 2016 world atlas is
+  Run by hand from Actions it only uploads an artifact. **What it took,
+  2026-09-30:** the Earthdata account had to accept the Black Marble
+  licence once in a browser (LAADS sends a script to `/profiles/licenses/`
+  and a browser-only login, and `lp.py` now says so: `licence_wanted`);
+  and the secret was pasted as `EARTHDATA_TOKEN=<token>` with text after
+  it, which `token_facts` handles by using the JWT inside. The workflow's
+  `check-token` step says what the token is (account's first two letters,
+  expiry, whether CMR takes it) without showing it. To refresh for a new
+  year: bump `YEAR` in the workflow and push. Why not the others: the Falchi 2016 world atlas is
   CC BY-NC (the app sells Pro); EOG's VNL now charges for scripted
   downloads. `light-pollution.test.js`.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
@@ -1406,6 +1419,9 @@ things a syntax check cannot see:
   null (the towns) outside the latitudes or when the index or a tile won't
   load or won't decode, longitudes wrapping to the right tile, the Console
   asking the tiles first and saying which answered, native sync and credit.
+  Then the real `lp/`: every tile decodes, each reference site in its
+  range and in `calibration.txt`'s class and sky reading, Cherry Springs
+  dark, city centres 8-9, brighter from the park to downtown Boston.
 - **`sky-darkness.test.js`** — the Console's Bortle block: a sentence for
   every class, the Milky Way there to 6 and gone from 7, `SkyDarkness` with
   a stub React (the class, "of 9 on the Bortle scale", the word, what shows,
@@ -1632,16 +1648,6 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 
 **Blocked on the repo owner, not on engineering:**
-- **Satellite light-pollution data**: the repository secret
-  `EARTHDATA_TOKEN` is set (2026-09-30), and the token is accepted, but
-  LAADS sends every Black Marble download to `/profiles/licenses/...` and
-  on to a browser-only login (Earthdata Login answers a script with 500):
-  the account has to accept the collection's licence once. Sign in at
-  ladsweb.modaps.eosdis.nasa.gov with that Earthdata account, open a
-  VNP46A4 file URL (e.g. the first in
-  `archive/allData/5200/VNP46A4/2024/001/`) in the browser, accept, then
-  re-run the "Light pollution tiles" workflow. `lp.py` says so itself when
-  it meets the licence redirect (`licence_wanted`).
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
