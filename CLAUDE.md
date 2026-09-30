@@ -337,13 +337,21 @@ stargazer is the default, navigator material is kept whole but folded.
   The service worker caches tiles as they're fetched; `native/sync-web.js`
   copies `lp/` whole. Footer credit: NASA Black Marble. **Until `lp/` is
   committed nothing changes** but one missed request for `lp/index.json`.
-  **To finish** (needs `ladsweb.modaps.eosdis.nasa.gov` allowed and a free
-  Earthdata token as `EARTHDATA_TOKEN`): `python3 scripts/light-pollution/
-  lp.py download`, `grid --black-marble data/vnp46a4`, `sky`, `calibrate`
-  (read which sites miss; retune D0/L/FLOOR if a whole kind misses), `tiles
-  --scale S --source "..."`, then add a test reading the real tiles at the
-  reference sites, add `/lp/index.json` to `sw.js`'s precache, and check
-  the tiles' total size. Why not the others: the Falchi 2016 world atlas is
+  **The data is built in GitHub Actions**, not in a session
+  (`.github/workflows/light-pollution.yml`, 2026-09-30): a cloud session's
+  environment variables didn't reach the session, and the download is
+  gigabytes. It needs a free Earthdata token as the **repository secret**
+  `EARTHDATA_TOKEN`, and runs on a push to a `claude/**` branch that
+  touches `scripts/light-pollution/` or the workflow: selftest, `download
+  --slim` (only `NearNadir_Composite_Snow_Free` of each file kept, gzip;
+  the slim set cached between runs), `grid`, `sky`, `calibrate` (into
+  `scripts/light-pollution/calibration.txt`), `tiles` with the fitted scale,
+  then commits `lp/` and the report back to the branch. Run by hand from
+  Actions it only uploads an artifact. Measured on synthetic tiles: about
+  4 GB peak. **To finish:** read `calibration.txt` (retune D0/L/FLOOR in a
+  push if a whole kind of place misses), add a test reading the real tiles
+  at the reference sites, add `/lp/index.json` to `sw.js`'s precache, and
+  check the tiles' total size. Why not the others: the Falchi 2016 world atlas is
   CC BY-NC (the app sells Pro); EOG's VNL now charges for scripted
   downloads. `light-pollution.test.js`.
 - **The Milky Way (2026-09-23)** — `milkyway.bin` (9.8 KB), a 1° whole-sky
@@ -1621,10 +1629,11 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 
 **Blocked on the repo owner, not on engineering:**
-- **Satellite light-pollution data**: allow `ladsweb.modaps.eosdis.nasa.gov`
-  in the environment's network settings and add a free NASA Earthdata token
-  (urs.earthdata.nasa.gov > Generate Token) as `EARTHDATA_TOKEN`; then a
-  session runs the steps in "Light pollution from satellite night lights".
+- **Satellite light-pollution data**: add a free NASA Earthdata token
+  (urs.earthdata.nasa.gov > Generate Token) as the repository secret
+  `EARTHDATA_TOKEN` (GitHub: Settings > Secrets and variables > Actions),
+  then re-run the "Light pollution tiles" workflow; see "Light pollution
+  from satellite night lights".
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
