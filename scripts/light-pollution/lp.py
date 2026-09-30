@@ -186,6 +186,30 @@ BM_VAR = 'NearNadir_Composite_Snow_Free'
 BM_FILL = 65535
 
 
+def bm_dataset(hf, var, name):
+    """The dataset named var wherever it sits in an HDF-EOS file."""
+    found = []
+    hf.visititems(lambda k, o: found.append(k) if k.endswith('/' + var) else None)
+    if not found:
+        raise SystemExit(f'{name}: no dataset named {var}')
+    return hf[found[0]]
+
+
+def slim_black_marble(src, dest, var=BM_VAR):
+    """Copy only the one dataset grid reads, with its attributes, compressed:
+    a whole VNP46A4 tile carries a couple of dozen layers, and the set of
+    them is more disk than a CI runner has."""
+    import h5py
+    with h5py.File(src, 'r') as hf:
+        ds = bm_dataset(hf, var, os.path.basename(dest))
+        with h5py.File(dest + '.slim', 'w') as out:
+            o = out.create_dataset('slim/' + var, data=ds[()], chunks=True,
+                                   compression='gzip', compression_opts=6, shuffle=True)
+            for k, v in ds.attrs.items():
+                o.attrs[k] = v
+    os.replace(dest + '.slim', dest)
+
+
 def grid_from_black_marble(folder, lat_s, lat_n, var=BM_VAR):
     """Mean radiance on the 1' grid from VNP46A4 tiles (hXXvYY, 10 x 10
     degrees, 2400 x 2400 cells of 15 arcseconds, v00 at the north pole)."""
@@ -204,11 +228,7 @@ def grid_from_black_marble(folder, lat_s, lat_n, var=BM_VAR):
         north = 90 - 10 * v
         west = -180 + 10 * h
         with h5py.File(os.path.join(folder, name), 'r') as hf:
-            found = []
-            hf.visititems(lambda k, o: found.append(k) if k.endswith('/' + var) else None)
-            if not found:
-                raise SystemExit(f'{name}: no dataset named {var}')
-            ds = hf[found[0]]
+            ds = bm_dataset(hf, var, name)
             raw = ds[()].astype(np.float64)
             fill = ds.attrs.get('_FillValue', BM_FILL)
             fill = float(np.ravel(fill)[0])
@@ -382,25 +402,52 @@ def write_tiles(glow, lat_s, lat_n, c, outdir, meta):
 LAADS = 'https://ladsweb.modaps.eosdis.nasa.gov/archive/allData'
 
 
-def download(year, collection, outdir):
+def fetch(req, dest=None, tries=5):
+    """A request's body (or, with dest, written to that file), retrying
+    network failures and server errors with a doubling wait. A 4xx other
+    than 429 is the request's fault and fails at once."""
+    import time
+    import urllib.error
+    for k in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                if dest is None:
+                    return r.read()
+                with open(dest, 'wb') as fh:
+                    shutil.copyfileobj(r, fh, 1 << 20)
+                return None
+        except urllib.error.HTTPError as e:
+            if 400 <= e.code < 500 and e.code != 429 or k == tries - 1:
+                raise SystemExit(f'{req.full_url}: HTTP {e.code} {e.reason}')
+        except OSError as e:
+            if k == tries - 1:
+                raise SystemExit(f'{req.full_url}: {e}')
+        print(f'  retrying {req.full_url} in {2 ** (k + 1)} s', file=sys.stderr)
+        time.sleep(2 ** (k + 1))
+
+
+def download(year, collection, outdir, slim=None):
     token = os.environ.get('EARTHDATA_TOKEN')
     if not token:
         raise SystemExit('Set EARTHDATA_TOKEN (urs.earthdata.nasa.gov > Generate Token).')
     auth = {'Authorization': 'Bearer ' + token}
     base = f'{LAADS}/{collection}/VNP46A4/{year}/001'
-    with urllib.request.urlopen(urllib.request.Request(base + '.json', headers=auth)) as r:
-        listing = json.load(r)
+    listing = json.loads(fetch(urllib.request.Request(base + '.json', headers=auth)))
     files = listing.get('content', listing) if isinstance(listing, dict) else listing
     names = [f['name'] for f in files if f.get('name', '').endswith('.h5')]
+    if not names:
+        raise SystemExit(f'{base}.json lists no .h5 files')
     os.makedirs(outdir, exist_ok=True)
     for i, name in enumerate(names):
         dest = os.path.join(outdir, name)
         if os.path.exists(dest):
             continue
-        req = urllib.request.Request(f'{base}/{name}', headers=auth)
-        with urllib.request.urlopen(req) as r, open(dest + '.part', 'wb') as fh:
-            shutil.copyfileobj(r, fh, 1 << 20)
-        os.replace(dest + '.part', dest)
+        fetch(urllib.request.Request(f'{base}/{name}', headers=auth), dest + '.part')
+        if slim:
+            slim_black_marble(dest + '.part', dest, slim)
+            os.remove(dest + '.part')
+        else:
+            os.replace(dest + '.part', dest)
         print(f'  {i + 1}/{len(names)} {name}', file=sys.stderr)
     return names
 
@@ -495,6 +542,38 @@ def selftest():
         rr, cc = np.nonzero(g)
         check(len(rr) >= 1 and abs(g.max() - 7.0) < 1e-6 and g.sum() > 0,
               f'GeoTIFF block lands on the 1\' grid at {lat_s + (rr[0] + 0.5) / GRID:.3f}, {-180 + (cc[0] + 0.5) / GRID:.3f}')
+
+        # A Black Marble tile in, laid out as VNP46A4's are: h08v05 is
+        # 40-30 N, 100-90 W, 15" cells from the north-west corner, scaled
+        # integers with a fill value. One 1' block, 2' south of 40 N and 5'
+        # east of 100 W, lands there; fill reads as unlit; and the slimmed
+        # copy download --slim keeps grids the same.
+        import h5py
+        bm, sl = os.path.join(tmp, 'bm'), os.path.join(tmp, 'slim')
+        os.makedirs(bm), os.makedirs(sl)
+        name = 'VNP46A4.A2024001.h08v05.002.2025001000000.h5'
+        raw = np.full((2400, 2400), BM_FILL, dtype=np.uint16)
+        raw[8:12, 20:24] = 70
+        raw[100:200, 100:200] = 0  # measured dark, not fill
+        with h5py.File(os.path.join(bm, name), 'w') as hf:
+            ds = hf.create_dataset('HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields/' + BM_VAR, data=raw)
+            ds.attrs['_FillValue'] = np.array([BM_FILL], dtype=np.uint16)
+            ds.attrs['scale_factor'] = 0.1
+            ds.attrs['add_offset'] = 0.0
+            hf.create_dataset('HDFEOS/GRIDS/VIIRS_Grid_DNB_2d/Data Fields/Other', data=raw)
+        g = grid_from_black_marble(bm, lat_s, lat_n)
+        rr, cc = np.nonzero(g)
+        where = f'{lat_s + (rr[0] + 0.5) / GRID:.3f}, {-180 + (cc[0] + 0.5) / GRID:.3f}' if len(rr) else 'nowhere'
+        check(len(rr) == 1 and rr[0] == (40 - lat_s) * GRID - 3 and cc[0] == 80 * GRID + 5
+              and abs(g[rr[0], cc[0]] - 7.0) < 1e-6, f'Black Marble block lands on the 1\' grid at {where}')
+        slim_black_marble(os.path.join(bm, name), os.path.join(sl, name))
+        with h5py.File(os.path.join(sl, name), 'r') as hf:
+            kept = []
+            hf.visititems(lambda k, o: kept.append(k) if isinstance(o, h5py.Dataset) else None)
+        check(kept == ['slim/' + BM_VAR], f'the slimmed file keeps only {BM_VAR}')
+        check(np.array_equal(grid_from_black_marble(sl, lat_s, lat_n), g),
+              f'and grids the same ({os.path.getsize(os.path.join(sl, name))} bytes'
+              f' from {os.path.getsize(os.path.join(bm, name))})')
     print('selftest', 'passed' if ok else 'FAILED')
     return ok
 
@@ -538,6 +617,8 @@ def main():
     d.add_argument('--year', type=int, default=2024)
     d.add_argument('--collection', default='5200')
     d.add_argument('--out', default='data/vnp46a4')
+    d.add_argument('--slim', nargs='?', const=BM_VAR, metavar='VAR',
+                   help='keep only this dataset of each file (default %(const)s)')
     g = sub.add_parser('grid')
     g.add_argument('--black-marble', help='folder of VNP46A4 .h5 tiles')
     g.add_argument('--geotiff', help='one radiance GeoTIFF (.tif or .tif.gz)')
@@ -573,7 +654,7 @@ def main():
             print(f'  {p["km"]:>4} km north: q {p["q"]:>3}, Bortle {p["bortle"]}')
         return
     if a.cmd == 'download':
-        names = download(a.year, a.collection, a.out)
+        names = download(a.year, a.collection, a.out, a.slim)
         print(f'{len(names)} tiles in {a.out}')
     elif a.cmd == 'grid':
         lat_s, lat_n = a.lat
