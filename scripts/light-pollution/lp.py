@@ -426,7 +426,8 @@ def open_url(url, token=None, trusted=nasa_host, hops=12):
     opener has no cookie jar, and loops), and the token goes only to NASA's
     own hosts, never to wherever else a redirect points (a storage URL is
     already signed, and a second credential makes it refuse). Raises
-    HTTPError for anything but a redirect, RedirectLoop after too many."""
+    HTTPError for anything but a redirect, with .chain, each hop's status
+    and where it was; RedirectLoop after too many."""
     import http.cookiejar
     import urllib.error
     import urllib.parse
@@ -445,11 +446,26 @@ def open_url(url, token=None, trusted=nasa_host, hops=12):
             return _opener.open(urllib.request.Request(url, headers=h), timeout=120)
         except urllib.error.HTTPError as e:
             loc = e.headers.get('Location')
+            chain[-1] = f'{e.code} {chain[-1]}'
             if e.code not in (301, 302, 303, 307, 308) or not loc:
+                e.chain = ' -> '.join(chain)
                 raise
             e.close()
             url = urllib.parse.urljoin(url, loc)
     raise RedirectLoop(' -> '.join(chain))
+
+
+def why(e):
+    """What a failed hop said: its chain, any WWW-Authenticate, and the
+    start of its error page as text."""
+    out = f'\n  via {getattr(e, "chain", "?")}'
+    if e.headers.get('WWW-Authenticate'):
+        out += f'\n  WWW-Authenticate: {e.headers["WWW-Authenticate"]}'
+    try:
+        text = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>', ' ', e.read(4000).decode('utf-8', 'replace'))).strip()
+    except Exception:
+        text = ''
+    return out + (f'\n  said: {text[:400]}' if text else '')
 
 
 def fetch(url, token=None, dest=None, tries=5):
@@ -473,7 +489,8 @@ def fetch(url, token=None, dest=None, tries=5):
                 ' LAADS DAAC is an authorized application in the Earthdata profile.')
         except urllib.error.HTTPError as e:
             if 400 <= e.code < 500 and e.code != 429 or k == tries - 1:
-                raise SystemExit(f'{url}: HTTP {e.code} {e.reason}')
+                raise SystemExit(f'{url}: HTTP {e.code} {e.reason}{why(e)}')
+            print(f'  HTTP {e.code} via {getattr(e, "chain", "?")}', file=sys.stderr)
         except OSError as e:
             if k == tries - 1:
                 raise SystemExit(f'{url}: {e}')
@@ -679,7 +696,8 @@ def selftest():
         open_url(base + '/file', 'wrong', trusted)
         check(False, 'a wrong token is refused')
     except urllib.error.HTTPError as e:
-        check(e.code == 401, f'a wrong token is refused (HTTP {e.code})')
+        check(e.code == 401 and e.chain == f'303 127.0.0.1:{nasa.server_port}/file -> 401 127.0.0.1:{nasa.server_port}/login',
+              f'a wrong token is refused, and the hops are named: {e.chain}')
     try:
         open_url(base + '/loop', 'T', trusted)
         check(False, 'a redirect loop stops')
