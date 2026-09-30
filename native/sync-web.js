@@ -47,4 +47,15 @@ for (const f of FILES) {
   fs.mkdirSync(path.dirname(dst), { recursive: true });
   fs.copyFileSync(src, dst);
 }
-console.log(`staged ${FILES.length} files into ${OUT}`);
+// Light-pollution tiles (lp/, built by scripts/light-pollution/lp.py): the
+// whole folder, as the app fetches only the tile a place needs.
+let lp = 0;
+const LP = path.join(ROOT, 'lp');
+if (fs.existsSync(LP)) {
+  fs.mkdirSync(path.join(OUT, 'lp'), { recursive: true });
+  for (const f of fs.readdirSync(LP)) {
+    fs.copyFileSync(path.join(LP, f), path.join(OUT, 'lp', f));
+    lp++;
+  }
+}
+console.log(`staged ${FILES.length} files and ${lp} light-pollution tiles into ${OUT}`);

@@ -31,10 +31,12 @@ test('every class from 1 to 9 has a sentence, darkest first', () => {
 });
 
 test('the Console shows the class, its scale, what it means, and where it came from', () => {
-  const t = texts(SkyDarkness({ bortle: 5, auto: true }));
+  const t = texts(SkyDarkness({ bortle: 5, auto: true, from: 'towns' }));
   assert.deepStrictEqual(t.slice(0, 3), ['5', 'of 9 on the Bortle scale', 'Suburban sky']);
   assert.strictEqual(t[3], 'On a clear, moonless night the Milky Way is faint, and washed out toward the horizon.');
   assert.strictEqual(t[4], '1 is the darkest sky on Earth, 9 an inner city. Estimated from the towns around you.');
+  // Where the satellite tiles answered (light-pollution.test.js has the rest).
+  assert.match(texts(SkyDarkness({ bortle: 5, auto: true, from: 'satellite' }))[4], /satellite measurements/);
   const dark = texts(SkyDarkness({ bortle: 1, auto: false }));
   assert.deepStrictEqual(dark.slice(0, 3), ['1', 'of 9 on the Bortle scale', 'Excellent dark sky']);
   assert.match(dark[4], /Set by you in settings\.$/);
