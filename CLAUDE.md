@@ -209,6 +209,17 @@ stargazer is the default, navigator material is kept whole but folded.
   Don't promise alerts in its words until `ALERTS_LIVE`. `/privacy.html`
   lists both keys. The tabs tip names the Stars tab as it is now.
   `install.test.js`.
+- **The header is `position: fixed`, not sticky (2026-10-01).** On iOS 26
+  Safari a sticky header counts as scrolling content, and Safari's soft blur
+  under the status bar washed out the wordmark and buttons (owner's iPhone
+  screenshot). Safari 26 ignores `theme-color` and paints the status bar from
+  a fixed element at the top edge (else the body), so the header is fixed
+  (`top/left/right: 0`, opaque `var(--bg)`), and an `aria-hidden` spacer of
+  its measured height (`headerRef`, `useLayoutEffect` + `ResizeObserver`,
+  before first paint) holds its room, ahead of the install banner, which now
+  shows below the header instead of under the status bar. Layout otherwise
+  identical at 390 and 1280 px. Untested on a real iPhone when written.
+  `header.test.js`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
@@ -224,6 +235,12 @@ stargazer is the default, navigator material is kept whole but folded.
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
   `native/README.md`. `npm run sync` stages the web app into `native/www/`.
+  **CI compiles the iOS app** for the simulator, unsigned, on every change
+  under `native/` (`.github/workflows/ios-build.yml`, macOS runner, newest
+  Xcode, Node 22 for Capacitor 8's CLI) and checks the built app carries
+  the web app, `lp/`, `PrivacyInfo.xcprivacy` and the Info.plist keys App
+  Store Connect reads (`ITSAppUsesNonExemptEncryption` false: HTTPS only;
+  `arm64`). Signing and uploading are done in Xcode on the owner's Mac.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
@@ -1659,8 +1676,18 @@ The Console shots were retaken when the horizon view became the default
   `TWILIGHT-VISITORS` namespace (delete the hash keys, never `__total__`).
   Until then `/privacy.html`'s "kept 24 hours" isn't true of those entries.
   Deleting stored data is the owner's call.
-- Actual Xcode build/signing/TestFlight upload — needs a Mac; nothing to do
-  here until the owner has one available.
+- **The iOS release, on the owner's Mac** (plan agreed 2026-09-30; the
+  owner has a Mac now): (1) prep, done in the PR that added
+  `.github/workflows/ios-build.yml`; (2) Xcode + Node 22 + Apple ID on the
+  Mac, `npm run sync`, set the Team; (3) run on the iPhone, including Sky
+  View's Sensor details readout, the first device test of the CoreMotion
+  path; (4) create the app in App Store Connect and upload an archive; (5)
+  listing (subtitle, description, keywords, Reference category, review
+  notes; retake the screenshots, which predate the Bortle block); (6)
+  submit. Recommended, not yet confirmed: 1.0 free with everything
+  unlocked, Pro via RevenueCat in 1.1; a `twilyte.info/support` page for
+  the support URL; Android after iOS. Steps are in `native/README.md`
+  ("iOS on a Mac").
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.
