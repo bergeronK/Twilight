@@ -218,8 +218,19 @@ stargazer is the default, navigator material is kept whole but folded.
   its measured height (`headerRef`, `useLayoutEffect` + `ResizeObserver`,
   before first paint) holds its room, ahead of the install banner, which now
   shows below the header instead of under the status bar. Layout otherwise
-  identical at 390 and 1280 px. Untested on a real iPhone when written.
-  `header.test.js`.
+  identical at 390 and 1280 px. `header.test.js`.
+  **That was not enough for the installed app** (same day, owner's iPhone
+  again): with `apple-mobile-web-app-status-bar-style` `black-translucent`
+  the page is drawn under the status bar, and iOS 26+ lays its Liquid Glass
+  edge blur over that strip and ~35 pt below it, whatever is there; no CSS
+  or meta turns the effect off. So the style is **`default`** (v152): the
+  web view starts below an opaque bar painted in `theme-color`, which is now
+  the header's `--bg` `#0e0d0b` (was the navy `#070a14`), kept in step with
+  red light mode (`#0a0204`) by an effect in `TwilightApp`; the manifest's
+  `theme_color` matches. iOS reads the style when the app is added to the
+  Home Screen, so an existing install must be removed and added again.
+  Safari tabs ignore the meta; there the fixed header is what's sampled.
+  Other installed web apps fixed the same blur the same way.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
