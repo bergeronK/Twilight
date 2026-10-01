@@ -209,6 +209,17 @@ stargazer is the default, navigator material is kept whole but folded.
   Don't promise alerts in its words until `ALERTS_LIVE`. `/privacy.html`
   lists both keys. The tabs tip names the Stars tab as it is now.
   `install.test.js`.
+- **The header is `position: fixed`, not sticky (2026-10-01).** On iOS 26
+  Safari a sticky header counts as scrolling content, and Safari's soft blur
+  under the status bar washed out the wordmark and buttons (owner's iPhone
+  screenshot). Safari 26 ignores `theme-color` and paints the status bar from
+  a fixed element at the top edge (else the body), so the header is fixed
+  (`top/left/right: 0`, opaque `var(--bg)`), and an `aria-hidden` spacer of
+  its measured height (`headerRef`, `useLayoutEffect` + `ResizeObserver`,
+  before first paint) holds its room, ahead of the install banner, which now
+  shows below the header instead of under the status bar. Layout otherwise
+  identical at 390 and 1280 px. Untested on a real iPhone when written.
+  `header.test.js`.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
