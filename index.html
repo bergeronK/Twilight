@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-1iiQR7JPdC88Bn1xsA+/H4NNOhmGwhNNFiwnTU/pe7E=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-lCk0dGts5rJ3pV+xAyUoFULS2F9pBkk45LEWl81Oo74=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#070a14" />
+<meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 <title>Twilyte — Live Sky Dashboard & Twilight Ephemeris</title>
 <meta name="description" content="Twilyte is a real-time sky dashboard and twilight ephemeris: live sun and moon position, limiting magnitude, sextant windows, and precise civil, nautical, and astronomical dawn & dusk for any location — for stargazing and celestial navigation." />
@@ -28,7 +28,9 @@
 <meta name="twitter:image:alt" content="Twilyte — live sky dashboard and twilight ephemeris" />
 <!-- PWA / iOS -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<!-- "default", not "black-translucent": iOS 26+ blurs whatever an installed web app draws under the
+     status bar, and the blur reached the header. The bar is opaque and painted in theme-color, the header's --bg. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Twilyte" />
 <meta name="mobile-web-app-capable" content="yes" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -2200,7 +2202,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v151";
+const BUILD = "v152";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -9488,6 +9490,11 @@ function TwilightApp() {
   }, []);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
   const toggleRed = () => { const n = !redMode; setRedMode(n); localStorage.setItem('tw_red', n ? '1' : '0'); };
+  // The installed app's status bar is painted in theme-color: keep it the header's --bg, red light mode's too.
+  React.useEffect(() => {
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', redMode ? '#0a0204' : '#0e0d0b');
+  }, [redMode]);
   const h24 = useH24();
   const bortle = useBortle();
   const bortleMode = useBortleMode();
