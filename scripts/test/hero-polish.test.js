@@ -1,9 +1,8 @@
 'use strict';
 /*
  * The Console's first screen, polished (owner, 2026-10-02):
- * - the painting is the first screen's main picture: about 60% of a phone's
- *   height, all the extra height going to the sky (it was 380 px, 236 of
- *   them sky, under 30% of an iPhone's screen);
+ * - the painting keeps its size (a taller one, 60% of a phone, was tried and
+ *   was too much sky), with one rule for where the horizon sits;
  * - two farther ridges behind the near one, paler toward the sky's colour,
  *   and the brighter air low over the horizon;
  * - the Milky Way with the data's structure brought out, warmer where it is
@@ -23,22 +22,20 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'hx', 'to
   'drawHorizonGround']);
 const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
 
-test('the painting fills about 60% of a phone, and the extra height is all sky', () => {
-  assert.strictEqual(m.heroHeight(390, 844), 506, 'an iPhone 14/15/16');
-  assert.strictEqual(m.heroHeight(375, 667), 440, 'an iPhone SE: never under 440');
-  assert.strictEqual(m.heroHeight(430, 1100), 580, 'never over 580 on a phone');
-  assert.strictEqual(m.heroHeight(1280, 900), 495, 'a laptop: 55%');
-  assert.strictEqual(m.heroHeight(1280, 1400), 560);
-  // The horizon where it always was at the old 380 px...
+test('the painting keeps its size: a taller sky was too much (owner, 2026-10-02)', () => {
+  // 60% of a phone's height (506 px on an iPhone) was tried and taken back.
+  assert.strictEqual(m.heroHeight(390), 380, 'a phone');
+  assert.strictEqual(m.heroHeight(1280), 420, 'a wider screen');
+  // The horizon where it always was on a phone...
   assert.strictEqual(m.heroHorizon(380), 236);
-  // ...and the band of ground under it the same however tall the painting.
-  for (const h of [440, 506, 580]) assert.strictEqual(h - m.heroHorizon(h), 150, `${h} px`);
-  assert.ok(m.heroHorizon(506) - 236 >= 120, 'at least 120 px more sky on an iPhone');
+  // ...and a band of ground under it that stops growing past 150 px, for
+  // the welcome, the share card and any taller painting.
+  for (const h of [420, 506, 600]) assert.strictEqual(h - m.heroHorizon(h), 150, `${h} px`);
 });
 
 test('the painting, its moving layer and its Milky Way agree on where the horizon is', () => {
   const hero = declSource('HorizonHero');
-  assert.match(hero, /const H = heroHeight\(width, vh\);/);
+  assert.match(hero, /const H = heroHeight\(width\);/);
   assert.match(hero, /const hy = heroHorizon\(H\), cols = /, 'the Milky Way image');
   assert.match(hero, /newMeteor\(Math\.random, m\.rate, m\.w, heroHorizon\(m\.H\), m\.facing\)/, 'meteors');
   assert.match(declSource('drawSkyMotion'), /const hy = heroHorizon\(h\);/);
@@ -47,9 +44,6 @@ test('the painting, its moving layer and its Milky Way agree on where the horizo
   // The welcome and the share picture keep their own layouts, 62% down.
   assert.match(declSource('WelcomeSky'), /hy: Math\.round\(sh \* 0\.62\)/);
   assert.match(declSource('drawShareCard'), /hy: Math\.round\(ph \* 0\.62\)/);
-  // The screen's height is read again only when the width changes: iOS
-  // changes innerHeight while scrolling, and the painting would resize.
-  assert.match(hero, /if \(!w \|\| Math\.round\(w\) === lastW\) return;\s*lastW = Math\.round\(w\);\s*setWidth\(lastW\);\s*setVh\(window\.innerHeight \|\| 800\);/);
 });
 
 function recorder() {

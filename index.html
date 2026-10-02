@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-QMS64jdS4Ue7bWaKwxYMyeyqCQ4oawVs5Yd3zxgmp1k=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-DjsXrqlulay5mijnsIkaOIckML1uVLlA8jFeQwUyn3g=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2271,7 +2271,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v155";
+const BUILD = "v156";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -4741,14 +4741,12 @@ function SkyChart({ stars, lines, planets, deep, moon, sunAz, fix, polaris, mw, 
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
 const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past each side
-/* How tall the Console's painting is: the first screen's main picture, about
-   60% of a phone's height (55% on a wide screen), not under 440 px or over
-   580. It was a fixed 380 on phones, under 30% of an iPhone's screen, with
-   only 236 px of sky (2026-10-02). heroHorizon keeps the ground band the
-   same, so the extra height is all sky. */
-function heroHeight(width, vh) {
-  const k = width < 560 ? 0.6 : 0.55;
-  return Math.max(440, Math.min(width < 560 ? 580 : 560, Math.round((vh || 800) * k)));
+/* How tall the Console's painting is: 380 px on a phone, 420 on a wider
+   screen. A taller one (60% of a phone's height, 506 px on an iPhone) was
+   tried on 2026-10-02 and was too much sky (owner); the layered horizon
+   stayed. */
+function heroHeight(width) {
+  return width < 560 ? 380 : 420;
 }
 /* The first-run welcome: the Console's painting of this place's sky, full
    screen, filling in as it loads, with one line and a way in. Drawn by the
@@ -4821,10 +4819,6 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const cornerRef = useRef(null);
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
-  // The screen's height, read again only when the width changes (a turn):
-  // iOS changes innerHeight as its toolbars come and go while scrolling, and
-  // following that would resize and repaint the painting under the finger.
-  const [vh, setVh] = useState(() => (typeof window !== 'undefined' && window.innerHeight) || 800);
   const [catalog, setCatalog] = useState(null);
   const [mw, setMw] = useState(null);
   useEffect(() => {
@@ -4835,14 +4829,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   }, []);
   useEffect(() => {
     const el = wrapRef.current;
-    let lastW = 0;
-    const measure = () => {
-      const w = el && el.getBoundingClientRect().width;
-      if (!w || Math.round(w) === lastW) return;
-      lastW = Math.round(w);
-      setWidth(lastW);
-      setVh(window.innerHeight || 800);
-    };
+    const measure = () => { const w = el && el.getBoundingClientRect().width; if (w) setWidth(Math.round(w)); };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
@@ -4901,7 +4888,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         .filter(p => p.alt > 0)
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
-  const H = heroHeight(width, vh);
+  const H = heroHeight(width);
   const facing = heroFacing(loc.lat, live.m);
   // The Milky Way over the painting, once a minute, only when the sky is dark
   // enough to show some of it. Drawn scaled up; it fades toward the horizon,

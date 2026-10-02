@@ -372,18 +372,17 @@ stargazer is the default, navigator material is kept whole but folded.
   4 px; a city (Bortle 5+) shows after dark as a warm light dome over the
   horizon and lights on the ground. Rectangles of any size read as a bar
   chart. `horizon-scene.test.js` pins all of this with a recording canvas.
-  **Taller, with layered hills (2026-10-02, owner's polish pick):** the
-  painting is `heroHeight(width, vh)`: about 60% of a phone's height (55%
-  wide), 440-580 px; it was a fixed 380 (236 px of sky). `vh` is re-read
-  only when the width changes (iOS moves innerHeight while scrolling).
-  `heroHorizon(h)` keeps a fixed 150 px of ground under the horizon for the
-  verdict and compass, so the extra height is all sky (356 px on an
-  iPhone); it is 236 at 380 px, as before, and every hero user (the motion
-  layer, meteors, the Milky Way image) goes through it. The welcome and the
-  share card pass their own `hy` (62% down) and look as they did. Behind
-  the near ridge, two farther ones, paler toward `sky.m`, and a glow of
-  brighter air over the last 70 px of sky, on the ground layer so it veils
-  the twinkling stars too; every ridge stays under 22 px.
+  **Layered hills (2026-10-02, owner's polish pick):** behind the near
+  ridge, two farther ones, paler toward `sky.m`, and a glow of brighter air
+  over the last 70 px of sky, on the ground layer so it veils the twinkling
+  stars too; every ridge stays under 22 px. **The painting's size stays**
+  `heroHeight(width)`: 380 px on a phone, 420 wider. A taller one (60% of a
+  phone's height, 506 px on an iPhone, v155) was too much sky (owner, same
+  day: "the horizon looks good, but I don't think it's necessary to have
+  that much sky"). `heroHorizon(h)` is the one rule for the horizon (a
+  ground band of at most 150 px; 236 at 380 px, as always), used by the
+  painting, the motion layer, meteors and the Milky Way image. The welcome
+  and the share card pass their own `hy` (62% down).
   **The painting moves (2026-09-23).** Three canvases: the still sky
   (`drawHorizonScene` with `part: 'sky'`, redrawn once a second as before),
   a moving layer (`drawSkyMotion`: stars brighter than `TWINKLE_MAG` 2.5
