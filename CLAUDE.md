@@ -284,7 +284,14 @@ stargazer is the default, navigator material is kept whole but folded.
   (`python3 generate-assets.py ios` redoes only those). The listing text is
   `docs/app-store-listing.md` (subtitle, promotional text, description,
   keywords, URLs, review notes); the space station and aurora stay out of
-  the description until seen working in the app. `ios-release.test.js`.
+  the description until seen working in the app. **Location in the apps
+  comes from Capacitor's Geolocation plugin** (`getPosition`, `canLocate`,
+  `nativeGeo`), so iOS asks "Allow Twilyte to use your location?" with
+  Info.plist's reason; `navigator.geolocation` in the web view asked a second
+  time on behalf of "localhost" (owner's iPhone). Plugin errors are mapped
+  to the browser's codes (denied or restricted 1, timeout 3, else 2), and
+  its timeout is at least 20 s since the permission question happens inside
+  the call. `ios-release.test.js`.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.

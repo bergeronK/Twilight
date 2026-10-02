@@ -162,3 +162,48 @@ test('the App Store listing fits Apple’s limits and says nothing the app doesn
   // Left out until seen working in the app (CelesTrak's and NOAA's replies).
   assert.doesNotMatch(L['Description (4000)'], /space station|northern lights|aurora/i);
 });
+
+/*
+ * The apps ask for location through Capacitor's Geolocation plugin, so iOS
+ * itself asks "Allow Twilyte to use your location?". navigator.geolocation
+ * inside the app's web view asked again, on behalf of "localhost" (owner's
+ * iPhone, 2026-10-02).
+ */
+test('in the apps, location comes from the system, with the browser’s error codes', async () => {
+  const { getPosition, canLocate } = extract(['nativeGeo', 'canLocate', 'getPosition']);
+  const savedW = global.window, savedN = Object.getOwnPropertyDescriptor(global, 'navigator');
+  const setNav = v => Object.defineProperty(global, 'navigator', { value: v, configurable: true, writable: true });
+  const run = () => new Promise(res => getPosition(p => res({ ok: p }), e => res({ err: e }), { timeout: 8000 }));
+  try {
+    let browserAsked = 0, asked = null;
+    setNav({ geolocation: { getCurrentPosition: (ok) => { browserAsked++; ok({ coords: { latitude: 1, longitude: 2 } }); } } });
+    // The website: the browser's own.
+    global.window = {};
+    assert.ok(canLocate());
+    assert.deepStrictEqual((await run()).ok.coords, { latitude: 1, longitude: 2 });
+    assert.strictEqual(browserAsked, 1);
+    // The iPhone app: the plugin, with time to answer the system's question.
+    const plugin = result => ({ getCurrentPosition: o => { asked = o; return result(); } });
+    global.window = { Capacitor: { getPlatform: () => 'ios', Plugins: { Geolocation: plugin(() => Promise.resolve({ coords: { latitude: 42.1, longitude: -72.45 } })) } } };
+    assert.deepStrictEqual((await run()).ok.coords, { latitude: 42.1, longitude: -72.45 });
+    assert.strictEqual(browserAsked, 1, 'the web view was not asked');
+    assert.ok(asked.timeout >= 20000, `timeout ${asked.timeout}`);
+    for (const [code, want] of [['OS-PLUG-GLOC-0003', 1], ['OS-PLUG-GLOC-0008', 1], ['OS-PLUG-GLOC-0010', 3], ['OS-PLUG-GLOC-0002', 2], ['OS-PLUG-GLOC-0007', 2]]) {
+      global.window.Capacitor.Plugins.Geolocation = plugin(() => Promise.reject({ code, message: 'x' }));
+      assert.strictEqual((await run()).err.code, want, code);
+    }
+    // No plugin and no browser API: nothing to ask.
+    global.window = { Capacitor: { getPlatform: () => 'ios', Plugins: {} } };
+    setNav({});
+    assert.strictEqual(canLocate(), false);
+  } finally {
+    global.window = savedW;
+    if (savedN) Object.defineProperty(global, 'navigator', savedN); else delete global.navigator;
+  }
+  // Every place that asks for a position goes through it.
+  const calls = HTML.match(/navigator\.geolocation\.getCurrentPosition/g) || [];
+  assert.strictEqual(calls.length, 1, 'only getPosition itself calls the browser');
+  for (const name of ['RealtimeTwilight', 'TwilightEphemeris', 'StarFinder']) {
+    assert.match(declSource(name), /getPosition\(/, name);
+  }
+});

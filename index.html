@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-32LXLXFl0dov3/CYQCkV6+lZB2dgXnlw83jjwUhGaso=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-AhkVYzuSiG4WE6TsGz8z0cEkGvn6f5EkFG8M+t4DP8o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2350,6 +2350,32 @@ const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
 // this page is running inside it; null on the website and on Android, where
 // the browser's own absolute orientation already comes from the platform's
 // fused rotation vector.
+/* The device's position. In the iPhone and Android apps it comes through
+   Capacitor's Geolocation plugin, so the system asks "Allow Twilyte to use
+   your location?" with Info.plist's reason; the web view's own
+   navigator.geolocation asked again on behalf of "localhost" (owner's
+   iPhone, 2026-10-02). Errors come back in the browser's shape: code 1
+   refused, 2 unavailable, 3 timed out. */
+function nativeGeo() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.Geolocation || !c.getPlatform || c.getPlatform() === 'web') return null;
+  return c.Plugins.Geolocation;
+}
+function canLocate() {
+  return !!(nativeGeo() || (typeof navigator !== 'undefined' && navigator.geolocation));
+}
+function getPosition(ok, fail, opts) {
+  const g = nativeGeo();
+  if (!g) return navigator.geolocation.getCurrentPosition(ok, fail, opts);
+  // The plugin asks for permission inside this call, so its timeout has to
+  // leave time to read the system's question.
+  const o = opts || {};
+  g.getCurrentPosition({ enableHighAccuracy: !!o.enableHighAccuracy, timeout: Math.max(o.timeout || 0, 20000) })
+    .then(ok, e => {
+      const code = String((e && e.code) || '');
+      fail({ code: /-000[38]$/.test(code) ? 1 : /-0010$/.test(code) ? 3 : 2, message: (e && e.message) || '' });
+    });
+}
 function nativeMotion() {
   const c = typeof window !== 'undefined' && window.Capacitor;
   if (!c || !c.Plugins || !c.Plugins.TwilyteMotion || !c.getPlatform || c.getPlatform() !== 'ios') return null;
@@ -5126,14 +5152,14 @@ function RealtimeTwilight({ redMode } = {}) {
   // keeps that place instead of opening the picker with an error.
   const useMyLocation = quiet => {
     quiet = quiet === true;
-    if (!navigator.geolocation) {
+    if (!canLocate()) {
       if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
       return;
     }
     if (!quiet) setGeoMsg("Locating…");
-    navigator.geolocation.getCurrentPosition(p => {
+    getPosition(p => {
       setLoc({
         name: "Your location",
         lat: p.coords.latitude,
@@ -6093,16 +6119,16 @@ function TwilightEphemeris({ redMode } = {}) {
     if (!Number.isNaN(lonN)) setOffset(Math.round(lonN / 15));
   }
   function useMyLocation() {
-    if (!navigator.geolocation) {
+    if (!canLocate()) {
       setGeoMsg("Geolocation unavailable in this browser.");
       return;
     }
-    if (!window.isSecureContext && location.hostname !== "localhost") {
+    if (!nativeGeo() && !window.isSecureContext && location.hostname !== "localhost") {
       setGeoMsg("Location needs a secure page: https:// or localhost. Opening the saved file directly (file://) blocks it \u2014 type coordinates instead.");
       return;
     }
     setGeoMsg("Locating\u2026");
-    navigator.geolocation.getCurrentPosition(pos => {
+    getPosition(pos => {
       setLat(pos.coords.latitude.toFixed(4));
       setLon(pos.coords.longitude.toFixed(4));
       // The phone's own time zone is the right one for where it is.
@@ -8408,9 +8434,9 @@ function StarFinder({ redMode } = {}) {
   const [logOpen, setLogOpen] = useState(false);
   const skyNow = now + skyShift * 60000;
   const useMyLocation = () => {
-    if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
+    if (!canLocate()) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
-    navigator.geolocation.getCurrentPosition(p => {
+    getPosition(p => {
       const nl = { lat: p.coords.latitude, lon: p.coords.longitude, name: `${p.coords.latitude.toFixed(2)}°, ${p.coords.longitude.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
       setLoc(nl); setGeoMsg("");
       try { localStorage.setItem('tw_loc', JSON.stringify(nl)); } catch (e) {}
