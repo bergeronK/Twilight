@@ -231,7 +231,19 @@ stargazer is the default, navigator material is kept whole but folded.
   Home Screen, so an existing install must be removed and added again.
   Safari tabs ignore the meta; there the fixed header is what's sampled.
   Other installed web apps fixed the same blur the same way. **Confirmed
-  sharp on the owner's iPhone, reinstalled, 2026-10-02.**
+  sharp on the owner's iPhone, reinstalled, 2026-10-02.** The spacer watches
+  the header's **border box** (`ro.observe(el, { box: 'border-box' })`): iOS
+  reports the status bar's height after the first layout, the header grows
+  by that much top padding, and the default content-box observer never
+  fired, so the tips banner slid under the header in the iPhone app.
+  **The iPhone app uses Capacitor's `contentInset: "never"`** (2026-10-02):
+  "automatic" started the page below the status bar and the header's env()
+  padding added the same height again, an empty band above the wordmark.
+  Now the page runs under the status bar as on the website, the header's
+  padding is the one inset, `UIStatusBarStyleLightContent` keeps the clock
+  white over the dark header, and the web view's background is the header's
+  `--bg`. iOS 26's soft edge blur needs a bar or an edge-effect interaction,
+  which a plain Capacitor view controller doesn't have.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
