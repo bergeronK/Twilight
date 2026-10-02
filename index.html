@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-oyivgzB91XDlkd7UorEUcRnSfNv5E4DoQ6nS9f/SqQo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-n9mxwOHPh7eAwt+oRBN3+gSosFiI8uhnfiF/AQGI6f0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2285,7 +2285,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v157";
+const BUILD = "v158";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2431,6 +2431,15 @@ const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
    navigator.geolocation asked again on behalf of "localhost" (owner's
    iPhone, 2026-10-02). Errors come back in the browser's shape: code 1
    refused, 2 unavailable, 3 timed out. */
+/* A sideways swipe changes tab, except where a finger drags something
+   sideways itself: the Ephemeris chart's readout follows the finger along
+   the day, and lifting it after a long drag switched to the Console
+   (owner's iPhone, v156). Also Sky View and the welcome, which are dialogs
+   (React passes their touches up to the tab, portal or not), and sliders. */
+const NO_SWIPE = '[data-noswipe], [role="dialog"], input[type="range"]';
+function swipeAllowed(target) {
+  return !(target && typeof target.closest === 'function' && target.closest(NO_SWIPE));
+}
 // The iPhone app's share sheet (TwilyteSharePlugin in AppDelegate.swift).
 // In the app the browser's navigator.share did nothing (owner's iPhone, v153)
 // and a download has nowhere to go, so "Share tonight's sky" hands its
@@ -6999,6 +7008,8 @@ function TwilightEphemeris({ redMode } = {}) {
       display: "block",
       touchAction: "pan-y"
     },
+    // A drag along the day moves the readout, not the tab.
+    "data-noswipe": "",
     onMouseMove: e => {
       const r = svgRef.current.getBoundingClientRect();
       setHoverX((e.clientX - r.left) / r.width * W);
@@ -9703,7 +9714,7 @@ function TwilightApp() {
   const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
   const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
   const touchStartX = React.useRef(null);
-  const handleTouchStart = e => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchStart = e => { touchStartX.current = swipeAllowed(e.target) ? e.touches[0].clientX : null; };
   const handleTouchEnd = e => {
     if (touchStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;

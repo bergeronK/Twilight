@@ -355,7 +355,14 @@ stargazer is the default, navigator material is kept whole but folded.
   so they stay in the header there; `aria-current="page"` marks the active
   one, and `#root` gets bottom padding so the footer clears the bar. That
   also retired the ≤384 px rule that hid the wordmark (the tabs were what
-  overflowed the header). **Reference below the fold** (2026-09-23,
+  overflowed the header). **A sideways swipe changes tab** (`main`'s
+  touch handlers), **except where it starts** inside `NO_SWIPE`
+  (`[data-noswipe]`, dialogs, range sliders; `swipeAllowed`, 2026-10-02):
+  lifting a finger after dragging the Ephemeris chart's readout switched to
+  the Console, and a sideways look in Sky View closed it onto the
+  Ephemeris (React passes a dialog's touches up to the tab). Mark anything
+  new that drags sideways with `data-noswipe`. `swipe.test.js`.
+  **Reference below the fold** (2026-09-23,
   option B of three the owner was offered): after the week planner a
   "Details" heading groups the look-up material. The older sky panel's
   picture, "Right now" verdict, faintest-star figure and Moon line are gone
