@@ -483,11 +483,18 @@ stargazer is the default, navigator material is kept whole but folded.
   the Console it is honest**: `milkyWayVisibility(live.mag)` — all of it at
   limiting magnitude 6.25+, none at 5.2 (Bortle 7, a big Moon, twilight) —
   and it dims toward the horizon. **The painting's own look (2026-10-02;
-  it had read as grey smoke):** `milkyWayGlow` box-blurs the 1° steps,
+  it had read as grey smoke, then as blurry on the owner's iPhone):**
+  `milkyWayGlow(field, cols, rows, W, H)` lightly box-blurs the 1° steps,
   takes level^1.5 so the faint outer band falls away and the star clouds
-  and the Great Rift (in the data) show, warms the brighter parts, and
-  varies brightness by a grain fixed to the sky (`skyGrain`, per quarter
-  degree), never adding light. Sampled every 2 px. **On the chart and in Sky View it is
+  and the Great Rift (in the data) show, and warms the brighter parts. The
+  field is sampled every 2 px, but the image is made at the hero canvas's
+  own pixels (dpr capped at 2, as the canvas is), read between cells, with
+  a grain at every pixel (`pixelGrain`: mostly a little fainter, a few
+  brighter specks), so it is drawn 1:1 and stays sharp; it was 2 px cells
+  stretched up 4-6x. The grain only varies the data's brightness, never
+  adds light, and sits on the pixels: one fine enough to read as stars and
+  fixed to the sky would reshuffle every minute. About 20 ms once a minute
+  on a laptop. **On the chart and in Sky View it is
   always drawn, faintly**, as charts show it (they show every star too); not
   over Sky View's camera image. `milky-way.test.js` checks the data against
   the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of

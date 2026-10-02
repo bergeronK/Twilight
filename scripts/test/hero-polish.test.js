@@ -6,7 +6,8 @@
  * - two farther ridges behind the near one, paler toward the sky's colour,
  *   and the brighter air low over the horizon;
  * - the Milky Way with the data's structure brought out, warmer where it is
- *   brighter, and a grain of unresolved stars (it read as grey smoke);
+ *   brighter, and a grain of unresolved stars at the canvas's own pixels (it
+ *   read as grey smoke, then as blurry on a phone);
  * - the page's scattered stars only in wide screens' margins (they sat on
  *   the words like dust).
  */
@@ -18,7 +19,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'hx', 'toHex', 'lerpC',
   'heroHeight', 'heroHorizon', 'panoY', 'horizToEq', 'mwLevel', 'decodeMilkyWay', 'milkyWayField',
-  'skyGrain', 'boxBlur', 'milkyWayGlow', 'HZ_SPAN', 'panoX', 'hzRandom', 'COMPASS16', 'compass16',
+  'pixelGrain', 'boxBlur', 'milkyWayGlow', 'HZ_SPAN', 'panoX', 'hzRandom', 'COMPASS16', 'compass16',
   'drawHorizonGround']);
 const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
 
@@ -87,22 +88,21 @@ test('farther ridges are paler, toward the sky’s own colour, and the air low d
   assert.ok(!plain.rects.some(r => r.style.stops && r.y === 286));
 });
 
-test('the sky’s grain is fixed to the sky, between 0 and 1', () => {
+test('the grain is a fixed scatter over the pixels, between 0 and 1', () => {
   const vals = [];
-  for (let ra = 0; ra < 360; ra += 7.3) for (let dec = -80; dec <= 80; dec += 9.1) {
-    const v = m.skyGrain(ra, dec);
+  for (let y = 0; y < 60; y++) for (let x = 0; x < 60; x++) {
+    const v = m.pixelGrain(x, y);
     assert.ok(v >= 0 && v < 1);
-    assert.strictEqual(m.skyGrain(ra + 360, dec), v, 'the same RA a turn later');
+    assert.strictEqual(m.pixelGrain(x, y), v, 'the same pixel, the same grain');
     vals.push(v);
   }
   const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  assert.ok(Math.abs(mean - 0.5) < 0.06, `evenly spread (mean ${mean.toFixed(3)})`);
-  // milkyWayField fills it from where each cell looks, so it turns with the stars.
-  const MW = m.decodeMilkyWay(new Uint8Array(fs.readFileSync(path.join(__dirname, '..', '..', 'milkyway.bin'))));
-  const grain = new Float32Array(2);
-  m.milkyWayField(MW, 2, 1, i => ({ az: 100 + i * 40, alt: 30 }), 44, 200, grain);
-  const e = m.horizToEq(140, 30, 44, 200);
-  assert.strictEqual(grain[1], Math.fround(m.skyGrain(e.ra, e.dec)));
+  assert.ok(Math.abs(mean - 0.5) < 0.03, `evenly spread (mean ${mean.toFixed(3)})`);
+  // Neighbours are unrelated: no streaks along a row or a column.
+  let same = 0;
+  for (let i = 1; i < 60; i++) if (Math.abs(m.pixelGrain(i, 7) - m.pixelGrain(i - 1, 7)) < 0.02) same++;
+  for (let j = 1; j < 60; j++) if (Math.abs(m.pixelGrain(9, j) - m.pixelGrain(9, j - 1)) < 0.02) same++;
+  assert.ok(same < 8, `${same} near-equal neighbours`);
 });
 
 test('boxBlur smooths without moving or losing light', () => {
@@ -112,38 +112,50 @@ test('boxBlur smooths without moving or losing light', () => {
   assert.ok(Math.abs(b[12] - 1 / 9) < 1e-6 && Math.abs(b[6] - 1 / 9) < 1e-6 && b[0] === 0);
 });
 
-test('the Milky Way glow: no light where the data has none; brighter is warmer and stronger', () => {
-  let put = null;
-  global.document = { createElement: () => ({ getContext: () => ({
-    createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+test('the Milky Way glow: sharp at the canvas’s pixels, no light where the data has none, brighter is warmer', () => {
+  let put = null, made = null;
+  global.document = { createElement: () => (made = { getContext: () => ({
+    createImageData: (w, h) => ({ width: w, data: new Uint8ClampedArray(w * h * 4) }),
     putImageData: img => { put = img; }
   }) }) };
   try {
-    // One row: dark gaps either side of a faint band and a bright cloud,
-    // wide enough apart that the blur keeps them separate.
-    const cols = 40, field = new Float32Array(cols), grain = new Float32Array(cols).fill(0.5);
+    // One row of 2 px cells: dark gaps either side of a faint band, a
+    // middling one and a bright cloud, wide enough apart that the light blur
+    // keeps them separate. Drawn 4 image pixels to a cell, 2 rows.
+    const cols = 60, field = new Float32Array(cols), W = cols * 4;
     for (let i = 8; i < 14; i++) field[i] = 0.2;
-    for (let i = 26; i < 32; i++) field[i] = 1;
-    m.milkyWayGlow(field, grain, cols, 1);
-    const px = i => Array.from(put.data.slice(4 * i, 4 * i + 4));
-    assert.strictEqual(px(0)[3], 0, 'dark sky stays dark');
-    assert.strictEqual(px(20)[3], 0, 'and so does the gap between');
-    const faint = px(11), bright = px(29);
+    for (let i = 24; i < 30; i++) field[i] = 0.5;
+    for (let i = 42; i < 48; i++) field[i] = 1;
+    m.milkyWayGlow(field, cols, 1, W, 2);
+    assert.deepStrictEqual([made.width, made.height], [W, 2], 'the image is the size asked: the canvas’s pixels');
+    const a = x => put.data[4 * x + 3], rgb = x => Array.from(put.data.slice(4 * x, 4 * x + 3));
+    const mean = (x0, x1) => { let t = 0; for (let x = x0; x < x1; x++) t += a(x); return t / (x1 - x0); };
+    assert.strictEqual(mean(0, 20), 0, 'dark sky stays dark');
+    assert.strictEqual(mean(70, 84), 0, 'and so does a gap between');
     // Linear, a fifth of the level would be a fifth of the light; the curve
-    // makes it under an eighth.
-    assert.ok(bright[3] > 7 * faint[3], `the faint band falls away (${faint[3]} vs ${bright[3]})`);
-    assert.ok(bright[0] > bright[2] + 20, 'the bright cloud is warm: more red than blue');
-    assert.ok(faint[2] > faint[0], 'the faint band is bluish');
-    // Grain varies the brightness by under a quarter either way, never adds any.
-    const g0 = new Float32Array(cols), g1 = new Float32Array(cols).fill(0.999);
-    m.milkyWayGlow(field, g0, cols, 1); const lo = put.data[4 * 11 + 3];
-    m.milkyWayGlow(field, g1, cols, 1); const hi = put.data[4 * 11 + 3];
-    assert.ok(hi > lo && hi / lo < 1.6, `${lo}..${hi}`);
-    m.milkyWayGlow(new Float32Array(cols), g1, cols, 1);
+    // makes it about a tenth.
+    const faint = mean(40, 48), bright = mean(176, 184);
+    assert.ok(bright > 7 * faint, `the faint band falls away (${faint.toFixed(1)} vs ${bright.toFixed(1)})`);
+    const [r, , b] = rgb(180), [fr, , fb] = rgb(44);
+    assert.ok(r > b + 20, 'the bright cloud is warm: more red than blue');
+    assert.ok(fb > fr, 'the faint band is bluish');
+    // The grain: every pixel its own, mostly a little fainter with a few
+    // brighter specks, never brightening the band on the whole.
+    const mid = []; for (let x = 104; x < 112; x++) mid.push(a(x));
+    for (let x = W + 104; x < W + 112; x++) mid.push(put.data[4 * x + 3]);
+    assert.ok(new Set(mid).size >= 10, `pixel by pixel: ${mid.join(' ')}`);
+    const flat = 255 * Math.min(1, Math.pow(0.5, 1.5) * 1.35);
+    const avg = mid.reduce((x, y) => x + y, 0) / mid.length;
+    assert.ok(avg < flat && avg > 0.65 * flat, `on the whole a little fainter (${avg.toFixed(1)} of ${flat.toFixed(1)})`);
+    assert.ok(Math.max(...mid) <= Math.ceil(1.75 * flat) && Math.min(...mid) >= Math.floor(0.55 * flat));
+    m.milkyWayGlow(new Float32Array(cols), cols, 1, W, 2);
     assert.ok(put.data.every((v, k) => k % 4 !== 3 || v === 0), 'no grain where there is no Milky Way');
   } finally {
     delete global.document;
   }
+  // The painting asks for it at the canvas's own resolution.
+  assert.match(declSource('HorizonHero'), /const dpr = Math\.min\(window\.devicePixelRatio \|\| 1, 2\);\s*return milkyWayGlow\(field, cols, rows, Math\.round\(width \* dpr\), Math\.round\(hy \* dpr\)\);/);
+  assert.match(declSource('HorizonHero'), /const dpr = Math\.min\(window\.devicePixelRatio \|\| 1, 2\);\s*const size = /, 'the same cap as the canvas');
 });
 
 test('the page’s scattered stars stay out of the content: margins only, none on a phone', () => {
