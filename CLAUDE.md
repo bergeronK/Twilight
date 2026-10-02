@@ -990,7 +990,7 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   picked, and nothing said so. Now, with sensors live and nothing picked,
   Sky View's bottom offers **Align on the Moon** when it's up (picks it),
   otherwise "Tap a bright star or planet you can see, then Align."
-- **The iPhone app reads CoreMotion (2026-09-24, v111; unbuilt).** In the
+- **The iPhone app reads CoreMotion (2026-09-24, v111; on a device 2026-10-02).** In the
   Capacitor app, Sky View's orientation comes from CoreMotion's fused
   attitude in the true-north frame, the source native sky apps use, via
   `TwilyteMotionPlugin` in `native/ios/App/App/AppDelegate.swift` (JS
@@ -1002,8 +1002,13 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   trusting the docs (a wrong guess mirrors every bearing). One band of
   compass directions can't be told apart by gravity, so the decision waits
   until the phone turns out of it and is then kept. Sensor details shows
-  "iOS CoreMotion" and the frame. **Never built or run on a device**: no
-  Mac here. `native-motion.test.js` (W3C matrix written out independently,
+  "iOS CoreMotion" and the frame. **Confirmed on the owner's iPhone
+  (2026-10-02, build v152, 42.10, -72.45, about 01:27 UTC):** Altair in
+  the reticle read az 217°, alt 51°; Altair was at az 217°, alt 51.3°
+  (worked out separately). Frame true north, matrix `refToDevice` (the
+  usual reading of CMAttitude, chosen by gravity), compass ±5°, no
+  declination applied, which is right for a true-north frame.
+  `native-motion.test.js` (W3C matrix written out independently,
   CoreMotion simulated both ways, a physical "camera east" pose, Swift and
   JS names in step) and `native/README.md` for the device check.
 - **(Superseded) iOS heading reference — kept as TRUE north (2026-09-23, build v100).**
@@ -1706,7 +1711,8 @@ The Console shots were retaken when the horizon view became the default
   `.github/workflows/ios-build.yml`; (2) Xcode + Node 22 + Apple ID on the
   Mac, `npm run sync`, set the Team; (3) run on the iPhone, including Sky
   View's Sensor details readout, the first device test of the CoreMotion
-  path; (4) create the app in App Store Connect and upload an archive; (5)
+  path (**done 2026-10-02**: it runs on the iPhone and Sky View put Altair
+  within 1°); (4) create the app in App Store Connect and upload an archive; (5)
   listing (subtitle, description, keywords, Reference category, review
   notes; retake the screenshots, which predate the Bortle block); (6)
   submit. Recommended, not yet confirmed: 1.0 free with everything
