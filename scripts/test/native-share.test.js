@@ -139,5 +139,5 @@ test('Sky View’s sensor readout sits under the buttons and can be closed from 
   const body = dome.slice(panel, bottom);
   assert.match(body, /flexBasis: '100%'/);
   assert.doesNotMatch(body, /position: 'absolute'|\+ 52px/, 'a fixed height covered the Sensors button');
-  assert.match(body, /React\.createElement\('button', \{ onClick: diag\.onToggle, 'aria-label': 'Close sensor details'[^}]*\} \}, 'Close'\)/);
+  assert.match(body, /diag\.copyLabel\),\s*React\.createElement\('button', \{ onClick: diag\.onToggle, 'aria-label': 'Close sensor details'[^}]*\} \}, 'Close'\)\)/);
 });
