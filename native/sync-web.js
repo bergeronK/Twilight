@@ -24,6 +24,10 @@ const FILES = [
   'deep-sky.json',
   'milkyway.bin',
   'facts.json',
+  // The footer's Privacy and Help links: App Review wants the privacy policy
+  // reachable inside the app, and these work offline too.
+  'privacy.html',
+  'support.html',
   // BSD 3-Clause: binary redistribution must carry the notice with it.
   'constellations.LICENSE.txt',
   // CC BY-SA 4.0 (the HYG catalogue behind stars.bin): the licence travels

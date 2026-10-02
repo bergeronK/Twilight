@@ -72,6 +72,8 @@ jobs:
           test -f "$app/PrivacyInfo.xcprivacy"
           test -f "$app/public/index.html"
           test -f "$app/public/lp/index.json"
+          test -f "$app/public/privacy.html"
+          test -f "$app/public/support.html"
           plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|ITSAppUsesNonExemptEncryption|UIRequiredDeviceCapabilities' -A2
           plutil -p "$app/Info.plist" | grep -q UIApplicationSceneManifest
           du -sh "$app"

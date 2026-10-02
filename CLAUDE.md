@@ -266,6 +266,25 @@ stargazer is the default, navigator material is kept whole but folded.
   dropping the plugin. CI now also launches the app in a simulator and
   checks it is still running 20 s later (`launch.png` uploaded).
   `ios-scene.test.js`.
+  **Ready for the App Store (2026-10-02; owner: 1.0 free, everything
+  unlocked, category Reference).** `proShown()` says how the week planner's
+  Pro status shows: 'sold' once RevenueCat has a key, 'preview' on the
+  website (the "PRO" badge and "free preview", unchanged), and nothing in a
+  native app that sells nothing, since App Review turns away an app that
+  calls itself a preview. The footer links **Help** (`/support.html`: how to
+  get in touch through the GitHub feedback form, your place, lining up Sky
+  View, the Ephemeris, the Bortle class, offline) beside Privacy, and
+  `native/sync-web.js` bundles both pages: the in-app privacy link was
+  broken before (App Review wants it reachable in the app). `/privacy.html`
+  says the apps sell nothing yet. **The app icon is full-bleed**: the round
+  art's faint ring and black corners showed as a light circle inside iOS's
+  own rounded square (owner); `native/generate-assets.py`'s `full_bleed`
+  fills outside the circle with each row's sky or ground colour from just
+  inside it, for `AppIcon-512@2x.png` and the website's `apple-touch-icon.png`
+  (`python3 generate-assets.py ios` redoes only those). The listing text is
+  `docs/app-store-listing.md` (subtitle, promotional text, description,
+  keywords, URLs, review notes); the space station and aurora stay out of
+  the description until seen working in the app. `ios-release.test.js`.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
@@ -1693,6 +1712,8 @@ The Console shots were retaken when the horizon view became the default
   planner and the alerts.
 - **The visit counter is website-only**; the native apps never contact it
   (2026-09-22).
+- **iOS 1.0 is free with everything unlocked**, Pro via RevenueCat in 1.1;
+  primary App Store category **Reference** (2026-10-02).
 
 **Blocked on the repo owner, not on engineering:**
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
@@ -1715,10 +1736,12 @@ The Console shots were retaken when the horizon view became the default
   within 1°); (4) create the app in App Store Connect and upload an archive; (5)
   listing (subtitle, description, keywords, Reference category, review
   notes; retake the screenshots, which predate the Bortle block); (6)
-  submit. Recommended, not yet confirmed: 1.0 free with everything
-  unlocked, Pro via RevenueCat in 1.1; a `twilyte.info/support` page for
-  the support URL; Android after iOS. Steps are in `native/README.md`
-  ("iOS on a Mac").
+  submit. Decided 2026-10-02: 1.0 free with everything unlocked, Pro via
+  RevenueCat in 1.1, category Reference; the support URL is
+  `twilyte.info/support.html` and the listing text is
+  `docs/app-store-listing.md`. Still to do for (5): retake the screenshots.
+  Recommended, not yet confirmed: Android after iOS. Steps are in
+  `native/README.md` ("iOS on a Mac").
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.
