@@ -276,7 +276,9 @@ stargazer is the default, navigator material is kept whole but folded.
   `configurationForConnecting`. Capacitor's own `cap migrate` would have
   written a SceneDelegate that makes a plain `CAPBridgeViewController`,
   dropping the plugin. CI now also launches the app in a simulator and
-  checks it is still running 20 s later (`launch.png` uploaded).
+  checks it is still running 20 s later (`launch.png` uploaded), then shuts
+  the simulator down: left running, it held the runner's own clean-up for
+  20+ minutes after a pass.
   `ios-scene.test.js`.
   **Ready for the App Store (2026-10-02; owner: 1.0 free, everything
   unlocked, category Reference).** `proShown()` says how the week planner's
@@ -303,7 +305,11 @@ stargazer is the default, navigator material is kept whole but folded.
   time on behalf of "localhost" (owner's iPhone). Plugin errors are mapped
   to the browser's codes (denied or restricted 1, timeout 3, else 2), and
   its timeout is at least 20 s since the permission question happens inside
-  the call. `ios-release.test.js`.
+  the call. **Confirmed on the owner's iPhone (v153, 2026-10-02)**, with the
+  one status-bar inset below: one Twilyte prompt, no gap, banner visible.
+  After pulling, the owner's routine is `npm install && npm run sync`, then
+  ⌘R (sync is what copies the web app into the Xcode project; Team needs
+  setting again only after switching branches). `ios-release.test.js`.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.

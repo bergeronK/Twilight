@@ -85,6 +85,9 @@ jobs:
       # in a simulator and check it is still running a while later.
       - name: Launch in the simulator
         run: |
+          # Shut the simulator down however the step ends: left running, it
+          # held the runner's own clean-up for over 20 minutes after a pass.
+          trap 'xcrun simctl shutdown all >/dev/null 2>&1 || true' EXIT
           udid=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
           d = json.load(sys.stdin)["devices"]
