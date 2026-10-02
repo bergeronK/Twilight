@@ -241,6 +241,6 @@ test('the almanac button over the painting deals a fact and goes to it', async (
   // The almanac can take focus, and the painting keeps labels clear of the button.
   assert.match(rt, /ref: factRef,\s*tabIndex: -1,/);
   const hh = declSource('HorizonHero');
-  assert.match(hh, /reserve, reserveRight,/);
+  assert.match(hh, /reserve, reserveRight\b/);
   assert.match(hh, /ref: cornerRef/);
 });

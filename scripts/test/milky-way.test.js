@@ -1,7 +1,8 @@
 'use strict';
 /*
- * The Milky Way: milkyway.bin, and the three inverse projections that sample
- * it for the Console painting, the Stars tab's chart and Sky View.
+ * The Milky Way: milkyway.bin, and the inverse projections that sample it
+ * for the Stars tab's chart and Sky View (and the Console painting's, kept
+ * tested though the painting no longer draws the band: owner, 2026-10-02).
  *
  * The data is checked against the galaxy rather than against the file: the
  * brightest part must be toward the galactic centre in Sagittarius, the
@@ -19,7 +20,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'gmst', '
   'decodeMilkyWay', 'mwLevel', 'horizToEq', 'milkyWayField', 'milkyWayVisibility',
   'chartXY', 'chartDir', 'quatFromEuler', 'quatAxis', 'quatRotate', 'quatMul', 'viewBasis', 'toScreen', 'skyProject',
   'vecAz', 'screenDir', 'BORTLE',
-  'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'heroMoonDisc',
+  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'heroMoonDisc',
   'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow']);
 
 const MW = m.decodeMilkyWay(new Uint8Array(fs.readFileSync(path.join(__dirname, '..', '..', 'milkyway.bin'))));
@@ -107,26 +108,20 @@ test('milkyWayField samples where each cell looks, weighted', () => {
   assert.ok(Math.abs(g[0] - 0.5 * m.mwLevel(MW, 266.4, -28.9)) < 1e-3);
 });
 
-test('the painting draws the band when there is one to draw, under the stars', () => {
+test('the Console painting draws no Milky Way, even if one is passed', () => {
   const calls = [];
   const grad = { addColorStop() {} };
   const g = new Proxy({ createRadialGradient: () => grad, createLinearGradient: () => grad, measureText: t => ({ width: t.length * 6 }) }, {
     get(t, k) { if (k in t) return t[k]; return (...a) => calls.push([k, a]); },
-    set(t, k, v) { if (k === 'globalAlpha') calls.push(['alpha', [v]]); t[k] = v; return true; }
+    set(t, k, v) { t[k] = v; return true; }
   });
-  const img = { tag: 'mw' };
   const o = {
-    sky: { s: '#000', m: '#000', h: '#000' }, sunAlt: -30, sun: { az: 0, alt: -30 },
+    sky: { s: '#000000', m: '#000000', h: '#000000' }, sunAlt: -30, sun: { az: 0, alt: -30 },
     moon: { az: 0, alt: -30, illum: 0 }, facing: 180,
     stars: [{ az: 180, alt: 40, mag: 3 }], planets: [], bortle: 2, lat: 44, lon: -72,
-    mw: { img, alpha: 0.4 }
+    mw: { img: { tag: 'mw' }, alpha: 0.4 }
   };
-  m.drawHorizonScene(g, 400, 380, Object.assign({}, o, { part: 'sky' }));
-  const di = calls.findIndex(c => c[0] === 'drawImage' && c[1][0] === img);
-  const star = calls.findIndex(c => c[0] === 'arc');
-  assert.ok(di >= 0, 'drawn');
-  assert.ok(di < star, 'before the stars, so they sit on it');
-  calls.length = 0;
-  m.drawHorizonScene(g, 400, 380, Object.assign({}, o, { part: 'sky', mw: { img, alpha: 0 } }));
-  assert.ok(!calls.some(c => c[0] === 'drawImage'), 'not when the sky is too bright');
+  m.drawHorizonScene(g, 400, 380, o);
+  assert.ok(calls.some(c => c[0] === 'arc'), 'the stars are drawn');
+  assert.ok(!calls.some(c => c[0] === 'drawImage'), 'no band');
 });

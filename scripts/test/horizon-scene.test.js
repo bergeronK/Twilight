@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'atan2', 'hx', 'toHex', 'lerpC', 'skyColors',
-  'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
+  'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
 
 function stubCtx() {
   const texts = [], dots = [], ground = [];
@@ -100,14 +100,19 @@ test('the horizon is a soft ridge everywhere: no buildings, no vertical walls', 
   const hy = Math.round(H * 0.62);
   for (const bortle of [2, 8]) {
     const g = paint(scene({ bortle }));
-    const outline = g.ground.find(p => p.some(([, y]) => y < hy));
-    assert.ok(outline, 'a horizon was drawn');
-    const top = outline.filter(([, y]) => y < hy + 1);
-    // A building is a vertical wall: two consecutive points at one x. The
-    // ridge advances in x at every point.
-    for (let i = 1; i < top.length; i++) assert.ok(top[i][0] > top[i - 1][0], `a vertical edge at x=${top[i][0]} (bortle ${bortle})`);
-    // Nor any sudden step: neighbouring points 3 px apart differ by under 4 px.
-    for (let i = 1; i < top.length; i++) assert.ok(Math.abs(top[i][1] - top[i - 1][1]) < 4, `a ${Math.abs(top[i][1] - top[i - 1][1]).toFixed(1)} px step (bortle ${bortle})`);
-    assert.ok(Math.max(...top.map(([, y]) => hy - y)) <= 22, 'the ridge stays low');
+    // A near ridge and the two farther ones showing over it (2026-10-02).
+    const ridges = g.ground.filter(p => p.some(([, y]) => y < hy));
+    assert.strictEqual(ridges.length, 3, 'three ridges were drawn');
+    for (const outline of ridges) {
+      const top = outline.filter(([, y]) => y < hy + 1);
+      // A building is a vertical wall: two consecutive points at one x. The
+      // ridge advances in x at every point.
+      for (let i = 1; i < top.length; i++) assert.ok(top[i][0] > top[i - 1][0], `a vertical edge at x=${top[i][0]} (bortle ${bortle})`);
+      // Nor any sudden step: neighbouring points 3 px apart differ by under 4 px.
+      for (let i = 1; i < top.length; i++) assert.ok(Math.abs(top[i][1] - top[i - 1][1]) < 4, `a ${Math.abs(top[i][1] - top[i - 1][1]).toFixed(1)} px step (bortle ${bortle})`);
+      // Low: on a phone's 506 px painting 22 px is about 5° of sky, where
+      // Mercury in twilight has to be seen.
+      assert.ok(Math.max(...top.map(([, y]) => hy - y)) <= 22, 'the ridge stays low');
+    }
   }
 });

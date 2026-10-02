@@ -26,6 +26,9 @@ test('a spacer holds the header’s measured height, ahead of the install banner
   assert.match(app, /const \[headerH, setHeaderH\] = React\.useState\(null\);/);
   // Measured before paint, and again when the header's size changes.
   assert.match(app, /React\.useLayoutEffect\(\(\) => \{[\s\S]*?const measure = \(\) => setHeaderH\(el\.offsetHeight\);[\s\S]*?new ResizeObserver\(measure\)/);
+  // The border box: the status bar's height arrives as padding, after the
+  // first layout, and the content box doesn't change with it.
+  assert.match(app, /ro\.observe\(el, \{ box: 'border-box' \}\);/);
   const spacer = app.indexOf('React.createElement("div", { "aria-hidden": "true", style: { height: headerH == null ?');
   const banner = app.indexOf('offer && React.createElement("div", {');
   const header = app.indexOf('React.createElement("header", {');
@@ -59,4 +62,24 @@ test('the status bar is the header’s colour, in red light mode too', () => {
   const effect = app.match(/React\.useEffect\(\(\) => \{\s*const m = document\.querySelector\('meta\[name="theme-color"\]'\);\s*if \(m\) m\.setAttribute\('content', redMode \? '(#[0-9a-f]{6})' : '(#[0-9a-f]{6})'\);\s*\}, \[redMode\]\);/);
   assert.ok(effect, 'theme-color follows red light mode');
   assert.deepStrictEqual([effect[1], effect[2]], [redBg, rootBg]);
+});
+
+/*
+ * The iPhone app (2026-10-02, owner's screenshot): with Capacitor's
+ * contentInset "automatic" iOS started the page below the status bar and the
+ * header then added the status bar's height again as padding, leaving an
+ * empty band above the wordmark. "never" lets the page run under the status
+ * bar as it does on the website, where the header's env() padding is the one
+ * inset; the status bar's text is white over the dark header, and the web
+ * view's own background is the header's colour.
+ */
+test('the iPhone app draws under the status bar once, with white status bar text', () => {
+  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'capacitor.config.json'), 'utf8'));
+  assert.strictEqual(cfg.ios.contentInset, 'never');
+  assert.strictEqual(cfg.backgroundColor, rootBg);
+  const plist = fs.readFileSync(path.join(__dirname, '..', '..', 'native', 'ios', 'App', 'App', 'Info.plist'), 'utf8');
+  assert.match(plist, /<key>UIStatusBarStyle<\/key>\s*<string>UIStatusBarStyleLightContent<\/string>/);
+  assert.match(plist, /<key>UIViewControllerBasedStatusBarAppearance<\/key>\s*<true\/>/);
+  // The header pads itself by the status bar's height; the page doesn't.
+  assert.match(app, /paddingTop: "env\(safe-area-inset-top\)"/);
 });

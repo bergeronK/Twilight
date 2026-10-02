@@ -17,7 +17,7 @@ const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'NAV_STARS',
   'MOON_MARIA', 'skyBearing', 'bearingOnScreen', 'drawMoonDisc', 'chartXY', 'STAR_CI', 'starColor',
-  'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'heroMoonDisc', 'starGlow',
+  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'heroMoonDisc', 'starGlow',
   'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround']);
 
 // The real loader, fed stars.bin from disk.
