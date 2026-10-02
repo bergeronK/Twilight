@@ -388,7 +388,7 @@ stargazer is the default, navigator material is kept whole but folded.
   day: "the horizon looks good, but I don't think it's necessary to have
   that much sky"). `heroHorizon(h)` is the one rule for the horizon (a
   ground band of at most 150 px; 236 at 380 px, as always), used by the
-  painting, the motion layer, meteors and the Milky Way image. The welcome
+  painting, the motion layer and meteors. The welcome
   and the share card pass their own `hy` (62% down).
   **The painting moves (2026-09-23).** Three canvases: the still sky
   (`drawHorizonScene` with `part: 'sky'`, redrawn once a second as before),
@@ -486,22 +486,16 @@ stargazer is the default, navigator material is kept whole but folded.
   `loadMilkyWay`; sampled by `milkyWayField(mw, cols, rows, dirAt, lat, lst)`
   through each view's inverse projection (`horizToEq`; the painting's
   panorama; `chartDir` for the chart; `screenDir` for Sky View), turned into a
-  small image and drawn scaled up, which is what makes it a soft glow. **On
-  the Console it is honest**: `milkyWayVisibility(live.mag)` — all of it at
-  limiting magnitude 6.25+, none at 5.2 (Bortle 7, a big Moon, twilight) —
-  and it dims toward the horizon. **The painting's own look (2026-10-02;
-  it had read as grey smoke, then as blurry on the owner's iPhone):**
-  `milkyWayGlow(field, cols, rows, W, H)` lightly box-blurs the 1° steps,
-  takes level^1.5 so the faint outer band falls away and the star clouds
-  and the Great Rift (in the data) show, and warms the brighter parts. The
-  field is sampled every 2 px, but the image is made at the hero canvas's
-  own pixels (dpr capped at 2, as the canvas is), read between cells, with
-  a grain at every pixel (`pixelGrain`: mostly a little fainter, a few
-  brighter specks), so it is drawn 1:1 and stays sharp; it was 2 px cells
-  stretched up 4-6x. The grain only varies the data's brightness, never
-  adds light, and sits on the pixels: one fine enough to read as stars and
-  fixed to the sky would reshuffle every minute. About 20 ms once a minute
-  on a laptop. **On the chart and in Sky View it is
+  small image and drawn scaled up, which is what makes it a soft glow.
+  **Not on the Console's painting (owner, 2026-10-02):** it had a band
+  there, shown as the sky allowed (`milkyWayVisibility(live.mag)`: all of
+  it at limiting magnitude 6.25+, none at 5.2), but the original soft grey,
+  a warmer textured version and a sharp grainy one (v155-v157) each made
+  the picture less appealing, and the owner chose none from four mock-ups.
+  `HorizonHero` no longer loads or samples it, so the welcome and the share
+  card have none either; `milkyWayVisibility` still decides the "Milky
+  Way's centre" highlight. Don't put it back without showing the owner.
+  **On the chart and in Sky View it is
   always drawn, faintly**, as charts show it (they show every star too); not
   over Sky View's camera image. `milky-way.test.js` checks the data against
   the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of

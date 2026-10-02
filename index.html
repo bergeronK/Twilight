@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-n9mxwOHPh7eAwt+oRBN3+gSosFiI8uhnfiF/AQGI6f0=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-a0b3CRcl09C1oBaCDxo9811PgH4AJLKdadT4cvzq6nk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1694,72 +1694,6 @@ function milkyWayField(mw, cols, rows, dirAt, lat, lst) {
   }
   return out;
 }
-// A cols x rows grid averaged over (2r + 1) cells each way, edges clamped.
-function boxBlur(a, cols, rows, r) {
-  const tmp = new Float32Array(a.length), out = new Float32Array(a.length);
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    let t = 0;
-    for (let d = -r; d <= r; d++) t += a[j * cols + Math.max(0, Math.min(cols - 1, i + d))];
-    tmp[j * cols + i] = t / (2 * r + 1);
-  }
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    let t = 0;
-    for (let d = -r; d <= r; d++) t += tmp[Math.max(0, Math.min(rows - 1, j + d)) * cols + i];
-    out[j * cols + i] = t / (2 * r + 1);
-  }
-  return out;
-}
-// A scatter over the image's pixels, 0..1, the same for the same pixel.
-function pixelGrain(x, y) {
-  let n = Math.imul(x, 73856093) ^ Math.imul(y, 19349663);
-  n = Math.imul(n ^ (n >>> 13), 1274126177);
-  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-}
-/* The painting's Milky Way, as a `W` x `H` image at the canvas's own pixels,
-   so it is drawn 1:1. From the same levels as everywhere else, sampled over
-   `cols` x `rows` cells (2026-10-02; one flat grey had read as smoke, and
-   then 2 px cells blurred over and stretched up read as blurry on a phone):
-   - smoothed only over the data's 1° steps, and read between cells;
-   - a tone curve, so the faint outer band falls away and the bright star
-     clouds, and the dark lanes between them that the data holds (the Great
-     Rift from Cygnus to Ophiuchus), stand out;
-   - the brighter, the warmer: the star clouds toward the galaxy's centre
-     are older, yellower stars, the outer band bluish white;
-   - a grain at every pixel, the unresolved stars the glow is made of,
-     mostly faint with a few brighter specks. It only varies the brightness
-     the data gives, never adds light where it has none, and sits on the
-     image's pixels: one fine enough to read as stars and fixed to the sky
-     would reshuffle every minute as the sky turns. Browser only. */
-function milkyWayGlow(field, cols, rows, W, H) {
-  field = boxBlur(field, cols, rows, 1);
-  const LV = 256, A = new Float32Array(LV), R = new Uint8Array(LV), G = new Uint8Array(LV), B = new Uint8Array(LV);
-  for (let k = 1; k < LV; k++) {
-    const v = k / (LV - 1), t = Math.min(1, v * 1.25);
-    A[k] = Math.min(1, Math.pow(v, 1.5) * 1.35);
-    R[k] = Math.round(196 + 46 * t); G[k] = Math.round(206 + 20 * t); B[k] = Math.round(236 - 36 * t);
-  }
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data;
-  const sx = cols / W, sy = rows / H;
-  for (let y = 0; y < H; y++) {
-    const fy = Math.max(0, Math.min(rows - 1, (y + 0.5) * sy - 0.5));
-    const j0 = Math.floor(fy), j1 = Math.min(rows - 1, j0 + 1), ty = fy - j0;
-    for (let x = 0; x < W; x++) {
-      const fx = Math.max(0, Math.min(cols - 1, (x + 0.5) * sx - 0.5));
-      const i0 = Math.floor(fx), i1 = Math.min(cols - 1, i0 + 1), tx = fx - i0;
-      const v = (field[j0 * cols + i0] * (1 - tx) + field[j0 * cols + i1] * tx) * (1 - ty)
-        + (field[j1 * cols + i0] * (1 - tx) + field[j1 * cols + i1] * tx) * ty;
-      const k = Math.min(LV - 1, Math.round(v * (LV - 1)));
-      if (!(k > 0)) continue;
-      const n = pixelGrain(x, y), p = 4 * (y * W + x);
-      d[p] = R[k]; d[p + 1] = G[k]; d[p + 2] = B[k];
-      d[p + 3] = Math.round(255 * Math.min(1, A[k] * (0.55 + 1.2 * n * n * n)));
-    }
-  }
-  g.putImageData(img, 0, 0);
-  return c;
-}
 /* How much of the Milky Way a limiting magnitude lets you see, 0..1: all of
    it under a properly dark sky (6.25 and up; the app's darkest is 6.3), none
    at 5.2 — a bright suburb, a big Moon, or twilight. Bortle 5 (5.9) shows it
@@ -2285,7 +2219,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v158";
+const BUILD = "v159";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2981,12 +2915,6 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
       g.fillStyle = halo; g.beginPath(); g.arc(x, y, 70, 0, 7); g.fill();
       g.fillStyle = '#fff4d6'; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
     }
-  }
-  // The Milky Way, a soft band under the stars, as bright as the sky allows.
-  if (o.mw && o.mw.alpha > 0) {
-    g.globalAlpha = o.mw.alpha;
-    g.drawImage(o.mw.img, 0, 0, w, hy);
-    g.globalAlpha = 1;
   }
   // Stars: only those bright enough to see from here right now.
   o.stars.forEach(s => {
@@ -4843,11 +4771,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
-  const [mw, setMw] = useState(null);
   useEffect(() => {
     let alive = true;
     loadStarCatalog().then(c => { if (alive) setCatalog(c); });
-    loadMilkyWay().then(m => { if (alive) setMw(m); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {
@@ -4913,23 +4839,10 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   }, [minute, loc.lat, loc.lon, catalog, live]);
   const H = heroHeight(width);
   const facing = heroFacing(loc.lat, live.m);
-  // The Milky Way over the painting, once a minute, only when the sky is dark
-  // enough to show some of it. It fades toward the horizon, where the extra
-  // air dims it.
-  const mwVis = milkyWayVisibility(live.mag);
-  const mwPaint = useMemo(() => {
-    if (!mw || !(mwVis > 0) || typeof document === 'undefined') return null;
-    // Sampled every 2 px (the data is 1° cells, 2-3 px here), and made into
-    // an image at the canvas's own pixels, so its grain stays sharp.
-    const hy = heroHorizon(H), cols = Math.ceil(width / 2), rows = Math.ceil(hy / 2);
-    const lst = rev(gmst(new Date(now)) + loc.lon);
-    const field = milkyWayField(mw, cols, rows, (i, j) => {
-      const alt = (hy - (j + 0.5) * hy / rows) / (hy - 22) * 75;
-      return { az: facing + ((i + 0.5) / cols - 0.5) * HZ_SPAN, alt, w: Math.max(0, Math.min(1, (alt + 2) / 22)) };
-    }, loc.lat, lst);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    return milkyWayGlow(field, cols, rows, Math.round(width * dpr), Math.round(hy * dpr));
-  }, [mw, mwVis > 0, minute, width, H, facing, loc.lat, loc.lon]);
+  // No Milky Way in the painting (owner, 2026-10-02): a soft grey band, a
+  // warmer textured one and a sharp grainy one were all tried that day, and
+  // each made the picture less appealing. The Stars tab's chart and Sky View
+  // still draw it, faintly, as charts do.
   // Meteors to expect this minute, for the moving layer.
   const rate = useMemo(() => meteorRate(new Date(now), loc.lat, loc.lon, live.mag, live.alt),
     [minute, loc.lat, loc.lon, Math.round(live.mag * 4), Math.round(live.alt)]);
@@ -4966,8 +4879,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight,
-      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight
     };
     const gc = groundRef.current;
     if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
@@ -4979,7 +4891,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
     drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
     if (animRef.current) size(animRef.current, width, H);
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint]);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still]);
 
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
@@ -5061,8 +4973,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     shareSkyCard({
       scene: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
-        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
       },
       place: loc.name,
       when: `${fmtDate(now, loc.tz)} \u00B7 ${fmt(now)}`,
@@ -5115,8 +5026,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       line: welcomeLine(loc, locating), onDone: onIntroDone,
       o: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
-        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
       }
     }),
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
