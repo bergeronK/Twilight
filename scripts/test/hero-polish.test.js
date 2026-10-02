@@ -135,8 +135,10 @@ test('the Milky Way glow: no light where the data has none; brighter is warmer a
     assert.strictEqual(px(0)[3], 0, 'dark sky stays dark');
     assert.strictEqual(px(20)[3], 0, 'and so does the gap between');
     const faint = px(11), bright = px(29);
-    assert.ok(bright[3] > 3 * faint[3], `the faint band falls away (${faint[3]} vs ${bright[3]})`);
-    assert.ok(bright[0] - bright[2] > faint[0] - faint[2], 'the bright cloud is warmer');
+    // Linear, a fifth of the level would be a fifth of the light; the curve
+    // makes it under an eighth.
+    assert.ok(bright[3] > 7 * faint[3], `the faint band falls away (${faint[3]} vs ${bright[3]})`);
+    assert.ok(bright[0] > bright[2] + 20, 'the bright cloud is warm: more red than blue');
     assert.ok(faint[2] > faint[0], 'the faint band is bluish');
     // Grain varies the brightness by under a quarter either way, never adds any.
     const g0 = new Float32Array(cols), g1 = new Float32Array(cols).fill(0.999);
