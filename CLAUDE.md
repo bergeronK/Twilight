@@ -714,9 +714,18 @@ stargazer is the default, navigator material is kept whole but folded.
   verdict and subtitle under it (`wrapText`, two lines at most), the first
   highlight in amber, and "✦ twilyte.info". `shareSkyCard` waits for fonts,
   makes a PNG and uses `navigator.share({ files })` where the browser can
-  share files (phones), otherwise downloads `twilyte-tonight.png`. Inside
-  the native apps it goes through the same web share, untested on a device.
-  `share-card.test.js`.
+  share files (phones), otherwise downloads `twilyte-tonight.png`. **In the
+  iPhone app (2026-10-02, v154)** the web share did nothing and a download
+  has nowhere to go, so the picture goes as base64 PNG to
+  `TwilyteSharePlugin` (`AppDelegate.swift`, JS `TwilyteShare`, found by
+  `nativeShare()`, registered beside the CoreMotion plugin): iOS's share
+  sheet, anchored as a popover on iPad. Its Save Image needs
+  `NSPhotoLibraryAddUsageDescription` (add-only; nothing collected). The
+  picture keeps "twilyte.info" (owner). **The small "Share" link over the
+  Console is website-only** (owner, same day): it sends this page's address
+  with `?lat=&lon=`, and twilyte.info is to become the apps' website rather
+  than the web app, so no app links there. `share-card.test.js`,
+  `native-share.test.js`.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1034,6 +1043,9 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   picked, and nothing said so. Now, with sensors live and nothing picked,
   Sky View's bottom offers **Align on the Moon** when it's up (picks it),
   otherwise "Tap a bright star or planet you can see, then Align."
+  **Sensor details is the top bar's last row** (2026-10-02, like Find's
+  list) with its own Close: at a fixed height it covered the Sensors button
+  whenever the buttons wrapped to two rows (owner's iPhone).
 - **The iPhone app reads CoreMotion (2026-09-24, v111; on a device 2026-10-02).** In the
   Capacitor app, Sky View's orientation comes from CoreMotion's fused
   attitude in the true-north frame, the source native sky apps use, via
