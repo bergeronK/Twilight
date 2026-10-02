@@ -118,10 +118,70 @@ public class TwilyteMotionPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
-/// The app's web view controller: Capacitor's own, plus the plugin above,
+// MARK: - The share sheet
+
+/// iOS's share sheet, for the Console's "Share tonight's sky". In the app the
+/// web view's navigator.share did nothing (owner's iPhone, v153), and the
+/// picture's download link has nowhere to save to, so the page hands the
+/// picture and its words to this instead.
+///
+/// JS name `TwilyteShare`: `share({ text?, url?, image? })`, `image` a PNG as
+/// base64 (no data: prefix). Resolves `{ completed }`, false when the sheet
+/// is closed without sharing. "Save Image" in the sheet needs
+/// NSPhotoLibraryAddUsageDescription in Info.plist.
+@objc(TwilyteSharePlugin)
+public class TwilyteSharePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "TwilyteSharePlugin"
+    public let jsName = "TwilyteShare"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "share", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func share(_ call: CAPPluginCall) {
+        var items: [Any] = []
+        if let b64 = call.getString("image"), let data = Data(base64Encoded: b64), let image = UIImage(data: data) {
+            items.append(image)
+        }
+        if let text = call.getString("text"), !text.isEmpty {
+            items.append(text)
+        }
+        if let s = call.getString("url"), let url = URL(string: s) {
+            items.append(url)
+        }
+        if items.isEmpty {
+            call.reject("Nothing to share")
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let vc = self?.bridge?.viewController else {
+                call.reject("No view to share from")
+                return
+            }
+            let sheet = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            sheet.completionWithItemsHandler = { _, completed, _, error in
+                if let error = error {
+                    call.reject(error.localizedDescription)
+                } else {
+                    call.resolve(["completed": completed])
+                }
+            }
+            // On an iPad the sheet is a popover, which UIKit refuses to show
+            // unless it is anchored somewhere: the middle of the screen.
+            if let pop = sheet.popoverPresentationController {
+                pop.sourceView = vc.view
+                pop.sourceRect = CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY, width: 0, height: 0)
+                pop.permittedArrowDirections = []
+            }
+            vc.present(sheet, animated: true)
+        }
+    }
+}
+
+/// The app's web view controller: Capacitor's own, plus the plugins above,
 /// registered before the page loads. Main.storyboard names this class.
 class TwilyteBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(TwilyteMotionPlugin())
+        bridge?.registerPluginInstance(TwilyteSharePlugin())
     }
 }

@@ -119,6 +119,17 @@ What camera use *does* require:
   stored, or transmitted."* Without this, a reviewer who never taps that
   button may not find the feature and may ask why the permission exists.
 
+### 4a. Saving the sky picture — also not collection
+
+The Console's "Share tonight's sky" opens iOS's share sheet with a picture
+the app drew, and "Save Image" there writes it to the user's photos. That
+needs **`NSPhotoLibraryAddUsageDescription`** in `Info.plist` (added
+2026-10-02; without it iOS stops the app when Save Image is tapped). It is
+add-only: the app never reads the photo library, and nothing is sent
+anywhere, so **User Content → Photos or Videos** stays **No**. Current
+text: *"Twilyte saves the picture of tonight's sky to your photos when you
+choose Save Image. It never reads your photos."*
+
 **Every other category** (Contact Info, Health & Fitness, Financial Info,
 Sensitive Info, Contacts, User Content, Browsing History, Search History,
 Usage Data, Diagnostics, Other Data) → **not collected**.

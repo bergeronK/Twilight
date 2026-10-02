@@ -114,6 +114,8 @@ Motion: Sky View (Stars tab, "Open Sky View") reads the phone's orientation thro
 
 Camera: optional and off by default. In Sky View, the "Camera" button shows the live camera behind the star labels so they can be lined up with the real sky. Nothing is recorded or sent anywhere.
 
+Photos: add-only. On the Console tab, "Share tonight's sky" opens the share sheet with a picture the app draws; "Save Image" there saves it to Photos. The app never reads the photo library.
+
 Network: the app fetches a weather forecast from Open-Meteo (api.open-meteo.com), the space station's orbit from CelesTrak (celestrak.org) and the geomagnetic forecast from NOAA (services.swpc.noaa.gov). It contacts no server of its own.
 
 There are no in-app purchases in this version. The week planner, marked Pro on the website, is free for everyone in the app.

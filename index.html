@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Rgm3DkDCRnnayB4ThavrDXKhQEzdRP2H7YNIfNzMLE8=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zC60f3FivY1xNmokVRCHV1u4ALy4d0cPdaOaomVLDs4=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2210,7 +2210,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v153";
+const BUILD = "v154";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2356,6 +2356,15 @@ const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
    navigator.geolocation asked again on behalf of "localhost" (owner's
    iPhone, 2026-10-02). Errors come back in the browser's shape: code 1
    refused, 2 unavailable, 3 timed out. */
+// The iPhone app's share sheet (TwilyteSharePlugin in AppDelegate.swift).
+// In the app the browser's navigator.share did nothing (owner's iPhone, v153)
+// and a download has nowhere to go, so "Share tonight's sky" hands its
+// picture to iOS through this when it's present.
+function nativeShare() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteShare || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  return c.Plugins.TwilyteShare;
+}
 function nativeGeo() {
   const c = typeof window !== 'undefined' && window.Capacitor;
   if (!c || !c.Plugins || !c.Plugins.Geolocation || !c.getPlatform || c.getPlatform() === 'web') return null;
@@ -4363,15 +4372,21 @@ function shareSkyCard(o) {
   const cv = document.createElement('canvas');
   cv.width = 1080; cv.height = 1350;
   const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  const text = `${o.place}: ${o.head}. twilyte.info`;
   return ready.then(() => {
     drawShareCard(cv.getContext('2d'), 1080, 1350, o);
-    return new Promise(r => cv.toBlob(r, 'image/png'));
-  }).then(blob => {
+    // The iPhone app: iOS's own share sheet, which can also save the picture.
+    const ns = nativeShare();
+    if (ns) return ns.share({ image: cv.toDataURL('image/png').split(',')[1], text })
+      .then(r => r && r.completed ? 'shared' : 'cancelled');
+    return new Promise(r => cv.toBlob(r, 'image/png')).then(withBlob);
+  });
+  function withBlob(blob) {
     if (!blob) throw new Error('no image');
     const name = 'twilyte-tonight.png';
     const file = typeof File === 'function' ? new File([blob], name, { type: 'image/png' }) : null;
     if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      return navigator.share({ files: [file], title: "Tonight's sky", text: `${o.place}: ${o.head}. twilyte.info` })
+      return navigator.share({ files: [file], title: "Tonight's sky", text })
         .then(() => 'shared', e => e && e.name === 'AbortError' ? 'cancelled' : save());
     }
     return save();
@@ -4382,7 +4397,7 @@ function shareSkyCard(o) {
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       return 'saved';
     }
-  });
+  }
 }
 
 /* ---- Star Finder sky chart ----
@@ -7992,34 +8007,37 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
         ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
           shifted ? 'Nothing bright is up at that time.' : 'Nothing bright is up right now. Try again after dark.')
-      )
-    ),
-    // Sensor readout. Capped in height so the centre reticle stays visible —
-    // the reading is only meaningful while a body is held in the middle.
-    diag && diag.open && React.createElement('div', {
-      ...keepTap,
-      style: {
-        position: 'absolute', left: 12, right: 12,
-        top: 'calc(max(12px, env(safe-area-inset-top)) + 52px)',
-        maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
-        padding: '10px 12px', borderRadius: 10,
-        background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
-        backdropFilter: 'blur(8px)', color: '#eef2ff',
-        fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
-      }
-    },
-      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
-        React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
-          targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
-        React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel)
       ),
-      diag.entries.map(([k, v]) => React.createElement('div', {
-        key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+      // Sensor readout, also a last row of the bar: placed at a fixed height
+      // it covered the Sensors button whenever the buttons wrapped to two
+      // rows (a phone), so it was hard to close (owner's iPhone, v153).
+      // Capped in height so the centre reticle stays visible: the reading is
+      // only meaningful while a body is held in the middle.
+      diag && diag.open && React.createElement('div', {
+        style: {
+          flexBasis: '100%', boxSizing: 'border-box',
+          maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
+          padding: '10px 12px', borderRadius: 10,
+          background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#eef2ff',
+          fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
+        }
       },
-        React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
-        React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
-      )),
-      React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 } },
+          React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
+            targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
+          React.createElement('span', { style: { display: 'flex', gap: 6, flexShrink: 0 } },
+            React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel),
+            React.createElement('button', { onClick: diag.onToggle, 'aria-label': 'Close sensor details', style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, 'Close'))
+        ),
+        diag.entries.map(([k, v]) => React.createElement('div', {
+          key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+        },
+          React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
+          React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
+        )),
+        React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
+      )
     ),
     // Bottom status
     React.createElement('div', {
@@ -9887,7 +9905,11 @@ function TwilightApp() {
         React.createElement("path", { d: "M13.8 10.4A6.4 6.4 0 0 1 5.6 2.2 6.4 6.4 0 1 0 13.8 10.4Z", fill: redMode ? "currentColor" : "none", stroke: "currentColor", strokeWidth: 1.3, strokeLinejoin: "round" })
       ))
     ),
-    React.createElement("div", {
+    // The website's own address with this place, so not in the apps (owner,
+    // 2026-10-02): twilyte.info is to become the apps' website and stop
+    // serving the web app, and a link from an app would land there. The
+    // apps share tonight's sky as a picture instead.
+    !window.Capacitor && React.createElement("div", {
       style: { maxWidth: 1080, margin: "0 auto", padding: "8px clamp(14px,3.5vw,40px) 0", display: "flex", justifyContent: "flex-end" }
     },
       React.createElement("button", {
