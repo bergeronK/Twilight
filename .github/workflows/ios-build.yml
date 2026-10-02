@@ -73,7 +73,34 @@ jobs:
           test -f "$app/public/index.html"
           test -f "$app/public/lp/index.json"
           plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|ITSAppUsesNonExemptEncryption|UIRequiredDeviceCapabilities' -A2
+          plutil -p "$app/Info.plist" | grep -q UIApplicationSceneManifest
           du -sh "$app"
+          echo "APP=$app" >> "$GITHUB_ENV"
+
+      # Building is not launching: an app built with the current SDK and no
+      # UIScene life cycle compiles cleanly and is then stopped at launch,
+      # which is how the first run on the owner's iPhone ended. So start it
+      # in a simulator and check it is still running a while later.
+      - name: Launch in the simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          print(next(x["udid"] for k, v in sorted(d.items(), reverse=True) if "iOS" in k for x in v if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" "$APP"
+          xcrun simctl launch "$udid" info.twilyte.app
+          sleep 20
+          xcrun simctl io "$udid" screenshot launch.png
+          xcrun simctl spawn "$udid" launchctl list | grep 'UIKitApplication:info.twilyte.app'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-launch
+          path: launch.png
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         if: failure()

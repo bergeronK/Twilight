@@ -230,7 +230,8 @@ stargazer is the default, navigator material is kept whole but folded.
   `theme_color` matches. iOS reads the style when the app is added to the
   Home Screen, so an existing install must be removed and added again.
   Safari tabs ignore the meta; there the fixed header is what's sampled.
-  Other installed web apps fixed the same blur the same way.
+  Other installed web apps fixed the same blur the same way. **Confirmed
+  sharp on the owner's iPhone, reinstalled, 2026-10-02.**
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
@@ -252,6 +253,19 @@ stargazer is the default, navigator material is kept whole but folded.
   the web app, `lp/`, `PrivacyInfo.xcprivacy` and the Info.plist keys App
   Store Connect reads (`ITSAppUsesNonExemptEncryption` false: HTTPS only;
   `arm64`). Signing and uploading are done in Xcode on the owner's Mac.
+  **The app runs in UIKit's scene life cycle (2026-10-02, Capacitor 8.5.2).**
+  The owner's first device run, built with the current Xcode, was stopped
+  at launch: "UIScene life cycle is required for apps built with this SDK";
+  CI had only ever built, never launched. Now `App/SceneDelegate.swift`
+  (keeps the window UIKit builds from `Main.storyboard`, so
+  `TwilyteBridgeViewController` and its CoreMotion plugin load as before;
+  URL opens go to Capacitor's `SceneDelegateProxy`), a
+  `UIApplicationSceneManifest` in `Info.plist`, and AppDelegate's
+  `configurationForConnecting`. Capacitor's own `cap migrate` would have
+  written a SceneDelegate that makes a plain `CAPBridgeViewController`,
+  dropping the plugin. CI now also launches the app in a simulator and
+  checks it is still running 20 s later (`launch.png` uploaded).
+  `ios-scene.test.js`.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.

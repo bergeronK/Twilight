@@ -50,7 +50,14 @@ destination at the top of the window, press **Run** (⌘R). The first time,
 the phone asks you to turn on Developer Mode (Settings → Privacy & Security)
 and to trust the developer (Settings → General → VPN & Device Management).
 
-After pulling changes: `git pull && npm run sync`, then Run again.
+After pulling changes: `git pull && npm install && npm run sync`, then Run
+again (`npm install` picks up a new Capacitor version when `package.json`
+changes).
+
+The app uses UIKit's scene life cycle (`App/SceneDelegate.swift`, the
+`UIApplicationSceneManifest` in `Info.plist`), which needs Capacitor 8.5 or
+later. Built with the current Xcode, an app without it is stopped at
+launch: "UIScene life cycle is required for apps built with this SDK".
 
 Upload a build for TestFlight and the App Store:
 1. App Store Connect → Apps → **+** → New App: platform iOS, name

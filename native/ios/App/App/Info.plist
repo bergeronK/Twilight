@@ -30,6 +30,25 @@
 	<string>Twilyte uses your location to compute tonight's sky, twilight times, and star positions for where you are. Your location never leaves your device except to fetch a weather forecast.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Twilyte can show the live camera behind Sky View so you can line up stars against what you actually see. The camera is off by default, nothing is recorded, and no image ever leaves your device.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
