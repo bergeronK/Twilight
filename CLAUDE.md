@@ -1766,6 +1766,13 @@ that and is kept for its design detail):**
   first; a name near a side is pulled in whole rather than clipped. Tests
   check the names against the *lines*, not the file itself: same 88 ids, and
   every label within 10° of its own figure (7.9° max measured, Puppis).
+  **A name steps off a body's label** (2026-10-05: "PISCIS AUSTRINUS" was
+  written across "Fomalhaut" in a store shot): `drawSkyView` notes where
+  each named body's label will go first (`labelled()`, the one rule both
+  passes use), and a name moves a line down or up, or is left off. The
+  horizon's compass letters keep out of the same top and bottom bands
+  (they were written on Sky View's bottom line with the horizon low).
+  `sky-view-preview.test.js`.
 
 **Store and install screenshots regenerated with the Twilyte name
 (2026-09-23)** — iOS (iPhone + iPad), Android phone + feature graphic, and
@@ -1774,6 +1781,14 @@ the PWA's `screenshot-narrow.png` / `screenshot-wide.png`, which
 The Console shots were retaken when the horizon view became the default
 (same day), and the phone shots again when the tabs moved to the bottom
 (iPad and the wide PWA shot are over 780 px, so unchanged).
+**The iOS shots retaken for 1.0 (2026-10-05, v161)**, after the polish and
+the Bortle block. `generate.js` now loads the page **as the iPhone app does**
+(`app: 'ios'`: a `window.Capacitor` with no plugins), so the App Store shots
+have none of the website's "PRO", "free preview", Share link or visit count,
+and it grants no location, so the Console names the saved place ("Stowe,
+VT"), not "Your location". The PWA shots stay the website. The Android shots
+(`generate-android.js`) still show the website's words: give them the same
+treatment (`'android'`) before the Play listing.
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
@@ -1820,11 +1835,11 @@ The Console shots were retaken when the horizon view became the default
   path (**done 2026-10-02**: it runs on the iPhone and Sky View put Altair
   within 1°); (4) create the app in App Store Connect and upload an archive; (5)
   listing (subtitle, description, keywords, Reference category, review
-  notes; retake the screenshots, which predate the Bortle block); (6)
+  notes; screenshots retaken 2026-10-05); (6)
   submit. Decided 2026-10-02: 1.0 free with everything unlocked, Pro via
   RevenueCat in 1.1, category Reference; the support URL is
   `twilyte.info/support.html` and the listing text is
-  `docs/app-store-listing.md`. Still to do for (5): retake the screenshots.
+  `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
 
