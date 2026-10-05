@@ -131,8 +131,11 @@ through.
 
 Retaken for 1.0 on 2026-10-05, in `store-assets/ios/`, in the order to
 upload them (Console, Stars, Ephemeris, Sky View):
+- **6.5-inch iPhone**, 1284 × 2778: `iphone-6.5-01-console.png` to
+  `iphone-6.5-04-skyview.png`. This is the iPhone slot App Store Connect
+  showed (2026-10-05); it refused the 6.9-inch set.
 - **6.9-inch iPhone**, 1260 × 2736: `iphone-6.9-01-console.png` to
-  `iphone-6.9-04-skyview.png`.
+  `iphone-6.9-04-skyview.png`, for the 6.9-inch slot where it's offered.
 - **13-inch iPad**, 2064 × 2752: `ipad-13-01-console.png` to
   `ipad-13-04-skyview.png`.
 

@@ -1791,7 +1791,9 @@ and it grants no location, so the Console names the saved place, not
 it was Stowe, VT): recognised everywhere and Bortle 2 by the app's own
 tiles, so the shots are full of stars and the Console says "Truly dark
 sky". `PLACE` and `UTC_OFFSET_H` in `generate.js` (Arizona keeps UTC-7 all
-year). The PWA shots stay the website. The Android shots
+year). **A 6.5-inch iPhone set too** (`iphone-6.5-*`, 1284 × 2778,
+`IPHONE_65`): App Store Connect's iPhone slot was 6.5" and refused the
+6.9" set. The PWA shots stay the website. The Android shots
 (`generate-android.js`) still show the website's words: give them the same
 treatment (`'android'`) before the Play listing.
 

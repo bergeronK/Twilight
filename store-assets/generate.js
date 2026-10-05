@@ -35,6 +35,10 @@ const IPHONE = { w: W, h: H, dsr: DSR, mobile: true, app: 'ios' };
 // Safari reports a desktop-class viewport, and forcing mobile emulation
 // would screenshot a layout no real iPad shows.
 const IPAD = { w: 1032, h: 1376, dsr: 2, mobile: false, app: 'ios' };
+// 6.5" iPhone: 1284 x 2778 px (428 x 926 at 3x). App Store Connect showed
+// the owner a 6.5" slot that refused the 6.9" set (2026-10-05), so both go
+// up; Apple scales whichever it has to the other sizes.
+const IPHONE_65 = { w: 428, h: 926, dsr: 3, mobile: true, app: 'ios' };
 
 // Where the shots are taken (owner, 2026-10-05): the Grand Canyon's South
 // Rim, recognised everywhere and a dark sky (Bortle 2 by the app's own
@@ -172,6 +176,10 @@ if (require.main === module) (async () => {
   await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-02-stars.png'));
   await capture(browser, 'ephemeris', path.join(OUT, 'iphone-6.9-03-ephemeris.png'));
   await capture(browser, 'stars', path.join(OUT, 'iphone-6.9-04-skyview.png'), openSkyView);
+  await capture(browser, 'console', path.join(OUT, 'iphone-6.5-01-console.png'), null, IPHONE_65);
+  await capture(browser, 'stars', path.join(OUT, 'iphone-6.5-02-stars.png'), null, IPHONE_65);
+  await capture(browser, 'ephemeris', path.join(OUT, 'iphone-6.5-03-ephemeris.png'), null, IPHONE_65);
+  await capture(browser, 'stars', path.join(OUT, 'iphone-6.5-04-skyview.png'), openSkyView, IPHONE_65);
   await capture(browser, 'console', path.join(OUT, 'ipad-13-01-console.png'), null, IPAD);
   await capture(browser, 'stars', path.join(OUT, 'ipad-13-02-stars.png'), null, IPAD);
   await capture(browser, 'ephemeris', path.join(OUT, 'ipad-13-03-ephemeris.png'), null, IPAD);
