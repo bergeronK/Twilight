@@ -65,6 +65,28 @@ test('the preview keeps names clear of the text over the picture', () => {
   assert.ok(pv.arcs.length >= 3);
 });
 
+test('compass letters stay clear of the buttons and the words over the picture', () => {
+  // Looking north-east 29° up, as the store shot did: the horizon sits near
+  // the bottom, where Sky View's bottom line is, and "NE" was written on it.
+  const low = m.viewBasis(m.quatFromEuler((360 - 55) % 360, 90 + 29, 0), 0);
+  const H2 = 912;
+  const o = { basis: low, fov: 63, cam: false, bodies: [], lines: [], names: [], showLines: false, targetName: null };
+  const letters = r => r.texts.filter(t => /^[NESW]{1,3}$/.test(t.t));
+  // Where the horizon's letters fall with nothing kept clear: near the foot.
+  const all = recCtx(); m.drawSkyView(all.g, W, H2, Object.assign({}, o, { clearTop: 0, clearBottom: 0 }));
+  assert.ok(letters(all).some(t => t.y > H2 - 76), 'the case: a letter under the bottom line');
+  const full = recCtx(); m.drawSkyView(full.g, W, H2, o);
+  assert.ok(letters(full).every(t => t.y <= H2 - 76 && t.y - 12 >= 72), 'none under the bottom line or the buttons');
+  // Level, the horizon runs across the middle and its letters stay.
+  const level = recCtx();
+  m.drawSkyView(level.g, W, H2, Object.assign({}, o, { basis: m.viewBasis(m.quatFromEuler(0, 90, 0), 0) }));
+  assert.deepStrictEqual(letters(level).map(t => t.t), ['N'], 'facing north, level');
+  // The preview keeps clear of its own, larger, overlays.
+  const pv = recCtx();
+  m.drawSkyView(pv.g, W, 450, Object.assign({}, o, { basis, clearTop: 150, clearBottom: 120 }));
+  assert.ok(letters(pv).every(t => t.y <= 450 - 120 && t.y - 12 >= 150));
+});
+
 test('no aiming reticle on the preview', () => {
   const o = { basis, fov: 64, cam: false, bodies: [], lines: [], names: [], showLines: false, targetName: null };
   const reticle = r => r.arcs.some(a => a.r === 16 && Math.abs(a.x - W / 2) < 1e-9 && Math.abs(a.y - H / 2) < 1e-9);
