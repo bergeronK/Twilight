@@ -124,6 +124,30 @@ test('a constellation’s name steps off a star’s name, or is left off', () =>
   assert.ok(!cn || crowd.every(b => { const t = c.texts.find(x => x.t === b.name); return !t || !overlap(textBox(c, cn), { x1: t.x, x2: t.x + 6 * t.t.length, y1: t.y - 12, y2: t.y }); }));
 });
 
+test('a name that steps aside doesn’t land on another name', () => {
+  // PISCIS AUSTRINUS stepped up off Fomalhaut onto CAPRICORNUS.
+  // Fomalhaut's name blocks the spot and the line below; the line above is
+  // where Capricornus is written.
+  const a = at(200, 220), b = at(290, 204), star = at(150, 224);
+  const names = [
+    { id: 'Cap', name: 'Capricornus', rank: 1, az: b.az, alt: b.alt },
+    { id: 'PsA', name: 'Piscis Austrinus', rank: 1, az: a.az, alt: a.alt }
+  ];
+  const fom = { name: 'Fomalhaut', kind: 'star', mag: 1.2, nav: true, az: star.az, alt: star.alt };
+  const o = { basis, fov: 64, cam: false, lines: [{ id: 'Cap', rank: 1, pts: [] }], names, showLines: true, targetName: null, bodies: [fom] };
+  const r = recCtx(); m.drawSkyView(r.g, W, H, o);
+  const spaced = r.texts.filter(t => /\u2009/.test(t.t)).map(t => {
+    const half = 3 * t.t.length;
+    return { t: t.t, x1: t.x - half, x2: t.x + half, y1: t.y - 7, y2: t.y + 7 };
+  });
+  // Nowhere left for Piscis Austrinus, so it is left off; Capricornus stays.
+  assert.deepStrictEqual(spaced.map(t => t.t.replace(/\u2009/g, '')), ['CAPRICORNUS']);
+  for (let i = 0; i < spaced.length; i++) for (let j = i + 1; j < spaced.length; j++) {
+    const p = spaced[i], q = spaced[j];
+    assert.ok(!(p.x1 < q.x2 && q.x1 < p.x2 && p.y1 < q.y2 && q.y1 < p.y2), `${p.t} on ${q.t}`);
+  }
+});
+
 test('no aiming reticle on the preview', () => {
   const o = { basis, fov: 64, cam: false, bodies: [], lines: [], names: [], showLines: false, targetName: null };
   const reticle = r => r.arcs.some(a => a.r === 16 && Math.abs(a.x - W / 2) < 1e-9 && Math.abs(a.y - H / 2) < 1e-9);
