@@ -40,7 +40,7 @@ test('the week planner says Pro and preview on the website only', () => {
   assert.match(planner, /proShown\(\) === 'preview' && React\.createElement\("span", \{[^}]*\} \}, "free preview"\)/);
   const app = declSource('TwilightApp');
   assert.match(app, /"Week planner ", proShown\(\) && React\.createElement\("span"/);
-  assert.match(app, /iapMode \? " One-time purchase\." : proShown\(\) === 'preview' \? " Free during preview\." : ""/);
+  assert.match(app, /iapMode \? \([^)]*" One-time purchase\."\) : proShown\(\) === 'preview' \? " Free during preview\." : ""/);
   assert.strictEqual((HTML.match(/"PRO"/g) || []).length, 2);
   assert.strictEqual((HTML.match(/free preview|Free during preview/g) || []).length, 2);
 });

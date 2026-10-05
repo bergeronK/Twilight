@@ -64,7 +64,10 @@ Upload a build for TestFlight and the App Store:
    **Twilyte**, bundle ID `info.twilyte.app`, SKU e.g. `twilyte-ios`
    (once).
 2. Raise **Build** (the App target's General tab) above the last upload;
-   **Version** stays 1.0 until the next release.
+   **Version** stays 1.0 until the next release. **Build stays a whole
+   number under 100 while the app sells nothing**, and the first build that
+   sells Pro is 100: that number is how the app knows who had it first
+   (`../docs/monetization.md`; `monetization.test.js` checks it).
 3. Run destination **Any iOS Device (arm64)**, then Product → **Archive**.
    In the Organizer: **Distribute App** → **App Store Connect** →
    **Upload**. The build appears in TestFlight after Apple processes it
@@ -118,16 +121,17 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
    plugin is installed. It activates per-platform the moment a public SDK
    key is set in `RC_KEYS` in `../index.html` (search for `RC_KEYS`). Until
    then the app keeps today's free-preview behavior. To go live:
-   - App Store Connect: create the app (bundle id `info.twilyte.app`) and a
-     **non-consumable** IAP product (suggested id `tw_pro_lifetime`).
+   The plan, the early-supporter rule and the step-by-step list for 1.1
+   are in `../docs/monetization.md`. In short:
+   - App Store Connect: a **non-consumable** IAP product (`tw_pro_lifetime`).
    - RevenueCat (free tier): create a project + iOS app, connect App Store
      Connect, add the product to an **entitlement named exactly `pro`**
-     inside the **current offering**, then copy the public Apple SDK key
-     (`appl_…`) into `RC_KEYS.ios`.
+     and as the **Lifetime** package of the **current offering**, then copy
+     the public Apple SDK key (`appl_…`) into `RC_KEYS.ios`.
    - Same flow later for Google Play (`goog_…` key into `RC_KEYS.android`).
-   The purchase flow buys the first package of the current offering, so no
-   product ids appear in code — pricing and product changes are RevenueCat
-   dashboard operations.
+   The purchase flow buys the current offering's Lifetime package (else its
+   first), so no product ids appear in code — pricing and product changes
+   are RevenueCat dashboard operations.
 
 ## Sky View orientation from CoreMotion (iOS)
 

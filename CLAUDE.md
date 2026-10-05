@@ -317,6 +317,21 @@ stargazer is the default, navigator material is kept whole but folded.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
+  **The model (2026-10-05): free app, one-time Twilyte Pro, no ads**, and
+  whoever had the app before Pro went on sale keeps it.
+  `docs/monetization.md` holds the plan, the proposed free/Pro split and
+  the 1.1 steps. The rule is the iOS build number a person first
+  downloaded (`originalApplicationVersion`): `earlySupporter` says yes for
+  a whole number under `EARLY_BUILDS_BELOW` (100), and `rcApply` gives Pro
+  for it (`rcEarly`; Settings and Restore say why). **So every build while
+  the app sells nothing is Build 1-99, and the first that sells is 100**:
+  `monetization.test.js` fails if the Xcode project's
+  `CURRENT_PROJECT_VERSION` breaks that against `RC_KEYS.ios`. Whole
+  numbers only, because Apple's sandbox says "1.0" for every TestFlight
+  tester. Android says null, so it sells Pro from its first release. The
+  purchase buys the offering's Lifetime package; `prefStore`'s `pro` starts
+  off where the store sells it (`!rcPlugin()`, so `RC_KEYS` sits above
+  `prefStore`), on in 1.0 and on the website.
 - **`scripts/verify-build.js`**: CI build guard — asserts exactly 5 inline
   scripts, syntax-checks them, and asserts the CSP hashes match. Runs in
   `.github/workflows/build-guard.yml` on every push/PR.
@@ -1779,12 +1794,17 @@ The Console shots were retaken when the horizon view became the default
   (2026-09-22).
 - **iOS 1.0 is free with everything unlocked**, Pro via RevenueCat in 1.1;
   primary App Store category **Reference** (2026-10-02).
+- **Free app plus one purchase, Twilyte Pro; no ads, no subscription;
+  alerts stay free; 1.0's people keep Pro** (2026-10-05). Which features
+  join the week planner in Pro, and the price ($4.99 proposed), are still
+  the owner's to confirm (`docs/monetization.md`).
 
 **Blocked on the repo owner, not on engineering:**
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
-  `index.html` to activate the purchase flow. Owner has an Apple Developer
+  `index.html` to activate the purchase flow, with Xcode's Build at 100
+  (the steps: `docs/monetization.md`, "Turning it on"). Owner has an Apple Developer
   account as of this writing but has not yet created the App Store Connect
   app record, the IAP product, or the RevenueCat project.
 - **Old 1-year visitor hashes.** Hashes the Worker wrote before 2026-09-22
