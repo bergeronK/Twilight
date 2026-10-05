@@ -1793,7 +1793,8 @@ tiles, so the shots are full of stars and the Console says "Truly dark
 sky". `PLACE` and `UTC_OFFSET_H` in `generate.js` (Arizona keeps UTC-7 all
 year). **A 6.5-inch iPhone set too** (`iphone-6.5-*`, 1284 × 2778,
 `IPHONE_65`): App Store Connect's iPhone slot was 6.5" and refused the
-6.9" set. The PWA shots stay the website. The Android shots
+6.9" set. Likewise a 12.9" iPad set (`ipad-12.9-*`, 2048 × 2732,
+`IPAD_129`) beside the 13" one. The PWA shots stay the website. The Android shots
 (`generate-android.js`) still show the website's words: give them the same
 treatment (`'android'`) before the Play listing.
 

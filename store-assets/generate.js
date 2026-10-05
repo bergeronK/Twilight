@@ -39,6 +39,9 @@ const IPAD = { w: 1032, h: 1376, dsr: 2, mobile: false, app: 'ios' };
 // the owner a 6.5" slot that refused the 6.9" set (2026-10-05), so both go
 // up; Apple scales whichever it has to the other sizes.
 const IPHONE_65 = { w: 428, h: 926, dsr: 3, mobile: true, app: 'ios' };
+// 12.9" iPad: 2048 x 2732 px (1024 x 1366 at 2x), for an iPad slot that asks
+// for the older size rather than the 13" one.
+const IPAD_129 = { w: 1024, h: 1366, dsr: 2, mobile: false, app: 'ios' };
 
 // Where the shots are taken (owner, 2026-10-05): the Grand Canyon's South
 // Rim, recognised everywhere and a dark sky (Bortle 2 by the app's own
@@ -184,6 +187,10 @@ if (require.main === module) (async () => {
   await capture(browser, 'stars', path.join(OUT, 'ipad-13-02-stars.png'), null, IPAD);
   await capture(browser, 'ephemeris', path.join(OUT, 'ipad-13-03-ephemeris.png'), null, IPAD);
   await capture(browser, 'stars', path.join(OUT, 'ipad-13-04-skyview.png'), openSkyView, IPAD);
+  await capture(browser, 'console', path.join(OUT, 'ipad-12.9-01-console.png'), null, IPAD_129);
+  await capture(browser, 'stars', path.join(OUT, 'ipad-12.9-02-stars.png'), null, IPAD_129);
+  await capture(browser, 'ephemeris', path.join(OUT, 'ipad-12.9-03-ephemeris.png'), null, IPAD_129);
+  await capture(browser, 'stars', path.join(OUT, 'ipad-12.9-04-skyview.png'), openSkyView, IPAD_129);
   // The PWA install-prompt screenshots at the repo root. Sizes must match
   // manifest.json's "screenshots" entries: 780x1688 (narrow) and 1280x800
   // (wide). They are in sw.js's precache list, so bump CACHE when they change.

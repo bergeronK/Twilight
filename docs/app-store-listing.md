@@ -138,6 +138,9 @@ upload them (Console, Stars, Ephemeris, Sky View):
   `iphone-6.9-04-skyview.png`, for the 6.9-inch slot where it's offered.
 - **13-inch iPad**, 2064 × 2752: `ipad-13-01-console.png` to
   `ipad-13-04-skyview.png`.
+- **12.9-inch iPad**, 2048 × 2732: `ipad-12.9-01-console.png` to
+  `ipad-12.9-04-skyview.png`, for an iPad slot that asks for the older
+  size.
 
 App Store Connect scales these down for the smaller sizes. They show the
 app as the iPhone app draws it, with no website wording. To retake them:
