@@ -15,7 +15,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'gmst', 'jd', 'starHcZn',
-  'HZ_SPAN', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc',
+  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc',
   'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow',
   'TWINKLE_MAG', 'twinkleAmp', 'twinkle', 'METEOR_SHOWERS', 'SPORADIC_HR', 'showerActivity',
   'meteorRate', 'newMeteor', 'starGlow', 'drawSkyMotion']);
@@ -147,9 +147,11 @@ test('the two layers together draw what the still picture draws', () => {
   assert.deepStrictEqual(names(whole), [...names(sky), ...names(ground)].sort());
   assert.ok(names(sky).includes('Jupiter') && !names(sky).includes('S'), 'labels on the sky, compass on the ground');
   assert.strictEqual(sky.ground.length, 0, 'no ridge on the sky layer');
-  assert.strictEqual(ground.ground.length, 1, 'the ridge on the ground layer');
-  // With bleed, the ridge runs past both edges so sliding never shows a gap.
+  assert.strictEqual(ground.ground.length, 3, 'the three ridges on the ground layer');
+  // With bleed, every ridge runs past both edges so sliding never shows a gap.
   const bled = stubCtx(); m.drawHorizonScene(bled, W, H, Object.assign({}, o, { part: 'ground', bleed: 10 }));
-  const xs = bled.ground[0].filter(p => p[1] < Math.round(H * 0.62)).map(p => p[0]); // the ridge line, not the corners
-  assert.ok(Math.min(...xs) <= -10 && Math.max(...xs) >= W + 10);
+  for (const r of bled.ground) {
+    const xs = r.filter(p => p[1] < Math.round(H * 0.62)).map(p => p[0]); // the ridge line, not the corners
+    assert.ok(Math.min(...xs) <= -10 && Math.max(...xs) >= W + 10);
+  }
 });

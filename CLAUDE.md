@@ -147,7 +147,11 @@ stargazer is the default, navigator material is kept whole but folded.
   - `PAGE_BG` (a JS constant, not a CSS var) — the page backdrop wash, a
     cool navy-to-blue-black radial gradient, deliberately independent of the
     warm tokens so panels stay warm while the page's negative space reads
-    as night sky. Shared across all three tabs.
+    as night sky. Shared across all three tabs. Its 70 twinkling dots
+    (`.tw-stars`, Console and Ephemeris) show only in the margins of
+    screens over 1280 px (a CSS mask clears the middle 1200 px): across the
+    whole page they sat on the words like dust (2026-10-02).
+    `hero-polish.test.js` covers this and the painting's polish.
   - **Inter loads in two parts** (2026-09-24): `fonts/inter-latin.woff2`
     (141 KB; both axes and every OpenType feature, made by
     `scripts/subset-inter.sh` with fonttools) is preloaded and covers what
@@ -231,7 +235,19 @@ stargazer is the default, navigator material is kept whole but folded.
   Home Screen, so an existing install must be removed and added again.
   Safari tabs ignore the meta; there the fixed header is what's sampled.
   Other installed web apps fixed the same blur the same way. **Confirmed
-  sharp on the owner's iPhone, reinstalled, 2026-10-02.**
+  sharp on the owner's iPhone, reinstalled, 2026-10-02.** The spacer watches
+  the header's **border box** (`ro.observe(el, { box: 'border-box' })`): iOS
+  reports the status bar's height after the first layout, the header grows
+  by that much top padding, and the default content-box observer never
+  fired, so the tips banner slid under the header in the iPhone app.
+  **The iPhone app uses Capacitor's `contentInset: "never"`** (2026-10-02):
+  "automatic" started the page below the status bar and the header's env()
+  padding added the same height again, an empty band above the wordmark.
+  Now the page runs under the status bar as on the website, the header's
+  padding is the one inset, `UIStatusBarStyleLightContent` keeps the clock
+  white over the dark header, and the web view's background is the header's
+  `--bg`. iOS 26's soft edge blur needs a bar or an edge-effect interaction,
+  which a plain Capacitor view controller doesn't have.
 - **prefStore**: external store (`useSyncExternalStore` pattern) holding
   `h24`, `bortle`/`bortleMode` (auto|manual), `pro`. Persisted to
   `localStorage` under `tw_*` keys.
@@ -264,11 +280,58 @@ stargazer is the default, navigator material is kept whole but folded.
   `configurationForConnecting`. Capacitor's own `cap migrate` would have
   written a SceneDelegate that makes a plain `CAPBridgeViewController`,
   dropping the plugin. CI now also launches the app in a simulator and
-  checks it is still running 20 s later (`launch.png` uploaded).
+  checks it is still running 20 s later (`launch.png` uploaded), then shuts
+  the simulator down: left running, it held the runner's own clean-up for
+  20+ minutes after a pass.
   `ios-scene.test.js`.
+  **Ready for the App Store (2026-10-02; owner: 1.0 free, everything
+  unlocked, category Reference).** `proShown()` says how the week planner's
+  Pro status shows: 'sold' once RevenueCat has a key, 'preview' on the
+  website (the "PRO" badge and "free preview", unchanged), and nothing in a
+  native app that sells nothing, since App Review turns away an app that
+  calls itself a preview. The footer links **Help** (`/support.html`: how to
+  get in touch through the GitHub feedback form, your place, lining up Sky
+  View, the Ephemeris, the Bortle class, offline) beside Privacy, and
+  `native/sync-web.js` bundles both pages: the in-app privacy link was
+  broken before (App Review wants it reachable in the app). `/privacy.html`
+  says the apps sell nothing yet. **The app icon is full-bleed**: the round
+  art's faint ring and black corners showed as a light circle inside iOS's
+  own rounded square (owner); `native/generate-assets.py`'s `full_bleed`
+  fills outside the circle with each row's sky or ground colour from just
+  inside it, for `AppIcon-512@2x.png` and the website's `apple-touch-icon.png`
+  (`python3 generate-assets.py ios` redoes only those). The listing text is
+  `docs/app-store-listing.md` (subtitle, promotional text, description,
+  keywords, URLs, review notes); the space station and aurora stay out of
+  the description until seen working in the app. **Location in the apps
+  comes from Capacitor's Geolocation plugin** (`getPosition`, `canLocate`,
+  `nativeGeo`), so iOS asks "Allow Twilyte to use your location?" with
+  Info.plist's reason; `navigator.geolocation` in the web view asked a second
+  time on behalf of "localhost" (owner's iPhone). Plugin errors are mapped
+  to the browser's codes (denied or restricted 1, timeout 3, else 2), and
+  its timeout is at least 20 s since the permission question happens inside
+  the call. **Confirmed on the owner's iPhone (v153, 2026-10-02)**, with the
+  one status-bar inset below: one Twilyte prompt, no gap, banner visible.
+  After pulling, the owner's routine is `npm install && npm run sync`, then
+  ⌘R (sync is what copies the web app into the Xcode project; Team needs
+  setting again only after switching branches). `ios-release.test.js`.
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
+  **The model (2026-10-05): free app, one-time Twilyte Pro, no ads**, and
+  whoever had the app before Pro went on sale keeps it.
+  `docs/monetization.md` holds the plan, the proposed free/Pro split and
+  the 1.1 steps. The rule is the iOS build number a person first
+  downloaded (`originalApplicationVersion`): `earlySupporter` says yes for
+  a whole number under `EARLY_BUILDS_BELOW` (100), and `rcApply` gives Pro
+  for it (`rcEarly`; Settings and Restore say why). **So every build while
+  the app sells nothing is Build 1-99, and the first that sells is 100**:
+  `monetization.test.js` fails if the Xcode project's
+  `CURRENT_PROJECT_VERSION` breaks that against `RC_KEYS.ios`. Whole
+  numbers only, because Apple's sandbox says "1.0" for every TestFlight
+  tester. Android says null, so it sells Pro from its first release. The
+  purchase buys the offering's Lifetime package; `prefStore`'s `pro` starts
+  off where the store sells it (`!rcPlugin()`, so `RC_KEYS` sits above
+  `prefStore`), on in 1.0 and on the website.
 - **`scripts/verify-build.js`**: CI build guard — asserts exactly 5 inline
   scripts, syntax-checks them, and asserts the CSP hashes match. Runs in
   `.github/workflows/build-guard.yml` on every push/PR.
@@ -307,7 +370,14 @@ stargazer is the default, navigator material is kept whole but folded.
   so they stay in the header there; `aria-current="page"` marks the active
   one, and `#root` gets bottom padding so the footer clears the bar. That
   also retired the ≤384 px rule that hid the wordmark (the tabs were what
-  overflowed the header). **Reference below the fold** (2026-09-23,
+  overflowed the header). **A sideways swipe changes tab** (`main`'s
+  touch handlers), **except where it starts** inside `NO_SWIPE`
+  (`[data-noswipe]`, dialogs, range sliders; `swipeAllowed`, 2026-10-02):
+  lifting a finger after dragging the Ephemeris chart's readout switched to
+  the Console, and a sideways look in Sky View closed it onto the
+  Ephemeris (React passes a dialog's touches up to the tab). Mark anything
+  new that drags sideways with `data-noswipe`. `swipe.test.js`.
+  **Reference below the fold** (2026-09-23,
   option B of three the owner was offered): after the week planner a
   "Details" heading groups the look-up material. The older sky panel's
   picture, "Right now" verdict, faintest-star figure and Moon line are gone
@@ -324,6 +394,17 @@ stargazer is the default, navigator material is kept whole but folded.
   4 px; a city (Bortle 5+) shows after dark as a warm light dome over the
   horizon and lights on the ground. Rectangles of any size read as a bar
   chart. `horizon-scene.test.js` pins all of this with a recording canvas.
+  **Layered hills (2026-10-02, owner's polish pick):** behind the near
+  ridge, two farther ones, paler toward `sky.m`, and a glow of brighter air
+  over the last 70 px of sky, on the ground layer so it veils the twinkling
+  stars too; every ridge stays under 22 px. **The painting's size stays**
+  `heroHeight(width)`: 380 px on a phone, 420 wider. A taller one (60% of a
+  phone's height, 506 px on an iPhone, v155) was too much sky (owner, same
+  day: "the horizon looks good, but I don't think it's necessary to have
+  that much sky"). `heroHorizon(h)` is the one rule for the horizon (a
+  ground band of at most 150 px; 236 at 380 px, as always), used by the
+  painting, the motion layer and meteors. The welcome
+  and the share card pass their own `hy` (62% down).
   **The painting moves (2026-09-23).** Three canvases: the still sky
   (`drawHorizonScene` with `part: 'sky'`, redrawn once a second as before),
   a moving layer (`drawSkyMotion`: stars brighter than `TWINKLE_MAG` 2.5
@@ -420,10 +501,16 @@ stargazer is the default, navigator material is kept whole but folded.
   `loadMilkyWay`; sampled by `milkyWayField(mw, cols, rows, dirAt, lat, lst)`
   through each view's inverse projection (`horizToEq`; the painting's
   panorama; `chartDir` for the chart; `screenDir` for Sky View), turned into a
-  small image and drawn scaled up, which is what makes it a soft glow. **On
-  the Console it is honest**: `milkyWayVisibility(live.mag)` — all of it at
-  limiting magnitude 6.25+, none at 5.2 (Bortle 7, a big Moon, twilight) —
-  and it dims toward the horizon. **On the chart and in Sky View it is
+  small image and drawn scaled up, which is what makes it a soft glow.
+  **Not on the Console's painting (owner, 2026-10-02):** it had a band
+  there, shown as the sky allowed (`milkyWayVisibility(live.mag)`: all of
+  it at limiting magnitude 6.25+, none at 5.2), but the original soft grey,
+  a warmer textured version and a sharp grainy one (v155-v157) each made
+  the picture less appealing, and the owner chose none from four mock-ups.
+  `HorizonHero` no longer loads or samples it, so the welcome and the share
+  card have none either; `milkyWayVisibility` still decides the "Milky
+  Way's centre" highlight. Don't put it back without showing the owner.
+  **On the chart and in Sky View it is
   always drawn, faintly**, as charts show it (they show every star too); not
   over Sky View's camera image. `milky-way.test.js` checks the data against
   the galaxy (brightest in Sagittarius, empty at the galactic poles, 95%+ of
@@ -670,9 +757,18 @@ stargazer is the default, navigator material is kept whole but folded.
   verdict and subtitle under it (`wrapText`, two lines at most), the first
   highlight in amber, and "✦ twilyte.info". `shareSkyCard` waits for fonts,
   makes a PNG and uses `navigator.share({ files })` where the browser can
-  share files (phones), otherwise downloads `twilyte-tonight.png`. Inside
-  the native apps it goes through the same web share, untested on a device.
-  `share-card.test.js`.
+  share files (phones), otherwise downloads `twilyte-tonight.png`. **In the
+  iPhone app (2026-10-02, v154)** the web share did nothing and a download
+  has nowhere to go, so the picture goes as base64 PNG to
+  `TwilyteSharePlugin` (`AppDelegate.swift`, JS `TwilyteShare`, found by
+  `nativeShare()`, registered beside the CoreMotion plugin): iOS's share
+  sheet, anchored as a popover on iPad. Its Save Image needs
+  `NSPhotoLibraryAddUsageDescription` (add-only; nothing collected). The
+  picture keeps "twilyte.info" (owner). **The small "Share" link over the
+  Console is website-only** (owner, same day): it sends this page's address
+  with `?lat=&lon=`, and twilyte.info is to become the apps' website rather
+  than the web app, so no app links there. `share-card.test.js`,
+  `native-share.test.js`.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -990,6 +1086,9 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
   picked, and nothing said so. Now, with sensors live and nothing picked,
   Sky View's bottom offers **Align on the Moon** when it's up (picks it),
   otherwise "Tap a bright star or planet you can see, then Align."
+  **Sensor details is the top bar's last row** (2026-10-02, like Find's
+  list) with its own Close: at a fixed height it covered the Sensors button
+  whenever the buttons wrapped to two rows (owner's iPhone).
 - **The iPhone app reads CoreMotion (2026-09-24, v111; on a device 2026-10-02).** In the
   Capacitor app, Sky View's orientation comes from CoreMotion's fused
   attitude in the true-north frame, the source native sky apps use, via
@@ -1693,12 +1792,19 @@ The Console shots were retaken when the horizon view became the default
   planner and the alerts.
 - **The visit counter is website-only**; the native apps never contact it
   (2026-09-22).
+- **iOS 1.0 is free with everything unlocked**, Pro via RevenueCat in 1.1;
+  primary App Store category **Reference** (2026-10-02).
+- **Free app plus one purchase, Twilyte Pro; no ads, no subscription;
+  alerts stay free; 1.0's people keep Pro** (2026-10-05). Which features
+  join the week planner in Pro, and the price ($4.99 proposed), are still
+  the owner's to confirm (`docs/monetization.md`).
 
 **Blocked on the repo owner, not on engineering:**
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
   `npx wrangler deploy`), then flip `ALERTS_LIVE` in `index.html`.
 - RevenueCat public SDK key (`appl_…`) → drop into `RC_KEYS.ios` in
-  `index.html` to activate the purchase flow. Owner has an Apple Developer
+  `index.html` to activate the purchase flow, with Xcode's Build at 100
+  (the steps: `docs/monetization.md`, "Turning it on"). Owner has an Apple Developer
   account as of this writing but has not yet created the App Store Connect
   app record, the IAP product, or the RevenueCat project.
 - **Old 1-year visitor hashes.** Hashes the Worker wrote before 2026-09-22
@@ -1715,10 +1821,12 @@ The Console shots were retaken when the horizon view became the default
   within 1°); (4) create the app in App Store Connect and upload an archive; (5)
   listing (subtitle, description, keywords, Reference category, review
   notes; retake the screenshots, which predate the Bortle block); (6)
-  submit. Recommended, not yet confirmed: 1.0 free with everything
-  unlocked, Pro via RevenueCat in 1.1; a `twilyte.info/support` page for
-  the support URL; Android after iOS. Steps are in `native/README.md`
-  ("iOS on a Mac").
+  submit. Decided 2026-10-02: 1.0 free with everything unlocked, Pro via
+  RevenueCat in 1.1, category Reference; the support URL is
+  `twilyte.info/support.html` and the listing text is
+  `docs/app-store-listing.md`. Still to do for (5): retake the screenshots.
+  Recommended, not yet confirmed: Android after iOS. Steps are in
+  `native/README.md` ("iOS on a Mac").
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.

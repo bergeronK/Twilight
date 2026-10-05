@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-lCk0dGts5rJ3pV+xAyUoFULS2F9pBkk45LEWl81Oo74=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-DA4dY4di1p8UTOyBC524OlaFzjmIM3JMc5whhgLsIYA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -136,6 +136,15 @@
   @keyframes skyIn{from{opacity:0}to{opacity:1}}
   @keyframes wordsIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   @keyframes twBrandStar{0%,100%{opacity:1}50%{opacity:.28}}
+  /* The page's scattered stars only in the margins beside the content (the
+     columns are at most 1180 px): over it they sat on the words like dust on
+     the screen (2026-10-02). So none on a phone or any screen too narrow to
+     have margins; the painting is the sky there. */
+  .tw-stars{
+    -webkit-mask-image:linear-gradient(90deg,#000 calc(50% - 640px),transparent calc(50% - 600px),transparent calc(50% + 600px),#000 calc(50% + 640px));
+    mask-image:linear-gradient(90deg,#000 calc(50% - 640px),transparent calc(50% - 600px),transparent calc(50% + 600px),#000 calc(50% + 640px));
+  }
+  @media (max-width:1280px){ .tw-stars{ display:none; } }
   /* ---- accessibility ---- */
   /* Visible to screen readers, not to the eye. Used for guidance that would
      be redundant on screen but is the whole interface without one. */
@@ -1813,9 +1822,14 @@ async function skyBortle(lat, lon, get = lpFetch) {
   const ratio = lpRatioAt(t, idx.res, lat0, lon0, lat, lonW);
   return { bortle: lpBortle(ratio), ratio };
 }
+// RevenueCat's public SDK keys, one per platform (see "Pro entitlement" below
+// and docs/monetization.md). Here, ahead of prefStore, which reads them.
+const RC_KEYS = { ios: "", android: "" };
 /* ---- Global user preferences (external store, no prop drilling) ---- */
 const prefStore = (() => {
-  let h24 = true, bortle = 0, pro = true, bortleMode = 'auto'; // pro: multi-night planner — free during preview
+  // pro: the week planner. Everyone has it until the store sells it; then
+  // nobody does until the store says so, offline on a first launch included.
+  let h24 = true, bortle = 0, pro = !rcPlugin(), bortleMode = 'auto';
   let aimOffset = 0; // Aim Assist manual compass correction, degrees
   let skyFov = 63;   // Sky View vertical field of view, degrees
   let skyLines = true; // Sky View constellation lines
@@ -1915,7 +1929,6 @@ function useSkyLines() { return React.useSyncExternalStore(prefStore.subscribe, 
    "free during preview" behavior). Once keys are set, the native app
    reconciles `pro` with the store's "pro" entitlement at every launch, and
    the Settings toggle is replaced by purchase/restore controls. */
-const RC_KEYS = { ios: "", android: "" };
 function rcPlugin() {
   const c = window.Capacitor;
   if (!c || !c.Plugins || !c.Plugins.Purchases || !c.getPlatform) return null;
@@ -1925,6 +1938,14 @@ function rcPlugin() {
   // always possible via localStorage — real entitlement lives with the store.
   const key = RC_KEYS[c.getPlatform()] || window.__TW_RC_KEY || "";
   return key ? { P: c.Plugins.Purchases, key } : null;
+}
+// How the week planner's Pro status is shown: 'sold' once the store sells
+// it, 'preview' on the website, and nothing in a native app that doesn't
+// sell it yet. App Review turns away an app that calls itself a preview, and
+// the iPhone app's first version gives the planner to everyone.
+function proShown() {
+  if (rcPlugin()) return 'sold';
+  return typeof window !== 'undefined' && window.Capacitor ? null : 'preview';
 }
 let rcConfigured = null;
 function rcInit() {
@@ -1937,11 +1958,32 @@ function rcInit() {
   }
   return rcConfigured;
 }
+// Whoever had Twilyte while it sold nothing keeps Pro once it is for sale
+// (owner, 2026-10-05). On iOS the store says which build a person first
+// downloaded (`originalApplicationVersion`, that build's CFBundleVersion):
+// the free builds are numbered under EARLY_BUILDS_BELOW and the first build
+// that sells Pro starts there, which `monetization.test.js` holds the Xcode
+// project to. Whole numbers only: Apple's sandbox (TestFlight) says "1.0"
+// for everyone, which must not read as build 1, or no tester could try the
+// purchase. Android always says null, so Android sells Pro from its first
+// release. See docs/monetization.md.
+const EARLY_BUILDS_BELOW = 100;
+function earlySupporter(info) {
+  const v = info && info.originalApplicationVersion;
+  if (v == null || !/^\d+$/.test(String(v).trim())) return false;
+  const n = parseInt(v, 10);
+  return n > 0 && n < EARLY_BUILDS_BELOW;
+}
+let rcEarly = false;
 function rcApply(res) {
   // Tolerate both {customerInfo} wrappers and bare CustomerInfo shapes.
   const info = (res && res.customerInfo) || res;
   const active = info && info.entitlements && info.entitlements.active;
-  if (active) prefStore.setPro(!!active.pro);
+  if (active) {
+    // Set before setPro: its re-render reads it for the settings' words.
+    rcEarly = !active.pro && earlySupporter(info);
+    prefStore.setPro(!!active.pro || rcEarly);
+  }
   return prefStore.getPro();
 }
 async function rcPurchasePro() {
@@ -1949,7 +1991,8 @@ async function rcPurchasePro() {
   if (!P) throw new Error("Purchases unavailable");
   const res = await P.getOfferings();
   const cur = (res && res.current) || (res && res.offerings && res.offerings.current);
-  const pkg = cur && cur.availablePackages && cur.availablePackages[0];
+  // Pro is one non-consumable, offered as the offering's Lifetime package.
+  const pkg = cur && (cur.lifetime || (cur.availablePackages && cur.availablePackages[0]));
   if (!pkg) throw new Error("No product configured");
   return rcApply(await P.purchasePackage({ aPackage: pkg }));
 }
@@ -2202,7 +2245,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v152";
+const BUILD = "v160";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2342,6 +2385,50 @@ const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
 // this page is running inside it; null on the website and on Android, where
 // the browser's own absolute orientation already comes from the platform's
 // fused rotation vector.
+/* The device's position. In the iPhone and Android apps it comes through
+   Capacitor's Geolocation plugin, so the system asks "Allow Twilyte to use
+   your location?" with Info.plist's reason; the web view's own
+   navigator.geolocation asked again on behalf of "localhost" (owner's
+   iPhone, 2026-10-02). Errors come back in the browser's shape: code 1
+   refused, 2 unavailable, 3 timed out. */
+/* A sideways swipe changes tab, except where a finger drags something
+   sideways itself: the Ephemeris chart's readout follows the finger along
+   the day, and lifting it after a long drag switched to the Console
+   (owner's iPhone, v156). Also Sky View and the welcome, which are dialogs
+   (React passes their touches up to the tab, portal or not), and sliders. */
+const NO_SWIPE = '[data-noswipe], [role="dialog"], input[type="range"]';
+function swipeAllowed(target) {
+  return !(target && typeof target.closest === 'function' && target.closest(NO_SWIPE));
+}
+// The iPhone app's share sheet (TwilyteSharePlugin in AppDelegate.swift).
+// In the app the browser's navigator.share did nothing (owner's iPhone, v153)
+// and a download has nowhere to go, so "Share tonight's sky" hands its
+// picture to iOS through this when it's present.
+function nativeShare() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteShare || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  return c.Plugins.TwilyteShare;
+}
+function nativeGeo() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.Geolocation || !c.getPlatform || c.getPlatform() === 'web') return null;
+  return c.Plugins.Geolocation;
+}
+function canLocate() {
+  return !!(nativeGeo() || (typeof navigator !== 'undefined' && navigator.geolocation));
+}
+function getPosition(ok, fail, opts) {
+  const g = nativeGeo();
+  if (!g) return navigator.geolocation.getCurrentPosition(ok, fail, opts);
+  // The plugin asks for permission inside this call, so its timeout has to
+  // leave time to read the system's question.
+  const o = opts || {};
+  g.getCurrentPosition({ enableHighAccuracy: !!o.enableHighAccuracy, timeout: Math.max(o.timeout || 0, 20000) })
+    .then(ok, e => {
+      const code = String((e && e.code) || '');
+      fail({ code: /-000[38]$/.test(code) ? 1 : /-0010$/.test(code) ? 3 : 2, message: (e && e.message) || '' });
+    });
+}
 function nativeMotion() {
   const c = typeof window !== 'undefined' && window.Capacitor;
   if (!c || !c.Plugins || !c.Plugins.TwilyteMotion || !c.getPlatform || c.getPlatform() !== 'ios') return null;
@@ -2714,6 +2801,13 @@ function panoX(az, facing, span) {
   const d = ((az - facing + 540) % 360) - 180;
   return Math.abs(d) > span / 2 ? null : 0.5 + d / span;
 }
+// Where the horizon sits in a painting `h` px tall: a fixed band of ground
+// (at most 150 px) under it for the verdict and the compass points, so a
+// taller painting gives all its extra height to the sky. 62% down at the
+// phone's old 380 px, as before.
+function heroHorizon(h) {
+  return Math.round(h - Math.min(h * 0.38, 150));
+}
 // Up the painting: the horizon at `horizonY`, 75° altitude near the top.
 function panoY(alt, horizonY) {
   return Math.max(16, horizonY - (alt / 75) * (horizonY - 22));
@@ -2814,7 +2908,7 @@ function heroMoonDisc(w, hy, moon, facing) {
   return { x: f * w, y: panoY(Math.max(0, moon.alt), hy), r: Math.max(12, Math.min(22, w * 0.036)) };
 }
 function drawHorizonScene(g, w, h, o) {
-  const hy = Math.round(h * 0.62); // the horizon; ground and text sit below
+  const hy = o.hy || heroHorizon(h); // the horizon; ground and text sit below
   const X = az => { const f = panoX(az, o.facing, HZ_SPAN); return f === null ? null : f * w; };
   const Y = alt => panoY(alt, hy);
   const night = o.sunAlt < -6;
@@ -2847,12 +2941,6 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
       g.fillStyle = halo; g.beginPath(); g.arc(x, y, 70, 0, 7); g.fill();
       g.fillStyle = '#fff4d6'; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill();
     }
-  }
-  // The Milky Way, a soft band under the stars, as bright as the sky allows.
-  if (o.mw && o.mw.alpha > 0) {
-    g.globalAlpha = o.mw.alpha;
-    g.drawImage(o.mw.img, 0, 0, w, hy);
-    g.globalAlpha = 1;
   }
   // Stars: only those bright enough to see from here right now.
   o.stars.forEach(s => {
@@ -2923,23 +3011,43 @@ function drawHorizonSky(g, w, h, o, hy, X, Y, night) {
 }
 function drawHorizonGround(g, w, h, o, hy, X) {
   const b = o.bleed || 0;
-  // Ground: a low ridge with a soft treeline along it, the same every visit
-  // for the same place. One shape everywhere; a city shows as its light, not
-  // as buildings. (Buildings were tried twice: rectangles of any size read
-  // as a bar chart along the horizon.)
-  const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
-  g.fillStyle = '#05070d';
-  g.beginPath();
-  g.moveTo(-b, h);
-  let tree = 0;
-  for (let x = -b; x <= w + b; x += 3) {
-    const ridge = 5 + 6 * Math.sin(x / w * 4 + o.lon) + 3.5 * Math.sin(x / w * 11 + o.lat);
-    tree = tree * 0.55 + rnd() * 6 * 0.45; // smoothed, so the edge is soft, not jagged
-    g.lineTo(x, hy - ridge - tree);
+  const hex = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : null;
+  // The air low over the horizon, a little brighter than the sky above it,
+  // as it always is: the light crosses the most air there. Drawn on the
+  // ground's layer so it veils the twinkling stars low down too.
+  const air = hex(o.sky && o.sky.h);
+  if (air) {
+    const glow = g.createLinearGradient(0, hy - 70, 0, hy);
+    const c = hx(lerpC(air, '#ffffff', 0.12)).join(',');
+    glow.addColorStop(0, `rgba(${c},0)`); glow.addColorStop(1, `rgba(${c},${o.sunAlt < -12 ? 0.22 : 0.32})`);
+    g.fillStyle = glow; g.fillRect(-b, hy - 70, w + 2 * b, 72);
   }
-  g.lineTo(w + b, h);
-  g.closePath();
-  g.fill();
+  // Ground: a low ridge with a soft treeline along it, and two farther ridges
+  // showing over it, each paler toward the sky's colour, as distance makes
+  // hills look (2026-10-02; one flat ridge read as a strip of black). The
+  // same every visit for the same place. One kind of shape everywhere; a city
+  // shows as its light, not as buildings. (Buildings were tried twice:
+  // rectangles of any size read as a bar chart along the horizon.)
+  const rnd = hzRandom(Math.round((o.lat + 90) * 997) * 31 + Math.round((o.lon + 180) * 991));
+  const ridge = (fill, top) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.moveTo(-b, h);
+    for (let x = -b; x <= w + b; x += 3) g.lineTo(x, hy - top(x));
+    g.lineTo(w + b, h);
+    g.closePath();
+    g.fill();
+  };
+  const far = hex(o.sky && o.sky.m) || '#141832';
+  // Rounded summits on the far ridge, gentler folds on the middle one.
+  const hump = (x, f, ph) => Math.pow(0.5 + 0.5 * Math.sin(x / w * f + ph), 3);
+  ridge(lerpC(far, '#05070d', 0.5), x => 6 + 13 * hump(x, 2.6, o.lon * 0.7) + 3 * Math.sin(x / w * 7.1 + o.lat * 1.3));
+  ridge(lerpC(far, '#05070d', 0.78), x => 5 + 8 * hump(x, 4.3, o.lat * 0.9 + 2) + 2 * Math.sin(x / w * 11.3 + o.lon));
+  let tree = 0;
+  ridge('#05070d', x => {
+    tree = tree * 0.55 + rnd() * 6 * 0.45; // smoothed, so the edge is soft, not jagged
+    return 5 + 6 * Math.sin(x / w * 4 + o.lon) + 3.5 * Math.sin(x / w * 11 + o.lat) + tree;
+  });
   if (o.bortle >= 6 && o.sunAlt < -2) {
     // Lights in the town, on the ground rather than floating in the sky.
     for (let i = 0; i < (w + 2 * b) / 6; i++) {
@@ -3069,7 +3177,7 @@ function starGlow(g, x, y, r, mag, color, alpha) {
    life, and a star twinkling on top of it would give the game away. */
 function drawSkyMotion(g, w, h, o, t) {
   g.clearRect(0, 0, w, h);
-  const hy = Math.round(h * 0.62);
+  const hy = heroHorizon(h);
   const md = heroMoonDisc(w, hy, o.moon, o.facing);
   o.stars.forEach(s => {
     const f = panoX(s.az, o.facing, HZ_SPAN);
@@ -3866,8 +3974,8 @@ function weekPlannerEl(nights, loc, h24, pro) {
   },
     React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
       React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
-      React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
-      !rcPlugin() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
+      proShown() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
+      proShown() === 'preview' && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
       React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
     ),
     React.createElement("div", null,
@@ -4288,7 +4396,7 @@ function drawShareCard(g, W, H, o) {
   const k = 2, pw = W / k, ph = Math.round(H * 0.95 / k); // horizon ~60% down
   g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H);
   g.save(); g.scale(k, k);
-  drawHorizonScene(g, pw, ph, Object.assign({}, o.scene, { reserve: { w: pw * 0.72, h: 70 } }));
+  drawHorizonScene(g, pw, ph, Object.assign({}, o.scene, { reserve: { w: pw * 0.72, h: 70 }, hy: Math.round(ph * 0.62) }));
   g.restore();
   const pad = 64;
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
@@ -4329,15 +4437,21 @@ function shareSkyCard(o) {
   const cv = document.createElement('canvas');
   cv.width = 1080; cv.height = 1350;
   const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  const text = `${o.place}: ${o.head}. twilyte.info`;
   return ready.then(() => {
     drawShareCard(cv.getContext('2d'), 1080, 1350, o);
-    return new Promise(r => cv.toBlob(r, 'image/png'));
-  }).then(blob => {
+    // The iPhone app: iOS's own share sheet, which can also save the picture.
+    const ns = nativeShare();
+    if (ns) return ns.share({ image: cv.toDataURL('image/png').split(',')[1], text })
+      .then(r => r && r.completed ? 'shared' : 'cancelled');
+    return new Promise(r => cv.toBlob(r, 'image/png')).then(withBlob);
+  });
+  function withBlob(blob) {
     if (!blob) throw new Error('no image');
     const name = 'twilyte-tonight.png';
     const file = typeof File === 'function' ? new File([blob], name, { type: 'image/png' }) : null;
     if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-      return navigator.share({ files: [file], title: "Tonight's sky", text: `${o.place}: ${o.head}. twilyte.info` })
+      return navigator.share({ files: [file], title: "Tonight's sky", text })
         .then(() => 'shared', e => e && e.name === 'AbortError' ? 'cancelled' : save());
     }
     return save();
@@ -4348,7 +4462,7 @@ function shareSkyCard(o) {
       setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       return 'saved';
     }
-  });
+  }
 }
 
 /* ---- Star Finder sky chart ----
@@ -4604,6 +4718,13 @@ function SkyChart({ stars, lines, planets, deep, moon, sunAz, fix, polaris, mw, 
 /* The top of the Console: the painted sky with the
    verdict over its ground, then the ribbon and the facts. */
 const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past each side
+/* How tall the Console's painting is: 380 px on a phone, 420 on a wider
+   screen. A taller one (60% of a phone's height, 506 px on an iPhone) was
+   tried on 2026-10-02 and was too much sky (owner); the layered horizon
+   stayed. */
+function heroHeight(width) {
+  return width < 560 ? 380 : 420;
+}
 /* The first-run welcome: the Console's painting of this place's sky, full
    screen, filling in as it loads, with one line and a way in. Drawn by the
    same painter from the same scene as the hero beneath it, which is already
@@ -4635,7 +4756,8 @@ function WelcomeSky({ o, line, onDone }) {
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     // The horizon a little below the middle, so the words sit on the ground.
-    drawHorizonScene(g, size.w, Math.round(size.h * 0.9), Object.assign({}, o, { reserve: null }));
+    const sh = Math.round(size.h * 0.9);
+    drawHorizonScene(g, size.w, sh, Object.assign({}, o, { reserve: null, hy: Math.round(sh * 0.62) }));
   }, [o, size.w, size.h]);
   const close = pick => { setLeaving(true); setTimeout(() => onDone(pick), 450); };
   // Into <body> directly: the tab content's own layering (its fade-in) would
@@ -4675,11 +4797,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(390);
   const [catalog, setCatalog] = useState(null);
-  const [mw, setMw] = useState(null);
   useEffect(() => {
     let alive = true;
     loadStarCatalog().then(c => { if (alive) setCatalog(c); });
-    loadMilkyWay().then(m => { if (alive) setMw(m); });
     return () => { alive = false; };
   }, []);
   useEffect(() => {
@@ -4743,22 +4863,12 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         .filter(p => p.alt > 0)
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
-  const H = width < 560 ? 380 : 420;
+  const H = heroHeight(width);
   const facing = heroFacing(loc.lat, live.m);
-  // The Milky Way over the painting, once a minute, only when the sky is dark
-  // enough to show some of it. Sampled every 4 px and drawn scaled up; it
-  // fades toward the horizon, where the extra air dims it.
-  const mwVis = milkyWayVisibility(live.mag);
-  const mwPaint = useMemo(() => {
-    if (!mw || !(mwVis > 0) || typeof document === 'undefined') return null;
-    const hy = Math.round(H * 0.62), cols = Math.ceil(width / 4), rows = Math.ceil(hy / 4);
-    const lst = rev(gmst(new Date(now)) + loc.lon);
-    const field = milkyWayField(mw, cols, rows, (i, j) => {
-      const alt = (hy - (j + 0.5) * hy / rows) / (hy - 22) * 75;
-      return { az: facing + ((i + 0.5) / cols - 0.5) * HZ_SPAN, alt, w: Math.max(0, Math.min(1, (alt + 2) / 22)) };
-    }, loc.lat, lst);
-    return milkyWayImage(field, cols, rows, '205,214,236');
-  }, [mw, mwVis > 0, minute, width, H, facing, loc.lat, loc.lon]);
+  // No Milky Way in the painting (owner, 2026-10-02): a soft grey band, a
+  // warmer textured one and a sharp grainy one were all tried that day, and
+  // each made the picture less appealing. The Stars tab's chart and Sky View
+  // still draw it, faintly, as charts do.
   // Meteors to expect this minute, for the moving layer.
   const rate = useMemo(() => meteorRate(new Date(now), loc.lat, loc.lon, live.mag, live.alt),
     [minute, loc.lat, loc.lon, Math.round(live.mag * 4), Math.round(live.alt)]);
@@ -4795,8 +4905,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight,
-      mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight
     };
     const gc = groundRef.current;
     if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
@@ -4808,7 +4917,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
     drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
     if (animRef.current) size(animRef.current, width, H);
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still, mwPaint]);
+  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still]);
 
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
@@ -4844,7 +4953,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         const dt = last ? Math.min(0.25, (ts - last) / 1000) : 0;
         last = ts;
         if (m.rate.total > 0 && Math.random() < m.rate.total / 3600 * dt) {
-          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, Math.round(m.H * 0.62), m.facing), { t0: t }));
+          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, heroHorizon(m.H), m.facing), { t0: t }));
         }
         meteors = meteors.filter(x => t - x.t0 < x.dur);
         const dpr = cv.width / m.w;
@@ -4890,8 +4999,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     shareSkyCard({
       scene: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
-        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
       },
       place: loc.name,
       when: `${fmtDate(now, loc.tz)} \u00B7 ${fmt(now)}`,
@@ -4944,8 +5052,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       line: welcomeLine(loc, locating), onDone: onIntroDone,
       o: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
-        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon,
-        mw: mwPaint ? { img: mwPaint, alpha: 0.55 * mwVis } : null
+        planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
       }
     }),
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
@@ -5118,14 +5225,14 @@ function RealtimeTwilight({ redMode } = {}) {
   // keeps that place instead of opening the picker with an error.
   const useMyLocation = quiet => {
     quiet = quiet === true;
-    if (!navigator.geolocation) {
+    if (!canLocate()) {
       if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
       return;
     }
     if (!quiet) setGeoMsg("Locating…");
-    navigator.geolocation.getCurrentPosition(p => {
+    getPosition(p => {
       setLoc({
         name: "Your location",
         lat: p.coords.latitude,
@@ -6085,16 +6192,16 @@ function TwilightEphemeris({ redMode } = {}) {
     if (!Number.isNaN(lonN)) setOffset(Math.round(lonN / 15));
   }
   function useMyLocation() {
-    if (!navigator.geolocation) {
+    if (!canLocate()) {
       setGeoMsg("Geolocation unavailable in this browser.");
       return;
     }
-    if (!window.isSecureContext && location.hostname !== "localhost") {
+    if (!nativeGeo() && !window.isSecureContext && location.hostname !== "localhost") {
       setGeoMsg("Location needs a secure page: https:// or localhost. Opening the saved file directly (file://) blocks it \u2014 type coordinates instead.");
       return;
     }
     setGeoMsg("Locating\u2026");
-    navigator.geolocation.getCurrentPosition(pos => {
+    getPosition(pos => {
       setLat(pos.coords.latitude.toFixed(4));
       setLon(pos.coords.longitude.toFixed(4));
       // The phone's own time zone is the right one for where it is.
@@ -6837,6 +6944,8 @@ function TwilightEphemeris({ redMode } = {}) {
       display: "block",
       touchAction: "pan-y"
     },
+    // A drag along the day moves the readout, not the tab.
+    "data-noswipe": "",
     onMouseMove: e => {
       const r = svgRef.current.getBoundingClientRect();
       setHoverX((e.clientX - r.left) / r.width * W);
@@ -7958,34 +8067,37 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
         ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
           shifted ? 'Nothing bright is up at that time.' : 'Nothing bright is up right now. Try again after dark.')
-      )
-    ),
-    // Sensor readout. Capped in height so the centre reticle stays visible —
-    // the reading is only meaningful while a body is held in the middle.
-    diag && diag.open && React.createElement('div', {
-      ...keepTap,
-      style: {
-        position: 'absolute', left: 12, right: 12,
-        top: 'calc(max(12px, env(safe-area-inset-top)) + 52px)',
-        maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
-        padding: '10px 12px', borderRadius: 10,
-        background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
-        backdropFilter: 'blur(8px)', color: '#eef2ff',
-        fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
-      }
-    },
-      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
-        React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
-          targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
-        React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel)
       ),
-      diag.entries.map(([k, v]) => React.createElement('div', {
-        key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+      // Sensor readout, also a last row of the bar: placed at a fixed height
+      // it covered the Sensors button whenever the buttons wrapped to two
+      // rows (a phone), so it was hard to close (owner's iPhone, v153).
+      // Capped in height so the centre reticle stays visible: the reading is
+      // only meaningful while a body is held in the middle.
+      diag && diag.open && React.createElement('div', {
+        style: {
+          flexBasis: '100%', boxSizing: 'border-box',
+          maxWidth: 420, maxHeight: '36vh', overflowY: 'auto',
+          padding: '10px 12px', borderRadius: 10,
+          background: 'rgba(10,12,20,.84)', border: '1px solid rgba(255,255,255,.14)',
+          backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#eef2ff',
+          fontFamily: 'var(--font-ui)', fontSize: 11.5, lineHeight: 1.7
+        }
       },
-        React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
-        React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
-      )),
-      React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 } },
+          React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
+            targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
+          React.createElement('span', { style: { display: 'flex', gap: 6, flexShrink: 0 } },
+            React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel),
+            React.createElement('button', { onClick: diag.onToggle, 'aria-label': 'Close sensor details', style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, 'Close'))
+        ),
+        diag.entries.map(([k, v]) => React.createElement('div', {
+          key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
+        },
+          React.createElement('span', { style: { color: 'rgba(238,242,255,.55)' } }, k),
+          React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', textAlign: 'right' } }, v)
+        )),
+        React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
+      )
     ),
     // Bottom status
     React.createElement('div', {
@@ -8400,9 +8512,9 @@ function StarFinder({ redMode } = {}) {
   const [logOpen, setLogOpen] = useState(false);
   const skyNow = now + skyShift * 60000;
   const useMyLocation = () => {
-    if (!navigator.geolocation) { setGeoMsg("Geolocation isn't available on this device."); return; }
+    if (!canLocate()) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
-    navigator.geolocation.getCurrentPosition(p => {
+    getPosition(p => {
       const nl = { lat: p.coords.latitude, lon: p.coords.longitude, name: `${p.coords.latitude.toFixed(2)}°, ${p.coords.longitude.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
       setLoc(nl); setGeoMsg("");
       try { localStorage.setItem('tw_loc', JSON.stringify(nl)); } catch (e) {}
@@ -9484,8 +9596,12 @@ function TwilightApp() {
     const measure = () => setHeaderH(el.offsetHeight);
     measure();
     if (typeof ResizeObserver !== 'function') return;
+    // The border box: the header grows by its top padding when iOS reports
+    // the status bar's height, after the first layout. Watching the content
+    // box (the default) missed that, the spacer kept the smaller height, and
+    // the tips banner slid under the header (owner's iPhone, 2026-10-02).
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(el, { box: 'border-box' });
     return () => ro.disconnect();
   }, []);
   const [redMode, setRedMode] = React.useState(() => localStorage.getItem('tw_red') === '1');
@@ -9512,7 +9628,7 @@ function TwilightApp() {
   };
   const restorePro = async () => {
     setIapBusy(true); setIapMsg("");
-    try { setIapMsg((await rcRestorePro()) ? "Purchases restored." : "No previous purchase found."); }
+    try { setIapMsg((await rcRestorePro()) ? (rcEarly ? "Pro restored." : "Purchases restored.") : "No previous purchase found."); }
     catch (e) { setIapMsg("Restore failed — try again later."); }
     setIapBusy(false);
   };
@@ -9534,7 +9650,7 @@ function TwilightApp() {
   const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
   const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
   const touchStartX = React.useRef(null);
-  const handleTouchStart = e => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchStart = e => { touchStartX.current = swipeAllowed(e.target) ? e.touches[0].clientX : null; };
   const handleTouchEnd = e => {
     if (touchStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
@@ -9798,7 +9914,7 @@ function TwilightApp() {
         React.createElement("label", {
           style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)" }
         },
-          React.createElement("span", null, "Week planner ", React.createElement("span", { style: { fontSize: 9, letterSpacing: "0.1em", color: "var(--accent)", border: "1px solid var(--btn-border)", padding: "1px 5px", borderRadius: 4, fontWeight: 600 } }, "PRO")),
+          React.createElement("span", null, "Week planner ", proShown() && React.createElement("span", { style: { fontSize: 9, letterSpacing: "0.1em", color: "var(--accent)", border: "1px solid var(--btn-border)", padding: "1px 5px", borderRadius: 4, fontWeight: 600 } }, "PRO")),
           iapMode
             ? (pro
                 ? React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--accent-hi)", flexShrink: 0 } }, "✓ Unlocked")
@@ -9821,7 +9937,7 @@ function TwilightApp() {
         ),
         React.createElement("div", { style: { fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.4 } },
           "Ranks the next 7 nights by clear-and-dark conditions.",
-          iapMode ? " One-time purchase." : " Free during preview."
+          iapMode ? (pro && rcEarly ? " Yours free, since you had Twilyte before Pro went on sale." : " One-time purchase.") : proShown() === 'preview' ? " Free during preview." : ""
         ),
         iapMode && !pro && React.createElement("button", {
           onClick: restorePro, disabled: iapBusy,
@@ -9849,7 +9965,11 @@ function TwilightApp() {
         React.createElement("path", { d: "M13.8 10.4A6.4 6.4 0 0 1 5.6 2.2 6.4 6.4 0 1 0 13.8 10.4Z", fill: redMode ? "currentColor" : "none", stroke: "currentColor", strokeWidth: 1.3, strokeLinejoin: "round" })
       ))
     ),
-    React.createElement("div", {
+    // The website's own address with this place, so not in the apps (owner,
+    // 2026-10-02): twilyte.info is to become the apps' website and stop
+    // serving the web app, and a link from an app would land there. The
+    // apps share tonight's sky as a picture instead.
+    !window.Capacitor && React.createElement("div", {
       style: { maxWidth: 1080, margin: "0 auto", padding: "8px clamp(14px,3.5vw,40px) 0", display: "flex", justifyContent: "flex-end" }
     },
       React.createElement("button", {
@@ -9919,7 +10039,9 @@ function TwilightApp() {
         " © Olaf Frohn (",
         React.createElement("a", { href: "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
         ") · No tracking — only an anonymous visit count. ",
-        React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy")
+        React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy"),
+        " · ",
+        React.createElement("a", { href: "/support.html", style: { color: "var(--ink-dim)" } }, "Help")
       )
     )
   );

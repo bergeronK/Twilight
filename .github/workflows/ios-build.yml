@@ -72,6 +72,8 @@ jobs:
           test -f "$app/PrivacyInfo.xcprivacy"
           test -f "$app/public/index.html"
           test -f "$app/public/lp/index.json"
+          test -f "$app/public/privacy.html"
+          test -f "$app/public/support.html"
           plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|ITSAppUsesNonExemptEncryption|UIRequiredDeviceCapabilities' -A2
           plutil -p "$app/Info.plist" | grep -q UIApplicationSceneManifest
           du -sh "$app"
@@ -83,6 +85,9 @@ jobs:
       # in a simulator and check it is still running a while later.
       - name: Launch in the simulator
         run: |
+          # Shut the simulator down however the step ends: left running, it
+          # held the runner's own clean-up for over 20 minutes after a pass.
+          trap 'xcrun simctl shutdown all >/dev/null 2>&1 || true' EXIT
           udid=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
           d = json.load(sys.stdin)["devices"]

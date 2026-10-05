@@ -45,11 +45,22 @@ test('a saved place is kept quietly when the device’s location can’t be had'
   const src = declSource('RealtimeTwilight');
   const a = src.indexOf('const useMyLocation = quiet =>'), b = src.indexOf('\n  };', a) + 4;
   const body = src.slice(a, b);
+  // The shipped canLocate/getPosition, on the website (no Capacitor), with
+  // a stand-in for the browser's geolocation.
+  const { canLocate, getPosition } = extract(['nativeGeo', 'canLocate', 'getPosition']);
   const run = (quiet, outcome, hasGeo = true) => {
     const log = { msg: [], picker: [], loc: [] };
-    const navigator = { geolocation: hasGeo ? { getCurrentPosition: (ok, fail) => outcome === 'ok' ? ok({ coords: { latitude: 1, longitude: 2 } }) : fail() } : undefined };
-    new Function('navigator', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', body + '\nuseMyLocation(arguments[5]);')(
-      navigator, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, quiet);
+    const nav = { geolocation: hasGeo ? { getCurrentPosition: (ok, fail) => outcome === 'ok' ? ok({ coords: { latitude: 1, longitude: 2 } }) : fail() } : undefined };
+    const savedW = global.window, savedN = Object.getOwnPropertyDescriptor(global, 'navigator');
+    global.window = {};
+    Object.defineProperty(global, 'navigator', { value: nav, configurable: true, writable: true });
+    try {
+      new Function('canLocate', 'getPosition', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', body + '\nuseMyLocation(arguments[6]);')(
+        canLocate, getPosition, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, quiet);
+    } finally {
+      global.window = savedW;
+      if (savedN) Object.defineProperty(global, 'navigator', savedN); else delete global.navigator;
+    }
     return log;
   };
   // Opened with a saved place: nothing said, the picker stays shut.
