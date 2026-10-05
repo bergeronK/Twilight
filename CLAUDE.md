@@ -1769,7 +1769,8 @@ that and is kept for its design detail):**
   **A name steps off a body's label** (2026-10-05: "PISCIS AUSTRINUS" was
   written across "Fomalhaut" in a store shot): `drawSkyView` notes where
   each named body's label will go first (`labelled()`, the one rule both
-  passes use), and a name moves a line down or up, or is left off. The
+  passes use), and a name moves a line down or up, or is left off; the
+  line it takes must also be clear of the names already written. The
   horizon's compass letters keep out of the same top and bottom bands
   (they were written on Sky View's bottom line with the horizon low).
   `sky-view-preview.test.js`.
@@ -1785,8 +1786,12 @@ The Console shots were retaken when the horizon view became the default
 the Bortle block. `generate.js` now loads the page **as the iPhone app does**
 (`app: 'ios'`: a `window.Capacitor` with no plugins), so the App Store shots
 have none of the website's "PRO", "free preview", Share link or visit count,
-and it grants no location, so the Console names the saved place ("Stowe,
-VT"), not "Your location". The PWA shots stay the website. The Android shots
+and it grants no location, so the Console names the saved place, not
+"Your location". **The place is the Grand Canyon, AZ** (owner, 2026-10-05;
+it was Stowe, VT): recognised everywhere and Bortle 2 by the app's own
+tiles, so the shots are full of stars and the Console says "Truly dark
+sky". `PLACE` and `UTC_OFFSET_H` in `generate.js` (Arizona keeps UTC-7 all
+year). The PWA shots stay the website. The Android shots
 (`generate-android.js`) still show the website's words: give them the same
 treatment (`'android'`) before the Play listing.
 
