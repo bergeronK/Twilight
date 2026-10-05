@@ -129,6 +129,13 @@ through.
 
 ## Screenshots
 
-Retake them before submitting (`node store-assets/generate.js`): the
-current set predates the Console's Bortle block. Upload the sizes App Store
-Connect asks for when you get there (6.9-inch iPhone and 13-inch iPad).
+Retaken for 1.0 on 2026-10-05, in `store-assets/ios/`, in the order to
+upload them (Console, Stars, Ephemeris, Sky View):
+- **6.9-inch iPhone**, 1260 × 2736: `iphone-6.9-01-console.png` to
+  `iphone-6.9-04-skyview.png`.
+- **13-inch iPad**, 2064 × 2752: `ipad-13-01-console.png` to
+  `ipad-13-04-skyview.png`.
+
+App Store Connect scales these down for the smaller sizes. They show the
+app as the iPhone app draws it, with no website wording. To retake them:
+`node store-assets/generate.js`, with a local server running.

@@ -26,20 +26,29 @@ const OUT = path.join(__dirname, 'ios');
 // 420x912 CSS viewport at 3x device scale factor renders at exactly that
 // pixel size.
 const W = 420, H = 912, DSR = 3;
-const IPHONE = { w: W, h: H, dsr: DSR, mobile: true };
+// app: 'ios' loads the page as the iPhone app does (see capture), so the
+// shots show the app, not the website.
+const IPHONE = { w: W, h: H, dsr: DSR, mobile: true, app: 'ios' };
 // 13" iPad: 2064 x 2752 px portrait, required because the Xcode project
 // targets Universal (TARGETED_DEVICE_FAMILY = "1,2"). A 1032x1376 CSS
 // viewport at 2x renders exactly that. isMobile is false here — iPadOS
 // Safari reports a desktop-class viewport, and forcing mobile emulation
 // would screenshot a layout no real iPad shows.
-const IPAD = { w: 1032, h: 1376, dsr: 2, mobile: false };
+const IPAD = { w: 1032, h: 1376, dsr: 2, mobile: false, app: 'ios' };
+
+// Where the shots are taken (owner, 2026-10-05): the Grand Canyon's South
+// Rim, recognised everywhere and a dark sky (Bortle 2 by the app's own
+// satellite data), so the painting and Sky View are full of stars. Arizona
+// keeps standard time all year (UTC-7), so the clock never shifts.
+const PLACE = { lat: 36.0544, lon: -112.1401, name: "Grand Canyon, AZ", tz: "America/Phoenix" };
+const UTC_OFFSET_H = -7;
 
 // Synthetic Open-Meteo response: clear for the next 48h (so tonight's card
 // and the week planner's first rows agree), then a varied pattern so the
 // planner shows a mix of clear/cloudy/rain nights — a more representative
 // store screenshot than an all-clear week.
 function mkForecast() {
-  const off = -4 * 3600; // EDT
+  const off = UTC_OFFSET_H * 3600;
   const base = Math.floor(Date.now() / 3600000) * 3600000;
   const time = [], cc = [], hi = [], pp = [];
   for (let i = -1; i < 8 * 24; i++) {
@@ -50,25 +59,34 @@ function mkForecast() {
     else { const day = Math.floor(i / 24); v = [8, 8, 65, 20, 90, 35, 12, 55][day % 8]; }
     cc.push(v); hi.push(0); pp.push(i >= 96 && i < 120 ? 60 : 0);
   }
-  return { utc_offset_seconds: off, timezone: "America/New_York", hourly: { time, cloud_cover: cc, cloud_cover_high: hi, precipitation_probability: pp } };
+  return { utc_offset_seconds: off, timezone: PLACE.tz, hourly: { time, cloud_cover: cc, cloud_cover_high: hi, precipitation_probability: pp } };
 }
 
-// Fixed instant: tonight at ~22:15 local, so the mock forecast (anchored to
+// Fixed instant: tonight at 22:15 local, so the mock forecast (anchored to
 // the real current hour) lines up with what the app's clock shows.
-const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + 26.25 * 3600000);
+const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + (22.25 - UTC_OFFSET_H) * 3600000);
 
 async function capture(browser, tab, outPath, after, device) {
   const d = device || IPHONE;
-  const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dsr, isMobile: d.mobile, timezoneId: 'America/New_York' });
-  await ctx.grantPermissions(['geolocation']);
-  await ctx.setGeolocation({ latitude: 44.2601, longitude: -72.5806 }); // Stowe, VT — moderately dark sky, shows the star field well
+  const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dsr, isMobile: d.mobile, timezoneId: PLACE.tz });
+  // Location isn't granted: with a saved place the app's own try is quiet,
+  // and a refusal keeps the place, so the shots name it rather than say
+  // "Your location".
   const page = await ctx.newPage();
-  await page.addInitScript(() => {
-    localStorage.setItem('tw_loc', JSON.stringify({ lat: 44.2601, lon: -72.5806, name: "Stowe, VT", tz: "America/New_York" }));
+  // The App Store shots must show the app, not the website: the page looks
+  // for Capacitor's bridge to leave out the website's "PRO" badge and "free
+  // preview" (App Review turns away a "preview"), its Share link, the visit
+  // count and the install banner. With no plugins, location and motion fall
+  // back to the browser's, which Playwright supplies.
+  if (d.app) await page.addInitScript(platform => {
+    window.Capacitor = { getPlatform: () => platform, Plugins: {} };
+  }, d.app);
+  await page.addInitScript(place => {
+    localStorage.setItem('tw_loc', JSON.stringify(place));
     localStorage.setItem('tw_bortle_mode', 'auto');
     localStorage.setItem('tw_hint', '1'); // dismiss the onboarding banner for a cleaner shot
     localStorage.setItem('tw_welcomed', '1'); // and skip the first-run welcome
-  });
+  }, PLACE);
   await page.route('**/api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkForecast()) }));
   await page.clock.install({ time: tonight });
   // Do NOT swallow navigation failures. These images get committed, and a
@@ -99,6 +117,10 @@ async function capture(browser, tab, outPath, after, device) {
    frame with its neighbours visible, instead of dead centre behind the
    reticle. */
 async function openSkyView(page) {
+  // The star table lives in the folded "For navigators" section, and a shut
+  // <details> has no text to read; open it to read, then shut it again.
+  await page.evaluate(() => { const f = document.getElementById('for-navigators'); if (f) f.open = true; });
+  await page.waitForTimeout(400);
   const target = await page.evaluate(() => {
     // Star table rows read "Arcturusm0.0\n29°\n270° W" (the name and the
     // magnitude chip are adjacent inline spans, hence no space).
@@ -118,6 +140,7 @@ async function openSkyView(page) {
     cands.sort((a, b) => (b.near - a.near) || (a.mag - b.mag));
     return cands[0];
   });
+  await page.evaluate(() => { const f = document.getElementById('for-navigators'); if (f) f.open = false; });
   if (!target) throw new Error('no well-placed star found in the star table');
   const btn = page.getByRole('button', { name: 'Open Sky View' });
   await btn.scrollIntoViewIfNeeded();
