@@ -71,8 +71,8 @@ the Build field in Xcode). So:
   Review) see the Unlock button and can try a real sandbox purchase. The
   early path is covered by the tests with a stand-in store.
 - **If the store doesn't know yet** (no receipt on the phone), the person
-  sees Unlock; **Restore purchases** fetches it and says "Pro is yours,
-  since you had Twilyte before it went on sale."
+  sees Unlock; **Restore purchases** fetches it, says "Pro restored." and
+  the note above appears.
 - **Android always says null**, so it can't tell early people apart: launch
   Android with Pro on sale from its first release, and there is nobody to
   grandfather. If Android ships free first, decide a rule before 1.1 there.

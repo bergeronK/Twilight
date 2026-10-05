@@ -66,7 +66,7 @@ test('the store decides Pro: a purchase, or having had the app first', () => {
 test('Settings says why Pro is unlocked, and Restore says it too', () => {
   const app = declSource('TwilightApp');
   assert.match(app, /iapMode \? \(pro && rcEarly \? " Yours free, since you had Twilyte before Pro went on sale\." : " One-time purchase\."\)/);
-  assert.match(app, /\(await rcRestorePro\(\)\) \? \(rcEarly \? "Pro is yours, since you had Twilyte before it went on sale\." : "Purchases restored\."\)/);
+  assert.match(app, /\(await rcRestorePro\(\)\) \? \(rcEarly \? "Pro restored\." : "Purchases restored\."\)/);
   // rcEarly is set before setPro, whose re-render reads it.
   const apply = declSource('rcApply');
   assert.ok(apply.indexOf('rcEarly =') < apply.indexOf('prefStore.setPro('), 'set before the re-render');
@@ -97,7 +97,8 @@ test('nobody starts with Pro where the store sells it', () => {
   assert.match(ps, /pro = !rcPlugin\(\)/);
   const html = read('index.html');
   assert.ok(html.indexOf('const RC_KEYS') < html.indexOf('const prefStore'), 'RC_KEYS is declared before prefStore reads it');
-  const { rcPlugin } = extract(['RC_KEYS', 'rcPlugin']);
+  // With 1.0's empty keys, whatever the real ones are by then.
+  const rcPlugin = new Function('RC_KEYS', declSource('rcPlugin') + '\nreturn rcPlugin;')({ ios: '', android: '' });
   const saved = global.window;
   try {
     global.window = {};
