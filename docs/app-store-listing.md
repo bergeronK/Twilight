@@ -108,7 +108,7 @@ No.
 ```
 Twilyte needs no account; every feature is available without one.
 
-Location: asked for on first launch and used only on the device, to work out the sky and twilight times for where the user is. If declined, the app still works: tap the place name over the painted sky to search for a town or enter coordinates.
+Location: asked for on first launch, to work out the sky and twilight times for where the user is; the coordinates are also sent, with no identifier, to Open-Meteo for the local weather forecast. If declined, the app still works: tap the place name over the painted sky to search for a town or enter coordinates.
 
 Motion: Sky View (Stars tab, "Open Sky View") reads the phone's orientation through Core Motion to draw the sky in the direction the phone points. It can be tried indoors.
 
