@@ -87,6 +87,43 @@ test('compass letters stay clear of the buttons and the words over the picture',
   assert.ok(letters(pv).every(t => t.y <= 450 - 120 && t.y - 12 >= 150));
 });
 
+test('a constellation’s name steps off a star’s name, or is left off', () => {
+  // "PISCIS AUSTRINUS" was written across "Fomalhaut" (store screenshots).
+  const spot = at(200, 220);
+  const names = [{ id: 'PsA', name: 'Piscis Austrinus', rank: 1, az: spot.az, alt: spot.alt }];
+  const lines = [{ id: 'PsA', rank: 1, pts: [] }];
+  const base = { basis, fov: 64, cam: false, lines, names, showLines: true, targetName: null };
+  const textBox = (r, t) => {
+    // The recorder's measureText is 6 px a character, the name centred and
+    // the star's name to its right at baseline y + 4.
+    if (t.t === 'Fomalhaut') return { x1: t.x, x2: t.x + 6 * t.t.length, y1: t.y - 12, y2: t.y };
+    const half = 3 * t.t.length;
+    return { x1: t.x - half, x2: t.x + half, y1: t.y - 7, y2: t.y + 7 };
+  };
+  const overlap = (a, b) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+  const nameOf = r => r.texts.find(t => /^P\u2009I\u2009S/.test(t.t));
+  // Nothing in the way: the name sits on its spot.
+  const alone = recCtx(); m.drawSkyView(alone.g, W, H, Object.assign({ bodies: [] }, base));
+  assert.ok(nameOf(alone), 'named');
+  const home = nameOf(alone).y;
+  // A named star just left of the spot: the name moves off its label.
+  const star = at(150, 222);
+  const fom = { name: 'Fomalhaut', kind: 'star', mag: 1.2, nav: true, az: star.az, alt: star.alt };
+  const r = recCtx(); m.drawSkyView(r.g, W, H, Object.assign({ bodies: [fom] }, base));
+  const n = nameOf(r), f = r.texts.find(t => t.t === 'Fomalhaut');
+  assert.ok(n && f, 'both named');
+  assert.ok(Math.abs(n.y - home) === 16, `moved a line (${home} → ${n.y})`);
+  assert.ok(!overlap(textBox(r, n), textBox(r, f)), 'not across the star’s name');
+  // A faint, unnamed star there changes nothing.
+  const faint = recCtx(); m.drawSkyView(faint.g, W, H, Object.assign({ bodies: [Object.assign({}, fom, { name: 'HIP 1', nav: false, mag: 4 })] }, base));
+  assert.strictEqual(nameOf(faint).y, home);
+  // Hemmed in above and below: left off rather than written across.
+  const crowd = [fom, ...[-16, 16].map((dy, i) => { const q = at(150, 222 + dy); return Object.assign({}, fom, { name: 'Star' + i, az: q.az, alt: q.alt }); })];
+  const c = recCtx(); m.drawSkyView(c.g, W, H, Object.assign({ bodies: crowd }, base));
+  const cn = nameOf(c);
+  assert.ok(!cn || crowd.every(b => { const t = c.texts.find(x => x.t === b.name); return !t || !overlap(textBox(c, cn), { x1: t.x, x2: t.x + 6 * t.t.length, y1: t.y - 12, y2: t.y }); }));
+});
+
 test('no aiming reticle on the preview', () => {
   const o = { basis, fov: 64, cam: false, bodies: [], lines: [], names: [], showLines: false, targetName: null };
   const reticle = r => r.arcs.some(a => a.r === 16 && Math.abs(a.x - W / 2) < 1e-9 && Math.abs(a.y - H / 2) < 1e-9);
