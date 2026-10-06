@@ -1850,6 +1850,17 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
+  **1.0 (build 1) was submitted for App Review on 2026-10-06**, set to
+  **manual release**: once approved, the owner clicks Release This Version.
+  App Store Connect's app ID is 6819388363. What was entered: App Privacy
+  declares Precise Location only (App Functionality, not linked, no
+  tracking; no Purchases until 1.1), age rating 4+, Content Rights "yes,
+  third-party content, with the rights", category Reference, price Free.
+  App Store Connect asked for the 6.5" iPhone and 12.9" iPad screenshot
+  sizes, hence those sets. The App ID needs no capabilities (location,
+  camera and photos are Info.plist strings; In-App Purchase is on by
+  default). The EU trader-status question (Digital Services Act) is the
+  owner's to answer; until it is, the app isn't listed in the EU.
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.
