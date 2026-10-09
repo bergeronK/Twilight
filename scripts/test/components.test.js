@@ -126,8 +126,6 @@ const hooks = {
 // The constellation-lines preference as SkyDome sees it, and the last value
 // its Lines button asked to store.
 let skyLinesOn = true, skyLinesSet;
-const LOG = extract(['parseSeen', 'toggleSeen', 'seenKey', 'logSummary']);
-let seenLog = {}, seenToggled = null;
 function renderSkyDome(props) {
   const SkyDome = build('SkyDome', {
     React, ...hooks,
@@ -141,8 +139,6 @@ function renderSkyDome(props) {
     // Only reached from the canvas effect, which the stubbed useEffect never
     // runs; supplied so the build finds every name SkyDome closes over.
     constellationSegments: () => [],
-    // The observing log: a fresh one per render, the real key rule.
-    useSeen: () => seenLog, seenStore: { toggle: k => { seenToggled = k; } }, seenKey: LOG.seenKey,
     // Find: the real helpers, so the guide line and list render as shipped.
     ...FIND
   });
@@ -361,20 +357,14 @@ test('the readout says when CoreMotion is the source, and what it settled', () =
   assert.strictEqual(web['Fusion'], 'compass only');
 });
 
-test('Sky View: “I’ve seen it” marks the picked thing in the log, but never the Sun', () => {
+test('Sky View offers no “I’ve seen it”: the observing log was taken out', () => {
+  // Owner, 2026-10-09: the log and its Messier checklist went, so nothing
+  // in Sky View writes to it any more.
   const buttons = t => { const out = []; walk(t, n => { if (n.type === 'button') out.push(n); }); return out; };
   const andromeda = { name: 'Andromeda Galaxy', id: 'M31', kind: 'dso', type: 's', mag: 3.4, az: 60, alt: 50, size: 190 };
-  seenLog = {}; seenToggled = null;
-  let b = buttons(renderSkyDome({ bodies: [andromeda], targetName: 'Andromeda Galaxy' })).find(n => textOf(n).trim() === 'I’ve seen it');
-  assert.ok(b && b.props['aria-pressed'] === false);
-  b.props.onClick();
-  assert.strictEqual(seenToggled, 'M31', 'by its Messier number');
-  seenLog = { M31: 1 };
-  b = buttons(renderSkyDome({ bodies: [andromeda], targetName: 'Andromeda Galaxy' })).find(n => textOf(n).trim() === 'Seen it');
-  assert.ok(b && b.props['aria-pressed'] === true);
-  seenLog = {};
-  const sun = buttons(renderSkyDome({ bodies: [{ name: 'Sun', kind: 'sun', az: 180, alt: 30, mag: -26 }], targetName: 'Sun' }));
-  assert.ok(!sun.some(n => /seen it/i.test(textOf(n))));
+  const tree = renderSkyDome({ bodies: [andromeda], targetName: 'Andromeda Galaxy' });
+  assert.ok(!buttons(tree).some(n => /seen it/i.test(textOf(n))));
+  assert.match(textOf(tree), /Andromeda Galaxy is 50° up/, 'the picked thing is still described');
 });
 
 test('no element is given a style object as its props', () => {

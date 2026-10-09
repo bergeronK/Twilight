@@ -130,6 +130,19 @@ anywhere, so **User Content → Photos or Videos** stays **No**. Current
 text: *"Twilyte saves the picture of tonight's sky to your photos when you
 choose Save Image. It never reads your photos."*
 
+### 4b. Adding to the calendar — also not collection
+
+"Add to calendar" (the Console's sunset and sunrise, the sextant window)
+opens iOS's own event editor, which from iOS 17 needs no permission at all.
+The Ephemeris's month export adds its events directly and asks for
+**write-only** calendar access, which lets the app add events but never
+read any. Nothing leaves the device, so this changes no answer above.
+`Info.plist` carries **`NSCalendarsWriteOnlyAccessUsageDescription`**
+(iOS 17+) and **`NSCalendarsUsageDescription`** (iOS 15 and 16, where the
+older permission is the only one), added 2026-10-09. Current text: *"Twilyte
+adds the twilight times you choose to your calendar. It can't see what's in
+your calendar."*
+
 **Every other category** (Contact Info, Health & Fitness, Financial Info,
 Sensitive Info, Contacts, User Content, Browsing History, Search History,
 Usage Data, Diagnostics, Other Data) → **not collected**.

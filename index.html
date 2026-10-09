@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-2BPEkfiyBpY/qZMW5z8UNfTuR0ScTN9pA200lpQ3RoI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ona8FIFyf89ORBE+UYNA6v2rNz7Gj2H88ZuSJrqJ6iE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -1881,40 +1881,6 @@ const prefStore = (() => {
     subscribe: f => { subs.add(f); return () => subs.delete(f); }
   };
 })();
-/* The observing log: what you've seen, {key: when first marked, ms}, kept
-   in this browser only (tw_seen). The key is a Messier number for a
-   galaxy, nebula or cluster, otherwise the name ("Jupiter", "Orion"). */
-function parseSeen(raw) {
-  try {
-    const o = JSON.parse(raw || '{}');
-    if (!o || typeof o !== 'object' || Array.isArray(o)) return {};
-    const out = {};
-    for (const [k, v] of Object.entries(o)) if (k.length <= 40 && Number.isFinite(v) && v > 0) out[k] = v;
-    return out;
-  } catch (e) { return {}; }
-}
-function toggleSeen(log, key, now) {
-  const out = { ...log };
-  if (out[key]) delete out[key]; else out[key] = now;
-  return out;
-}
-const seenKey = b => (b ? (b.kind === 'dso' && b.id ? b.id : b.name) : null);
-const seenStore = (() => {
-  let log = {};
-  try { log = parseSeen(localStorage.getItem('tw_seen')); } catch (e) {}
-  const subs = new Set();
-  return {
-    get: () => log,
-    subscribe: f => { subs.add(f); return () => subs.delete(f); },
-    toggle(key) {
-      if (!key) return;
-      log = toggleSeen(log, key, Date.now());
-      try { localStorage.setItem('tw_seen', JSON.stringify(log)); } catch (e) {}
-      subs.forEach(f => f());
-    }
-  };
-})();
-function useSeen() { return React.useSyncExternalStore(seenStore.subscribe, seenStore.get); }
 function useH24() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getH24); }
 function useBortle() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortle); }
 function useBortleMode() { return React.useSyncExternalStore(prefStore.subscribe, prefStore.getBortleMode); }
@@ -2245,7 +2211,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v161";
+const BUILD = "v162";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
@@ -2408,6 +2374,68 @@ function nativeShare() {
   const c = typeof window !== 'undefined' && window.Capacitor;
   if (!c || !c.Plugins || !c.Plugins.TwilyteShare || !c.getPlatform || c.getPlatform() !== 'ios') return null;
   return c.Plugins.TwilyteShare;
+}
+// The iPhone app's calendar (TwilyteCalendarPlugin in AppDelegate.swift).
+function nativeCalendar() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteCalendar || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  return c.Plugins.TwilyteCalendar;
+}
+// The events in a calendar file this page made, for the iPhone app's
+// calendar, which takes events rather than files: title, start and end (ms,
+// from the UTC times Twilyte writes), the description, and the reminder in
+// minutes before the start. A VALARM's own DESCRIPTION is not the event's.
+function icsEvents(text) {
+  const lines = String(text || '').replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  const unesc = v => v.replace(/\\([\\;,nN])/g, (m, c) => (c === 'n' || c === 'N' ? '\n' : c));
+  const when = v => {
+    const m = /^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)Z$/.exec(v);
+    return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : NaN;
+  };
+  const out = [], open = [];
+  let ev = null;
+  for (const line of lines) {
+    const i = line.indexOf(':');
+    if (i < 0) continue;
+    const key = line.slice(0, i).split(';')[0].toUpperCase(), val = line.slice(i + 1);
+    if (key === 'BEGIN') { open.push(val); if (val === 'VEVENT') ev = { title: '', notes: '' }; continue; }
+    if (key === 'END') {
+      open.pop();
+      if (val === 'VEVENT' && ev) { if (Number.isFinite(ev.start) && Number.isFinite(ev.end)) out.push(ev); ev = null; }
+      continue;
+    }
+    if (!ev) continue;
+    const inside = open[open.length - 1];
+    if (inside === 'VEVENT') {
+      if (key === 'SUMMARY') ev.title = unesc(val);
+      else if (key === 'DESCRIPTION') ev.notes = unesc(val);
+      else if (key === 'DTSTART') ev.start = when(val);
+      else if (key === 'DTEND') ev.end = when(val);
+    } else if (inside === 'VALARM' && key === 'TRIGGER') {
+      const m = /^-PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(val);
+      if (m && (m[1] || m[2])) ev.alarm = (+m[1] || 0) * 60 + (+m[2] || 0);
+    }
+  }
+  return out;
+}
+// Saves a file the page made. A browser downloads it. In the iPhone app a
+// download goes nowhere (owner's iPhone, v161: every "Add to calendar"
+// button and both month exports did nothing), so there a calendar's events
+// go to iOS's Calendar and anything else to the share sheet (Save to Files,
+// Numbers, Mail).
+function saveFile(name, text, mime) {
+  const cal = mime === 'text/calendar' ? nativeCalendar() : null;
+  if (cal) return cal.add({ events: icsEvents(text) }).catch(() => null);
+  const ns = nativeShare();
+  if (ns) return ns.share({ fileName: name, fileText: text }).catch(() => null);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  return Promise.resolve(null);
 }
 function nativeGeo() {
   const c = typeof window !== 'undefined' && window.Capacitor;
@@ -2702,6 +2730,8 @@ function tonightGlance(live) {
    The Console's first screen since 2026-09-23 (it was behind
    ?preview=horizon before that). */
 try { localStorage.removeItem('tw_preview_horizon'); } catch (e) {}
+// The observing log was taken out (owner, 2026-10-09); what it kept goes too.
+try { localStorage.removeItem('tw_seen'); } catch (e) {}
 const HZ_SPAN = 200; // degrees of horizon across the painting
 
 /* The night in progress, or the next one: a sunset and the sunrise after it.
@@ -5394,14 +5424,7 @@ function RealtimeTwilight({ redMode } = {}) {
     if (sunrise) add(sunrise, "sunrise", wx && wx.east, (sunrise.when === "today" ? "This morning\u2019s" : "Tomorrow\u2019s") + " sunrise");
     return out.sort((a, b) => a.t - b.t);
   }, [wx, sunset, sunrise, hourKey]);
-  const saveICS = (text, name) => {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/calendar" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const saveICS = (text, name) => saveFile(name, text, "text/calendar");
   // Calendar events with a reminder: the next sunset and sunrise, soonest first.
   const reminders = [
     sunset && { kind: "sunset", t: sunset.t, label: "Add sunset to calendar", aria: "Add " + (sunset.when === "today" ? "tonight" : "tomorrow") + "\u2019s sunset to your calendar",
@@ -6258,19 +6281,7 @@ function TwilightEphemeris({ redMode } = {}) {
     return rows;
   }
   const cell = (e, off = offMin) => e.none === "above" ? "no event (sun too high)" : e.none === "below" ? "no event (sun too low)" : fmtLocal(e.utc, off);
-  function download(name, text, mime) {
-    const blob = new Blob([text], {
-      type: mime
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+  const download = (name, text, mime) => saveFile(name, text, mime);
   function exportCSV() {
     const hdr = ["Date", "Astronomical dawn", "Nautical dawn", "Civil dawn", "Sunrise", "Solar noon", "Sunset", "Civil dusk", "Nautical dusk", "Astronomical dusk",
       "Blue hour (morning)", "Golden hour (morning)", "Golden hour (evening)", "Blue hour (evening)", "Moonrise", "Moonset"];
@@ -7827,7 +7838,6 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const [cam, setCam] = useState(false);
   const [camErr, setCamErr] = useState(null);
   const [findOpen, setFindOpen] = useState(false);
-  const seen = useSeen();
   const [timeOpen, setTimeOpen] = useState(false);
   const shifted = !!(time && time.shift);
   const [size, setSize] = useState({ w: 360, h: 640 });
@@ -8092,8 +8102,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
               textAlign: 'left', cursor: 'pointer'
             }
           },
-            React.createElement('span', null, it.name,
-              seen[it.id || it.name] ? React.createElement('span', { style: { marginLeft: 8, fontSize: 10.5, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', color: 'rgba(200,186,255,.8)' } }, 'Seen') : null),
+            React.createElement('span', null, it.name),
             React.createElement('span', { style: { fontSize: 12, fontWeight: 400, color: 'rgba(238,242,255,.6)' } }, it.where))))
         ) : React.createElement('div', { style: { fontSize: 13, color: 'rgba(238,242,255,.7)', padding: '10px 0' } },
           shifted ? 'Nothing bright is up at that time.' : 'Nothing bright is up right now. Try again after dark.')
@@ -8201,13 +8210,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         ? React.createElement(React.Fragment, null,
             React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: found ? '#e8b563' : '#eef2ff' } }, guide.text),
             React.createElement('div', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)', marginTop: 2 } },
-              capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'),
-            // The log: once you've found it, say so. Not for the Sun.
-            target.kind !== 'sun' && React.createElement('div', { ...keepTap, style: { marginTop: 8 } },
-              React.createElement('button', {
-                onClick: () => seenStore.toggle(seenKey(target)), 'aria-pressed': !!seen[seenKey(target)],
-                style: { ...chip, ...(seen[seenKey(target)] ? chipOn : {}), padding: '6px 12px' }
-              }, seen[seenKey(target)] ? 'Seen it' : 'I’ve seen it')))
+              capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'))
         : (live
             ? 'Live — move your phone to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
@@ -8471,43 +8474,6 @@ function PlanetViews({ jup, sat, when }) {
     h('Jupiter and Saturn', 'h'), rows,
     el('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 6 } }, 'North up, west on the right, as the eye sees them facing south; most telescopes turn the view round.'));
 }
-// The log in one sentence.
-function logSummary(seen) {
-  const keys = Object.keys(seen), messier = keys.filter(k => /^M\d{1,3}$/.test(k)).length;
-  if (!keys.length) return 'Nothing yet. In Sky View, pick something and tap “I’ve seen it” once you’ve found it in the sky.';
-  return `You’ve marked ${keys.length} ${keys.length === 1 ? 'thing' : 'things'} as seen` +
-    (messier ? `, ${messier} of them from the Messier list of galaxies, nebulae and clusters.` : '.');
-}
-/* The observing log on the Stars tab. Hook-free: `seen` from useSeen,
-   `names` maps a Messier number to its common name where it has one. The
-   checklist is all 110, each a toggle, for what was seen through a
-   telescope or before this app. */
-function ObservingLog({ seen, names, open, onOpen, onToggle }) {
-  const messier = Array.from({ length: 110 }, (_, i) => 'M' + (i + 1));
-  const done = messier.filter(k => seen[k]).length;
-  const others = Object.keys(seen).filter(k => !/^M\d{1,3}$/.test(k)).sort((a, b) => seen[a] - seen[b]);
-  return React.createElement('section', { style: { maxWidth: 1080, margin: '0 auto', borderTop: '1px solid var(--line)', padding: '18px 0 20px' } },
-    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'Your observing log'),
-    React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } },
-      logSummary(seen), ' Kept on this device only.'),
-    others.length > 0 && React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink)', marginTop: 8 } }, 'Seen: ' + others.join(', ') + '.'),
-    React.createElement('button', {
-      onClick: onOpen, 'aria-expanded': !!open, 'aria-controls': 'messier-list',
-      style: { marginTop: 12, font: '600 13px var(--font-ui)', padding: '8px 13px', borderRadius: 9, cursor: 'pointer', border: '1px solid var(--btn-border)', background: 'transparent', color: 'var(--btn-ink)' }
-    }, `Messier checklist, ${done} of 110`),
-    open && React.createElement('div', {
-      id: 'messier-list', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(44px, 1fr))', gap: 4, marginTop: 12 }
-    }, messier.map(k => React.createElement('button', {
-      key: k, onClick: () => onToggle(k), 'aria-pressed': !!seen[k],
-      'aria-label': k + (names && names[k] ? ', ' + names[k] : '') + (seen[k] ? ': seen' : ''),
-      title: names && names[k] ? names[k] : undefined,
-      style: {
-        font: '600 11.5px var(--font-ui)', fontVariantNumeric: 'tabular-nums', padding: '7px 0', borderRadius: 7, cursor: 'pointer',
-        border: seen[k] ? '1px solid rgba(190,172,255,.75)' : '1px solid var(--btn-border)',
-        background: seen[k] ? 'rgba(190,172,255,.18)' : 'transparent', color: seen[k] ? '#e4dcff' : 'var(--ink-dim)'
-      }
-    }, k))));
-}
 function StarFinder({ redMode } = {}) {
   useH24();
   const [loc, setLoc] = useState(() => {
@@ -8538,8 +8504,6 @@ function StarFinder({ redMode } = {}) {
   const issSat = useMemo(() => issSatFrom(issTle), [issTle]);
   const issNext = useMemo(() => issSat ? issPasses(issSat, now, now + 3 * 86400000, loc.lat, loc.lon).slice(0, 5) : null,
     [issSat, Math.floor(now / 600000), loc.lat, loc.lon]);
-  const seen = useSeen();
-  const [logOpen, setLogOpen] = useState(false);
   const skyNow = now + skyShift * 60000;
   const useMyLocation = () => {
     if (!canLocate()) { setGeoMsg("Geolocation isn't available on this device."); return; }
@@ -8981,13 +8945,7 @@ function StarFinder({ redMode } = {}) {
   const sextWins = useMemo(() => sextantWindows(Date.now(), loc.lat, loc.lon), [Math.floor(now / 600000), loc.lat, loc.lon]);
   const sextWin = nextSextantWindow(sextWins, now);
   const downloadSextantICS = () => {
-    if (!sextWin) return;
-    const url = URL.createObjectURL(new Blob([sextantICS(sextWin, loc.name, Date.now())], { type: "text/calendar" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sextant-window.ics";
-    a.click();
-    URL.revokeObjectURL(url);
+    if (sextWin) saveFile("sextant-window.ics", sextantICS(sextWin, loc.name, Date.now()), "text/calendar");
   };
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
@@ -9534,10 +9492,6 @@ function StarFinder({ redMode } = {}) {
       passes: issNext, failed: issTle !== undefined && !issSat,
       fmt: t => fmtT(t, loc.tz),
       when: t => new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz)
-    }),
-    React.createElement(ObservingLog, {
-      seen, open: logOpen, onOpen: () => setLogOpen(o => !o), onToggle: k => seenStore.toggle(k),
-      names: deepSky ? Object.fromEntries(deepSky.filter(o => o.name).map(o => [o.id, o.name])) : null
     }),
     // Everything for the sextant, folded shut until wanted: the app began
     // as a navigator's tool, and none of it is removed, only out of the
