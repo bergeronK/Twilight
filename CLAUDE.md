@@ -29,7 +29,7 @@ Three tabs, one `index.html`, no build step:
 - **Ephemeris** — twilight times for any date/place, solar altitude chart,
   iCal/CSV export, upcoming sky events.
 - **Stars** — Sky View, the whole-sky chart, Jupiter and Saturn, the space
-  station, the observing log, and one folded **"For navigators"**: the
+  station, and one folded **"For navigators"**: the
   navigation stars, the 3-star fix, the sextant window, sight reduction and
   Aim Assist.
 
@@ -619,16 +619,12 @@ stargazer is the default, navigator material is kept whole but folded.
   limiting magnitude 1.5 past its own, at the first time it's within 5° of
   its best: from a city the Pleiades, not the Andromeda Galaxy. Not on the
   painting, which shows only what the eye would.
-- **Observing log (2026-09-24).** What you've marked as seen, in this
-  browser only: `seenStore` (external store like `prefStore`, `tw_seen` =
-  `{key: first marked, ms}`, `parseSeen` drops junk, `toggleSeen`), keyed by
-  `seenKey` (a Messier number for deep-sky, else the name). Sky View's
-  bottom line offers **I've seen it** once something is picked (never the
-  Sun); Find marks what's been seen. The Stars tab's **Your observing log**
-  (`ObservingLog`, hook-free) says how many (`logSummary`), lists the others
-  in the order seen, and opens a **Messier checklist** of all 110 toggles.
-  `/privacy.html` lists it under what's stored on the device.
-  `observing-log.test.js`.
+- **The observing log is gone (removed 2026-10-09, owner, from the iPhone
+  app).** It was added 2026-09-24: the Stars tab's "Your observing log" with
+  a Messier checklist, Sky View's **I've seen it**, and Find's "Seen" marks,
+  kept in `tw_seen`. All of it was taken out, on the website too, and
+  `tw_seen` is removed on load; `/privacy.html` no longer lists it. See git
+  history before bringing it back.
 - **The space station (2026-09-24).** When the ISS passes over, on the
   Console (a highlight, rank 1, for tonight's best pass and how many more)
   and on the Stars tab (`IssPanel`: the next visible passes in three days).
@@ -769,6 +765,25 @@ stargazer is the default, navigator material is kept whole but folded.
   with `?lat=&lon=`, and twilyte.info is to become the apps' website rather
   than the web app, so no app links there. `share-card.test.js`,
   `native-share.test.js`.
+- **Files and calendars in the iPhone app (2026-10-09, v162).** Every
+  "Add to calendar" (the Console's sunset and sunrise, the sextant window)
+  and the Ephemeris's month export (iCal and CSV) clicked a download link,
+  which the app's web view drops: none of them did anything on the owner's
+  iPhone. All now call **`saveFile(name, text, mime)`**: a browser
+  downloads as before; in the iPhone app a calendar goes to
+  **`TwilyteCalendarPlugin`** (`AppDelegate.swift`, JS `TwilyteCalendar`,
+  `nativeCalendar()`) as events the page reads back out of its own .ics
+  (`icsEvents`: title, start and end in ms, notes, alarm in minutes), and
+  anything else to `TwilyteShare` as a named file (`fileName`, `fileText`:
+  Save to Files, Numbers). One event opens iOS's own event editor, filled
+  in, which from iOS 17 needs no permission (Apple's TN3152); on 15 and 16
+  it asks for calendar access first. Several (a month) asks "Add 31 events
+  to your calendar?", then for **write-only** access, and saves them to the
+  default calendar. Info.plist: `NSCalendarsWriteOnlyAccessUsageDescription`
+  and `NSCalendarsUsageDescription`; nothing collected (privacy.html's "Your
+  calendar", `app-store-privacy-answers.md` 4b). **New download buttons go
+  through `saveFile`**, or they won't work in the app. Android's web view
+  drops downloads too and has no such plugin yet. `native-files.test.js`.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
