@@ -64,12 +64,12 @@ test('the sextant window, which has no reminder', () => {
 
 test('a month’s export: every window, in order', () => {
   const x = extract(['D2R', 'R2D', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows',
-    'pad2', 'icalStamp', 'utcDate', 'daysInMonth']);
+    'localComputeDay', 'photoWindowsFor', 'pad2', 'icalStamp', 'utcDate', 'daysInMonth', 'tzOffset', 'zoneOffsets']);
   const run = mode => {
     let out = null;
-    new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'computeDay', 'icalStamp', 'utcDate', 'photoWindows', 'download', 'pad2',
-      declSource('exportICS') + '\nreturn exportICS;')(2026, 10, 42.36, -71.06, mode, x.daysInMonth, x.computeDay, x.icalStamp, x.utcDate, x.photoWindows,
-      (name, text, mime) => { out = { name, text, mime }; }, x.pad2)();
+    new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'localComputeDay', 'icalStamp', 'utcDate', 'photoWindowsFor', 'download', 'pad2',
+      'valid', 'tz', 'zoneOffsets', 'offMin', declSource('exportICS') + '\nreturn exportICS;')(2026, 10, 42.36, -71.06, mode, x.daysInMonth, x.localComputeDay, x.icalStamp, x.utcDate, x.photoWindowsFor,
+      (name, text, mime) => { out = { name, text, mime }; }, x.pad2, true, 'America/New_York', x.zoneOffsets, -240)();
     return out;
   };
   const dark = run('stargazing');

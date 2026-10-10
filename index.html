@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-Ona8FIFyf89ORBE+UYNA6v2rNz7Gj2H88ZuSJrqJ6iE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-SnTjNl5UirxK1SyBoakf+TKx9/ikwO7L4LfCcXr1v8o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -130,6 +130,7 @@
   html, body { margin: 0; padding: 0; background: var(--bg); -webkit-text-size-adjust: 100%; }
   #root { min-height: 100vh; }
   .boot, .err { font-family: ui-monospace, Menlo, Consolas, monospace; padding: 26px; line-height: 1.5; }
+  .err { padding-top: max(26px, calc(env(safe-area-inset-top) + 12px)); }
   .boot { color: var(--ink-dim); font-size: 13px; }
   .err { color: #e7b3a3; font-size: 12px; white-space: pre-wrap; }
   @keyframes tabFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
@@ -1381,7 +1382,19 @@ function eclipseWords(e, lat, lon, fmt) {
     const [a, b] = e.kind === 'total' ? [e.U2, e.U3] : e.kind === 'partial' ? [e.U1, e.U4] : [e.P1, e.P4];
     const up = t => moonAltSeen(new Date(t), lat, lon) > 0;
     const ua = up(a), um = up(e.tMax), ub = up(b);
-    if (!ua && !um && !ub) return { title, line: 'Not seen from here: the Moon is below the horizon.' };
+    if (!ua && !um && !ub) {
+      // Totality with the Moon down can still leave the partial phase in
+      // view, as the Moon sets before it or rises after it (Casablanca,
+      // 31 December 2028; review, 2026-10-10).
+      if (e.kind === 'total') {
+        const seen = [];
+        for (let t = e.U1; t <= e.U4; t += 5 * 60000) if (up(t)) seen.push(t);
+        if (seen.length) return { title, partial: true, line: up(e.U1)
+          ? `The Earth’s shadow starts across the Moon at ${fmt(e.U1)}, but the Moon sets at about ${fmt(seen[seen.length - 1])}, before totality.`
+          : `The Moon rises at about ${fmt(seen[0])} with the Earth’s shadow still across it, after totality; the shadow leaves it at ${fmt(e.U4)}.` };
+      }
+      return { title, line: 'Not seen from here: the Moon is below the horizon.' };
+    }
     let line = e.kind === 'total' ? `Totality from ${fmt(a)} to ${fmt(b)}, the Moon a dull coppery red. The shadow starts across it at ${fmt(e.U1)}.`
       : e.kind === 'partial' ? `The Earth’s shadow covers up to ${Math.round(e.umbral * 100)}% of the Moon’s width at ${fmt(e.tMax)}, from ${fmt(a)} to ${fmt(b)}.`
       : e.penumbral < 0.7 ? 'The Moon only grazes the Earth’s faint outer shadow: there is nothing to see.'
@@ -1840,12 +1853,12 @@ const prefStore = (() => {
   try { const v = parseFloat(localStorage.getItem('tw_sky_fov')); if (v >= 30 && v <= 100) skyFov = v; } catch (e) {}
   try { const v = localStorage.getItem('tw_sky_lines'); if (v !== null) skyLines = v === '1'; } catch (e) {}
   try {
-    const v = localStorage.getItem('tw_bortle_mode');
-    // A stored mode wins. Otherwise, a pre-existing manual Bortle value from
-    // before auto-detect existed means the user chose it deliberately —
-    // respect that instead of silently overriding it with a guess.
-    if (v === 'auto' || v === 'manual') bortleMode = v;
-    else if (localStorage.getItem('tw_bortle')) bortleMode = 'manual';
+    // Automatic unless the switch in Settings said otherwise: only it stores
+    // 'manual'. A stored class with no stored mode used to be read as one
+    // chosen by hand, but the automatic estimate stores its class too, so
+    // from the second launch every place kept the first place's class
+    // ("Set by you in settings") and never updated (review, 2026-10-10).
+    if (localStorage.getItem('tw_bortle_mode') === 'manual') bortleMode = 'manual';
   } catch (e) {}
   const subs = new Set();
   const emit = () => subs.forEach(f => f());
@@ -2102,10 +2115,26 @@ function urlPlace(search) {
     const p = new URLSearchParams(search);
     const lat = parseFloat(p.get("lat")), lon = parseFloat(p.get("lon"));
     if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
-    let tz = p.get("tz");
-    try { if (tz) new Intl.DateTimeFormat([], { timeZone: tz }); } catch (e) { tz = null; }
     const name = (p.get("name") || "").replace(/\s+/g, " ").trim().slice(0, 60);
-    return { lat, lon, name: name || `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, tz: tz || Intl.DateTimeFormat().resolvedOptions().timeZone };
+    return { lat, lon, name: name || `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, tz: knownTz(p.get("tz")) };
+  } catch (e) { return null; }
+}
+// The zone if this browser knows it, else the device's. An unknown zone
+// throws a RangeError wherever a time is formatted, which is the error
+// screen; an older iPhone's WebKit may not know a newer name the place
+// search returns (Europe/Kyiv, America/Ciudad_Juarez), and once saved as
+// the Console's place it crashed every launch (review, 2026-10-10).
+function knownTz(tz) {
+  try { if (tz) { new Intl.DateTimeFormat([], { timeZone: tz }); return tz; } } catch (e) {}
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+// The Console's saved place (tw_loc), checked: junk is no place, and an
+// unknown zone becomes the device's.
+function savedPlace() {
+  try {
+    const p = JSON.parse(localStorage.getItem('tw_loc') || 'null');
+    if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) return null;
+    return { ...p, name: String(p.name || `${p.lat.toFixed(2)}\u00b0, ${p.lon.toFixed(2)}\u00b0`), tz: knownTz(p.tz) };
   } catch (e) { return null; }
 }
 const PRESETS = [{
@@ -2714,8 +2743,17 @@ function tonightGlance(live) {
   const moonUp = live.m.alt > 0;
   const illumPct = Math.round(live.m.illum * 100);
   const ph = live.phase;
-  if (ph === "day") return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
-  if (ph === "civil") return { head: "Golden hour", sub: "Brightest planets and stars are emerging.", tone: "var(--band-civil)" };
+  // Golden hour is the Sun from 6° up to 4° down and blue hour from 4° to
+  // 6° down, as the Ephemeris defines them; at dawn the stars are going,
+  // not coming (review, 2026-10-10: the Console said "Golden hour" and
+  // "emerging" for the whole of civil twilight, morning and evening).
+  if (ph === "day" && !(live.alt < 6)) return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
+  if (ph === "day") return { head: "Golden hour", sub: live.rising ? "Low, warm light after sunrise." : "Low, warm light before sunset.", tone: "var(--band-civil)" };
+  if (ph === "civil") return {
+    head: live.alt <= -4 ? "Blue hour" : "Golden hour",
+    sub: live.rising ? "The last stars are fading as the light comes up." : "The brightest planets and stars are coming out.",
+    tone: "var(--band-civil)"
+  };
   if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible \u2014 the sextant window is open.", tone: "var(--band-naut)" };
   if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
   if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
@@ -2805,7 +2843,7 @@ function moonNote(plan, now, fmt) {
 }
 // The line above the headline: where tonight is, and what comes next.
 function heroLabel(plan, now, sunAlt, fmt) {
-  if (!plan) return sunAlt > 0 ? 'The Sun stays up all night' : 'The Sun stays down all day';
+  if (!plan) return sunAlt > -0.833 ? 'The Sun stays up all night' : 'The Sun stays down all day';
   if (now < plan.start) {
     return `Sunset at ${fmt(plan.start)}` +
       (plan.dark ? ` · fully dark at ${fmt(plan.dark.from)}` : ' · never fully dark tonight');
@@ -3262,6 +3300,20 @@ const TWILIGHT_WORDS = {
 };
 const TWILIGHT_DOTS = { rise: "#e0b96f", civil: "#e08a3c", naut: "#5a7fb0", astro: "#4b5794" };
 const twilightWord = e => TWILIGHT_WORDS[e.dir][e.key];
+// A day's twilight as people count it, from local midnight `mid`: the dawn
+// stages before the Sun's highest point and the dusk stages after it, on
+// into the night. An astronomical dusk at 00:28 belongs to the evening
+// before it: a midnight-to-midnight day listed last night's there and left
+// out tonight's (Vigo in June, Fairbanks in April; review, 2026-10-10).
+function twilightDayEvents(mid, lat, lon) {
+  let noon = mid + 12 * 3600000, best = -Infinity;
+  for (let t = mid; t <= mid + 24 * 3600000; t += 600000) {
+    const a = sunAltitude(new Date(t), lat, lon);
+    if (a > best) { best = a; noon = t; }
+  }
+  return scanCrossings(noon - 24 * 3600000, noon + 24 * 3600000, lat, lon, sunAltitude, SUN_THR, 1)
+    .filter(e => e.dir === 'up' ? e.t < noon : e.t >= noon);
+}
 function twilightDay(sunEv, now) {
   const row = e => ({ key: e.key, t: e.t, label: twilightWord(e), past: e.t <= now });
   return {
@@ -3821,8 +3873,13 @@ function clearDarkScore(wx, loc, bortle, nowMs) {
 function weekOutlook(wx, loc, bortle, nowMs) {
   if (!wx || !wx.hourly || !wx.hourly.time) return [];
   const nights = [];
+  // The local midnights ahead, a calendar day apart. Adding 24 hours at a
+  // time skipped or repeated a night across a 23- or 25-hour DST day
+  // (review, 2026-10-10: "Saturday, Saturday" in New York's last October
+  // week); from each midnight, 36 hours on is always inside the next day.
+  let mid = localMidnight(loc.tz, nowMs);
   for (let i = 0; i < 7; i++) {
-    const mid = localMidnight(loc.tz, nowMs + (i + 1) * 86400000); // upcoming local midnight
+    mid = localMidnight(loc.tz, mid + 36 * 3600000); // upcoming local midnight
     const start = Math.max(mid - 8 * 3600000, nowMs - 1800000);
     const sum = summarize(scoreHours(wx, loc, start, mid + 8 * 3600000));
     nights.push({ i, mid, sum });
@@ -4141,8 +4198,8 @@ function NightRibbon({ plan, now, fmt }) {
 
 /* Three facts about tonight, flat and separated by hairlines (read-only
    content gets no boxes; see CLAUDE.md's design rule). */
-function NightFacts({ plan, now, fmt, illum, planets }) {
-  const darkest = !plan ? { v: '—', c: 'No sunset tonight' }
+function NightFacts({ plan, now, fmt, illum, planets, sunDown }) {
+  const darkest = !plan ? (sunDown ? { v: '—', c: 'The Sun doesn’t rise today' } : { v: '—', c: 'No sunset tonight' })
     : plan.darkest ? { v: `${fmt(plan.darkest.from)}–${fmt(plan.darkest.to)}`, c: 'Fully dark, Moon down' }
     : plan.dark ? { v: 'Moonlit', c: 'The Moon is up the whole dark stretch' }
     : { v: 'Never', c: 'Never fully dark tonight' };
@@ -4218,7 +4275,7 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
     if (b < plan.start || a > plan.end) return;
     const w = eclipseWords(e, lat, lon, fmt);
     if (/^Not seen/.test(w.line)) return;
-    out.push({ kind: 'eclipse', rank: -1, title: e.kind === 'penumbral' ? 'A faint eclipse of the Moon tonight' : `A ${e.kind} eclipse of the Moon tonight`, detail: w.line });
+    out.push({ kind: 'eclipse', rank: -1, title: e.kind === 'penumbral' ? 'A faint eclipse of the Moon tonight' : w.partial ? 'Part of an eclipse of the Moon tonight' : `A ${e.kind} eclipse of the Moon tonight`, detail: w.line });
   });
 
   // The space station, when it passes over in the dark: the best pass of
@@ -4845,7 +4902,9 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   // Tonight, recomputed every ten minutes: sunset-to-sunrise events from a
   // window wide enough to hold the night we're in or the next one.
   const plan = useMemo(() => {
-    const sunEv = scanCrossings(now - 20 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2);
+    // From 26 hours back: near polar night a night lasts over 20 hours, and
+    // a shorter look-back found tomorrow's night instead of this one.
+    const sunEv = scanCrossings(now - 26 * 3600000, now + 30 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2);
     const span = nightSpan(sunEv, now);
     if (!span) return null;
     const moonEv = scanCrossings(span.start, span.end, loc.lat, loc.lon, moonAltSeen, MOON_THR, 4);
@@ -4859,9 +4918,13 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const [kpRows, setKpRows] = useState(null);
   useEffect(() => { let live = true; loadKp().then(k => { if (live) setKpRows(k); }); return () => { live = false; }; }, []);
   // What is worth going out for tonight, every ten minutes like the plan.
-  const highlights = useMemo(() => tonightHighlights(plan, loc.lat, loc.lon, bortle, fmt,
-    issSat && plan ? issPasses(issSat, Math.max(plan.start, Date.now()), plan.end, loc.lat, loc.lon) : null, kpRows),
-    [plan, loc.lat, loc.lon, bortle, loc.tz, issSat, kpRows]);
+  // With no sunset (polar night, or polar day) the next 24 hours: the
+  // highlights only look at times the Sun is 6° or more down anyway. The
+  // times follow the 12/24-hour setting at once, not ten minutes later.
+  const hlSpan = plan || { start: tenMin * 600000, end: tenMin * 600000 + 24 * 3600000 };
+  const highlights = useMemo(() => tonightHighlights(hlSpan, loc.lat, loc.lon, bortle, fmt,
+    issSat ? issPasses(issSat, Math.max(hlSpan.start, Date.now()), hlSpan.end, loc.lat, loc.lon) : null, kpRows),
+    [plan, tenMin, loc.lat, loc.lon, bortle, loc.tz, issSat, kpRows, prefStore.getH24()]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
     const dusk = plan ? (plan.dark ? plan.dark.from : (plan.bands[1] || plan.bands[0]).from) : now;
@@ -5056,7 +5119,10 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         ref: groundRef, className: 'hz-sky', 'aria-hidden': 'true',
         style: { position: 'absolute', left: -HERO_BLEED, top: 0, pointerEvents: 'none', willChange: 'transform' }
       }),
-      header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+      // Kept clear of the corner button: a long place name ran under it at
+      // 375 px ("Cape Town, South Africa"), and its covered end opened the
+      // almanac instead of the picker (review, 2026-10-10).
+      header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto', paddingRight: corner ? 132 : 0, boxSizing: 'border-box' } }, header),
       corner && React.createElement('div', {
         style: { position: 'absolute', left: pad, right: pad, top: 14, maxWidth: 1080, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none' }
       }, React.createElement('div', { ref: cornerRef, style: { pointerEvents: 'auto' } }, corner)),
@@ -5087,7 +5153,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     }),
     React.createElement('div', { style: { maxWidth: 1080, margin: '0 auto 30px', display: 'grid', gap: 18 } },
       plan && React.createElement(NightRibbon, { plan, now, fmt }),
-      React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight }),
+      React.createElement(NightFacts, { plan, now, fmt, illum: Math.round(live.m.illum * 100), planets: planetsTonight, sunDown: live.alt <= -0.833 }),
       darkness || null,
       twilight || null,
       React.createElement(TonightHighlights, { items: highlights }),
@@ -5111,7 +5177,7 @@ function geocodePlaces(q, fetchFn = fetch) {
     name: p.name + (p.country_code ? ", " + p.country_code : ""),
     lat: p.latitude,
     lon: p.longitude,
-    tz: p.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+    tz: knownTz(p.timezone)
   })));
 }
 // The sextant windows (nautical twilight, the Sun 6° to 12° down, when the
@@ -5172,7 +5238,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const [loc, setLoc] = useState(() => {
     const fromUrl = urlPlace(window.location.search);
     if (fromUrl) return fromUrl;
-    try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch(e) { return PRESETS[0]; }
+    return savedPlace() || PRESETS[0];
   });
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
@@ -5191,6 +5257,7 @@ function RealtimeTwilight({ redMode } = {}) {
   // down), when it was fetched; null when it is current.
   const [wxStale, setWxStale] = useState(null);
   const wxSeq = useRef(0);
+  const wxKey = useRef(null);
   const [saved, setSaved] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('tw_saved') || '[]'); } catch(e) { return []; }
   });
@@ -5253,8 +5320,17 @@ function RealtimeTwilight({ redMode } = {}) {
   // `quiet` (strictly true: a click passes an event) is the automatic try
   // on opening with a place already saved: no "Locating…", and a refusal
   // keeps that place instead of opening the picker with an error.
-  const useMyLocation = quiet => {
+  // A fix that comes back after the person has picked a place, or opened
+  // the picker to, is dropped: a slow one (indoors; the app's plugin waits
+  // 20 s or more) used to replace their choice with "Your location" and
+  // close the picker mid-search (review, 2026-10-10). `auto` is the try on
+  // opening, which merely opening the picker also cancels.
+  const geoSeq = useRef(0), geoAuto = useRef(false);
+  const dropFix = () => { geoSeq.current++; geoAuto.current = false; };
+  const useMyLocation = (quiet, auto) => {
     quiet = quiet === true;
+    const seq = ++geoSeq.current;
+    geoAuto.current = auto === true;
     if (!canLocate()) {
       if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
@@ -5263,6 +5339,8 @@ function RealtimeTwilight({ redMode } = {}) {
     }
     if (!quiet) setGeoMsg("Locating…");
     getPosition(p => {
+      if (seq !== geoSeq.current) return;
+      geoAuto.current = false;
       setLoc({
         name: "Your location",
         lat: p.coords.latitude,
@@ -5272,6 +5350,8 @@ function RealtimeTwilight({ redMode } = {}) {
       setGeoMsg("");
       setPickerOpen(false);
     }, () => {
+      if (seq !== geoSeq.current) return;
+      geoAuto.current = false;
       if (quiet) return;
       setGeoMsg("Couldn't get precise location — enter a ZIP code or pick a city below.");
       setPickerOpen(true);
@@ -5282,7 +5362,7 @@ function RealtimeTwilight({ redMode } = {}) {
   };
   useEffect(() => {
     // A shared link's place stays put; a saved place is tried quietly.
-    if (start !== 'url') useMyLocation(start === 'saved');
+    if (start !== 'url') useMyLocation(start === 'saved', true);
   }, []);
   const searchPlaces = async () => {
     const q = query.trim();
@@ -5302,6 +5382,7 @@ function RealtimeTwilight({ redMode } = {}) {
     if (seq === searchSeq.current) setSearchBusy(false);
   };
   const pickPlace = p => {
+    dropFix();
     setLoc({ name: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
     setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg(""); setPickerOpen(false);
   };
@@ -5319,8 +5400,14 @@ function RealtimeTwilight({ redMode } = {}) {
     const key = `tw_wx_${loc.lat.toFixed(2)}_${loc.lon.toFixed(2)}`;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
+    // Every run, the fresh-cache one too: a slower fetch for the place
+    // before must not land on this one (review, 2026-10-10: Boston's
+    // forecast arrived after a switch to a cached Stowe and replaced it).
     const seq = ++wxSeq.current;
+    // A new place shows no forecast until its own arrives, not the last
+    // place's sunset colour and week under the new name.
+    if (wxKey.current !== key) { wxKey.current = key; setWx(null); setWxStale(null); }
+    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
     // Two more points, 150 km toward the next sunset and sunrise, for the
     // colour of each.
     const west = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "down"), 150);
@@ -5394,7 +5481,8 @@ function RealtimeTwilight({ redMode } = {}) {
       moonPen,
       hv: horizonVis(dep),
       sky: skyColors(alt),
-      phase: phaseOf(alt)
+      phase: phaseOf(alt),
+      rising: sunAltitude(new Date(now + 600000), loc.lat, loc.lon) > alt
     };
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
@@ -5433,11 +5521,12 @@ function RealtimeTwilight({ redMode } = {}) {
       onClick: () => saveICS(sunriseICS(sunrise, loc.name, Date.now(), t => fmtT(t, loc.tz)), "sunrise.ics") }
   ].filter(Boolean).sort((a, b) => a.t - b.t);
   // Today's times while any are still to come; after the last, tomorrow's.
+  const twToday = useMemo(() => twilightDayEvents(day.mid, loc.lat, loc.lon), [day, loc.lat, loc.lon]);
   const twSched = useMemo(() => {
-    if (day.sunEv.some(e => e.t > now)) return { when: "today", ...twilightDay(day.sunEv, now) };
+    if (twToday.some(e => e.t > now)) return { when: "today", ...twilightDay(twToday, now) };
     const mid = localMidnight(loc.tz, day.mid + 36 * 3600000);
-    return { when: "tomorrow", ...twilightDay(scanCrossings(mid, mid + 24 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 1), now) };
-  }, [day, minute, loc.lat, loc.lon, loc.tz]);
+    return { when: "tomorrow", ...twilightDay(twilightDayEvents(mid, loc.lat, loc.lon), now) };
+  }, [twToday, minute, loc.lat, loc.lon, loc.tz]);
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -5478,6 +5567,7 @@ function RealtimeTwilight({ redMode } = {}) {
   // panel it opens sits right under the painting, where the tap was.
   const togglePicker = () => {
     const open = !pickerOpen;
+    if (open && geoAuto.current) { dropFix(); setGeoMsg(""); }
     setPickerOpen(open);
     if (!open) { setResults([]); setQuery(""); setSearchMsg(""); }
   };
@@ -5535,7 +5625,7 @@ function RealtimeTwilight({ redMode } = {}) {
       React.createElement("button", {
         key: i,
         className: "rtbtn" + (s.lat === loc.lat && s.lon === loc.lon ? " solid" : ""),
-        onClick: () => { setLoc(s); setPickerOpen(false); }
+        onClick: () => { dropFix(); setLoc(s); setPickerOpen(false); }
       }, s.name)
     )
   ),
@@ -5666,7 +5756,7 @@ function RealtimeTwilight({ redMode } = {}) {
     onIntroDone: pick => {
       setIntro(false);
       try { localStorage.setItem('tw_welcomed', '1'); } catch (e) {}
-      if (pick) setPickerOpen(true);
+      if (pick) { if (geoAuto.current) { dropFix(); setGeoMsg(""); } setPickerOpen(true); }
     }
   }),
   (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
@@ -5947,6 +6037,29 @@ function computeDay(lat, lon, y, m, d) {
   };
 }
 
+// computeDay for the local date Y-Mo-D at `offMin` from UTC. computeDay
+// works on the UTC date, so where local noon falls on the next UTC day
+// (Samoa, Tonga, Kiribati's Line Islands: UTC+13 and +14) every time shown
+// was the next local day's, marked "+1d" (review, 2026-10-10). Then it is
+// the UTC day before, its times counted from this one's midnight (and the
+// other way round). `shift` is those minutes, for photoWindowsFor.
+function localComputeDay(lat, lon, Y, Mo, D, offMin) {
+  const c = computeDay(lat, lon, Y, Mo, D);
+  const step = c.noon + offMin >= 1440 ? -1 : c.noon + offMin < 0 ? 1 : 0;
+  if (!step) return Object.assign(c, { shift: 0 });
+  const nd = new Date(Date.UTC(Y, Mo - 1, D + step));
+  const o = computeDay(lat, lon, nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate());
+  const k = step * 1440;
+  for (const key of ['astroDawn', 'nautDawn', 'civilDawn', 'sunrise', 'sunset', 'civilDusk', 'nautDusk', 'astroDusk'])
+    if (!o[key].none) o[key] = Object.assign({}, o[key], { utc: o[key].utc + k });
+  return Object.assign(o, { noon: o.noon + k, shift: k });
+}
+// photoWindows for a localComputeDay result, in the same minutes.
+function photoWindowsFor(lat, lon, c) {
+  const w = photoWindows(lat, lon, c.p), k = c.shift || 0;
+  const s = x => (x ? [x[0] + k, x[1] + k] : null);
+  return { morningBlue: s(w.morningBlue), morningGolden: s(w.morningGolden), eveningGolden: s(w.eveningGolden), eveningBlue: s(w.eveningBlue) };
+}
 /* For photographers: golden hour, the Sun from 4° below the horizon to 6°
    up (low, warm, long-shadowed light), and blue hour, from 6° below to 4°
    below (the deep blue after sunset and before sunrise). Definitions vary a
@@ -6060,9 +6173,16 @@ function moonMonth(Y, Mo, offOf) {
   const start = Date.UTC(Y, Mo - 1, 1) - offOf(1) * 60000, end = Date.UTC(Y, Mo - 1, n + 1) - offOf(n) * 60000;
   moonPhases(start, end).forEach(ph => {
     const guess = Math.min(n, Math.max(1, new Date(ph.t).getUTCDate()));
-    const local = new Date(ph.t + offOf(guess) * 60000);
+    let off = offOf(guess), local = new Date(ph.t + off * 60000);
+    // Then with the offset of the local day it lands on: the UTC day's was
+    // an hour out beside a DST change (Auckland's full Moon of 27 September
+    // 2026 read 04:50, not 05:50; review, 2026-10-10).
+    if (local.getUTCMonth() === Mo - 1 && local.getUTCDate() !== guess) {
+      off = offOf(local.getUTCDate());
+      local = new Date(ph.t + off * 60000);
+    }
     const dd = local.getUTCMonth() === Mo - 1 ? days[local.getUTCDate() - 1] : null;
-    if (dd) dd.phase = { ...ph, off: offOf(guess) };
+    if (dd) dd.phase = { ...ph, off };
   });
   return days;
 }
@@ -6124,7 +6244,7 @@ function TwilightEphemeris({ redMode } = {}) {
   const [place] = useState(() => {
     const fromUrl = urlPlace(window.location.search);
     if (fromUrl) return fromUrl;
-    try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
+    return savedPlace() || PRESETS[0];
   });
   const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [lat, setLat] = useState(() => Number(place.lat).toFixed(4));
@@ -6150,14 +6270,21 @@ function TwilightEphemeris({ redMode } = {}) {
   // The chart's drawn width, so its geometry can follow it: an 820-wide
   // drawing shrunk onto a phone put its labels at about 4 px.
   const [chartW, setChartW] = useState(820);
-  const latN = parseFloat(lat);
-  const lonN = parseFloat(lon);
+  // A comma is a decimal point too: "48,8566" from a European keyboard was
+  // read as 48 without a word (review, 2026-10-10).
+  const num = v => parseFloat(String(v).replace(",", "."));
+  const latN = num(lat);
+  const lonN = num(lon);
   const [Y, Mo, D] = dateStr.split("-").map(Number);
   const zone = useMemo(() => {
     if (!tz || !Y || !Mo || !D) return null;
     try { return zoneOffsets(tz, Y, Mo, D); } catch (e) { return null; }
   }, [tz, Y, Mo, D]);
-  const offMin = zone ? zone.off : (Number(offset) + (dst ? 1 : 0)) * 60;
+  // The offset field keeps what is typed ("-" on the way to "-7"); an
+  // unfinished number counts as 0 meanwhile. Snapping it to 0 made a minus
+  // sign impossible to type (review, 2026-10-10).
+  const offH = Number.isFinite(num(offset)) ? num(offset) : 0;
+  const offMin = zone ? zone.off : (offH + (dst ? 1 : 0)) * 60;
   const dstShown = zone ? zone.dst : dst;
   // Switching to manual carries the current offset across, so nothing jumps.
   const goManual = () => {
@@ -6167,7 +6294,8 @@ function TwilightEphemeris({ redMode } = {}) {
   const stepDay = n => setDateStr(d => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? shiftDate(d, n) : d));
   const goToday = () => setDateStr(dateKey(Date.now(), tz || deviceTz));
   const isToday = dateStr === dateKey(Date.now(), tz || deviceTz);
-  const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && Y && Mo && D;
+  const dateOk = !!(Y && Mo && D);
+  const valid = !Number.isNaN(latN) && Math.abs(latN) <= 90 && !Number.isNaN(lonN) && Math.abs(lonN) <= 180 && dateOk;
   // With nothing valid to show, the form is the only useful thing: open it.
   useEffect(() => { if (!valid) setFormOpen(true); }, [valid]);
   useEffect(() => {
@@ -6183,13 +6311,13 @@ function TwilightEphemeris({ redMode } = {}) {
     window.addEventListener("resize", measure);
     return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", measure); };
   }, [!!valid]);
-  const today = useMemo(() => valid ? computeDay(latN, lonN, Y, Mo, D) : null, [latN, lonN, Y, Mo, D, valid]);
+  const today = useMemo(() => valid ? localComputeDay(latN, lonN, Y, Mo, D, offMin) : null, [latN, lonN, Y, Mo, D, valid, offMin]);
   // next day's dawns are needed for the overnight "dark window"
   const tomorrow = useMemo(() => {
     if (!valid) return null;
     const nd = new Date(Date.UTC(Y, Mo - 1, D + 1));
-    return computeDay(latN, lonN, nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate());
-  }, [latN, lonN, Y, Mo, D, valid]);
+    return localComputeDay(latN, lonN, nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate(), offMin);
+  }, [latN, lonN, Y, Mo, D, valid, offMin]);
 
   // Altitude curve sampled across the local day.
   const curve = useMemo(() => {
@@ -6224,11 +6352,14 @@ function TwilightEphemeris({ redMode } = {}) {
       return;
     }
     setGeoMsg("Locating\u2026");
+    const wasToday = isToday;
     getPosition(pos => {
       setLat(pos.coords.latitude.toFixed(4));
       setLon(pos.coords.longitude.toFixed(4));
-      // The phone's own time zone is the right one for where it is.
+      // The phone's own time zone is the right one for where it is, and
+      // "today" is its today, as when a place is chosen.
       setTz(deviceTz);
+      if (wasToday) setDateStr(dateKey(Date.now(), deviceTz));
       setPlaceName("Your location");
       setGeoMsg("Location set from device.");
     }, err => setGeoMsg(err && err.code === 1 ? "Permission denied \u2014 allow location access, or type coordinates instead." : "Couldn\u2019t get a location fix \u2014 type coordinates instead."), {
@@ -6271,18 +6402,16 @@ function TwilightEphemeris({ redMode } = {}) {
     const dim = daysInMonth(Y, Mo);
     const rows = [];
     for (let day = 1; day <= dim; day++) {
-      rows.push({
-        day,
-        c: computeDay(latN, lonN, Y, Mo, day),
-        // Per day: a month can contain a daylight-saving change.
-        off: tz ? zoneOffsets(tz, Y, Mo, day).off : offMin
-      });
+      // Per day: a month can contain a daylight-saving change.
+      const off = tz ? zoneOffsets(tz, Y, Mo, day).off : offMin;
+      rows.push({ day, c: localComputeDay(latN, lonN, Y, Mo, day, off), off });
     }
     return rows;
   }
   const cell = (e, off = offMin) => e.none === "above" ? "no event (sun too high)" : e.none === "below" ? "no event (sun too low)" : fmtLocal(e.utc, off);
   const download = (name, text, mime) => saveFile(name, text, mime);
   function exportCSV() {
+    if (!valid) return;
     const hdr = ["Date", "Astronomical dawn", "Nautical dawn", "Civil dawn", "Sunrise", "Solar noon", "Sunset", "Civil dusk", "Nautical dusk", "Astronomical dusk",
       "Blue hour (morning)", "Golden hour (morning)", "Golden hour (evening)", "Blue hour (evening)", "Moonrise", "Moonset"];
     const lines = [hdr.join(",")];
@@ -6292,37 +6421,45 @@ function TwilightEphemeris({ redMode } = {}) {
       off
     } of monthRows()) {
       const ds = `${Y}-${pad2(Mo)}-${pad2(day)}`;
-      const ph = photoWindows(latN, lonN, c.p), win = w => (w ? fmtLocal(w[0], off) + "\u2013" + fmtLocal(w[1], off) : "none");
+      const ph = photoWindowsFor(latN, lonN, c), win = w => (w ? fmtLocal(w[0], off) + "\u2013" + fmtLocal(w[1], off) : "none");
       const mn = moonRiseSet(latN, lonN, Date.UTC(Y, Mo - 1, day) - off * 60000), mt = t => (t == null ? "none" : fmtLocal((t - Date.UTC(Y, Mo - 1, day)) / 60000, off));
       lines.push([ds, cell(c.astroDawn, off), cell(c.nautDawn, off), cell(c.civilDawn, off), cell(c.sunrise, off), fmtLocal(c.noon, off), cell(c.sunset, off), cell(c.civilDusk, off), cell(c.nautDusk, off), cell(c.astroDusk, off),
         win(ph.morningBlue), win(ph.morningGolden), win(ph.eveningGolden), win(ph.eveningBlue), mt(mn.rise), mt(mn.set)].map(x => `"${x}"`).join(","));
     }
-    download(`twilight_${Y}-${pad2(Mo)}.csv`, lines.join("\n"), "text/csv");
+    // With a byte-order mark, so Excel reads the dashes as UTF-8 and not as
+    // "â€“" (review, 2026-10-10).
+    download(`twilight_${Y}-${pad2(Mo)}.csv`, "\ufeff" + lines.join("\n"), "text/csv");
   }
   function exportICS() {
+    if (!valid) return;
     const dim = daysInMonth(Y, Mo);
     const ev = [];
     const push = (s, e, title, desc) => ev.push("BEGIN:VEVENT", `UID:${s.getTime()}-${Math.random().toString(36).slice(2)}@twilight-ephemeris`, `DTSTAMP:${icalStamp(new Date())}`, `DTSTART:${icalStamp(s)}`, `DTEND:${icalStamp(e)}`, `SUMMARY:${title}`, `DESCRIPTION:${desc}`, "END:VEVENT");
+    const offOn = (y, m, d) => tz ? zoneOffsets(tz, y, m, d).off : offMin;
     for (let day = 1; day <= dim; day++) {
-      const c = computeDay(latN, lonN, Y, Mo, day);
+      const c = localComputeDay(latN, lonN, Y, Mo, day, offOn(Y, Mo, day));
       if (icalMode === "stargazing") {
         const nd = new Date(Date.UTC(Y, Mo - 1, day + 1));
-        const nc = computeDay(latN, lonN, nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate());
+        const [nY, nM, nD] = [nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate()];
+        const nc = localComputeDay(latN, lonN, nY, nM, nD, offOn(nY, nM, nD));
         if (!c.astroDusk.none && !nc.astroDawn.none) {
           const s = utcDate(Y, Mo, day, c.astroDusk.utc);
           const e = utcDate(nd.getUTCFullYear(), nd.getUTCMonth() + 1, nd.getUTCDate(), nc.astroDawn.utc);
           push(s, e, "\uD83C\uDF0C Astronomical dark window", "Sun below \u221218\u00B0 \u2014 darkest sky for stargazing.");
         }
       } else if (icalMode === "photography") {
-        const w = photoWindows(latN, lonN, c.p);
+        const w = photoWindowsFor(latN, lonN, c);
         const add = (win, title, desc) => { if (win) push(utcDate(Y, Mo, day, win[0]), utcDate(Y, Mo, day, win[1]), title, desc); };
         add(w.morningBlue, "\uD83D\uDCF7 Blue hour", "Sun 6\u00B0 to 4\u00B0 below the horizon: a deep blue sky.");
         add(w.morningGolden, "\uD83D\uDCF7 Golden hour", "Sun from 4\u00B0 below to 6\u00B0 up: low, warm light.");
         add(w.eveningGolden, "\uD83D\uDCF7 Golden hour", "Sun from 6\u00B0 up to 4\u00B0 below: low, warm light.");
         add(w.eveningBlue, "\uD83D\uDCF7 Blue hour", "Sun 4\u00B0 to 6\u00B0 below the horizon: a deep blue sky.");
       } else if (icalMode === "navigation") {
-        if (!c.nautDawn.none && !c.sunrise.none) push(utcDate(Y, Mo, day, c.nautDawn.utc), utcDate(Y, Mo, day, c.sunrise.utc), "\u2693 Morning nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
-        if (!c.sunset.none && !c.nautDusk.none) push(utcDate(Y, Mo, day, c.sunset.utc), utcDate(Y, Mo, day, c.nautDusk.utc), "\u2693 Evening nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
+        // Nautical twilight itself, the Sun 12° to 6° down, as the sextant
+        // window has it; these ran from nautical dawn to sunrise and sunset to
+        // nautical dusk, civil twilight and all (review, 2026-10-10).
+        if (!c.nautDawn.none && !c.civilDawn.none) push(utcDate(Y, Mo, day, c.nautDawn.utc), utcDate(Y, Mo, day, c.civilDawn.utc), "\u2693 Morning nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
+        if (!c.civilDusk.none && !c.nautDusk.none) push(utcDate(Y, Mo, day, c.civilDusk.utc), utcDate(Y, Mo, day, c.nautDusk.utc), "\u2693 Evening nautical twilight", "Horizon + stars visible \u2014 window for celestial sights.");
       } else {
         const marks = [["astroDawn", "Astronomical dawn"], ["nautDawn", "Nautical dawn"], ["civilDawn", "Civil dawn"], ["sunrise", "Sunrise"], ["sunset", "Sunset"], ["civilDusk", "Civil dusk"], ["nautDusk", "Nautical dusk"], ["astroDusk", "Astronomical dusk"]];
         for (const [k, label] of marks) {
@@ -6429,7 +6566,7 @@ function TwilightEphemeris({ redMode } = {}) {
     darkDur = darkEnd - darkStart;
   }
   const utcStr = m => `UTC${m >= 0 ? "+" : "\u2212"}${Math.floor(Math.abs(m) / 60)}${Math.abs(m) % 60 ? ":" + pad2(Math.abs(m) % 60) : ""}`;
-  const tzLabel = zone ? `${tz.replace(/_/g, " ")} (${utcStr(zone.off)})` : `UTC${Number(offset) >= 0 ? "+" : ""}${offset}${dst ? " +DST" : ""}`;
+  const tzLabel = zone ? `${tz.replace(/_/g, " ")} (${utcStr(zone.off)})` : `UTC${offH >= 0 ? "+" : ""}${offH}${dst ? " +DST" : ""}`;
   // The painted sky, and the darkness shading that gives it depth: dimmer
   // toward the zenith, and the ground below the horizon.
   const skyStops = curve ? daySkyStops(curve.pts, 5) : [];
@@ -6509,12 +6646,16 @@ function TwilightEphemeris({ redMode } = {}) {
     // To the minute (moonPhases); this stepped a day at a time before.
     // New and full Moons are in the Moon calendar just above, so not here.
     const yr = new Date().getFullYear();
+    // The seasons are the other way round south of the equator (review,
+    // 2026-10-10: Sydney was told December brings the winter solstice).
+    const SEASON = { spring: ["Spring Equinox", "#8fbc8f"], summer: ["Summer Solstice", "#f2c879"], autumn: ["Autumn Equinox", "#cd853f"], winter: ["Winter Solstice", "#7ab8d4"] };
+    const south = latN < 0;
     [
-      { month: 2, day: 20, type: "Spring Equinox", color: "#8fbc8f" },
-      { month: 5, day: 21, type: "Summer Solstice", color: "#f2c879" },
-      { month: 8, day: 22, type: "Autumn Equinox", color: "#cd853f" },
-      { month: 11, day: 21, type: "Winter Solstice", color: "#7ab8d4" },
-    ].forEach(e => {
+      { month: 2, day: 20, s: south ? "autumn" : "spring" },
+      { month: 5, day: 21, s: south ? "winter" : "summer" },
+      { month: 8, day: 22, s: south ? "spring" : "autumn" },
+      { month: 11, day: 21, s: south ? "summer" : "winter" },
+    ].map(e => ({ ...e, type: SEASON[e.s][0], color: SEASON[e.s][1] })).forEach(e => {
       const t = new Date(yr, e.month, e.day).getTime();
       if (t > now2) events.push({ t, type: e.type, color: e.color, kind: "season" });
       const t2 = new Date(yr + 1, e.month, e.day).getTime();
@@ -6537,7 +6678,7 @@ function TwilightEphemeris({ redMode } = {}) {
     });
     // The next five: without the Moon's phases, eight reached a year ahead.
     return events.sort((a, b) => a.t - b.t).slice(0, 5);
-  }, []);
+  }, [latN < 0]);
   const stars = useMemo(() => Array.from({
     length: 70
   }, () => ({
@@ -6551,14 +6692,18 @@ function TwilightEphemeris({ redMode } = {}) {
     utc: today.noon
   }, gold, "Sun on meridian"], ["Sunset", today.sunset, "#ffd479", "Upper limb at horizon"], ["Civil dusk", today.civilDusk, "#f2a65a", "Sun reaches \u22126\u00B0"], ["Nautical dusk", today.nautDusk, "#5f76c8", "Sun reaches \u221212\u00B0"], ["Astronomical dusk", today.astroDusk, "#7a78d6", "Sun reaches \u221218\u00B0"]] : [];
   // Golden and blue hours, and the Moon, for the date shown.
-  const photo = today ? photoWindows(latN, lonN, today.p) : null;
+  const photo = today ? photoWindowsFor(latN, lonN, today) : null;
   const dayStartMs = Date.UTC(Y, Mo - 1, D) - offMin * 60000;
   const moonDay = useMemo(() => valid ? moonRiseSet(latN, lonN, dayStartMs) : null, [valid, latN, lonN, dayStartMs]);
   const moonLit = valid ? Math.round(moonState(new Date(dayStartMs + 12 * 3600000), latN, lonN).illum * 100) : 0;
   const atMs = t => fmtLocal((t - Date.UTC(Y, Mo - 1, D)) / 60000, offMin);
   // What a telescope shows on the Moon that evening, at 9 PM.
   const moonLib = valid ? moonLibration(dayStartMs + 21 * 3600000) : null;
-  const moonFeats = moonLib ? terminatorFeatures(moonLib, 2) : [];
+  // Only while the Moon is up then: on 11 of October 2026's nights in Boston
+  // it named craters "at 9 PM" with the Moon below the horizon (review,
+  // 2026-10-10).
+  const moonUp9 = valid && moonAltSeen(new Date(dayStartMs + 21 * 3600000), latN, lonN) > 5;
+  const moonFeats = moonLib && moonUp9 ? terminatorFeatures(moonLib, 2) : [];
   const libWords = moonLib ? librationWords(moonLib) : '';
   // The next eclipses from this place, three years ahead. ~100 ms of
   // arithmetic, so after the page has painted, and again only when the
@@ -6622,11 +6767,22 @@ function TwilightEphemeris({ redMode } = {}) {
         new Date(Date.UTC(Y, Mo - 1, d.day, 12)).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) + ", " +
         fmtLocal(((d.phase.t + d.phase.off * 60000) % 86400000) / 60000, 0)))));
   const winStr = w => (w ? fmtLocal(w[0], offMin) + " \u2013 " + fmtLocal(w[1], offMin) : "Not today");
+  // A Sun that never climbs past 6° is golden light all day long: "Not
+  // today" read as no golden hour at all (Reykjavik in December; review,
+  // 2026-10-10). Likewise one that never sinks 4° below is golden light
+  // through the night, round the lowest point.
+  const goldStr = (w, morning) => {
+    if (w || !curve) return winStr(w);
+    const minAlt = Math.min(...curve.pts.map(q => q[1]));
+    if (curve.maxAlt > -4 && curve.maxAlt < 6) return morning ? "All day" : "(the same)";
+    if (minAlt > -4 && minAlt < 6) return morning ? "Through the night" : "(the same)";
+    return winStr(w);
+  };
   const extraRows = photo ? [
     ["For photographers", [
       ["Blue hour", "Morning. Sun 6\u00B0 to 4\u00B0 below the horizon: a deep blue sky.", winStr(photo.morningBlue), "#5f86d8"],
-      ["Golden hour", "Morning. Sun from 4\u00B0 below to 6\u00B0 up: low, warm light.", winStr(photo.morningGolden), "#f2b45a"],
-      ["Golden hour", "Evening.", winStr(photo.eveningGolden), "#f2b45a"],
+      ["Golden hour", "Morning. Sun from 4\u00B0 below to 6\u00B0 up: low, warm light.", goldStr(photo.morningGolden, true), "#f2b45a"],
+      ["Golden hour", "Evening.", goldStr(photo.eveningGolden, false), "#f2b45a"],
       ["Blue hour", "Evening.", winStr(photo.eveningBlue), "#5f86d8"]
     ]],
     ["The Moon", [
@@ -6747,7 +6903,7 @@ function TwilightEphemeris({ redMode } = {}) {
     }
   }, /*#__PURE__*/React.createElement("details", null, /*#__PURE__*/React.createElement("summary", {
     style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: "var(--ink-dim)" }
-  }, "Export the whole month (", Y, "-", pad2(Mo), ") to a calendar or spreadsheet"), /*#__PURE__*/React.createElement("div", {
+  }, "Export the whole month (", dateOk ? Y + "-" + pad2(Mo) : "\u2014", ") to a calendar or spreadsheet"), /*#__PURE__*/React.createElement("div", {
     style: {
       margin: "12px 0 10px"
     }
@@ -6859,7 +7015,7 @@ function TwilightEphemeris({ redMode } = {}) {
           type: "number", step: "0.25", "aria-label": "UTC offset in hours",
           style: { ...inputSt, marginTop: 0, flex: 1, minWidth: 0 },
           value: zone ? zone.std / 60 : offset,
-          onChange: e => { goManual(); setOffset(e.target.value === "" ? 0 : Number(e.target.value)); }
+          onChange: e => { goManual(); setOffset(e.target.value); }
         }),
         /*#__PURE__*/React.createElement("button", {
           onClick: autoOffset,
@@ -6875,13 +7031,18 @@ function TwilightEphemeris({ redMode } = {}) {
       gap: 11,
       cursor: "pointer"
     }
-  }, /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("button", {
+    // A button, so the keyboard and VoiceOver reach it and a tap on the
+    // words beside it (inside this label) works too; it was a bare span.
+    type: "button", role: "switch", "aria-checked": !!dstShown, "aria-label": "Daylight saving, one hour",
     onClick: () => { const cur = dstShown; goManual(); setDst(!cur); },
     style: {
       width: 46,
       height: 26,
       borderRadius: 20,
       padding: 3,
+      border: 0,
+      cursor: "pointer",
       background: dstShown ? "var(--accent)" : "rgba(190,180,160,.18)",
       transition: ".2s",
       flexShrink: 0
@@ -6945,7 +7106,7 @@ function TwilightEphemeris({ redMode } = {}) {
       textAlign: "center",
       color: dim
     }
-  }, "Latitude must be \u226490\xB0 and longitude \u2264180\xB0.") : /*#__PURE__*/React.createElement("svg", {
+  }, dateOk ? "Latitude must be \u226490\xB0 and longitude \u2264180\xB0." : "Choose a date.") : /*#__PURE__*/React.createElement("svg", {
     ref: svgRef,
     role: "img",
     "aria-label": today ? daySummary(today, latN, m => fmtLocal(m, offMin), darkStart, darkEnd) : "The Sun\u2019s height through the day.",
@@ -7113,7 +7274,7 @@ function TwilightEphemeris({ redMode } = {}) {
       font: "600 11px var(--font-ui)",
       fill: ink
     }
-  }, pad2(Math.floor(hover.mLocal / 60)), ":", pad2(Math.round(hover.mLocal % 60)), " \xA0 ", hover.alt.toFixed(1), "\xB0"), /*#__PURE__*/React.createElement("text", {
+  }, fmtLocal(Math.round(hover.mLocal) - offMin, offMin).replace(/ (\+|\u2212)1d$/, ""), " \xA0 ", hover.alt.toFixed(1), "\xB0"), /*#__PURE__*/React.createElement("text", {
     x: "8",
     y: "32",
     style: {
@@ -8479,7 +8640,7 @@ function StarFinder({ redMode } = {}) {
   const [loc, setLoc] = useState(() => {
     const fromUrl = urlPlace(window.location.search);
     if (fromUrl) return fromUrl;
-    try { return JSON.parse(localStorage.getItem('tw_loc') || 'null') || PRESETS[0]; } catch (e) { return PRESETS[0]; }
+    return savedPlace() || PRESETS[0];
   });
   const [now, setNow] = useState(() => Date.now());
   const [geoMsg, setGeoMsg] = useState("");
@@ -9713,8 +9874,12 @@ function TwilightApp() {
         --on-accent:#160000;--line:#3a1412;
         --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
       }
-      /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision */
-      .tw-stars,.hz-sky{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
+      /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision;
+         and so do Sky View, the charts, the planets' drawings and the welcome (review, 2026-10-10:
+         Sky View stayed white and blue in red mode). Each thing is washed once, not twice. */
+      .tw-stars,#root .hz-sky,
+      #root main svg:not([role="dialog"] svg):not(svg svg),#root main canvas:not(.hz-sky):not([role="dialog"] canvas),
+      [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
     `),
     React.createElement("div", { "aria-hidden": "true", style: { height: headerH == null ? "calc(env(safe-area-inset-top) + 46px)" : headerH } }),
     offer && React.createElement("div", {

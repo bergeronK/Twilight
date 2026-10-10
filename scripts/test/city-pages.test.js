@@ -15,7 +15,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const DIR = path.join(ROOT, 'twilight-times');
 const pages = fs.readdirSync(DIR).filter(f => f.endsWith('.html') && f !== 'index.html');
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8');
-const { urlPlace } = extract(['urlPlace']);
+const { urlPlace } = extract(['knownTz', 'urlPlace']);
 
 test('the address carries a place: coordinates, name and zone', () => {
   const p = urlPlace('?lat=42.3601&lon=-71.0589&name=Boston%2C%20MA&tz=America%2FNew_York');
