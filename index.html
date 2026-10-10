@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-TEfIdjcXAZVg4iloVUye8BHRuk5kqZDwPy1DMYwGRXA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-3c+aJOInV0alXjAG3Gz6GtOdmmjn4PcWu3fN+z9klIE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -129,6 +129,9 @@
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); -webkit-text-size-adjust: 100%; }
   #root { min-height: 100vh; }
+  /* Landscape on an iPhone with a notch or Dynamic Island: the page keeps
+     clear of it, as the header and tab bar already did (review, 2026-10-10). */
+  main { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
   .boot, .err { font-family: ui-monospace, Menlo, Consolas, monospace; padding: 26px; line-height: 1.5; }
   .err { padding-top: max(26px, calc(env(safe-area-inset-top) + 12px)); }
   .boot { color: var(--ink-dim); font-size: 13px; }
@@ -2392,6 +2395,12 @@ const coreMotionAcc = a => (a < 0 ? -1 : a === 0 ? 30 : a === 1 ? 15 : 5);
    (owner's iPhone, v156). Also Sky View and the welcome, which are dialogs
    (React passes their touches up to the tab, portal or not), and sliders. */
 const NO_SWIPE = '[data-noswipe], [role="dialog"], input[type="range"]';
+// Which way a finished swipe changes tab: +1 on, -1 back, 0 none. Far
+// enough sideways, and more sideways than up or down: a scroll that drifted
+// 85 px across on its way 450 px up switched tabs (review, 2026-10-10).
+function swipeDir(dx, dy) {
+  return Math.abs(dx) > 70 && Math.abs(dx) > 1.5 * Math.abs(dy) ? (dx < 0 ? 1 : -1) : 0;
+}
 function swipeAllowed(target) {
   return !(target && typeof target.closest === 'function' && target.closest(NO_SWIPE));
 }
@@ -9856,15 +9865,15 @@ function TwilightApp() {
     }
     try { await navigator.clipboard.writeText(url); setShared(true); setTimeout(() => setShared(false), 2000); } catch (e) {}
   };
-  const [hintDismissed, setHintDismissed] = React.useState(() => localStorage.getItem('tw_hint') === '1');
-  const dismissHint = () => { setHintDismissed(true); localStorage.setItem('tw_hint', '1'); };
-  const touchStartX = React.useRef(null);
-  const handleTouchStart = e => { touchStartX.current = swipeAllowed(e.target) ? e.touches[0].clientX : null; };
+  const [hintDismissed, setHintDismissed] = React.useState(() => { try { return localStorage.getItem('tw_hint') === '1'; } catch (e) { return false; } });
+  const dismissHint = () => { setHintDismissed(true); try { localStorage.setItem('tw_hint', '1'); } catch (e) {} };
+  const touchStart = React.useRef(null);
+  const handleTouchStart = e => { touchStart.current = swipeAllowed(e.target) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; };
   const handleTouchEnd = e => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    if (Math.abs(dx) > 70) { const order = ['console', 'ephemeris', 'stars']; const i = order.indexOf(activeTab); switchTab(order[Math.max(0, Math.min(order.length - 1, i + (dx < 0 ? 1 : -1)))]); }
-    touchStartX.current = null;
+    if (touchStart.current === null) return;
+    const t = e.changedTouches[0], step = swipeDir(t.clientX - touchStart.current.x, t.clientY - touchStart.current.y);
+    if (step) { const order = ['console', 'ephemeris', 'stars']; const i = order.indexOf(activeTab); switchTab(order[Math.max(0, Math.min(order.length - 1, i + step))]); }
+    touchStart.current = null;
   };
   const [installPrompt, setInstallPrompt] = React.useState(null);
   // Counted once per load; the old forever-dismiss flag becomes a snooze.
@@ -10068,12 +10077,11 @@ function TwilightApp() {
           style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)" }
         },
           React.createElement("span", null, "24-hour time"),
-          React.createElement("span", {
-            onClick: () => prefStore.setH24(!h24),
-            role: "switch", "aria-checked": h24, tabIndex: 0,
-            onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setH24(!h24); } },
+          React.createElement("button", {
+            type: "button", onClick: () => prefStore.setH24(!h24),
+            role: "switch", "aria-checked": h24, "aria-label": "24-hour time",
             style: {
-              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
               background: h24 ? "var(--accent)" : "rgba(190,180,160,.18)",
               transition: ".2s", display: "inline-block"
             }
@@ -10088,12 +10096,11 @@ function TwilightApp() {
           style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, cursor: "pointer", fontSize: 13, color: "var(--ink)", marginBottom: 8 }
         },
           React.createElement("span", null, "Auto-detect from location"),
-          React.createElement("span", {
-            onClick: () => prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"),
-            role: "switch", "aria-checked": bortleMode === "auto", tabIndex: 0,
-            onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"); } },
+          React.createElement("button", {
+            type: "button", onClick: () => prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"),
+            role: "switch", "aria-checked": bortleMode === "auto", "aria-label": "Sky brightness from your location",
             style: {
-              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+              width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
               background: bortleMode === "auto" ? "var(--accent)" : "rgba(190,180,160,.18)",
               transition: ".2s", display: "inline-block"
             }
@@ -10135,12 +10142,11 @@ function TwilightApp() {
                     onClick: buyPro, disabled: iapBusy,
                     style: { fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: ".4px", padding: "6px 14px", borderRadius: 8, cursor: iapBusy ? "default" : "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", fontWeight: 600, flexShrink: 0, opacity: iapBusy ? 0.6 : 1 }
                   }, iapBusy ? "…" : "Unlock"))
-            : React.createElement("span", {
-                onClick: () => prefStore.setPro(!pro),
-                role: "switch", "aria-checked": pro, tabIndex: 0,
-                onKeyDown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); prefStore.setPro(!pro); } },
+            : React.createElement("button", {
+                type: "button", onClick: () => prefStore.setPro(!pro),
+                role: "switch", "aria-checked": pro, "aria-label": "Week planner",
                 style: {
-                  width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0,
+                  width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
                   background: pro ? "var(--accent)" : "rgba(190,180,160,.18)",
                   transition: ".2s", display: "inline-block"
                 }
@@ -10199,7 +10205,7 @@ function TwilightApp() {
       role: "region", "aria-label": "Tip",
       style: {
         display: "flex", alignItems: "center", gap: 10,
-        padding: "8px 16px", fontFamily: "var(--font-ui)", fontSize: 12,
+        padding: "8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left))", fontFamily: "var(--font-ui)", fontSize: 12,
         color: "var(--ink-dim)", background: "var(--surface)",
         borderBottom: "1px solid var(--line)"
       }
@@ -10231,7 +10237,7 @@ function TwilightApp() {
     ),
     React.createElement("footer", {
       style: {
-        maxWidth: 1080, margin: "0 auto", padding: "26px clamp(14px,3.5vw,40px) 40px",
+        maxWidth: 1080, margin: "0 auto", padding: "26px max(clamp(14px,3.5vw,40px), env(safe-area-inset-right)) 40px max(clamp(14px,3.5vw,40px), env(safe-area-inset-left))",
         borderTop: "1px solid var(--line)", fontFamily: "var(--font-ui)", fontSize: 11.5,
         lineHeight: 1.7, color: "var(--ink-faint)", display: "flex", flexWrap: "wrap",
         gap: "4px 18px", justifyContent: "space-between", alignItems: "baseline"
@@ -10250,8 +10256,11 @@ function TwilightApp() {
         " (CC BY-SA 4.0) · Constellation lines and names, Milky Way: ",
         React.createElement("a", { href: "https://github.com/ofrohn/d3-celestial", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "d3-celestial"),
         " © Olaf Frohn (",
-        React.createElement("a", { href: "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
-        ") · No tracking — only an anonymous visit count. ",
+        // In the app the bundled file would open in place with no way back
+        // (and a new window there opens nothing): the website's copy goes
+        // to Safari instead. The apps count no visits (review, 2026-10-10).
+        React.createElement("a", { href: window.Capacitor ? "https://twilyte.info/constellations.LICENSE.txt" : "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
+        window.Capacitor ? ") · No tracking. " : ") · No tracking — only an anonymous visit count. ",
         React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy"),
         " · ",
         React.createElement("a", { href: "/support.html", style: { color: "var(--ink-dim)" } }, "Help")
