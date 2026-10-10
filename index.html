@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-SnTjNl5UirxK1SyBoakf+TKx9/ikwO7L4LfCcXr1v8o=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-TEfIdjcXAZVg4iloVUye8BHRuk5kqZDwPy1DMYwGRXA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -3786,7 +3786,9 @@ function solveFix(lat0, lon0, lines) {
   const y = (sxx * syb - sxy * sxb) / det;
   return {
     lat: lat0 + y / 60,
-    lon: lon0 + x / 60 / cosLat,
+    // Wrapped into -180..180: a fix across the date line read 180.25° E
+    // (review, 2026-10-10).
+    lon: ((lon0 + x / 60 / cosLat + 540) % 360 + 360) % 360 - 180,
     nm: Math.sqrt(x * x + y * y) // distance of the fix from the assumed position, for sanity display
   };
 }
@@ -5191,8 +5193,13 @@ function sextantWindows(now, lat, lon) {
   const nautU = winEv.filter(e => e.key === "naut" && e.dir === "up");
   const civilU = winEv.filter(e => e.key === "civil" && e.dir === "up");
   civilD.forEach(s => {
-    const e = nautD.find(x => x.t > s.t);
-    if (e) wins.push({
+    const e = nautD.find(x => x.t > s.t), dawn = civilU.find(x => x.t > s.t);
+    // Where the Sun never gets 12° down (summer from about 54° to 60°: the
+    // horizon never goes), the night from civil dusk to civil dawn is one
+    // window. It used to need a 12° crossing and offered none all summer in
+    // Copenhagen and Edinburgh (review, 2026-10-10).
+    if (dawn && (!e || dawn.t < e.t)) wins.push({ s: s.t, e: dawn.t, kind: "All night" });
+    else if (e) wins.push({
       s: s.t,
       e: e.t,
       kind: "Evening"
@@ -8121,12 +8128,22 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     return p && p.x >= 0 && p.x <= size.w && p.y >= 0 && p.y <= size.h;
   })()));
   // A dialog: focus goes to Back on opening and returns to whatever opened
-  // it on closing, and Escape closes it.
+  // it on closing, Escape closes it, and Tab goes round its own controls
+  // rather than on to the page behind it (review, 2026-10-10).
   const backRef = useRef(null);
   useEffect(() => {
     const before = document.activeElement;
     if (backRef.current) backRef.current.focus();
-    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    const onKey = e => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab' || !wrapRef.current) return;
+      const f = [...wrapRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => !el.disabled && el.getClientRects().length);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1], inside = wrapRef.current.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('keydown', onKey); if (before && before.focus) before.focus(); };
   }, []);
@@ -8245,7 +8262,10 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       findOpen && React.createElement('div', {
         style: {
           flexBasis: '100%', boxSizing: 'border-box',
-          maxWidth: 420, maxHeight: '58vh', overflowY: 'auto',
+          // Clear of the guide and buttons at the bottom: at 58% of the
+          // height it ran under them in landscape and on a 320 px phone,
+          // where its last names couldn't be tapped (review, 2026-10-10).
+          maxWidth: 420, maxHeight: 'max(120px, min(58vh, calc(100vh - 300px)))', overflowY: 'auto',
           padding: '6px 12px 10px', borderRadius: 10,
           background: 'rgba(10,12,20,.9)', border: '1px solid rgba(255,255,255,.14)',
           backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#eef2ff', fontFamily: 'var(--font-ui)'
@@ -8346,9 +8366,13 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         ...keepTap,
         style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }
       },
-        React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.6)' } },
-          'Drawn ' + target.name + ' not on the real one? Put the real one in the ring, then'),
-        React.createElement('button', { onClick: align.onAlign, style: { ...chip, ...chipOn, padding: '6px 12px' } }, 'Align'),
+        align.ok === false
+          ? React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.6)' } },
+              'To line up the drawn sky, use something lower: looking almost straight up, the compass can’t tell which way you face.')
+          : React.createElement(React.Fragment, null,
+              React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.6)' } },
+                'Drawn ' + target.name + ' not on the real one? Put the real one in the ring, then'),
+              React.createElement('button', { onClick: align.onAlign, style: { ...chip, ...chipOn, padding: '6px 12px' } }, 'Align')),
         align.offset !== 0 && React.createElement('button', { onClick: align.onReset, style: { ...chip, padding: '6px 12px' } },
           'Reset ' + (align.offset > 0 ? '+' : '\u2212') + Math.abs(align.offset).toFixed(0) + '\u00b0')
       ),
@@ -8691,18 +8715,29 @@ function StarFinder({ redMode } = {}) {
   const [sightHsMin, setSightHsMin] = useState('');
   const [sightHeightM, setSightHeightM] = useState('2');
   const [sightIeMag, setSightIeMag] = useState('0');
+  const [sightMsg, setSightMsg] = useState('');
   const [sightIeOnArc, setSightIeOnArc] = useState(true);
   const [sightLimb, setSightLimb] = useState('lower');
+  // Checked before it is added, and said when it isn't: minutes of 60 or
+  // more went in as they were (42° 185′ became 45° 05′), and an empty Hs or
+  // time did nothing without a word (review, 2026-10-10). A comma is a
+  // decimal point.
   const addSight = () => {
-    const hs = (parseFloat(sightHsDeg) || 0) + (parseFloat(sightHsMin) || 0) / 60;
+    const n = v => parseFloat(String(v).replace(",", "."));
+    const d = n(sightHsDeg), m = String(sightHsMin).trim() === "" ? 0 : n(sightHsMin);
     const t = new Date(sightTime).getTime();
-    if (!hs || isNaN(t)) return;
+    if (!Number.isFinite(d) || d < 0 || d >= 90) { setSightMsg("Hs degrees: a number from 0 to 89."); return; }
+    if (!Number.isFinite(m) || m < 0 || m >= 60) { setSightMsg("Hs minutes: from 0 up to, but not including, 60."); return; }
+    const hs = d + m / 60;
+    if (!(hs > 0)) { setSightMsg("Hs is the sextant reading, above 0°."); return; }
+    if (isNaN(t)) { setSightMsg("Set the time of the sight."); return; }
+    setSightMsg("");
     sightIdRef.current += 1;
     setSights(s => [...s, {
       id: sightIdRef.current, body: sightBody,
       starName: sightBody === 'star' ? sightStarName : null,
-      time: t, hs, heightM: parseFloat(sightHeightM) || 0,
-      ieMin: (sightIeOnArc ? -1 : 1) * (parseFloat(sightIeMag) || 0),
+      time: t, hs, heightM: n(sightHeightM) || 0,
+      ieMin: (sightIeOnArc ? -1 : 1) * (n(sightIeMag) || 0),
       limb: sightLimb
     }]);
     setSightHsDeg(""); setSightHsMin("");
@@ -8846,7 +8881,9 @@ function StarFinder({ redMode } = {}) {
     return () => window.removeEventListener('orientationchange', read);
   }, []);
   useEffect(() => {
-    if ((!aimTargetName && !skyOpen) || !navigator.wakeLock) return;
+    // Awake while Sky View is open, or while Aim Assist is aiming; a target
+    // left picked after Sky View closed kept the screen on for good.
+    if ((!(aimTargetName && aimSensor === 'granted') && !skyOpen) || !navigator.wakeLock) return;
     let cancelled = false;
     const acquire = () => navigator.wakeLock.request('screen')
       .then(l => { if (cancelled) l.release(); else wakeRef.current = l; })
@@ -8861,7 +8898,7 @@ function StarFinder({ redMode } = {}) {
       document.removeEventListener('visibilitychange', onVis);
       if (wakeRef.current) { try { wakeRef.current.release(); } catch (e) {} wakeRef.current = null; }
     };
-  }, [aimTargetName, skyOpen]);
+  }, [aimTargetName, aimSensor, skyOpen]);
   useEffect(() => {
     if (aimSensor !== 'granted') return;
     // Three different platforms, three different ways to get a heading:
@@ -8988,7 +9025,7 @@ function StarFinder({ redMode } = {}) {
   }, [aimSensor]);
   // Everything Sky View can draw. Kept a little below the horizon so the
   // horizon line has something on both sides of it.
-  const skyBodies = useMemo(() => {
+  const skyAll = useMemo(() => {
     const d = new Date(skyNow), out = [];
     const s = sunHcZn(d, loc.lat, loc.lon); out.push({ name: 'Sun', az: s.az, alt: s.alt, kind: 'sun', mag: -26 });
     const mo = moonTopo(moonState(d, loc.lat, loc.lon)); out.push({ name: 'Moon', az: mo.az, alt: mo.alt, kind: 'moon', mag: -12, illum: mo.illum });
@@ -9016,8 +9053,17 @@ function StarFinder({ redMode } = {}) {
     // Sorted faintest-first once here rather than per frame, so the draw loop
     // gets correct overlap (bright on top) without re-sorting ~1600 entries
     // on every sensor event.
-    return out.filter(b => b.alt > -12).sort((a, b) => b.mag - a.mag);
+    return out.sort((a, b) => b.mag - a.mag);
   }, [skyNow, loc.lat, loc.lon, starCatalog, deepSky]);
+  // What Sky View draws: down to 12° below the horizon. A target picked
+  // and then sunk further (time travel back to now) is still the target:
+  // looked up among only these it vanished, with no "below the horizon"
+  // line, and Aim Assist said "Turn 0° right" (review, 2026-10-10).
+  const skyBodies = useMemo(() => skyAll.filter(b => b.alt > -12), [skyAll]);
+  const skyShown = useMemo(() => {
+    const t = aimTargetName && !skyBodies.some(b => b.name === aimTargetName) && skyAll.find(b => b.name === aimTargetName);
+    return t ? skyBodies.concat([t]) : skyBodies;
+  }, [skyBodies, skyAll, aimTargetName]);
   // Constellation vertices to alt/az once per clock tick, like the catalogue
   // above, so the draw loop only projects.
   const constellationPaths = useMemo(() => {
@@ -9042,9 +9088,9 @@ function StarFinder({ redMode } = {}) {
     // Anything else Sky View can pick: a planet, a catalogue star, or a
     // constellation from Find. Before, only the list above resolved, so
     // tapping Jupiter in Sky View left Aim Assist with nothing to aim at.
-    const t = findTarget(aimTargetName, skyBodies, constellationNames);
+    const t = findTarget(aimTargetName, skyAll, constellationNames);
     return t ? { name: t.name, alt: t.alt, az: t.az } : null;
-  }, [aimTargetName, now, loc.lat, loc.lon, navStars, skyBodies, constellationNames]);
+  }, [aimTargetName, now, loc.lat, loc.lon, navStars, skyAll, constellationNames]);
   // Local declination, recomputed only when the place changes — it varies by
   // well under a degree over any distance a user moves in a session, and the
   // harmonic sum is not worth running on every sensor frame.
@@ -9095,8 +9141,14 @@ function StarFinder({ redMode } = {}) {
   // adding it to the correction already applied lands the view on the body.
   // (This read `aimAz`, which the quaternion rewrite removed; every tap of
   // Align threw from 2026-09-15 until this was found in the field.)
+  // Only where the bearing means something: the camera off the vertical, or
+  // the phone flat with its top toward the body (Aim Assist's compass mode).
+  // Looking nearly straight up the fallback is the top of the screen's
+  // bearing, about opposite the camera's: Align on Vega 82° up saved a
+  // 166° error that stayed for later visits (review, 2026-10-10).
+  const alignOk = !!aimNow && (aimNow.stable || aimNow.alt < 0);
   const alignHere = () => {
-    if (aimTurn === null) return;
+    if (aimTurn === null || !alignOk) return;
     prefStore.setAimOffset(aimOffset + aimTurn);
     setNeedsCal(false);
     setShowCalHelp(false);
@@ -9119,7 +9171,9 @@ function StarFinder({ redMode } = {}) {
   const navHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "var(--ink-faint)", textTransform: "uppercase" };
   // Recommended 3-star fix: bright stars at a workable altitude (15–70°),
   // greedily spread in azimuth for the strongest position-line cut.
-  const fixStars = (() => {
+  // Memoised: a new array each render redrew the whole sky chart on every
+  // motion reading, 50 times a second (review, 2026-10-10).
+  const fixStars = useMemo(() => {
     const cand = navStars.filter(s => s.alt >= 15 && s.alt <= 70);
     if (cand.length <= 3) return cand.slice();
     const chosen = [cand[0]]; // navStars is brightness-sorted
@@ -9136,7 +9190,7 @@ function StarFinder({ redMode } = {}) {
       chosen.push(best);
     }
     return chosen;
-  })();
+  }, [navStars]);
   const fixNames = new Set(fixStars.map(s => s.name));
   let fixMinSep = 360;
   for (let i = 0; i < fixStars.length; i++) for (let j = i + 1; j < fixStars.length; j++) { let d = Math.abs(fixStars[i].az - fixStars[j].az) % 360; if (d > 180) d = 360 - d; fixMinSep = Math.min(fixMinSep, d); }
@@ -9349,19 +9403,19 @@ function StarFinder({ redMode } = {}) {
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 90px" } },
         React.createElement("div", { style: navLabelSt }, "Hs deg"),
-        React.createElement("input", { type: "number", "aria-label": "Hs, degrees", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
+        React.createElement("input", { type: "text", inputMode: "decimal", "aria-label": "Hs, degrees", value: sightHsDeg, onChange: e => setSightHsDeg(e.target.value), style: navInputSt, placeholder: "42" })
       ),
       React.createElement("div", { style: { flex: "0 0 90px" } },
         React.createElement("div", { style: navLabelSt }, "Hs min"),
-        React.createElement("input", { type: "number", step: "0.1", "aria-label": "Hs, minutes", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
+        React.createElement("input", { type: "text", inputMode: "decimal", "aria-label": "Hs, minutes", value: sightHsMin, onChange: e => setSightHsMin(e.target.value), style: navInputSt, placeholder: "18.5" })
       ),
       React.createElement("div", { style: { flex: "0 0 120px" } },
         React.createElement("div", { style: navLabelSt }, "Height of eye (m)"),
-        React.createElement("input", { type: "number", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
+        React.createElement("input", { type: "text", inputMode: "decimal", "aria-label": "Height of eye, metres", value: sightHeightM, onChange: e => setSightHeightM(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 100px" } },
         React.createElement("div", { style: navLabelSt }, "Index error (\u2032)"),
-        React.createElement("input", { type: "number", step: "0.1", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
+        React.createElement("input", { type: "text", inputMode: "decimal", "aria-label": "Index error, minutes of arc", value: sightIeMag, onChange: e => setSightIeMag(e.target.value), style: navInputSt })
       ),
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", { style: navLabelSt }, "Index error is"),
@@ -9395,6 +9449,7 @@ function StarFinder({ redMode } = {}) {
       onClick: addSight,
       style: { fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", marginBottom: 22 }
     }, "Add sight"),
+    sightMsg && React.createElement("div", { role: "alert", style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.ink, marginTop: -14, marginBottom: 18 } }, sightMsg),
     sightRows.length > 0 && React.createElement("div", { style: { marginBottom: 8 } }, sightRows),
     sightRows.length === 1 && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginBottom: 20 } }, "Add one more sight, at a different bearing, for a fix."),
     fixPanel
@@ -9585,7 +9640,7 @@ function StarFinder({ redMode } = {}) {
                 ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "Waiting for compass data…")
                 : React.createElement("div", null,
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 24, alignItems: "baseline" } },
-                      React.createElement("div", null,
+                      aimTurn !== null && React.createElement("div", null,
                         React.createElement("div", { style: navLabelSt }, "Turn"),
                         React.createElement("div", {
                           style: bigNum,
@@ -9673,10 +9728,11 @@ function StarFinder({ redMode } = {}) {
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000 + skyShift * 60000)) + loc.lon),
       time: {
         shift: skyShift, onShift: setSkyShift,
-        // A day either way crosses midnight, so the day is named when it isn't today.
-        label: (dateKey(skyNow, loc.tz) !== dateKey(now, loc.tz) ? new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'short' }).format(new Date(skyNow)) + ' ' : '') + fmtT(skyNow, loc.tz)
+        // "tomorrow 03:00", not "Sun 03:00", which read as the Sun (review,
+        // 2026-10-10); the slider goes a day either way.
+        label: (dateKey(skyNow, loc.tz) === dateKey(now, loc.tz) ? '' : dateKey(skyNow, loc.tz) > dateKey(now, loc.tz) ? 'tomorrow ' : 'yesterday ') + fmtT(skyNow, loc.tz)
       },
-      bodies: skyBodies,
+      bodies: skyShown,
       lines: constellationPaths,
       names: constellationNames,
       screenAngle,
@@ -9687,11 +9743,19 @@ function StarFinder({ redMode } = {}) {
       northMsg,
       viewQ,
       diag,
-      onClose: () => { setSkyOpen(false); setSkyShift(0); },
+      // Closing stops the motion sensors, and with them the screen's wake
+      // lock, unless Aim Assist is open on the page with a target to use
+      // them: they ran on after Back, the tab redrawing its chart on every
+      // reading, until the tab was left (review, 2026-10-10).
+      onClose: () => {
+        setSkyOpen(false); setSkyShift(0); setShowDiag(false);
+        const nav = document.getElementById('for-navigators');
+        if (!(nav && nav.open && aimTargetName)) { setAimSensor('idle'); setOrient(null); }
+      },
       initialAz: previewFacing,
       // Align compares the drawn sky with the real one, which only means
       // something while the drawn sky is now.
-      align: skyShift ? null : { onAlign: alignHere, onReset: () => prefStore.setAimOffset(0), offset: aimOffset },
+      align: skyShift ? null : { onAlign: alignHere, ok: alignOk, onReset: () => prefStore.setAimOffset(0), offset: aimOffset },
       sensorMsg: aimStatusMsg
     })
   );
