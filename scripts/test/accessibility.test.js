@@ -67,7 +67,10 @@ test('Sky View is a dialog: named, modal, focus on Back, Escape closes', () => {
   assert.match(src, /role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sky View'/);
   assert.match(src, /createElement\('button', \{ ref: backRef, onClick: onClose/);
   assert.match(src, /if \(backRef\.current\) backRef\.current\.focus\(\);/);
-  assert.match(src, /if \(e\.key === 'Escape'\) onClose\(\);/);
+  assert.match(src, /if \(e\.key === 'Escape'\) \{ onClose\(\); return; \}/);
+  // Tab goes round the dialog's own controls, not on to the page behind.
+  assert.match(src, /if \(e\.key !== 'Tab' \|\| !wrapRef\.current\) return;/);
+  assert.match(src, /else if \(!e\.shiftKey && \(document\.activeElement === last \|\| !inside\)\) \{ e\.preventDefault\(\); first\.focus\(\); \}/);
   assert.match(src, /if \(before && before\.focus\) before\.focus\(\);/, 'focus goes back where it came from');
   assert.match(src, /createElement\('canvas', \{ ref: canvasRef, role: 'img', 'aria-label': summary/);
 });

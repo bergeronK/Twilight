@@ -29,7 +29,7 @@ Three tabs, one `index.html`, no build step:
 - **Ephemeris** — twilight times for any date/place, solar altitude chart,
   iCal/CSV export, upcoming sky events.
 - **Stars** — Sky View, the whole-sky chart, Jupiter and Saturn, the space
-  station, the observing log, and one folded **"For navigators"**: the
+  station, and one folded **"For navigators"**: the
   navigation stars, the 3-star fix, the sextant window, sight reduction and
   Aim Assist.
 
@@ -619,16 +619,12 @@ stargazer is the default, navigator material is kept whole but folded.
   limiting magnitude 1.5 past its own, at the first time it's within 5° of
   its best: from a city the Pleiades, not the Andromeda Galaxy. Not on the
   painting, which shows only what the eye would.
-- **Observing log (2026-09-24).** What you've marked as seen, in this
-  browser only: `seenStore` (external store like `prefStore`, `tw_seen` =
-  `{key: first marked, ms}`, `parseSeen` drops junk, `toggleSeen`), keyed by
-  `seenKey` (a Messier number for deep-sky, else the name). Sky View's
-  bottom line offers **I've seen it** once something is picked (never the
-  Sun); Find marks what's been seen. The Stars tab's **Your observing log**
-  (`ObservingLog`, hook-free) says how many (`logSummary`), lists the others
-  in the order seen, and opens a **Messier checklist** of all 110 toggles.
-  `/privacy.html` lists it under what's stored on the device.
-  `observing-log.test.js`.
+- **The observing log is gone (removed 2026-10-09, owner, from the iPhone
+  app).** It was added 2026-09-24: the Stars tab's "Your observing log" with
+  a Messier checklist, Sky View's **I've seen it**, and Find's "Seen" marks,
+  kept in `tw_seen`. All of it was taken out, on the website too, and
+  `tw_seen` is removed on load; `/privacy.html` no longer lists it. See git
+  history before bringing it back.
 - **The space station (2026-09-24).** When the ISS passes over, on the
   Console (a highlight, rank 1, for tonight's best pass and how many more)
   and on the Stars tab (`IssPanel`: the next visible passes in three days).
@@ -769,6 +765,77 @@ stargazer is the default, navigator material is kept whole but folded.
   with `?lat=&lon=`, and twilyte.info is to become the apps' website rather
   than the web app, so no app links there. `share-card.test.js`,
   `native-share.test.js`.
+- **Files and calendars in the iPhone app (2026-10-09, v162).** Every
+  "Add to calendar" (the Console's sunset and sunrise, the sextant window)
+  and the Ephemeris's month export (iCal and CSV) clicked a download link,
+  which the app's web view drops: none of them did anything on the owner's
+  iPhone. All now call **`saveFile(name, text, mime)`**: a browser
+  downloads as before; in the iPhone app a calendar goes to
+  **`TwilyteCalendarPlugin`** (`AppDelegate.swift`, JS `TwilyteCalendar`,
+  `nativeCalendar()`) as events the page reads back out of its own .ics
+  (`icsEvents`: title, start and end in ms, notes, alarm in minutes), and
+  anything else to `TwilyteShare` as a named file (`fileName`, `fileText`:
+  Save to Files, Numbers). One event opens iOS's own event editor, filled
+  in, which from iOS 17 needs no permission (Apple's TN3152); on 15 and 16
+  it asks for calendar access first. Several (a month) asks "Add 31 events
+  to your calendar?", then for **write-only** access, and saves them to the
+  default calendar. Info.plist: `NSCalendarsWriteOnlyAccessUsageDescription`
+  and `NSCalendarsUsageDescription`; nothing collected (privacy.html's "Your
+  calendar", `app-store-privacy-answers.md` 4b). **New download buttons go
+  through `saveFile`**, or they won't work in the app. Android's web view
+  drops downloads too and has no such plugin yet. `native-files.test.js`.
+- **A review for faults users would meet (2026-10-10, v163, owner: "fix the
+  ones that affect app users").** Five reviewers read the app in slices and
+  a browser sweep ran it as the iPhone app at the poles, the date line, DST
+  changes, half-hour zones, a German locale, iPad, landscape and 320 px (no
+  crash, no NaN). What was fixed, and the rule each now follows:
+  - **Bortle mode**: only the Settings switch stores `manual`. A stored
+    class with no stored mode had been read as chosen by hand, but the
+    automatic estimate stores its class too, so from the second launch it
+    never updated.
+  - **Time zones**: `knownTz` (the zone if `Intl` knows it, else the
+    device's) and `savedPlace()` (the checked `tw_loc`) wherever a place is
+    set or read. An unknown zone from the place search on an older iPhone
+    would have crashed every launch once saved.
+  - **Console**: the forecast effect takes a new `wxSeq` on every run, and
+    a new place clears `wx` until its own arrives; a location fix that comes
+    back after a pick (or after the picker was opened over the automatic
+    try) is dropped (`geoSeq`, `dropFix`); "Twilight today" is
+    `twilightDayEvents`: dawn stages before the Sun's highest point, dusk
+    stages after it, into the night; the week planner steps calendar days
+    (`localMidnight(mid + 36 h)`); the plan looks 26 h back (nights near
+    polar night run over 20 h); polar night's highlights use the next 24 h
+    (`hlSpan`); the headline is golden hour from 6° up to 4° down and blue
+    hour to 6° down, as the Ephemeris defines them, with dawn words at dawn
+    (`live.rising`).
+  - **Ephemeris**: `localComputeDay` takes the UTC day before (or after)
+    when local noon falls on the next UTC day (Samoa, Tonga, Kiritimati),
+    with `photoWindowsFor`; the offset field keeps what's typed; commas are
+    decimal points; seasons swap south of the equator; craters only with the
+    Moon 5°+ up at 9 PM; the Moon calendar uses the landing day's offset;
+    the navigation iCal is nautical twilight only; the CSV has a BOM; the
+    DST toggle is a real switch.
+  - **Stars**: closing Sky View stops the sensors (CoreMotion in the app)
+    and the wake lock unless Aim Assist is open with a target; Align refuses
+    with the camera nearly straight up (`alignOk`: it saved a 166° error);
+    a picked target is resolved from all bodies (`skyAll`), not only those
+    above -12°; a night that never gets 12° dark is one "All night" sextant
+    window; the sight form validates and says why; Tab stays in Sky View.
+  - **Shell**: `native/capacitor.config.json` sets `SystemBars.style` to
+    `DARK`. Capacitor 8 always loads SystemBars, whose default is `.default`
+    (a dark clock in Light Mode), and that overrides Info.plist's light
+    content. Also: red mode filters Sky View, the charts and the welcome; a
+    tab swipe must be mostly sideways (`swipeDir`); the Settings switches
+    are named buttons; Privacy and Help clear the status bar and link back
+    at the top (the app has no back gesture); the licence link opens the
+    website's copy in the app; landscape keeps clear of the notch.
+  - **Left as they were**: website-only items (the Share link and city
+    pages' links don't carry the zone; a URL place overrides later picks;
+    the city pages' "Never (sun stays up)" wording; the service worker's
+    cache of each `?lat=` page), "Your location" chips keeping frozen
+    coordinates, and typed coordinates dropping the place's zone (by
+    design: manual mode). `review-fixes.test.js`, every test checked by
+    reverting its fix.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1573,6 +1640,12 @@ things a syntax check cannot see:
   a stub React (the class, "of 9 on the Bortle scale", the word, what shows,
   the scale's ends, auto or set by you; a dash and why before it is known),
   and a stale forecast said on the twilight section's line.
+- **`review-fixes.test.js`** — one test per fix from the 2026-10-10
+  review (see "A review for faults users would meet"): Bortle mode across
+  launches, unknown zones, the twilight words, long and polar nights, the
+  partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
+  across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
+  window, the fix across the date line, and the wiring of the rest.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
@@ -1850,6 +1923,17 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
+  **1.0 (build 1) was submitted for App Review on 2026-10-06**, set to
+  **manual release**: once approved, the owner clicks Release This Version.
+  App Store Connect's app ID is 6819388363. What was entered: App Privacy
+  declares Precise Location only (App Functionality, not linked, no
+  tracking; no Purchases until 1.1), age rating 4+, Content Rights "yes,
+  third-party content, with the rights", category Reference, price Free.
+  App Store Connect asked for the 6.5" iPhone and 12.9" iPad screenshot
+  sizes, hence those sets. The App ID needs no capabilities (location,
+  camera and photos are Info.plist strings; In-App Purchase is on by
+  default). The EU trader-status question (Digital Services Act) is the
+  owner's to answer; until it is, the app isn't listed in the EU.
 
 **Backlog, not started, no blockers:**
 - ~~Alerts~~ — **built** (web push, free); see the Architecture entry.

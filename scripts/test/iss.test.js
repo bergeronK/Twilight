@@ -162,7 +162,7 @@ test('the Console and the Stars tab show it; the request is allowed and declared
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
   assert.match(src.match(/connect-src[^;]*/)[0], /https:\/\/celestrak\.org/);
   assert.match(declSource('tonightHighlights'), /kind: 'iss', rank: 1/);
-  assert.match(declSource('HorizonHero'), /issSat && plan \? issPasses\(issSat, Math\.max\(plan\.start, Date\.now\(\)\), plan\.end, loc\.lat, loc\.lon\) : null/);
+  assert.match(declSource('HorizonHero'), /issSat \? issPasses\(issSat, Math\.max\(hlSpan\.start, Date\.now\(\)\), hlSpan\.end, loc\.lat, loc\.lon\) : null/);
   assert.match(declSource('StarFinder'), /React\.createElement\(IssPanel, \{/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '..', 'privacy.html'), 'utf8'), /CelesTrak/);
 });

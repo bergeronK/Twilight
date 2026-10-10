@@ -25,7 +25,7 @@ test('shown once: the flag is written on the way out, and a deep link skips it',
   const rt = declSource('RealtimeTwilight');
   assert.match(rt, /!localStorage\.getItem\('tw_welcomed'\) && !new URLSearchParams\(window\.location\.search\)\.get\('tab'\)/);
   assert.match(rt, /localStorage\.setItem\('tw_welcomed', '1'\)/);
-  assert.match(rt, /if \(pick\) setPickerOpen\(true\)/, '"Not here?" opens the place picker');
+  assert.match(rt, /if \(pick\) \{ if \(geoAuto\.current\) \{ dropFix\(\); setGeoMsg\(""\); \} setPickerOpen\(true\); \}/, '"Not here?" opens the place picker, and drops the try for a fix');
 });
 
 test('above everything, the tab bar included', () => {
@@ -43,7 +43,7 @@ test('the store screenshots skip it', () => {
 
 test('a saved place is kept quietly when the device’s location can’t be had', () => {
   const src = declSource('RealtimeTwilight');
-  const a = src.indexOf('const useMyLocation = quiet =>'), b = src.indexOf('\n  };', a) + 4;
+  const a = src.indexOf('const geoSeq = useRef(0)'), b = src.indexOf('\n  };', src.indexOf('const useMyLocation = (quiet, auto) =>')) + 4;
   const body = src.slice(a, b);
   // The shipped canLocate/getPosition, on the website (no Capacitor), with
   // a stand-in for the browser's geolocation.
@@ -55,8 +55,8 @@ test('a saved place is kept quietly when the device’s location can’t be had'
     global.window = {};
     Object.defineProperty(global, 'navigator', { value: nav, configurable: true, writable: true });
     try {
-      new Function('canLocate', 'getPosition', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', body + '\nuseMyLocation(arguments[6]);')(
-        canLocate, getPosition, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, quiet);
+      new Function('canLocate', 'getPosition', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', 'useRef', body + '\nuseMyLocation(arguments[7]);')(
+        canLocate, getPosition, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, v => ({ current: v }), quiet);
     } finally {
       global.window = savedW;
       if (savedN) Object.defineProperty(global, 'navigator', savedN); else delete global.navigator;
@@ -76,5 +76,5 @@ test('a saved place is kept quietly when the device’s location can’t be had'
   // Where the place came from is read before tw_loc is written, and a
   // shared link's place is not replaced.
   assert.match(src, /const \[start\] = useState\(startPlace\);[\s\S]*React\.useEffect\(\(\) => \{\s*try \{ localStorage\.setItem\('tw_loc'/);
-  assert.match(src, /if \(start !== 'url'\) useMyLocation\(start === 'saved'\);/);
+  assert.match(src, /if \(start !== 'url'\) useMyLocation\(start === 'saved', true\);/);
 });

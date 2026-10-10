@@ -1,6 +1,8 @@
 import UIKit
 import Capacitor
 import CoreMotion
+import EventKit
+import EventKitUI
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -125,9 +127,14 @@ public class TwilyteMotionPlugin: CAPPlugin, CAPBridgedPlugin {
 /// picture's download link has nowhere to save to, so the page hands the
 /// picture and its words to this instead.
 ///
-/// JS name `TwilyteShare`: `share({ text?, url?, image? })`, `image` a PNG as
-/// base64 (no data: prefix). Resolves `{ completed }`, false when the sheet
-/// is closed without sharing. "Save Image" in the sheet needs
+/// Also any other file the page makes that isn't for the calendar (the
+/// Ephemeris's month as CSV): a download goes nowhere in the app either
+/// (owner's iPhone, v161), and the sheet offers Save to Files and Numbers.
+///
+/// JS name `TwilyteShare`: `share({ text?, url?, image?, fileName?,
+/// fileText? })`, `image` a PNG as base64 (no data: prefix), `fileText` the
+/// file's text, saved as `fileName`. Resolves `{ completed }`, false when
+/// the sheet is closed without sharing. "Save Image" in the sheet needs
 /// NSPhotoLibraryAddUsageDescription in Info.plist.
 @objc(TwilyteSharePlugin)
 public class TwilyteSharePlugin: CAPPlugin, CAPBridgedPlugin {
@@ -147,6 +154,19 @@ public class TwilyteSharePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         if let s = call.getString("url"), let url = URL(string: s) {
             items.append(url)
+        }
+        // Written to the app's temporary folder under its own name, so Files
+        // and Numbers get a real file called, say, twilight_2026-10.csv.
+        if let name = call.getString("fileName"), let text = call.getString("fileText") {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent((name as NSString).lastPathComponent)
+            do {
+                try Data(text.utf8).write(to: url, options: .atomic)
+                items.append(url)
+            } catch {
+                call.reject("Couldn't write \(name)")
+                return
+            }
         }
         if items.isEmpty {
             call.reject("Nothing to share")
@@ -177,11 +197,195 @@ public class TwilyteSharePlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// MARK: - Calendar
+
+/// Calendar events for the "Add to calendar" buttons (the Console's sunset
+/// and sunrise, the sextant window) and the Ephemeris's month export. The
+/// website downloads an .ics file for each; in the app a download goes
+/// nowhere (owner's iPhone, v161: none of them did anything), so the page
+/// reads its own .ics into events (`icsEvents` in index.html) and sends
+/// them here.
+///
+/// - One event: iOS's own event editor, filled in, to check and Add. From
+///   iOS 17 the editor runs outside the app and needs no permission (Apple's
+///   TN3152: an app that only lets people create events shouldn't ask for
+///   access); on iOS 15 and 16 it needs calendar access first.
+/// - Several (a month's export): "Add 30 events to your calendar?", then
+///   write-only access (the app can add events, never read them), then all
+///   of them into the default calendar, and a note saying it's done.
+///
+/// JS name `TwilyteCalendar`: `add({ events: [{ title, start, end, notes?,
+/// alarm? }] })`, start and end in ms since 1970, alarm in minutes before
+/// the start. Resolves `{ added }`, how many were added (0 if cancelled or
+/// refused). Info.plist: NSCalendarsWriteOnlyAccessUsageDescription (iOS
+/// 17+) and NSCalendarsUsageDescription (iOS 15 and 16).
+@objc(TwilyteCalendarPlugin)
+public class TwilyteCalendarPlugin: CAPPlugin, CAPBridgedPlugin, EKEventEditViewDelegate {
+    public let identifier = "TwilyteCalendarPlugin"
+    public let jsName = "TwilyteCalendar"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "add", returnType: CAPPluginReturnPromise)
+    ]
+    private let store = EKEventStore()
+    private var editing: CAPPluginCall?
+
+    private struct Event {
+        let title: String
+        let start: Date
+        let end: Date
+        let notes: String?
+        let alarm: Double?
+    }
+
+    private func number(_ v: JSValue?) -> Double? {
+        if let n = v as? NSNumber { return n.doubleValue }
+        if let d = v as? Double { return d }
+        if let i = v as? Int { return Double(i) }
+        return nil
+    }
+
+    @objc func add(_ call: CAPPluginCall) {
+        let events: [Event] = (call.getArray("events", JSObject.self) ?? []).compactMap { o in
+            guard let s = number(o["start"]), let e = number(o["end"]), e >= s else { return nil }
+            let notes = o["notes"] as? String
+            return Event(title: (o["title"] as? String) ?? "Twilyte",
+                         start: Date(timeIntervalSince1970: s / 1000),
+                         end: Date(timeIntervalSince1970: e / 1000),
+                         notes: notes?.isEmpty == false ? notes : nil,
+                         alarm: number(o["alarm"]))
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let vc = self.bridge?.viewController else {
+                call.reject("No view to show the calendar from")
+                return
+            }
+            if events.isEmpty {
+                self.tell(vc, "Nothing to add", "There are no events in the dates shown.")
+                call.resolve(["added": 0])
+            } else if events.count == 1 {
+                self.edit(events[0], from: vc, call)
+            } else {
+                self.confirm(events, from: vc, call)
+            }
+        }
+    }
+
+    private func make(_ e: Event) -> EKEvent {
+        let ev = EKEvent(eventStore: store)
+        ev.title = e.title
+        ev.startDate = e.start
+        ev.endDate = e.end
+        ev.notes = e.notes
+        if let m = e.alarm { ev.addAlarm(EKAlarm(relativeOffset: -m * 60)) }
+        return ev
+    }
+
+    // One event: the editor, so the calendar and the reminder can be changed
+    // before it's added.
+    private func edit(_ e: Event, from vc: UIViewController, _ call: CAPPluginCall) {
+        let open = {
+            let ed = EKEventEditViewController()
+            ed.eventStore = self.store
+            ed.event = self.make(e)
+            ed.editViewDelegate = self
+            self.editing = call
+            self.top(vc).present(ed, animated: true)
+        }
+        if #available(iOS 17.0, *) {
+            open()
+        } else {
+            store.requestAccess(to: .event) { ok, _ in
+                DispatchQueue.main.async {
+                    if ok { open() } else { self.denied(vc); call.resolve(["added": 0]) }
+                }
+            }
+        }
+    }
+
+    public func eventEditViewController(_ controller: EKEventEditViewController,
+                                        didCompleteWith action: EKEventEditViewAction) {
+        controller.dismiss(animated: true)
+        editing?.resolve(["added": action == .saved ? 1 : 0])
+        editing = nil
+    }
+
+    // Several: ask first, since a month can be dozens of events.
+    private func confirm(_ events: [Event], from vc: UIViewController, _ call: CAPPluginCall) {
+        let ask = UIAlertController(title: "Add \(events.count) events to your calendar?",
+                                    message: "They go into your default calendar.",
+                                    preferredStyle: .alert)
+        ask.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in call.resolve(["added": 0]) })
+        ask.addAction(UIAlertAction(title: "Add", style: .default) { _ in
+            self.access { ok in
+                if ok { self.saveAll(events, from: vc, call) } else { self.denied(vc); call.resolve(["added": 0]) }
+            }
+        })
+        top(vc).present(ask, animated: true)
+    }
+
+    private func access(_ done: @escaping (Bool) -> Void) {
+        if #available(iOS 17.0, *) {
+            store.requestWriteOnlyAccessToEvents { ok, _ in DispatchQueue.main.async { done(ok) } }
+        } else {
+            store.requestAccess(to: .event) { ok, _ in DispatchQueue.main.async { done(ok) } }
+        }
+    }
+
+    private func saveAll(_ events: [Event], from vc: UIViewController, _ call: CAPPluginCall) {
+        guard let cal = store.defaultCalendarForNewEvents else {
+            tell(vc, "No calendar to add to", "Choose a default calendar in Settings, under Calendar.")
+            call.resolve(["added": 0])
+            return
+        }
+        do {
+            for e in events {
+                let ev = make(e)
+                ev.calendar = cal
+                try store.save(ev, span: .thisEvent, commit: false)
+            }
+            try store.commit()
+        } catch {
+            store.reset()
+            tell(vc, "Couldn't add them", error.localizedDescription)
+            call.resolve(["added": 0])
+            return
+        }
+        tell(vc, "Added \(events.count) events", "They're in your calendar.")
+        call.resolve(["added": events.count])
+    }
+
+    private func denied(_ vc: UIViewController) {
+        let a = UIAlertController(title: "Twilyte can't add to your calendar",
+                                  message: "Allow it in Settings, under Twilyte, then Calendars.",
+                                  preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "Not Now", style: .cancel))
+        a.addAction(UIAlertAction(title: "Open Settings", style: .default) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        })
+        top(vc).present(a, animated: true)
+    }
+
+    private func tell(_ vc: UIViewController, _ title: String, _ message: String) {
+        let a = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        a.addAction(UIAlertAction(title: "OK", style: .default))
+        top(vc).present(a, animated: true)
+    }
+
+    // Whatever is showing on top of the web view (UIKit won't present over a
+    // controller that is already presenting something).
+    private func top(_ vc: UIViewController) -> UIViewController {
+        var t = vc
+        while let p = t.presentedViewController, !p.isBeingDismissed { t = p }
+        return t
+    }
+}
+
 /// The app's web view controller: Capacitor's own, plus the plugins above,
 /// registered before the page loads. Main.storyboard names this class.
 class TwilyteBridgeViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(TwilyteMotionPlugin())
         bridge?.registerPluginInstance(TwilyteSharePlugin())
+        bridge?.registerPluginInstance(TwilyteCalendarPlugin())
     }
 }

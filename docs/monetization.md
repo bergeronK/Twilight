@@ -28,8 +28,7 @@ planning ahead.** Nothing free in 1.0 should be taken away from anyone.
 - **Free:** the painted sky and the verdict, twilight today, the Bortle
   class, what's worth a look, the Ephemeris for any date and place, Sky
   View with Find and time travel, the chart, Jupiter and Saturn, the space
-  station, the observing log, the almanac, alerts, everything for
-  navigators.
+  station, the almanac, alerts, everything for navigators.
 - **Pro in 1.1:** the 7-night "Clear & Dark" week planner (the only thing
   `pro` gates today).
 - **Candidates to add to Pro later**, roughly in order of what people would
