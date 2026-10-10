@@ -784,6 +784,58 @@ stargazer is the default, navigator material is kept whole but folded.
   calendar", `app-store-privacy-answers.md` 4b). **New download buttons go
   through `saveFile`**, or they won't work in the app. Android's web view
   drops downloads too and has no such plugin yet. `native-files.test.js`.
+- **A review for faults users would meet (2026-10-10, v163, owner: "fix the
+  ones that affect app users").** Five reviewers read the app in slices and
+  a browser sweep ran it as the iPhone app at the poles, the date line, DST
+  changes, half-hour zones, a German locale, iPad, landscape and 320 px (no
+  crash, no NaN). What was fixed, and the rule each now follows:
+  - **Bortle mode**: only the Settings switch stores `manual`. A stored
+    class with no stored mode had been read as chosen by hand, but the
+    automatic estimate stores its class too, so from the second launch it
+    never updated.
+  - **Time zones**: `knownTz` (the zone if `Intl` knows it, else the
+    device's) and `savedPlace()` (the checked `tw_loc`) wherever a place is
+    set or read. An unknown zone from the place search on an older iPhone
+    would have crashed every launch once saved.
+  - **Console**: the forecast effect takes a new `wxSeq` on every run, and
+    a new place clears `wx` until its own arrives; a location fix that comes
+    back after a pick (or after the picker was opened over the automatic
+    try) is dropped (`geoSeq`, `dropFix`); "Twilight today" is
+    `twilightDayEvents`: dawn stages before the Sun's highest point, dusk
+    stages after it, into the night; the week planner steps calendar days
+    (`localMidnight(mid + 36 h)`); the plan looks 26 h back (nights near
+    polar night run over 20 h); polar night's highlights use the next 24 h
+    (`hlSpan`); the headline is golden hour from 6° up to 4° down and blue
+    hour to 6° down, as the Ephemeris defines them, with dawn words at dawn
+    (`live.rising`).
+  - **Ephemeris**: `localComputeDay` takes the UTC day before (or after)
+    when local noon falls on the next UTC day (Samoa, Tonga, Kiritimati),
+    with `photoWindowsFor`; the offset field keeps what's typed; commas are
+    decimal points; seasons swap south of the equator; craters only with the
+    Moon 5°+ up at 9 PM; the Moon calendar uses the landing day's offset;
+    the navigation iCal is nautical twilight only; the CSV has a BOM; the
+    DST toggle is a real switch.
+  - **Stars**: closing Sky View stops the sensors (CoreMotion in the app)
+    and the wake lock unless Aim Assist is open with a target; Align refuses
+    with the camera nearly straight up (`alignOk`: it saved a 166° error);
+    a picked target is resolved from all bodies (`skyAll`), not only those
+    above -12°; a night that never gets 12° dark is one "All night" sextant
+    window; the sight form validates and says why; Tab stays in Sky View.
+  - **Shell**: `native/capacitor.config.json` sets `SystemBars.style` to
+    `DARK`. Capacitor 8 always loads SystemBars, whose default is `.default`
+    (a dark clock in Light Mode), and that overrides Info.plist's light
+    content. Also: red mode filters Sky View, the charts and the welcome; a
+    tab swipe must be mostly sideways (`swipeDir`); the Settings switches
+    are named buttons; Privacy and Help clear the status bar and link back
+    at the top (the app has no back gesture); the licence link opens the
+    website's copy in the app; landscape keeps clear of the notch.
+  - **Left as they were**: website-only items (the Share link and city
+    pages' links don't carry the zone; a URL place overrides later picks;
+    the city pages' "Never (sun stays up)" wording; the service worker's
+    cache of each `?lat=` page), "Your location" chips keeping frozen
+    coordinates, and typed coordinates dropping the place's zone (by
+    design: manual mode). `review-fixes.test.js`, every test checked by
+    reverting its fix.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1588,6 +1640,12 @@ things a syntax check cannot see:
   a stub React (the class, "of 9 on the Bortle scale", the word, what shows,
   the scale's ends, auto or set by you; a dash and why before it is known),
   and a stale forecast said on the twilight section's line.
+- **`review-fixes.test.js`** — one test per fix from the 2026-10-10
+  review (see "A review for faults users would meet"): Bortle mode across
+  launches, unknown zones, the twilight words, long and polar nights, the
+  partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
+  across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
+  window, the fix across the date line, and the wiring of the rest.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
