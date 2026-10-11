@@ -11,7 +11,7 @@ const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'hx', 'toHex', 'lerpC', 'skyColors', 'heroHorizon',
   'HZ_SPAN', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing',
-  'drawMoonDisc', 'heroMoonDisc', 'starGlow', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround',
+  'earthshineFor', 'drawMoonDisc', 'heroMoonDisc', 'starGlow', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround',
   'wrapText', 'drawShareCard']);
 
 function recCtx() {

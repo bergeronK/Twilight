@@ -18,7 +18,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS1
   'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'PLANET_MAG', 'findLimit', 'findList', 'findTarget',
   'theName', 'capFirst', 'findGuide', 'edgePoint',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
-  'drawMoonDisc', 'starGlow', 'drawSkyView']);
+  'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawSkyView']);
 
 // A phone held up facing `az`, `alt` up, as SkyDome builds its drag view.
 const facing = (az, alt) => m.viewBasis(m.quatFromEuler((360 - az) % 360, 90 + alt, 0), 0);

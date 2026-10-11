@@ -10,10 +10,10 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { extract } = require('./extract.js');
+const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'atan2', 'hx', 'toHex', 'lerpC', 'skyColors',
-  'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
+  'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'MOON_MARIA', 'skyBearing', 'earthshineFor', 'drawMoonDisc', 'COMPASS16', 'compass16', 'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow', 'heroMoonDisc']);
 
 function stubCtx() {
   const texts = [], dots = [], ground = [];
@@ -115,4 +115,35 @@ test('the horizon is a soft ridge everywhere: no buildings, no vertical walls', 
       assert.ok(Math.max(...top.map(([, y]) => hy - y)) <= 22, 'the ridge stays low');
     }
   }
+});
+
+// A context that notes what each fill was painted with.
+function fillCtx() {
+  const fills = [];
+  const grad = { addColorStop() {} };
+  const g = Object.assign(stubCtx(), {
+    fill() { fills.push({ style: this.fillStyle, alpha: this.globalAlpha }); }
+  });
+  return { g, fills };
+}
+
+test('the Moon’s dark side shows on a night sky, not on a day one', () => {
+  // Owner's iPhone, 11 October 2026, the day after new Moon: a one-day
+  // crescent beside the afternoon Sun was a black disc, its dark side
+  // painted as earthshine on a blue sky.
+  assert.strictEqual(m.earthshineFor(20), 0);
+  assert.strictEqual(m.earthshineFor(-2), 0);
+  assert.strictEqual(m.earthshineFor(-5), 0.5);
+  assert.strictEqual(m.earthshineFor(-8), 1);
+  assert.strictEqual(m.earthshineFor(-30), 1);
+  const darkFills = o => { const { g, fills } = fillCtx(); m.drawHorizonScene(g, W, H, o); return fills.filter(f => f.style === '#1d2029' && f.alpha > 0); };
+  const moon = { az: 215, alt: 30, illum: 0.01 };
+  assert.strictEqual(darkFills(scene({ sky: m.skyColors(28), sunAlt: 28, sun: { az: 225, alt: 28 }, moon })).length, 0, 'by day: only the lit sliver');
+  assert.strictEqual(darkFills(scene({ sky: m.skyColors(-20), sunAlt: -20, sun: { az: 330, alt: -20 }, moon: { az: 215, alt: 30, illum: 0.2 } })).length, 1, 'at night: earthshine');
+  // The chart and anything else that doesn't say keep it, on their dark ground.
+  const { g, fills } = fillCtx();
+  m.drawMoonDisc(g, 50, 50, 20, 0.1, false, 0, 0);
+  assert.strictEqual(fills.filter(f => f.style === '#1d2029').length, 1);
+  // Sky View hides it only over the camera's picture of a bright sky.
+  assert.match(declSource('drawSkyView'), /cam && sun \? earthshineFor\(sun\.alt\) : 1\);/);
 });

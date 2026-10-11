@@ -14,7 +14,7 @@ const { extract, declSource } = require('./extract.js');
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS16', 'compass16',
   'quatAxis', 'quatMul', 'quatFromEuler', 'quatRotate', 'vecAz', 'viewBasis', 'toScreen', 'skyProject',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
-  'drawMoonDisc', 'starGlow', 'drawSkyView']);
+  'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawSkyView']);
 
 function recCtx() {
   const calls = [], texts = [], arcs = [];

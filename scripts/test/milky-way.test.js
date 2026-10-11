@@ -20,7 +20,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'gmst', '
   'decodeMilkyWay', 'mwLevel', 'horizToEq', 'milkyWayField', 'milkyWayVisibility',
   'chartXY', 'chartDir', 'quatFromEuler', 'quatAxis', 'quatRotate', 'quatMul', 'viewBasis', 'toScreen', 'skyProject',
   'vecAz', 'screenDir', 'BORTLE',
-  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'heroMoonDisc',
+  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'earthshineFor', 'drawMoonDisc', 'heroMoonDisc',
   'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow']);
 
 const MW = m.decodeMilkyWay(new Uint8Array(fs.readFileSync(path.join(__dirname, '..', '..', 'milkyway.bin'))));

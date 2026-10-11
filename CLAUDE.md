@@ -536,6 +536,13 @@ stargazer is the default, navigator material is kept whole but folded.
   halo in their own colour. Applied on the painting (still and twinkling),
   the chart and Sky View. HYG gives Betelgeuse B-V 1.50, not the textbook
   1.85; it is still orange.
+  **The dark side shows only against a dark sky** (2026-10-11, v164):
+  `drawMoonDisc` filled the unlit part as earthshine everywhere, so for the
+  days either side of new Moon, with the Moon up in daylight, the painting
+  showed a black disc beside the Sun (owner's iPhone). Now its last argument
+  is `earthshineFor(sunAlt)` (none from 2° down up, all from 8° down), on
+  the painting always and in Sky View over the camera's picture; the chart
+  keeps it. `horizon-scene.test.js`.
 - **Ephemeris and Stars open like the Console (2026-09-23).** Stars leads
   with `SkyViewPreview`: Sky View itself, full-bleed, looking toward the
   equator 28° up (`previewFacing`, which is also where the overlay starts
