@@ -35,7 +35,7 @@ test('Sky View’s bodies, lines and names are drawn at the time chosen', () => 
   const loc = { lat: 42.1, lon: -72.6 };
   const deepSky = [{ id: 'M31', name: 'Andromeda Galaxy', type: 's', mag: 3.4, ra: 10.68, dec: 41.27, size: 190 }];
   const deps = { useMemo: f => f(), now, skyNow, loc, starCatalog: [], deepSky, ...m };
-  const bodies = memo('skyBodies', deps);
+  const bodies = memo('skyAll', deps);
   const sun = bodies.find(b => b.name === 'Sun'), want = m.sunHcZn(new Date(skyNow), loc.lat, loc.lon);
   assert.ok(Math.abs(sun.alt - want.alt) < 1e-9 && Math.abs(sun.az - want.az) < 1e-9, 'the Sun where it will be');
   const stars = bodies.filter(b => b.nav);
@@ -56,7 +56,7 @@ test('Sky View gets the shifted sidereal time, a way back to now, and no Align w
   const src = declSource('StarFinder');
   const dome = src.slice(src.indexOf('React.createElement(SkyDome'));
   assert.match(dome, /lst: rev\(gmst\(new Date\(minuteKey \* 60000 \+ skyShift \* 60000\)\) \+ loc\.lon\)/);
-  assert.match(dome, /onClose: \(\) => \{ setSkyOpen\(false\); setSkyShift\(0\); \}/);
+  assert.match(dome, /onClose: \(\) => \{\s*setSkyOpen\(false\); setSkyShift\(0\); setShowDiag\(false\);/);
   assert.match(dome, /align: skyShift \? null : \{/);
   // The preview and the chart stay on now: they read minuteKey alone.
   const preview = src.slice(src.indexOf('React.createElement(SkyViewPreview'), src.indexOf('React.createElement(SkyViewPreview') + 300);

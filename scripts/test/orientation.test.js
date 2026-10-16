@@ -319,12 +319,12 @@ test('the live view uses the corrected rotation untouched', () => {
  */
 const alignScope = extra => {
   const scope = Object.assign({
-    aimTurn: null, aimOffset: 0,
+    aimTurn: null, aimOffset: 0, alignOk: true,
     prefStore: { setAimOffset: v => { scope.stored = v; } },
     setNeedsCal: () => {}, setShowCalHelp: () => {}
   }, extra);
-  const fn = new Function('aimTurn', 'aimOffset', 'prefStore', 'setNeedsCal', 'setShowCalHelp',
-    declSource('alignHere') + '\nreturn alignHere;')(scope.aimTurn, scope.aimOffset, scope.prefStore, scope.setNeedsCal, scope.setShowCalHelp);
+  const fn = new Function('aimTurn', 'aimOffset', 'prefStore', 'setNeedsCal', 'setShowCalHelp', 'alignOk',
+    declSource('alignHere') + '\nreturn alignHere;')(scope.aimTurn, scope.aimOffset, scope.prefStore, scope.setNeedsCal, scope.setShowCalHelp, scope.alignOk);
   return { run: fn, scope };
 };
 const norm180 = a => ((a % 360) + 540) % 360 - 180;
@@ -338,6 +338,14 @@ test('Align runs without throwing, using only what is in scope', () => {
 
 test('Align with no target does nothing', () => {
   const a = alignScope({ aimTurn: null, aimOffset: 7 });
+  a.run();
+  assert.strictEqual(a.scope.stored, undefined);
+});
+
+test('Align looking almost straight up does nothing', () => {
+  // There the bearing falls back to the top of the screen's, about opposite
+  // the camera's: Vega 82° up saved a 166° error (review, 2026-10-10).
+  const a = alignScope({ aimTurn: 166, aimOffset: 0, alignOk: false });
   a.run();
   assert.strictEqual(a.scope.stored, undefined);
 });

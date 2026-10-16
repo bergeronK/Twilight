@@ -23,7 +23,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS1
   'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'DSO_KIND', 'dsoLabel', 'PLANET_MAG', 'findLimit', 'findList',
   'theName', 'capFirst', 'findGuide',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
-  'drawMoonDisc', 'starGlow', 'drawDeepSky', 'drawSkyView']);
+  'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawDeepSky', 'drawSkyView']);
 
 test('the whole Messier catalogue, once each, in shape', () => {
   assert.strictEqual(DSO.length, 110);

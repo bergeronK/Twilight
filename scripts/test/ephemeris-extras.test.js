@@ -14,7 +14,8 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'jd', 'gmst', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen',
-  'scanCrossings', 'MOON_THR', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows', 'moonRiseSet']);
+  'scanCrossings', 'MOON_THR', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows', 'moonRiseSet',
+  'localComputeDay', 'photoWindowsFor']);
 
 const len = w => w[1] - w[0];
 
@@ -82,12 +83,14 @@ test('a day with no moonrise says so rather than borrowing the next day’s', ()
 
 test('the month export carries the new columns, one value each', () => {
   let out = null;
-  const fn = new Function('Y', 'Mo', 'latN', 'lonN', 'monthRows', 'cell', 'fmtLocal', 'photoWindows', 'moonRiseSet', 'download', 'pad2',
+  const fn = new Function('Y', 'Mo', 'latN', 'lonN', 'monthRows', 'cell', 'fmtLocal', 'photoWindowsFor', 'moonRiseSet', 'download', 'pad2', 'valid',
     declSource('exportCSV') + '\nreturn exportCSV;');
   const fmt = (u, off) => String(Math.round(u + off));
-  const rows = [1, 2].map(day => ({ day, c: m.computeDay(42.2, -72.6, 2026, 9, day), off: -240 }));
-  fn(2026, 9, 42.2, -72.6, () => rows, e => (e.none ? 'none' : fmt(e.utc, -240)), fmt, m.photoWindows, m.moonRiseSet,
-    (name, text) => { out = text; }, n => String(n).padStart(2, '0'))();
+  const rows = [1, 2].map(day => ({ day, c: m.localComputeDay(42.2, -72.6, 2026, 9, day, -240), off: -240 }));
+  fn(2026, 9, 42.2, -72.6, () => rows, e => (e.none ? 'none' : fmt(e.utc, -240)), fmt, m.photoWindowsFor, m.moonRiseSet,
+    (name, text) => { out = text; }, n => String(n).padStart(2, '0'), true)();
+  assert.ok(out.startsWith('\ufeff'), 'a byte-order mark, for Excel');
+  out = out.slice(1);
   const lines = out.split('\n');
   const hdr = lines[0].split(',');
   assert.deepStrictEqual(hdr.slice(-6), ['Blue hour (morning)', 'Golden hour (morning)', 'Golden hour (evening)', 'Blue hour (evening)', 'Moonrise', 'Moonset']);
@@ -105,10 +108,10 @@ test('the tab shows them, flat rows under the times', () => {
 test('the photography calendar: four windows a day, golden and blue', () => {
   const x = extract(['pad2', 'icalStamp', 'utcDate']);
   let out = null;
-  const fn = new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'computeDay', 'icalStamp', 'utcDate', 'photoWindows', 'download', 'pad2',
-    declSource('exportICS') + '\nreturn exportICS;');
-  fn(2026, 9, 42.2, -72.6, 'photography', () => 30, (la, lo, y, mo, d) => m.computeDay(la, lo, y, mo, d), x.icalStamp, x.utcDate, m.photoWindows,
-    (name, text) => { out = { name, text }; }, n => String(n).padStart(2, '0'))();
+  const fn = new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'localComputeDay', 'icalStamp', 'utcDate', 'photoWindowsFor', 'download', 'pad2',
+    'valid', 'tz', 'zoneOffsets', 'offMin', declSource('exportICS') + '\nreturn exportICS;');
+  fn(2026, 9, 42.2, -72.6, 'photography', () => 30, m.localComputeDay, x.icalStamp, x.utcDate, m.photoWindowsFor,
+    (name, text) => { out = { name, text }; }, n => String(n).padStart(2, '0'), true, null, null, -240)();
   assert.strictEqual(out.name, 'twilight_2026-09_photography.ics');
   const titles = [...out.text.matchAll(/SUMMARY:(.*)/g)].map(t => t[1].trim());
   assert.strictEqual(titles.length, 120, 'four a day in September');

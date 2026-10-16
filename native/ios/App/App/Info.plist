@@ -32,6 +32,10 @@
 	<string>Twilyte can show the live camera behind Sky View so you can line up stars against what you actually see. The camera is off by default, nothing is recorded, and no image ever leaves your device.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Twilyte saves the picture of tonight's sky to your photos when you choose Save Image. It never reads your photos.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Twilyte adds the twilight times you choose to your calendar. It can't see what's in your calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Twilyte adds the twilight times you choose to your calendar. It never reads what's in your calendar.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

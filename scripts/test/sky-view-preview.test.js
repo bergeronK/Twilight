@@ -14,7 +14,7 @@ const { extract, declSource } = require('./extract.js');
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS16', 'compass16',
   'quatAxis', 'quatMul', 'quatFromEuler', 'quatRotate', 'vecAz', 'viewBasis', 'toScreen', 'skyProject',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
-  'drawMoonDisc', 'starGlow', 'drawSkyView']);
+  'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawSkyView']);
 
 function recCtx() {
   const calls = [], texts = [], arcs = [];
@@ -170,6 +170,6 @@ test("Sky View carries Aim Assist's Align, where the error is seen", () => {
   // an iPhone, the phone compass's own error. The correction existed only on
   // the Stars tab; Sky View must offer the same one, wired to the same
   // handler, and only when it can mean something (sensors live, a target).
-  assert.match(declSource('StarFinder'), /align: skyShift \? null : \{ onAlign: alignHere, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
+  assert.match(declSource('StarFinder'), /align: skyShift \? null : \{ onAlign: alignHere, ok: alignOk, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
   assert.match(declSource('SkyDome'), /live && target && align && React\.createElement/);
 });

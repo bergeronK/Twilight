@@ -81,7 +81,7 @@ test('moonDayTrack: the Moon as seen from the ground, through the local day', ()
 
 // The month export, run from source: monthRows lives inside the component.
 const monthRows = (tz, Y, Mo, offMin) => new Function(
-  'Y', 'Mo', 'latN', 'lonN', 'tz', 'offMin', 'zoneOffsets', 'computeDay', 'daysInMonth',
+  'Y', 'Mo', 'latN', 'lonN', 'tz', 'offMin', 'zoneOffsets', 'localComputeDay', 'daysInMonth',
   declSource('monthRows') + '\nreturn monthRows;'
 )(Y, Mo, 42.36, -71.06, tz, offMin, m.zoneOffsets, () => ({}), (y, mo) => new Date(Date.UTC(y, mo, 0)).getUTCDate())();
 
@@ -106,7 +106,7 @@ test('with no zone (coordinates typed by hand) the export uses the manual offset
 // matters is that a searched place brings its own zone rather than leaving
 // the old offset in force.
 test('geocodePlaces: maps Open-Meteo results, keeps each place\'s zone, throws on a failed request', async () => {
-  const g = extract(['geocodePlaces']).geocodePlaces;
+  const g = extract(['knownTz', 'geocodePlaces']).geocodePlaces;
   let asked = null;
   const ok = body => async url => { asked = url; return { ok: true, json: async () => body }; };
   const list = await g('Reykjavík', ok({ results: [

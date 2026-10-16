@@ -54,8 +54,21 @@ test('a swipe changes tab from the page, not from things that drag sideways them
 
 test('the tabs’ swipe asks first, and the chart is marked', () => {
   const app = declSource('TwilightApp');
-  assert.match(app, /const handleTouchStart = e => \{ touchStartX\.current = swipeAllowed\(e\.target\) \? e\.touches\[0\]\.clientX : null; \};/);
-  // A swipe that never started does nothing at the end.
-  assert.match(app, /const handleTouchEnd = e => \{\s*if \(touchStartX\.current === null\) return;/);
+  assert.match(app, /const handleTouchStart = e => \{ touchStart\.current = swipeAllowed\(e\.target\) \? \{ x: e\.touches\[0\]\.clientX, y: e\.touches\[0\]\.clientY \} : null; \};/);
+  // A swipe that never started does nothing at the end, and the end asks swipeDir.
+  assert.match(app, /const handleTouchEnd = e => \{\s*if \(touchStart\.current === null\) return;/);
+  assert.match(app, /step = swipeDir\(t\.clientX - touchStart\.current\.x, t\.clientY - touchStart\.current\.y\)/);
   assert.match(declSource('TwilightEphemeris'), /touchAction: "pan-y"\s*\},\s*\/\/[^\n]*\n\s*"data-noswipe": "",\s*onMouseMove:/);
+});
+
+test('a swipe changes tab only when it is mostly sideways', () => {
+  // Review, 2026-10-10: a scroll up the Ephemeris that drifted 85 px across
+  // on its way 450 px up switched to the Console.
+  const { swipeDir } = extract(['swipeDir']);
+  assert.strictEqual(swipeDir(-85, -450), 0, 'a scroll with a drift');
+  assert.strictEqual(swipeDir(-120, -30), 1, 'left: the next tab');
+  assert.strictEqual(swipeDir(120, 40), -1, 'right: the one before');
+  assert.strictEqual(swipeDir(60, 0), 0, 'not far enough');
+  assert.strictEqual(swipeDir(-150, -100), 0, 'as much up as across');
+  assert.strictEqual(swipeDir(-151, -100), 1);
 });

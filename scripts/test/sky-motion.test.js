@@ -15,7 +15,7 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'gmst', 'jd', 'starHcZn',
-  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc',
+  'hx', 'toHex', 'lerpC', 'HZ_SPAN', 'heroHorizon', 'panoX', 'panoY', 'heroMoonDisc', 'hzRandom', 'COMPASS16', 'compass16', 'MOON_MARIA', 'skyBearing', 'earthshineFor', 'drawMoonDisc',
   'drawHorizonScene', 'drawHorizonSky', 'drawHorizonGround', 'starGlow',
   'TWINKLE_MAG', 'twinkleAmp', 'twinkle', 'METEOR_SHOWERS', 'SPORADIC_HR', 'showerActivity',
   'meteorRate', 'newMeteor', 'starGlow', 'drawSkyMotion']);

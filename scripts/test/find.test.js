@@ -18,7 +18,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'COMPASS1
   'sepAltAz', 'COMPASS_WORDS', 'compassWord', 'whereWords', 'PLANET_ORDER', 'PLANET_MAG', 'findLimit', 'findList', 'findTarget',
   'theName', 'capFirst', 'findGuide', 'edgePoint',
   'constellationSegments', 'constellationLabelSpots', 'MOON_MARIA', 'skyBearing', 'bearingOnScreen',
-  'drawMoonDisc', 'starGlow', 'drawSkyView']);
+  'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawSkyView']);
 
 // A phone held up facing `az`, `alt` up, as SkyDome builds its drag view.
 const facing = (az, alt) => m.viewBasis(m.quatFromEuler((360 - az) % 360, 90 + alt, 0), 0);
@@ -181,9 +181,9 @@ test('Aim Assist can aim at anything Sky View can pick', () => {
   // It used to resolve only the Sun, the Moon and the navigation stars, so a
   // planet or a constellation picked in Sky View gave it nothing to aim at.
   const src = declSource('StarFinder');
-  assert.match(src, /findTarget\(aimTargetName, skyBodies, constellationNames\)/);
+  assert.match(src, /findTarget\(aimTargetName, skyAll, constellationNames\)/);
   // Declared before use: a useMemo reading a later const throws on render.
-  assert.ok(src.indexOf('const skyBodies = useMemo') < src.indexOf('const aimTarget = useMemo'));
+  assert.ok(src.indexOf('const skyAll = useMemo') < src.indexOf('const aimTarget = useMemo'));
   assert.ok(src.indexOf('const constellationNames = useMemo') < src.indexOf('const aimTarget = useMemo'));
   // Constellations carry their id through to Sky View, which needs it to
   // pick the figure out.

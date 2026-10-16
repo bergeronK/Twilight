@@ -18,7 +18,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'chartXY', 'MOON_MARIA', 'skyBearing', 'drawMoonDisc', 'starGlow', 'drawSkyChart']);
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'chartXY', 'MOON_MARIA', 'skyBearing', 'earthshineFor', 'drawMoonDisc', 'starGlow', 'drawSkyChart']);
 const R_OF = size => size / 2 - 17;
 
 // Records every drawing call. Coordinates are taken as given, which is what
