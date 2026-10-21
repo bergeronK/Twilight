@@ -19,9 +19,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { extract, extractFrom } = require('./extract.js');
 
-const NAMES = ['RAD', 'rad', 'deg', 'ALT', 'solarParams', 'eventUTC', 'sunEvent', 'computeDay'];
+// The city pages carry the app's Sun in one function (sunAltitude), the
+// app in three; the last step of every event goes through it on both.
+const NAMES = ['RAD', 'rad', 'deg', 'ALT', 'solarParams', 'eventUTC', 'sunEvent', 'refineCrossing', 'sunAltitude', 'D2R', 'R2D', 'computeDay'];
 
-const app = extract(NAMES);
+const app = extract(NAMES.concat(['sunHcZn', 'sunRaDec']));
 const pages = extractFrom(
   fs.readFileSync(path.join(__dirname, '..', '..', 'twilight-times', 'twilight-calc.js'), 'utf8'),
   NAMES

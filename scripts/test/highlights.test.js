@@ -14,9 +14,9 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn',
-  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
-  'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
+  'showerActivity', 'showerPeakWords', 'showerPeakMs', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
   'HIGHLIGHT_DSO', 'tonightHighlights', 'TonightHighlights', 'auroraTonight', 'auroraWords', 'MOON_FEATURES', 'moonLibration', 'moonSunAlt', 'terminatorFeatures']);
 
 const STOWE = [44.26, -72.58];
@@ -138,4 +138,61 @@ test('an eclipse of the Moon tonight leads the list', () => {
   const LONDON = [51.5, -0.1];
   assert.strictEqual(tonight('2027-02-20T20:00Z', LONDON)[0].title, 'A faint eclipse of the Moon tonight');
   assert.ok(!tonight('2027-08-16T22:00Z', [21.3, -157.9]).some(h => h.kind === 'eclipse'), 'penumbral magnitude 0.55: nothing to see');
+});
+
+// "Peak tonight" was any night at 80% of the peak's rate, which for the
+// Orionids is two days either side (review, 2026-10-21): on 19 October the
+// Console said they peaked tonight and the Ephemeris listed 21 October.
+test('a shower peaks on the night of its peak, and the nights around it say when', () => {
+  const night = (iso, [lat, lon]) => {
+    const now = Date.parse(iso);
+    return m.nightSpan(m.scanCrossings(now - 20 * 3600000, now + 30 * 3600000, lat, lon, m.sunAltitude, m.SUN_THR, 2), now);
+  };
+  const words = (name, iso, place) => { const s = night(iso, place); return m.showerPeakWords(m.METEOR_SHOWERS.find(x => x[0] === name), s.start, s.end); };
+  const MOAB = [38.57, -109.55];
+  // The Orionids peak on 21 October 2026 at about 09:30 UT, in Moab's
+  // night of the 20th.
+  assert.strictEqual(words('Orionids', '2026-10-18T22:00Z', MOAB), 'peak in 2 nights');
+  assert.strictEqual(words('Orionids', '2026-10-19T22:00Z', MOAB), 'peak tomorrow night');
+  assert.strictEqual(words('Orionids', '2026-10-20T22:00Z', MOAB), 'peak tonight');
+  assert.strictEqual(words('Orionids', '2026-10-21T22:00Z', MOAB), 'peaked last night');
+  assert.strictEqual(words('Orionids', '2026-10-23T22:00Z', MOAB), 'peaked 3 nights ago');
+  // The Perseids peak by day in America (12 August 2026, about 17h UT), so
+  // both nights around it are peak nights there.
+  assert.strictEqual(words('Perseids', '2026-08-11T22:00Z', STOWE), 'peak tonight');
+  assert.strictEqual(words('Perseids', '2026-08-12T22:00Z', STOWE), 'peak tonight');
+  assert.strictEqual(words('Perseids', '2026-08-10T22:00Z', STOWE), 'peak tomorrow night');
+  assert.strictEqual(words('Perseids', '2026-08-14T22:00Z', STOWE), 'peaked 2 nights ago');
+});
+
+test('the peak is when the Sun reaches the shower’s longitude, year by year', () => {
+  const per = m.METEOR_SHOWERS.find(x => x[0] === 'Perseids');
+  for (const y of [2025, 2026, 2027, 2028]) {
+    const t = m.showerPeakMs(per, Date.UTC(y, 7, 10));
+    const lon = ((m.sunRaDec(new Date(t)).lon % 360) + 360) % 360;
+    assert.ok(Math.abs(lon - 140) < 0.001, `${y}: ${lon}`);
+    assert.ok(Math.abs(t - Date.UTC(y, 7, 12, 12)) < 36 * 3600000, `${y}: ${new Date(t).toISOString()}`);
+  }
+  // It moves about six hours a year with the calendar, back with a leap day.
+  const at = y => m.showerPeakMs(per, Date.UTC(y, 7, 10));
+  assert.ok(Math.abs((at(2026) - at(2025) - 365 * 86400000) / 3600000 - 5.8) < 0.5);
+  assert.ok(at(2028) - Date.UTC(2028, 7, 12) < at(2027) - Date.UTC(2027, 7, 12));
+  assert.ok(Math.abs(m.showerPeakMs(m.METEOR_SHOWERS.find(x => x[0] === 'Orionids'), Date.UTC(2026, 9, 1)) - Date.UTC(2026, 9, 21, 9, 26)) < 3600000);
+});
+
+// At 2 AM the list said "The Moon is in the SSE at 18:48" and named the
+// Andromeda Galaxy "around 23:18" (review, 2026-10-21).
+test('times in the list are still to come', () => {
+  const [lat, lon] = [38.57, -109.55];
+  for (const iso of ['2026-10-20T08:00Z', '2026-10-20T04:30Z', '2026-08-13T07:00Z', '2026-06-10T06:00Z']) {
+    const now = Date.parse(iso);
+    const sunEv = m.scanCrossings(now - 20 * 3600000, now + 30 * 3600000, lat, lon, m.sunAltitude, m.SUN_THR, 2);
+    const span = m.nightSpan(sunEv, now);
+    const moonEv = m.scanCrossings(span.start, span.end, lat, lon, m.moonAltSeen, m.MOON_THR, 4);
+    const plan = m.nightPlan(span, sunEv, moonEv, m.moonAltSeen(new Date(span.start), lat, lon) > -0.833);
+    const h = m.tonightHighlights(plan, lat, lon, 3, t => `@${t}@`, null, null, now);
+    const times = h.flatMap(x => [...x.detail.matchAll(/@([\d.]+)@/g)].map(a => +a[1]));
+    assert.ok(times.length > 0, iso);
+    for (const t of times) assert.ok(t >= now, `${iso}: ${new Date(t).toISOString()} has passed`);
+  }
 });

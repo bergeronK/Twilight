@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'SUN_THR',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR',
   'sextantWindows', 'nextSextantWindow', 'sextantICS']);
 
 test('the sextant windows are nautical twilight, evening and morning', () => {
@@ -87,5 +87,10 @@ test('how dark the sky is sits right under tonight’s ribbon and facts, before 
   const dark = call.slice(call.indexOf('darkness: '), call.indexOf('corner: factCorner'));
   assert.ok(dark.length > 0 && /React\.createElement\(SkyDarkness, \{ bortle, auto: bortleMode === 'auto', from: bortleFrom \}\)/.test(dark));
   assert.strictEqual((app.match(/React\.createElement\(SkyDarkness/g) || []).length, 1);
-  assert.ok(!/clearDarkScore\(|SkyScore/.test(app), 'the score has left the Console');
+  // The score itself is gone; the headline still asks it whether the night
+  // is cloudy (2026-10-21), and nothing else does.
+  assert.ok(!/SkyScore/.test(app), 'the score has left the Console');
+  assert.strictEqual((app.match(/clearDarkScore\(/g) || []).length, 1);
+  assert.match(app, /const wxTonight = useMemo\(\(\) => clearDarkScore\(wx, loc, bortle, now\)/);
+  assert.match(app, /tonightGlance\(live, wxTonight\)/);
 });

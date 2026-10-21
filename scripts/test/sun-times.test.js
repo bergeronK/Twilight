@@ -21,7 +21,7 @@ const { extract, declSource } = require('./extract.js');
 const REF = require('./sun-reference.json');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunHcZn', 'sunRaDec',
-  'scanCrossings', 'SUN_THR', 'RAD', 'rad', 'deg', 'computeDay', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'photoWindows']);
+  'scanCrossings', 'refineCrossing', 'SUN_THR', 'RAD', 'rad', 'deg', 'computeDay', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'photoWindows']);
 const FIELD = { astro: ['astroDawn', 'astroDusk'], naut: ['nautDawn', 'nautDusk'], civil: ['civilDawn', 'civilDusk'], rise: ['sunrise', 'sunset'] };
 const DAY = 86400000;
 
@@ -78,10 +78,13 @@ test('the Ephemeris\'s (and the city pages\'), within half a minute everywhere',
   assert.ok(summary(errs).median < 0.05);
 });
 
-test('the two tabs agree to a few seconds', () => {
+// Both end on the crossing of one altitude (refineCrossing, 2026-10-21).
+// A second or three apart, one sunset in fifty showed a different minute
+// on the two tabs (18:18 and 18:17), since each rounds to the minute.
+test('the two tabs agree to well under a second, so to the minute', () => {
   for (const r of REF.events) {
-    const d = minutes(consoleTime(r) - ephemerisTime(r));
-    assert.ok(Math.abs(d) < 0.1, `${r[0]} ${r[3]} ${r[4]}: ${d.toFixed(2)} min apart`);
+    const d = (consoleTime(r) - ephemerisTime(r)) / 1000;
+    assert.ok(Math.abs(d) < 0.2, `${r[0]} ${r[3]} ${r[4]}: ${d.toFixed(2)} s apart`);
   }
 });
 
