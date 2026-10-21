@@ -97,7 +97,25 @@ sunset,sunrise,golden hour,blue hour,stargazing,astronomy,star map,moon phase,co
 ```
 
 ### What’s New
-Not shown for a first version.
+Not shown for a first version. If 1.0 is already out when the fixes below
+ship, they go as **1.0.1** (never 1.1: that number is Pro's, from Build
+100), with:
+```
+Calendar buttons and month exports now work in the app. Red light mode is properly red, to keep your night vision. Sky View and the painted sky use less battery. Offline at a dark site, Twilyte keeps a nearby forecast and lets you type in coordinates. Larger Text is followed, and VoiceOver reads the app more clearly.
+```
+
+### Build 2 (2026-10-21)
+Build 1 was submitted on 2026-10-06, before the calendar buttons and
+exports worked in the app (v162) and before the crash fix for an unknown
+time zone (v163). **Never release build 1.** The Xcode project's
+`CURRENT_PROJECT_VERSION` is 2 (kept under 100 while the app sells
+nothing: `monetization.test.js`). In App Store Connect: if 1.0 is still
+waiting for review, in review or pending release, remove build 1 from it,
+attach build 2 and submit again (manual release); if 1.0 is already out,
+make version 1.0.1 with build 2.
+
+Under Pricing and Availability, untick **Mac** and **Apple Vision**
+availability: there Sky View has no motion sensors and says so.
 
 ## App Review information
 
@@ -118,7 +136,9 @@ Photos: add-only. On the Console tab, "Share tonight's sky" opens the share shee
 
 Network: the app fetches a weather forecast from Open-Meteo (api.open-meteo.com), the space station's orbit from CelesTrak (celestrak.org) and the geomagnetic forecast from NOAA (services.swpc.noaa.gov). It contacts no server of its own.
 
-There are no in-app purchases in this version. The week planner, marked Pro on the website, is free for everyone in the app.
+There are no in-app purchases in this version; every feature is free.
+
+Support: support@twilyte.info, or the Help page linked at the foot of every screen.
 ```
 
 The space station's passes and the northern lights are left out of the
