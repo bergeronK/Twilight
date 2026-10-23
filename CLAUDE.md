@@ -843,6 +843,51 @@ stargazer is the default, navigator material is kept whole but folded.
     coordinates, and typed coordinates dropping the place's zone (by
     design: manual mode). `review-fixes.test.js`, every test checked by
     reverting its fix.
+- **Offline at a dark site (2026-10-21, a review of v164 run as the iPhone
+  app with every outside request refused, in Utah at night).** The main way
+  stargazers use it. What changed, and the rule each now follows:
+  - **The forecast follows you a little.** Offline, the Console falls back
+    to the nearest saved `tw_wx_*` within 25 km that `wxCacheUse` still
+    accepts (`nearestWx`, `wxSaved`), not only this place's own key: keys
+    are the place to 0.01°, so a fix 2 km from where the forecast was
+    fetched found nothing. The age line says how far away from 1 km
+    ("Forecast from 3 hours ago, for a place 2 km away.", `staleNote`'s
+    `km`), on the twilight section and now in the week planner too.
+  - **No forecast is said, not left blank.** Once a fetch has failed with
+    nothing to fall back on (`wxNone`, from `netWhy`: 'offline' for a
+    TypeError or `navigator.onLine` false, else 'failed'; null while the
+    first is still loading), the twilight section says it where the sunset
+    colour goes and the week planner keeps its heading and says it there
+    (`noWxWords`: "No cloud forecast without a connection, so no sunset or
+    sunrise colour. The times above don't need one.").
+  - **Boston is an example, not your sky.** With no fix and nothing saved,
+    `loc` is `PRESETS[0]` itself, and `standIn` is that identity (any
+    chosen, found or saved place is a new object, even a chosen Boston).
+    The header says "Boston (example)", it isn't written to `tw_loc` (the
+    next launch asks out loud again), and the welcome says "Twilyte needs
+    your place to show your sky." with "Choose your place" first and "See
+    Boston's sky for now" under it.
+  - **A refusal and no fix are told apart** (`geoFailWords`): "Location is
+    off for Twilyte. Search for your town, or turn it on in Settings >
+    Privacy & Security > Location Services." (the iPhone app, by
+    `appShell()`; "your browser's settings" on the website), and
+    "Couldn't find your position. Try again outside, or search for your
+    town." The Stars tab says the same, pointing to the Console.
+  - **Coordinates on the Console's place panel** (`parseCoord`,
+    `coordsPlace`: commas as decimal points, a degree sign, N/S/E/W either
+    side; named "38.57°, -109.55°", the device's zone), the one way to set
+    a place by hand offline; an offline search says to use them.
+  - **With a saved place, a quiet try that found no fix says so** under the
+    painting (`geoNote`, `geoMissWords`: "Couldn't update your location.
+    Showing Home." and Try again), shown while `geoMiss === loc`, so any
+    new place clears it. A refusal there stays silent: the person's choice.
+  - **The GPS on a second try** (`locate`): the try on opening asks at low
+    accuracy (8 s; the app's plugin waits 20 s), then once more with
+    `enableHighAccuracy` for 30 s unless refused; a tap asks for the GPS at
+    once. In airplane mode only the GPS can answer. **Needs a device
+    check**: whether an iPhone in airplane mode answers the low-accuracy
+    request at all, and whether 30 s is enough for a fix there.
+  `offline.test.js`.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1653,6 +1698,15 @@ things a syntax check cannot see:
   partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
   across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
   window, the fix across the date line, and the wiring of the rest.
+- **`offline.test.js`** — the 2026-10-21 offline review: `nearestWx`
+  (nearest within 25 km, its own key, day-old skipped, ties to the newer,
+  junk, the date line) and `wxSaved` over a fake storage, `staleNote`'s
+  distance, `netWhy` and `noWxWords`, the week planner and the twilight
+  section with a stub React (loading, failed, saved), `geoFailWords` per
+  shell and `appShell`, `locate`'s second try against a fake geolocation,
+  `parseCoord`/`coordsPlace`, and at source level the forecast effect's
+  fallback, Boston as a stand-in, the welcome's buttons and the
+  quiet-failure note.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage

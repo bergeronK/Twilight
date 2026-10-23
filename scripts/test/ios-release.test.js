@@ -204,6 +204,8 @@ test('in the apps, location comes from the system, with the browser’s error co
   const calls = HTML.match(/navigator\.geolocation\.getCurrentPosition/g) || [];
   assert.strictEqual(calls.length, 1, 'only getPosition itself calls the browser');
   for (const name of ['RealtimeTwilight', 'TwilightEphemeris', 'StarFinder']) {
-    assert.match(declSource(name), /getPosition\(/, name);
+    assert.match(declSource(name), /\b(getPosition|locate)\(/, name);
   }
+  // locate (the Console's and the Stars tab's) asks through getPosition too.
+  assert.match(declSource('locate'), /return getPosition\(ok, fail, gps\);[\s\S]*getPosition\(ok, e =>/);
 });

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-GUhDLoNRIGSfs88U5QRnH5XLARxfLypiCO24zLsH8LI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-xUANhvFZ4DZ0Ry3XQ3WnmW/OxjVnrhmJ1LnSM3meV08=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2140,6 +2140,29 @@ function savedPlace() {
     return { ...p, name: String(p.name || `${p.lat.toFixed(2)}\u00b0, ${p.lon.toFixed(2)}\u00b0`), tz: knownTz(p.tz) };
   } catch (e) { return null; }
 }
+/* A latitude or longitude as typed: a comma works as the decimal point, a
+   degree sign is allowed, and N/S or E/W may come before or after (S and W
+   are negative). NaN when it isn't one, or is off the globe. */
+function parseCoord(s, axis) {
+  const m = /^([NSEW])?\s*([-+\u2212]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?$/i.exec(String(s == null ? '' : s).trim());
+  if (!m || (m[1] && m[3])) return NaN;
+  const h = (m[1] || m[3] || '').toUpperCase();
+  if (h && (axis === 'lat' ? 'NS' : 'EW').indexOf(h) < 0) return NaN;
+  let v = parseFloat(m[2].replace('\u2212', '-').replace(',', '.'));
+  if (h === 'S' || h === 'W') { if (v < 0) return NaN; v = -v; }
+  return Math.abs(v) <= (axis === 'lat' ? 90 : 180) ? v : NaN;
+}
+/* The Console's place from typed coordinates, { place } or { msg } saying
+   what's wrong. Offline it's the one way to set a place by hand (place
+   search needs the network). The time zone is the device's, as with a
+   location fix: a place's zone can't be had from its coordinates without
+   the network. */
+function coordsPlace(latS, lonS) {
+  const lat = parseCoord(latS, 'lat'), lon = parseCoord(lonS, 'lon');
+  if (!Number.isFinite(lat)) return { msg: 'Latitude is a number from -90 to 90, like 38.57 or 38.57 N.' };
+  if (!Number.isFinite(lon)) return { msg: 'Longitude is a number from -180 to 180, like -109.55 or 109.55 W.' };
+  return { place: { name: `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, lat, lon, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } };
+}
 const PRESETS = [{
   name: "Boston",
   lat: 42.3601,
@@ -2494,6 +2517,45 @@ function getPosition(ok, fail, opts) {
       const code = String((e && e.code) || '');
       fail({ code: /-000[38]$/.test(code) ? 1 : /-0010$/.test(code) ? 3 : 2, message: (e && e.message) || '' });
     });
+}
+/* The device's position, for the Console. The try on opening asks at low
+   accuracy first, which Wi-Fi or a phone mast answers in a moment; when that
+   finds nothing in time (not a refusal) it asks once more for the GPS. At a
+   dark site in airplane mode only the GPS can answer, and a low-accuracy
+   request may just wait out its timeout. A tap on "Use my location"
+   (`precise`) asks for the GPS straight away: the person is waiting on it,
+   and a second try after a timeout would double the wait.
+   NEEDS A DEVICE CHECK (offline review, v164): whether an iPhone in
+   airplane mode answers the low-accuracy request at all, and whether 30 s
+   is enough for a GPS fix with no network to help it. */
+function locate(ok, fail, precise) {
+  const gps = { enableHighAccuracy: true, timeout: 30000 };
+  if (precise) return getPosition(ok, fail, gps);
+  getPosition(ok, e => (e && e.code === 1 ? fail(e) : getPosition(ok, fail, gps)), { enableHighAccuracy: false, timeout: 8000 });
+}
+// Where Twilyte is running: 'ios' or 'android' in the apps, else 'web'.
+function appShell() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  return c && typeof c.getPlatform === 'function' ? c.getPlatform() : 'web';
+}
+/* Why there's no position, in words. A refusal (code 1) says where to turn
+   location back on; no fix in time (3) or none to be had (2) says to try
+   outside, where the sky is open to the GPS. `other` is the way round it
+   from where it's said. Both used to read "Couldn't get precise location". */
+function geoFailWords(err, shell, other = 'search for your town') {
+  if (err && err.code === 1) {
+    const where = shell === 'ios' ? 'Settings > Privacy & Security > Location Services'
+      : shell === 'android' ? 'your phone’s settings' : 'your browser’s settings';
+    return `Location is off for Twilyte. ${other[0].toUpperCase()}${other.slice(1)}, or turn it on in ${where}.`;
+  }
+  return `Couldn’t find your position. Try again outside, or ${other}.`;
+}
+// Under the painting, when the try on opening with a saved place found no
+// fix (a refusal is the person's choice and says nothing): the sky shown is
+// still the saved place's, which at a dark site may be home's.
+function geoMissWords(loc) {
+  const name = loc && loc.name && loc.name !== 'Your location' ? loc.name : null;
+  return 'Couldn’t update your location. ' + (name ? `Showing ${name}.` : 'Showing your last location.');
 }
 function nativeMotion() {
   const c = typeof window !== 'undefined' && window.Capacitor;
@@ -3451,7 +3513,7 @@ function nextSunset(sunEv, now) {
 }
 // Hook-free: the next stage with its countdown, then the day's times in two
 // columns (past ones dimmed), then the way to the full day on the Ephemeris.
-function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale }) {
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale, noWx }) {
   const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
     rows.map(r => React.createElement("div", {
@@ -3490,6 +3552,11 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders,
       React.createElement("div", { style: { fontSize: 11.5, color: C.inkFaint, marginTop: 8 } },
         (glows.length > 1 ? "Estimates from the cloud forecast." : "An estimate from the cloud forecast.") +
         (stale ? ` ${stale[0].toUpperCase()}${stale.slice(1)}.` : ""))),
+    // No forecast at all: one line where the colour would be, rather than
+    // nothing (offline review, v164).
+    noWx && !(glows && glows.length) && React.createElement("p", {
+      style: { margin: "0 0 16px", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim, maxWidth: "52ch" }
+    }, noWx),
     React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
       (reminders || []).map(m => React.createElement("button", { key: m.kind, className: "rtbtn", onClick: m.onClick, "aria-label": m.aria }, m.label)),
       React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris \u2192")));
@@ -3833,9 +3900,58 @@ function wxCacheUse(c, nowMs) {
   const age = nowMs - c.t;
   return age < 0 ? null : age < 3600000 ? 'fresh' : age < 86400000 ? 'stale' : null;
 }
-function staleNote(t, nowMs) {
+// `km`: how far away the place it was fetched for is, said from 1 km.
+function staleNote(t, nowMs, km) {
   const h = Math.floor((nowMs - t) / 3600000);
-  return 'forecast from ' + (h < 1 ? 'under an hour' : h === 1 ? 'an hour' : h + ' hours') + ' ago';
+  return 'forecast from ' + (h < 1 ? 'under an hour' : h === 1 ? 'an hour' : h + ' hours') + ' ago' +
+    (km >= 1 ? ', for a place ' + Math.round(km) + ' km away' : '');
+}
+// The saved forecasts, as [key, {t, d} or null] pairs.
+function wxSaved(store) {
+  const out = [];
+  for (let i = 0; i < store.length; i++) {
+    const k = store.key(i);
+    if (!k || !k.startsWith('tw_wx_')) continue;
+    let c = null;
+    try { c = JSON.parse(store.getItem(k) || 'null'); } catch (e) {}
+    out.push([k, c]);
+  }
+  return out;
+}
+/* The saved forecast to fall back on when a new one can't be fetched: the
+   nearest within 25 km that wxCacheUse still accepts, this spot's own
+   included; { key, c, km } or null. Keys are the place to 0.01°, so a fix
+   at the dark site a couple of km from where the forecast was fetched (at
+   home, at the trailhead) is another key, and looking up only that key found
+   nothing there (offline review, v164). Cloud forecasts are made on grids
+   several km across, and the points toward sunset and sunrise are 150 km
+   out, so a neighbour's forecast is still this place's. */
+function nearestWx(entries, nowMs, lat, lon, maxKm = 25) {
+  let best = null;
+  for (const [key, c] of entries || []) {
+    const m = /^tw_wx_(-?\d+(?:\.\d+)?)_(-?\d+(?:\.\d+)?)$/.exec(key || '');
+    if (!m || !wxCacheUse(c, nowMs)) continue;
+    const la = +m[1] * D2R, dLa = la - lat * D2R, dLo = (+m[2] - lon) * D2R;
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(la) * Math.cos(lat * D2R) * Math.sin(dLo / 2) ** 2;
+    const km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
+    if (km <= maxKm && (!best || km < best.km || (km === best.km && c.t > best.c.t))) best = { key, c, km };
+  }
+  return best;
+}
+// Why a request got nothing: 'offline' when no answer came at all (fetch's
+// TypeError, or the device says it's offline), 'failed' when one came back
+// wrong.
+function netWhy(err, onLine) {
+  return onLine === false || (err && err.name === 'TypeError') ? 'offline' : 'failed';
+}
+// What the Console says where the forecast would be, when there is none
+// at all: in the twilight section ('twilight'), where the sunset colour
+// goes, and in the week planner ('week').
+function noWxWords(why, where) {
+  const off = why === 'offline';
+  return (off ? 'No cloud forecast without a connection' : 'The cloud forecast couldn’t be fetched just now') +
+    (where === 'week' ? '. The darkness times above don’t need ' : ', so no sunset or sunrise colour. The times above don’t need ') +
+    (off ? 'one.' : 'it.');
 }
 // "Clear AND Dark" scoring: fuse the cloud forecast (the only new, variable
 // input) with the darkness Twilyte already models (twilight phase + moon).
@@ -4070,16 +4186,19 @@ function ClearAlerts({ loc, h24 }) {
   return React.createElement(AlertsRow, { support, on, busy, msg, h24, place: !loc.name ? "this place" : loc.name === "Your location" ? "where you are" : loc.name.split(",")[0], onToggle });
 }
 // Pro multi-night planner: the next 7 nights ranked by their clear-and-dark
-// score, with the pick of the week flagged. Hidden when Pro is off or no
-// forecast is available.
-function weekPlannerEl(nights, loc, h24, pro) {
-  if (!pro || !nights || !nights.length) return null;
-  const scored = nights.filter(n => n.sum && n.sum.score != null);
-  if (!scored.length) return null;
+// score, with the pick of the week flagged. Hidden when Pro is off, or while
+// the first forecast is on its way. `stale` says a saved forecast's age (and
+// place); `none` is said in the list's place when there is no forecast at
+// all (offline review, v164: the section just vanished).
+function weekPlannerEl(nights, loc, h24, pro, stale, none) {
+  if (!pro) return null;
+  const scored = (nights || []).filter(n => n.sum && n.sum.score != null);
+  if (!none && !scored.length) return null;
   const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
   let pick = scored[0];
   scored.forEach(n => { if (n.sum.score > pick.sum.score) pick = n; });
   const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
+  const say = (text, size, color) => React.createElement("p", { style: { margin: "0 0 6px", fontFamily: "var(--font-ui)", fontSize: size, color, maxWidth: "52ch" } }, text);
   return React.createElement("div", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
@@ -4087,9 +4206,10 @@ function weekPlannerEl(nights, loc, h24, pro) {
       React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
       proShown() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
       proShown() === 'preview' && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
-      React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
+      !none && React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
     ),
-    React.createElement("div", null,
+    none ? say(none, 13, C.inkDim) : stale && say(`${stale[0].toUpperCase()}${stale.slice(1)}.`, 11.5, C.inkFaint),
+    !none && React.createElement("div", null,
       nights.map((n, idx) => {
         const ok = n.sum && n.sum.score != null;
         const isPick = ok && n === pick && pick.sum.score >= 40;
@@ -4842,12 +4962,18 @@ function heroHeight(width) {
    laid out, so dismissing it just fades it away onto the dashboard. Shown
    once (tw_welcomed). `line` is the words, `onDone(pick)` closes it; `pick`
    opens the place picker for someone whose sky this isn't. */
-function welcomeLine(loc, locating) {
+// `standIn`: the place is Boston standing in, with no fix and nothing saved
+// (refused, timed out, offline on a first launch). It isn't anyone's sky,
+// so the welcome doesn't call it theirs (offline review, v164).
+function welcomeLine(loc, locating, standIn) {
   if (locating) return 'Finding your sky\u2026';
+  if (standIn) return 'Twilyte needs your place to show your sky.';
   const place = !loc || loc.name === 'Your location' ? 'you' : loc.name.split(',')[0];
   return `This is the sky over ${place} right now.`;
 }
-function WelcomeSky({ o, line, onDone }) {
+// `standIn`: the stand-in's name once it's known there's no fix; then
+// choosing a place is the way in, and the stand-in's sky the way past.
+function WelcomeSky({ o, line, onDone, standIn }) {
   const cvRef = useRef(null), btnRef = useRef(null);
   const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const [leaving, setLeaving] = useState(false);
@@ -4885,17 +5011,17 @@ function WelcomeSky({ o, line, onDone }) {
     },
       React.createElement('p', { 'aria-live': 'polite', style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(30px, 7.5vw, 44px)', lineHeight: 1.08, color: C.ink, margin: '0 0 22px', textWrap: 'balance' } }, line),
       React.createElement('button', {
-        ref: btnRef, onClick: () => close(false),
+        ref: btnRef, onClick: () => close(!!standIn),
         style: { display: 'inline-flex', alignItems: 'center', gap: 10, padding: '13px 22px', borderRadius: 999, border: 0, cursor: 'pointer', background: 'var(--accent)', color: 'var(--on-accent)', fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 650 }
-      }, 'Show me tonight', React.createElement('span', { 'aria-hidden': 'true' }, '\u2192')),
+      }, standIn ? 'Choose your place' : 'Show me tonight', React.createElement('span', { 'aria-hidden': 'true' }, '\u2192')),
       React.createElement('button', {
-        onClick: () => close(true),
+        onClick: () => close(!standIn),
         style: { display: 'block', marginTop: 14, padding: 0, border: 0, background: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13.5, color: 'rgba(238,241,250,.7)', textDecoration: 'underline', textUnderlineOffset: 3 }
-      }, 'Not here? Choose your place')
+      }, standIn ? `See ${standIn}\u2019s sky for now` : 'Not here? Choose your place')
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, darkness }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, darkness, standIn }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -5169,7 +5295,8 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     ),
     panel || null,
     intro && React.createElement(WelcomeSky, {
-      line: welcomeLine(loc, locating), onDone: onIntroDone,
+      line: welcomeLine(loc, locating, standIn), onDone: onIntroDone,
+      standIn: standIn && !locating ? loc.name.split(',')[0] : null,
       o: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
         planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
@@ -5283,8 +5410,17 @@ function RealtimeTwilight({ redMode } = {}) {
   const searchSeq = useRef(0);
   const [wx, setWx] = useState(null);
   // When the forecast shown is an older saved one (offline, or Open-Meteo
-  // down), when it was fetched; null when it is current.
+  // down), when it was fetched and how far away (`{ t, km }`); null when it
+  // is current.
   const [wxStale, setWxStale] = useState(null);
+  // Why there's no forecast at all once a fetch has failed ('offline' or
+  // 'failed'); null while one is shown or the first is still on its way.
+  const [wxNone, setWxNone] = useState(null);
+  // The saved place, when the quiet try on opening found no fix.
+  const [geoMiss, setGeoMiss] = useState(null);
+  const [coordLat, setCoordLat] = useState("");
+  const [coordLon, setCoordLon] = useState("");
+  const [coordMsg, setCoordMsg] = useState("");
   const wxSeq = useRef(0);
   const wxKey = useRef(null);
   const [saved, setSaved] = React.useState(() => {
@@ -5344,6 +5480,9 @@ function RealtimeTwilight({ redMode } = {}) {
     return () => clearInterval(tick.current);
   }, []);
   React.useEffect(() => {
+    // Boston standing in isn't anyone's place, so it isn't saved: the next
+    // launch asks for the device's position again, out loud.
+    if (loc === PRESETS[0]) return;
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
   }, [loc]);
   // `quiet` (strictly true: a click passes an event) is the automatic try
@@ -5360,6 +5499,7 @@ function RealtimeTwilight({ redMode } = {}) {
     quiet = quiet === true;
     const seq = ++geoSeq.current;
     geoAuto.current = auto === true;
+    if (!quiet) setGeoMiss(null);
     if (!canLocate()) {
       if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
@@ -5367,7 +5507,7 @@ function RealtimeTwilight({ redMode } = {}) {
       return;
     }
     if (!quiet) setGeoMsg("Locating…");
-    getPosition(p => {
+    locate(p => {
       if (seq !== geoSeq.current) return;
       geoAuto.current = false;
       setLoc({
@@ -5378,16 +5518,16 @@ function RealtimeTwilight({ redMode } = {}) {
       });
       setGeoMsg("");
       setPickerOpen(false);
-    }, () => {
+    }, err => {
       if (seq !== geoSeq.current) return;
       geoAuto.current = false;
-      if (quiet) return;
-      setGeoMsg("Couldn't get precise location — enter a ZIP code or pick a city below.");
+      // Quietly, a refusal keeps the saved place without a word (the
+      // person's choice); no fix says so under the painting, since the sky
+      // shown may be home's, not the dark site's (offline review, v164).
+      if (quiet) { if (!(err && err.code === 1)) setGeoMiss(loc); return; }
+      setGeoMsg(geoFailWords(err, appShell()));
       setPickerOpen(true);
-    }, {
-      timeout: 8000,
-      enableHighAccuracy: false
-    });
+    }, auto !== true);
   };
   useEffect(() => {
     // A shared link's place stays put; a saved place is tried quietly.
@@ -5406,7 +5546,9 @@ function RealtimeTwilight({ redMode } = {}) {
       setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
       setResults(list);
     } catch (e) {
-      if (seq === searchSeq.current) setSearchMsg("Couldn't search \u2014 check your connection.");
+      if (seq === searchSeq.current) setSearchMsg(netWhy(e, navigator.onLine) === 'offline'
+        ? "Search needs a connection. Enter latitude and longitude below instead."
+        : "Couldn't search \u2014 check your connection.");
     }
     if (seq === searchSeq.current) setSearchBusy(false);
   };
@@ -5414,6 +5556,13 @@ function RealtimeTwilight({ redMode } = {}) {
     dropFix();
     setLoc({ name: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
     setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg(""); setPickerOpen(false);
+  };
+  // Typed coordinates: the way to set a place with no connection.
+  const useCoords = () => {
+    const r = coordsPlace(coordLat, coordLon);
+    if (!r.place) { setCoordMsg(r.msg); return; }
+    setCoordLat(""); setCoordLon(""); setCoordMsg("");
+    pickPlace(r.place);
   };
   const dKey = dateKey(now, loc.tz);
   // The clock/countdown need per-second `now`, but the heavy astronomical
@@ -5435,8 +5584,8 @@ function RealtimeTwilight({ redMode } = {}) {
     const seq = ++wxSeq.current;
     // A new place shows no forecast until its own arrives, not the last
     // place's sunset colour and week under the new name.
-    if (wxKey.current !== key) { wxKey.current = key; setWx(null); setWxStale(null); }
-    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
+    if (wxKey.current !== key) { wxKey.current = key; setWx(null); setWxStale(null); setWxNone(null); }
+    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); setWxNone(null); return; }
     // Two more points, 150 km toward the next sunset and sunrise, for the
     // colour of each.
     const west = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "down"), 150);
@@ -5448,6 +5597,7 @@ function RealtimeTwilight({ redMode } = {}) {
         if (seq !== wxSeq.current) return;
         setWx(wxOf(d));
         setWxStale(null);
+        setWxNone(null);
         try {
           localStorage.setItem(key, JSON.stringify({ t: Date.now(), d }));
           // Prune stale per-location entries (e.g. from earlier searched
@@ -5462,12 +5612,16 @@ function RealtimeTwilight({ redMode } = {}) {
       })
       // Offline, or the forecast service down: a saved forecast up to a day
       // old still covers tonight (it runs 8 days ahead), so show that, said
-      // to be older, rather than nothing.
+      // to be older, rather than nothing; the nearest within 25 km, since
+      // the dark site is rarely the very spot it was fetched for. With none,
+      // say so.
       .catch(err => {
         try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        if (wxCacheUse(cached, Date.now())) { setWx(wxOf(cached.d)); setWxStale(cached.t); }
-        else { setWx(null); setWxStale(null); }
+        let near = null;
+        try { near = nearestWx(wxSaved(localStorage), Date.now(), loc.lat, loc.lon); } catch (e) {}
+        if (near) { setWx(wxOf(near.c.d)); setWxStale({ t: near.c.t, km: near.km }); setWxNone(null); }
+        else { setWx(null); setWxStale(null); setWxNone(netWhy(err, navigator.onLine)); }
       });
   }, [loc.lat, loc.lon, hourKey]);
   // Auto light-pollution estimate: recompute whenever the location changes
@@ -5515,6 +5669,9 @@ function RealtimeTwilight({ redMode } = {}) {
     };
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
+  // A saved forecast's age, and where it's for when that isn't here; said
+  // on the twilight section's forecast line and in the week planner.
+  const wxNote = wx && wxStale ? staleNote(wxStale.t, now, wxStale.km) : null;
   // Two days ahead, so the next stage is found after the day's last one too
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
   const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
@@ -5600,6 +5757,9 @@ function RealtimeTwilight({ redMode } = {}) {
     setPickerOpen(open);
     if (!open) { setResults([]); setQuery(""); setSearchMsg(""); }
   };
+  // Boston, standing in while there's no fix and no saved place: the
+  // header calls it an example rather than claim it's this person's sky.
+  const standIn = loc === PRESETS[0];
   // The place is the Console's heading: what a screen reader lists first.
   const placeHeader = React.createElement("div", null,
     React.createElement("h1", { style: { margin: 0, font: "inherit" } }, React.createElement("button", {
@@ -5615,7 +5775,7 @@ function RealtimeTwilight({ redMode } = {}) {
         letterSpacing: "-0.015em", lineHeight: 1.1, textAlign: "left",
         textShadow: "0 1px 10px rgba(3,5,12,.85)"
       }
-    }, loc.name,
+    }, loc.name, standIn ? " (example)" : null,
       React.createElement("svg", { "aria-hidden": "true", width: 14, height: 14, viewBox: "0 0 14 14", style: { flexShrink: 0, transform: pickerOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } },
         React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
     )),
@@ -5729,7 +5889,32 @@ function RealtimeTwilight({ redMode } = {}) {
       background: "rgba(255,255,255,0.03)",
       cursor: "pointer"
     }
-  }, p.label)))));
+  }, p.label)))),
+  React.createElement("div", { style: { marginTop: 14 } },
+    React.createElement("div", {
+      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 7 }
+    }, "Latitude and longitude"),
+    React.createElement("div", { className: "rt-ziprow", style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+      [["Latitude", coordLat, setCoordLat], ["Longitude", coordLon, setCoordLon]].map(([label, value, set]) =>
+        React.createElement("input", {
+          key: label, value, placeholder: label, "aria-label": label,
+          autoComplete: "off", autoCapitalize: "off", spellCheck: false,
+          onChange: e => { set(e.target.value); setCoordMsg(""); },
+          onKeyDown: e => { if (e.key === "Enter") useCoords(); },
+          style: { fontFamily: "var(--font-ui)", fontSize: 15, flex: "1 1 130px", minWidth: 0, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: "#0a0f1c", color: C.ink, outline: "none" }
+        })),
+      React.createElement("button", { className: "rtbtn solid", onClick: useCoords }, "Use these")),
+    React.createElement("div", {
+      role: coordMsg ? "alert" : undefined,
+      style: { fontFamily: "var(--font-ui)", fontSize: 11, color: coordMsg ? "#c99" : C.inkFaint, marginTop: 7 }
+    }, coordMsg || "Like 38.57 and -109.55. Times are in this device’s time zone.")));
+  // When the try on opening with a saved place found no fix: said under
+  // the painting, with a way to try again (offline review, v164).
+  const geoNote = geoMiss && geoMiss === loc && React.createElement("div", {
+    role: "status",
+    style: { maxWidth: 1080, margin: "0 auto 18px", display: "flex", alignItems: "center", gap: "8px 12px", flexWrap: "wrap", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim }
+  }, React.createElement("span", null, geoMissWords(loc)),
+    React.createElement("button", { className: "rtbtn", onClick: () => useMyLocation() }, "Try again"));
   return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -5764,15 +5949,15 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }))),
   React.createElement(HorizonHero, {
-    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
-    intro, locating: geoMsg === "Locating\u2026",
+    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel || geoNote,
+    intro, locating: geoMsg === "Locating\u2026", standIn,
     // Twilight right under the painting's facts, before the highlights
     // (2026-09-25; the next stage and the day's times had been at the foot
     // of the page).
     twilight: React.createElement(TwilightToday, {
       next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
       onMore: () => goTab("ephemeris"),
-      glows, reminders, stale: wx && wxStale ? staleNote(wxStale, now) : null
+      glows, reminders, stale: wxNote, noWx: wxNone ? noWxWords(wxNone, 'twilight') : null
     }),
     // How dark this place's sky is, right under tonight's ribbon and facts
     // (2026-09-29: the owner's original idea for this spot; it replaced the
@@ -5789,7 +5974,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }),
   (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
-  weekPlannerEl(wxWeek, loc, h24, pro),
+  weekPlannerEl(wxWeek, loc, h24, pro, wxNote, wxNone ? noWxWords(wxNone, 'week') : null),
   React.createElement("section", {
     ref: factRef,
     tabIndex: -1,
@@ -8718,11 +8903,11 @@ function StarFinder({ redMode } = {}) {
   const useMyLocation = () => {
     if (!canLocate()) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
-    getPosition(p => {
+    locate(p => {
       const nl = { lat: p.coords.latitude, lon: p.coords.longitude, name: `${p.coords.latitude.toFixed(2)}°, ${p.coords.longitude.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
       setLoc(nl); setGeoMsg("");
       try { localStorage.setItem('tw_loc', JSON.stringify(nl)); } catch (e) {}
-    }, () => setGeoMsg("Couldn't get your location — set it on the Console tab."), { enableHighAccuracy: false, timeout: 8000 });
+    }, e => setGeoMsg(geoFailWords(e, appShell(), "choose your place on the Console")), true);
   };
   const sunAlt = sunAltitude(new Date(now), loc.lat, loc.lon);
 
