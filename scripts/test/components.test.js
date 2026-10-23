@@ -133,6 +133,7 @@ function renderSkyDome(props) {
     useSkyLines: () => skyLinesOn,
     prefStore: { setSkyFov: () => {}, setSkyLines: v => { skyLinesSet = v; } },
     SKY_FOV_DEFAULT: 63,
+    deviceWord: () => 'phone',
     compass16: az => 'N',
     quatFromEuler: O.quatFromEuler, viewBasis: O.viewBasis,
     toScreen: O.toScreen, skyProject: O.skyProject, atan2: O.atan2,

@@ -209,3 +209,30 @@ test('in the apps, location comes from the system, with the browser’s error co
   // locate (the Console's and the Stars tab's) asks through getPosition too.
   assert.match(declSource('locate'), /return getPosition\(ok, fail, gps\);[\s\S]*getPosition\(ok, e =>/);
 });
+
+// The iPad screenshots said "point your phone" (store review, 2026-10-21).
+// iPadOS's WebKit calls itself a Mac; the touch points give it away.
+test('the words that say to move the device say iPad on an iPad', () => {
+  const { extract: ex } = require('./extract.js');
+  const { deviceWord } = ex(['deviceWord']);
+  const was = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const as = (userAgent, maxTouchPoints) => {
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent, maxTouchPoints }, configurable: true });
+    return deviceWord();
+  };
+  try {
+    assert.strictEqual(as('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5), 'phone');
+    assert.strictEqual(as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 5), 'iPad');
+    assert.strictEqual(as('Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X)', 5), 'iPad');
+    assert.strictEqual(as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 0), 'phone', 'a real Mac');
+    assert.strictEqual(as('Mozilla/5.0 (Linux; Android 14)', 5), 'phone');
+  } finally {
+    if (was) Object.defineProperty(globalThis, 'navigator', was); else delete globalThis.navigator;
+  }
+  // No user-facing string still says "the phone" or "your phone".
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+  const strings = html.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .flatMap(l => l.match(/(["'`])(?:(?!\1).)*\b(?:the|your|Your) phone\b(?:(?!\1).)*\1/g) || []);
+  // Android's settings are a phone's; the rest are comments the scan catches.
+  assert.deepStrictEqual(strings.filter(x => !/back of the phone|your phone’s settings|written in the phone/.test(x)), []);
+});

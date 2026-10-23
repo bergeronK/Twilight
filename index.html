@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-7dAfGYFLrjBG1Us7oDpZPPJxwGvZl5E1fCRKecNBpRY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-1GDBOkOIOgDDj65wvrxUpTwOJ5MDjqXzIxhM7siv8Kg=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2638,6 +2638,15 @@ function geoFailWords(err, shell, other = 'search for your town') {
 function geoMissWords(loc) {
   const name = loc && loc.name && loc.name !== 'Your location' ? loc.name : null;
   return 'Couldn’t update your location. ' + (name ? `Showing ${name}.` : 'Showing your last location.');
+}
+// "phone" or "iPad", for the words that tell someone to move it (store
+// review, 2026-10-21: the iPad screenshots said "point your phone").
+// iPadOS's WebKit says Macintosh; the touch points give it away.
+function deviceWord() {
+  try {
+    const n = navigator;
+    return /iPad/.test(n.userAgent) || (/Macintosh/.test(n.userAgent) && n.maxTouchPoints > 1) ? 'iPad' : 'phone';
+  } catch (e) { return 'phone'; }
 }
 function nativeMotion() {
   const c = typeof window !== 'undefined' && window.Capacitor;
@@ -8457,7 +8466,7 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
       }, React.createElement('span', { 'aria-hidden': 'true' }, '✦'), 'Open Sky View', React.createElement('span', { 'aria-hidden': 'true' }, '→')),
       React.createElement('p', {
         style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(var(--sky-ink-rgb),.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
-      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your phone to see the rest, labelled.')
+      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your ' + deviceWord() + ' to see the rest, labelled.')
     )
   );
 }
@@ -8869,7 +8878,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             React.createElement('div', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)', marginTop: 2 } },
               capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'))
         : (live
-            ? 'Live — move your phone to look around. Tap anything to identify it.'
+            ? 'Live — move your ' + deviceWord() + ' to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
     // Off screen: an arrow at the edge the target lies beyond, with its name
@@ -9591,8 +9600,8 @@ function StarFinder({ redMode } = {}) {
   // kept in agreement, they are computed from the same object.
   // What to tell someone looking at Sky View about north, if anything.
   const northMsg = !orient ? null
-    : orient.abs && !orient.trusted ? "North is a first guess \u2014 raise the phone toward the sky to confirm it."
-    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 raise the phone toward the sky."
+    : orient.abs && !orient.trusted ? `North is a first guess \u2014 raise the ${deviceWord()} toward the sky to confirm it.`
+    : !orient.abs && orient.northKind === 'heading' ? `Finding north \u2014 raise the ${deviceWord()} toward the sky.`
     : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
     : null;
   const viewQ = useMemo(
@@ -9983,7 +9992,7 @@ function StarFinder({ redMode } = {}) {
       compassQuality === "bad"
         ? "Your compass is reporting itself unreliable. "
         : "",
-      "Wave the phone in a figure-8, rotating your wrist, for a few seconds — that re-fits the magnetometer. Then step away from cars, railings and speakers, and take your phone out of any magnetic case; those throw the heading off by more than the sky ever moves. If it's still wrong, aim at ",
+      `Wave the ${deviceWord()} in a figure-8, rotating your wrist, for a few seconds — that re-fits the magnetometer. Then step away from cars, railings and speakers, and take your ${deviceWord()} out of any magnetic case; those throw the heading off by more than the sky ever moves. If it's still wrong, aim at `,
       aimTargetName,
       " by eye and tap Align."
     )
@@ -10022,7 +10031,7 @@ function StarFinder({ redMode } = {}) {
       "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
     ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
       : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
-    nativeOn && ["CoreMotion frame", (sensorStats.nativeTrueNorth ? "true north" : "magnetic north (no location yet)") + " \u00b7 matrix " + (sensorStats.nativeDir || "direction not settled yet: turn the phone a little")],
+    nativeOn && ["CoreMotion frame", (sensorStats.nativeTrueNorth ? "true north" : "magnetic north (no location yet)") + " \u00b7 matrix " + (sensorStats.nativeDir || `direction not settled yet: turn the ${deviceWord()} a little`)],
     ["North source", !orient || !orient.northKind ? "\u2014"
       : nativeOn ? "CoreMotion"
       : orient.northKind === 'heading' ? "compass heading (read off the back of the phone)" : "absolute orientation"],
@@ -10053,7 +10062,7 @@ function StarFinder({ redMode } = {}) {
     ? "No orientation events are arriving at all \u2014 the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
     : sensorStats.usable === 0
       ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
-      : "Sensors are working. Move the phone and these numbers should change.";
+      : `Sensors are working. Move the ${deviceWord()} and these numbers should change.`;
   // Copy as plain text, so a report can be pasted rather than retyped from a
   // screenshot.
   const [diagCopied, setDiagCopied] = useState(null);
@@ -10096,7 +10105,7 @@ function StarFinder({ redMode } = {}) {
   },
     React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14, maxWidth: 640 } },
-      "Pick a body, raise your phone and aim its back at the sky — Twilyte reads the compass and tilt sensors and tells you which way to move to land on it."),
+      `Pick a body, raise your ${deviceWord()} and aim its back at the sky — Twilyte reads the compass and tilt sensors and tells you which way to move to land on it.`),
     !aimTargetName
       ? React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
@@ -10109,7 +10118,7 @@ function StarFinder({ redMode } = {}) {
           // isn't a surprise.
           aimableBodies.length > 0 && typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" &&
             React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: 10 } },
-              "Your phone will ask permission to use motion sensors.")
+              `Your ${deviceWord()} will ask permission to use motion sensors.`)
         )
       : React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" } },
@@ -10143,7 +10152,7 @@ function StarFinder({ redMode } = {}) {
                       onTarget && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On target")
                     ),
                     aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
-                      "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                      `Raise the ${deviceWord()} toward the sky for tilt guidance — lying flat, only the bearing is meaningful.`),
                     // Throttled and quantised in useAimAnnouncement; the raw
                     // numbers above deliberately stay outside this region.
                     React.createElement("div", {
