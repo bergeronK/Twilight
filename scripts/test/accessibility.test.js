@@ -35,6 +35,28 @@ test('the faintest text meets AA (4.5:1) on every surface it sits on', () => {
   assert.ok(lum(ink) < lum(token('ink-dim')));
 });
 
+/*
+ * Red light mode's tokens (2026-10-21): --ink-faint was 2.0:1 and --ink-dim
+ * 3.3:1 on the red surfaces, and axe found 12-15 failing nodes a screen. The
+ * inks are pure red now (no green or blue, red-mode.test.js), and pure red
+ * reaches at most 5.3:1 on black, so --ink-dim takes AA and --ink-faint the
+ * large-text 3:1, a step below it as in the normal palette.
+ */
+test('red light mode: the inks meet their contrast on every red surface', () => {
+  const css = declSource('TwilightApp').match(/redMode && React\.createElement\("style", null, `[\s\S]*?:root\{([\s\S]*?)\n\s*\}/)[1];
+  const red = name => css.match(new RegExp('--' + name + ':(#[0-9a-f]{6});', 'i'))[1];
+  const at = (ink, min) => {
+    for (const bg of ['bg', 'bg-glow', 'bg-glow-2', 'surface', 'surface-2']) {
+      const r = contrast(red(ink), red(bg));
+      assert.ok(r >= min, `red --${ink} on --${bg}: ${r.toFixed(2)}, wants ${min}`);
+    }
+  };
+  at('ink', 4.5); at('ink-prose', 4.5); at('ink-dim', 4.5); at('btn-ink', 4.5); at('accent', 4.5); at('accent-hi', 4.5);
+  at('ink-faint', 3);
+  assert.ok(lum(red('ink')) >= lum(red('ink-dim')) && lum(red('ink-dim')) > lum(red('ink-faint')), 'ink, then dim, then faint');
+  assert.ok(contrast(red('on-accent'), red('accent')) >= 4.5, 'words on an accent fill');
+});
+
 test('every input and select has a name a screen reader can say', () => {
   const re = /createElement\(("|')(input|select|textarea)\1,\s*\{/g;
   const bad = [];

@@ -230,7 +230,7 @@ stargazer is the default, navigator material is kept whole but folded.
   or meta turns the effect off. So the style is **`default`** (v152): the
   web view starts below an opaque bar painted in `theme-color`, which is now
   the header's `--bg` `#0e0d0b` (was the navy `#070a14`), kept in step with
-  red light mode (`#0a0204`) by an effect in `TwilightApp`; the manifest's
+  red light mode (`#0a0000`) by an effect in `TwilightApp`; the manifest's
   `theme_color` matches. iOS reads the style when the app is added to the
   Home Screen, so an existing install must be removed and added again.
   Safari tabs ignore the meta; there the fixed header is what's sampled.
@@ -843,6 +843,54 @@ stargazer is the default, navigator material is kept whole but folded.
     coordinates, and typed coordinates dropping the place's zone (by
     design: manual mode). `review-fixes.test.js`, every test checked by
     reverting its fix.
+- **Red light mode is red (2026-10-21).** An accessibility review of v164
+  found it wasn't: its filter (`saturate sepia hue-rotate brightness`)
+  turned white into grey (#b2b0a9), so Sky View, the painting's stars and
+  Moon and the charts stayed grey-white, and Sky View's on and off chips
+  came out the same; the words over the painting, the night ribbon and the
+  twilight dots never went through it; and the red tokens carried green and
+  blue (`--ink-faint` 2.0:1, `--ink-dim` 3.3:1). Green and blue are the
+  light that undoes dark adaptation, the one thing the mode is for. Now:
+  - **The tokens are pure red** (`:root` in the red `<style>`, so the
+    overscroll and the welcome follow): `--ink` `#ff0000`, `--ink-dim`
+    `#f40000` (4.6:1 on the lightest surface), `--ink-faint` `#c80000`
+    (3.3:1), surfaces `#0a0000` to `#1e0000`, theme-color `#0a0000`. Pure
+    red tops out at 5.3:1 on black, so `--ink` is only a step above
+    `--ink-dim`; faint is held to large-text 3:1 so the hierarchy keeps a
+    step. Every `:root` token with any green or blue in it is one red mode
+    sets (`red-mode.test.js` fails otherwise), so **a new colour token
+    needs its red value too**.
+  - **What is painted goes through a red film**: `RED_LIGHT_MATRIX`, an
+    inline SVG `feColorMatrix` (`#tw-red`, sRGB) that keeps each pixel's
+    red and drops green and blue, used as `filter: url(#tw-red)` on the
+    same elements as before (the hero's and the chart's canvases, svgs and
+    canvases in `main`, the Sky View and welcome dialogs). White becomes
+    pure red, blue black. Not a grey from luminance: that dims pure red to
+    30%, and the red tokens inside filtered pictures (the Ephemeris chart's
+    labels, icons in `currentColor`) would have gone dark; the film leaves
+    pure red as it is, so filtering twice is filtering once. Each canvas
+    is filtered itself, never a container: Safari draws `url()` filters in
+    software, and a moving layer (the twinkle, the tilting ground) inside a
+    filtered container would refilter all of it every frame.
+  - **Colours that were written out in code are tokens** with their old
+    values, so normal mode is pixel-identical (checked on all five
+    screens): `--sky-ink-rgb` (the date and "Dark until" over the painting,
+    the preview's words), `--accent-rgb` (brass edges of buttons),
+    `--sky-shade-rgb` / `--sky-glass-rgb` (the preview's fades and
+    buttons), `--band-moon`, `--dot-rise`, `--dot-astro` (`TWILIGHT_DOTS`),
+    `--ink-prose` (the almanac). The bands and dots in red are the old
+    colours' brightness (0.3 R + 0.59 G + 0.11 B), so dusk still darkens
+    along the ribbon. All three tabs use `RED_PAGE_BG` (the Ephemeris and
+    Stars kept the navy `PAGE_BG`), and the Ephemeris's dots, which key its
+    chart, take `redFilm`, the same film in code.
+  - **Sky View's on chips are filled** in red (`--chip-on`; normal mode
+    falls back to the off fill), since through the film brass and white are
+    the same red.
+  Measured in Chromium as the iPhone app (Moab, night): over every pixel
+  brighter than 64, green and blue are under 7% and 10% of red (text edges
+  on the dark navy shadows); none above 15 anywhere. Safari is unchecked
+  here: if a device shows a picture unfiltered, the `url()` reference is
+  the suspect.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1577,7 +1625,9 @@ things a syntax check cannot see:
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the
   `!important` focus ring, Sky View's dialog wiring, and the words of
-  `skyViewSummary` and `daySummary`.
+  `skyViewSummary` and `daySummary`. Red light mode's inks too: `--ink`,
+  `--ink-dim`, `--accent` and `--btn-ink` 4.5:1 and `--ink-faint` 3:1 on
+  every red surface, in that order of brightness.
 - **`load.test.js`** — first load and offline: the two Inter faces (core
   = `subset-inter.sh`'s range, no overlap, same in the city pages,
   preloaded, the core precached not the full font), no shipped character in
@@ -1653,6 +1703,15 @@ things a syntax check cannot see:
   partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
   across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
   window, the fix across the date line, and the wiring of the rest.
+- **`red-mode.test.js`** — red light mode is red: `RED_LIGHT_MATRIX` maps
+  white to pure red and blue to black, leaves pure red alone (filtered
+  twice = once) and `redFilm` agrees with it; the filter is in the page and
+  on the painted elements, with no hue-rotate chain; every colour red mode
+  sets is pure red and every `:root` token with green or blue in it is
+  replaced; the bands and dots keep their order; and at source level the
+  colours once written out in code (the words over the painting, the
+  ribbon, the dots, the washes, the Ephemeris's dots, the almanac) follow
+  the tokens, and Sky View's on chips are filled.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage

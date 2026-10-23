@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-GUhDLoNRIGSfs88U5QRnH5XLARxfLypiCO24zLsH8LI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-VBNP6+AHc+O3mZbkMZkUFZN4SbkKXQNfuFsWwXbgBTY=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -62,6 +62,7 @@
     /* ink */
     --ink:#eae7e0;           /* primary text (warm white) */
     --ink-dim:#a09a8f;       /* secondary text */
+    --ink-prose:#d7cfb8;     /* the almanac's running text, softer than --ink for reading at length */
     --ink-faint:#888174;     /* tertiary text: 4.6:1 on the lightest panel, 5.0 on --bg (was #7d766a, 4.3, under AA) */
     /* accent — brass, reserved for data that matters */
     --accent:#d2a04d;
@@ -79,6 +80,16 @@
     --band-naut:#5a7fb0;
     --band-astro:#2b3358;
     --band-night:#1a1f38;
+    --band-moon:#e8e6df;     /* the Moon's time up, under tonight's ribbon */
+    --dot-rise:#e0b96f;      /* the day's times: sunrise and sunset (civil and nautical use their bands) */
+    --dot-astro:#4b5794;     /* astronomical, lighter than its band so a 7 px dot shows */
+    /* the same colours as rgb triplets, for rgba() at the alphas each place
+       uses; red light mode redefines them, so nothing drawn in them stays
+       white or brass there */
+    --sky-ink-rgb:238,241,250;  /* words over the painted sky */
+    --sky-shade-rgb:5,7,15;     /* the near-black Sky View's preview fades into */
+    --sky-glass-rgb:12,14,22;   /* buttons over that preview */
+    --accent-rgb:210,160,77;    /* = --accent */
     /* typography — strict job split: serif is the voice (wordmark, verdicts),
        Inter is the instrument (everything functional, with tabular numerals) */
     --font-display:'Cormorant Garamond',Georgia,serif;  /* wordmark + verdict lines only */
@@ -2245,6 +2256,25 @@ const C = {
 // every field report ambiguous.
 const BUILD = "v164";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
+// In red light mode all three tabs share the red tokens' wash instead: the
+// navy above is blue light, which is what the mode is there to keep out.
+const RED_PAGE_BG = "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)";
+/* Red light mode's filter for what is painted rather than written in the
+   tokens (the skies, Sky View, the charts, the planets, the welcome): a
+   sheet of red film over the screen. The rods, which do the seeing once the
+   eyes are dark-adapted, hardly respond to deep red; green and blue light
+   is what undoes adaptation. So each pixel keeps its red and loses the rest:
+   white becomes pure red, blue goes black. What is already pure red (the
+   red tokens: the Ephemeris chart's labels, an icon in currentColor) passes
+   through unchanged, so nothing goes dim for being filtered twice. A grey
+   from luminance would have dimmed those to 30%. An SVG feColorMatrix, rows
+   R, G, B, A; the hue-rotate chain before it turned white grey (#b2b0a9),
+   not red (accessibility review of v164). */
+const RED_LIGHT_MATRIX = "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0";
+// The same film for a colour set in code (the Ephemeris's dots, which key
+// its chart): '#rrggbb' keeps its red. Anything else (a var()) is already a
+// token, which red light mode sets itself.
+const redFilm = c => /^#[0-9a-f]{6}$/i.test(c) ? c.slice(0, 3) + '0000' : c;
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
   if (alt > -6) return "civil";
@@ -3320,7 +3350,7 @@ const TWILIGHT_WORDS = {
   up: { astro: "Astronomical dawn", naut: "Nautical dawn", civil: "Civil dawn", rise: "Sunrise" },
   down: { rise: "Sunset", civil: "Civil dusk", naut: "Nautical dusk", astro: "Astronomical dusk" }
 };
-const TWILIGHT_DOTS = { rise: "#e0b96f", civil: "#e08a3c", naut: "#5a7fb0", astro: "#4b5794" };
+const TWILIGHT_DOTS = { rise: "var(--dot-rise)", civil: "var(--band-civil)", naut: "var(--band-naut)", astro: "var(--dot-astro)" };
 const twilightWord = e => TWILIGHT_WORDS[e.dir][e.key];
 // A day's twilight as people count it, from local midnight `mid`: the dawn
 // stages before the Sun's highest point and the dusk stages after it, on
@@ -4207,7 +4237,7 @@ function NightRibbon({ plan, now, fmt }) {
     ),
     React.createElement('div', { style: { position: 'relative', height: 6 } },
       plan.moonUp.map((m, i) => React.createElement('div', {
-        key: i, style: { position: 'absolute', top: 1, height: 4, borderRadius: 2, left: at(m.from), width: len(m.from, m.to), background: '#e8e6df', opacity: 0.8 }
+        key: i, style: { position: 'absolute', top: 1, height: 4, borderRadius: 2, left: at(m.from), width: len(m.from, m.to), background: 'var(--band-moon)', opacity: 0.8 }
       }))
     ),
     React.createElement('div', { style: { ...small, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
@@ -5157,7 +5187,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto' }
       },
         React.createElement('div', {
-          style: { fontFamily: 'var(--font-ui)', fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(238,241,250,.72)', fontVariantNumeric: 'tabular-nums' }
+          style: { fontFamily: 'var(--font-ui)', fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(var(--sky-ink-rgb),.72)', fontVariantNumeric: 'tabular-nums' }
         }, heroLabel(plan, now, live.alt, fmt)),
         React.createElement('h2', {
           style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(32px, 8vw, 46px)', lineHeight: 1.02, margin: '4px 0 6px', color: C.ink, textWrap: 'balance' }
@@ -5328,7 +5358,7 @@ function RealtimeTwilight({ redMode } = {}) {
     title: "A Twilight Almanac",
     style: {
       display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "6px 12px",
-      borderRadius: 999, border: "1px solid rgba(238,241,250,.28)", background: "rgba(8,10,20,.42)",
+      borderRadius: 999, border: "1px solid rgba(var(--sky-ink-rgb),.28)", background: "rgba(8,10,20,.42)",
       color: C.ink, fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, cursor: "pointer",
       backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", textShadow: "0 1px 6px rgba(3,5,12,.8)"
     }
@@ -5571,7 +5601,7 @@ function RealtimeTwilight({ redMode } = {}) {
     *{box-sizing:border-box}
     .rtbtn{font-family:var(--font-ui);font-size:12px;font-weight:500;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s}
     .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi)}
-    .rtbtn.solid{background:var(--btn-fill);border-color:rgba(210,160,77,.4);color:var(--accent-hi);font-weight:550}
+    .rtbtn.solid{background:var(--btn-fill);border-color:rgba(var(--accent-rgb),.4);color:var(--accent-hi);font-weight:550}
     .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
     @media (max-width:780px){
     }
@@ -5589,9 +5619,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const darkenTo = (c, k) => lerpC(c, "#04050c", k);
   // Live sky glow only once the sun is at/below the horizon (twilight & night);
   // by day, keep the original dark background for full contrast.
-  const pageBg = redMode
-    ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
-    : PAGE_BG;
+  const pageBg = redMode ? RED_PAGE_BG : PAGE_BG;
   // The place, as the header of the painting: tap it to change it. The
   // panel it opens sits right under the painting, where the tap was.
   const togglePicker = () => {
@@ -5620,7 +5648,7 @@ function RealtimeTwilight({ redMode } = {}) {
         React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
     )),
     React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
+      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(var(--sky-ink-rgb),.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
     }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
       timeZone: loc.tz, hour: "numeric", minute: "2-digit", hourCycle: h24 ? "h23" : "h12"
     }).format(new Date(now)), geoMsg && !pickerOpen ? " \xB7 " + geoMsg : "")
@@ -5884,7 +5912,7 @@ function RealtimeTwilight({ redMode } = {}) {
       fontFamily: "var(--font-body)",
       fontSize: 16.5,
       lineHeight: 1.62,
-      color: "#d7cfb8",
+      color: "var(--ink-prose)",
       maxWidth: 760,
       margin: 0
     }
@@ -6250,7 +6278,7 @@ function MoonMonth({ days, Y, Mo, D, south, onPick }) {
       key: d.day, onClick: () => onPick && onPick(d.day), 'aria-label': label, 'aria-pressed': d.day === D,
       style: {
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '6px 0 5px', cursor: 'pointer',
-        background: 'none', border: 0, borderRadius: 9, boxShadow: d.day === D ? 'inset 0 0 0 1px rgba(210,160,77,.7)' : 'none',
+        background: 'none', border: 0, borderRadius: 9, boxShadow: d.day === D ? 'inset 0 0 0 1px rgba(var(--accent-rgb),.7)' : 'none',
         color: 'var(--ink)', font: '550 11.5px var(--font-ui)', fontVariantNumeric: 'tabular-nums'
       }
     },
@@ -6640,6 +6668,9 @@ function TwilightEphemeris({ redMode } = {}) {
   const ink = "var(--ink)",
     dim = "var(--ink-dim)",
     gold = "var(--accent)";
+  // The dots beside the times key the chart's colours, so in red light mode
+  // they go through the same red film as the chart.
+  const dotColor = c => redMode ? redFilm(c) : c;
   const panel = {
     borderTop: "1px solid var(--line)"
   };
@@ -6829,7 +6860,7 @@ function TwilightEphemeris({ redMode } = {}) {
   const eValid = !redMode && isFinite(eLat) && isFinite(eLon) && Math.abs(eLat) <= 90 && Math.abs(eLon) <= 180;
   const eAlt = eValid ? sunAltitude(new Date(), eLat, eLon) : 0;
   const eSky = (eValid && eAlt <= 0) ? skyColors(eAlt) : null;
-  const pageBg = eSky
+  const pageBg = redMode ? RED_PAGE_BG : eSky
     ? `radial-gradient(1200px 760px at 75% -12%, ${lerpC(eSky.h, "#04050c", 0.5)} 0%, ${lerpC(eSky.m, "#04050c", 0.66)} 28%, var(--bg) 60%, #05060f 100%)`
     : PAGE_BG;
   // Place and date, a day at a time either way: the usual next question is
@@ -6858,7 +6889,7 @@ function TwilightEphemeris({ redMode } = {}) {
       React.createElement("button", { onClick: () => stepDay(-1), style: stepBtn, "aria-label": "Previous day" }, "\u2039"),
       React.createElement("button", {
         onClick: goToday, "aria-pressed": isToday,
-        style: { ...stepBtn, ...(isToday ? { color: "var(--accent-hi)", borderColor: "rgba(210,160,77,.5)" } : null) }
+        style: { ...stepBtn, ...(isToday ? { color: "var(--accent-hi)", borderColor: "rgba(var(--accent-rgb),.5)" } : null) }
       }, "Today"),
       React.createElement("button", { onClick: () => stepDay(1), style: stepBtn, "aria-label": "Next day" }, "\u203A")));
   return /*#__PURE__*/React.createElement("div", {
@@ -7366,8 +7397,8 @@ function TwilightEphemeris({ redMode } = {}) {
         width: 9,
         height: 9,
         borderRadius: "50%",
-        background: color,
-        boxShadow: `0 0 8px ${color}`
+        background: dotColor(color),
+        boxShadow: `0 0 8px ${dotColor(color)}`
       }
     }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -7404,7 +7435,7 @@ function TwilightEphemeris({ redMode } = {}) {
       key: name + i,
       style: { display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 12, alignItems: "center", padding: "11px 0", borderTop: i ? "1px solid rgba(255,255,255,.05)" : "none" }
     },
-      /*#__PURE__*/React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}` } }),
+      /*#__PURE__*/React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: dotColor(color), boxShadow: `0 0 8px ${dotColor(color)}` } }),
       /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("div", { style: { font: "550 14px var(--font-ui)", color: ink } }, name),
         /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
@@ -7996,7 +8027,7 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
     // Soft fades at the top and bottom, so the text over the sky reads and
     // the picture settles into the page, as the Console's painting does.
     React.createElement('div', { 'aria-hidden': 'true', style: { position: 'absolute', inset: 0, pointerEvents: 'none',
-      background: 'linear-gradient(180deg, rgba(5,7,15,.55) 0%, rgba(5,7,15,0) 26%, rgba(5,7,15,0) 62%, rgba(5,7,15,.9) 100%)' } }),
+      background: 'linear-gradient(180deg, rgba(var(--sky-shade-rgb),.55) 0%, rgba(var(--sky-shade-rgb),0) 26%, rgba(var(--sky-shade-rgb),0) 62%, rgba(var(--sky-shade-rgb),.9) 100%)' } }),
     React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
     React.createElement('div', {
       style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto', pointerEvents: 'none' }
@@ -8005,13 +8036,13 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
         onClick: onOpen,
         style: {
           pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 18px',
-          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(210,160,77,.55)',
-          background: 'rgba(12,14,22,.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(var(--accent-rgb),.55)',
+          background: 'rgba(var(--sky-glass-rgb),.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
           color: 'var(--accent-hi)', fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600
         }
       }, React.createElement('span', { 'aria-hidden': 'true' }, '✦'), 'Open Sky View', React.createElement('span', { 'aria-hidden': 'true' }, '→')),
       React.createElement('p', {
-        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(238,241,250,.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
+        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(var(--sky-ink-rgb),.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
       }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your phone to see the rest, labelled.')
     )
   );
@@ -8231,7 +8262,9 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     borderRadius: 9, cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)',
     background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
   };
-  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' };
+  // On: brass, and in red light mode also filled (--chip-on), since through the red film
+  // brass and white come out the same red and only the fill tells on from off.
+  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563', background: 'var(--chip-on, rgba(10,12,20,.72))' };
   /* Controls sit on top of the sky, and a press that starts on one must not
      also count as a tap on the sky beneath it — that would identify whatever
      is under the button, or clear the target when nothing is. Stopping the
@@ -8260,7 +8293,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
     },
       React.createElement('button', { ref: backRef, onClick: onClose, style: chip }, '← Back'),
-      React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? chipOn : null) } }, cam ? 'Camera on' : 'Camera'),
       React.createElement('button', {
         onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines,
         style: { ...chip, ...(showLines ? chipOn : {}) }
@@ -8279,7 +8312,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       }, 'Sensors'),
       targetName && React.createElement('button', {
         onClick: () => onPick && onPick(null), 'aria-label': 'Stop finding ' + targetName,
-        style: { ...chip, ...chipOn, background: 'rgba(10,12,20,.5)' }
+        style: { ...chip, ...chipOn, background: 'var(--chip-on, rgba(10,12,20,.5))' }
       }, targetName + ' \u00d7'),
       // The Find list: what's up now, in plain words, one tap to be guided to
       // it. The bar's last row, so it sits under the buttons however many
@@ -9352,7 +9385,7 @@ function StarFinder({ redMode } = {}) {
   const navInputSt = { width: "100%", minWidth: 0, marginTop: 6, padding: "9px 11px", color: C.ink, background: "var(--field-bg)", border: "1px solid var(--line)", borderRadius: 9, font: "15px var(--font-ui)", outline: "none" };
   const segBtn = active => ({
     fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 550, padding: "7px 14px", cursor: "pointer",
-    border: `1px solid ${active ? "rgba(210,160,77,.5)" : "var(--btn-border)"}`, borderRadius: 8,
+    border: `1px solid ${active ? "rgba(var(--accent-rgb),.5)" : "var(--btn-border)"}`, borderRadius: 8,
     background: active ? "var(--btn-fill-hi)" : "transparent", color: active ? "var(--accent-hi)" : "var(--btn-ink)"
   });
   const fmtDM = deg => { const d = Math.floor(Math.abs(deg)), m = (Math.abs(deg) - d) * 60; return `${deg < 0 ? "-" : ""}${d}° ${m.toFixed(1)}'`; };
@@ -9382,7 +9415,7 @@ function StarFinder({ redMode } = {}) {
     }, s.warnings.map((t, i) => React.createElement("div", { key: i }, t)))
   ));
   const fixPanel = sightFix && React.createElement("div", {
-    style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
+    style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(var(--accent-rgb),.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
   },
     React.createElement("div", { style: { ...navLabelSt, fontSize: 10.5, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 18, color: C.ink, fontWeight: 600 } },
@@ -9707,7 +9740,7 @@ function StarFinder({ redMode } = {}) {
   const previewFacing = loc.lat >= 0 ? 180 : 0;
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
-  const pageBg = PAGE_BG;
+  const pageBg = redMode ? RED_PAGE_BG : PAGE_BG;
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
@@ -9716,11 +9749,11 @@ function StarFinder({ redMode } = {}) {
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       facing: previewFacing, onOpen: openSky,
       header: React.createElement("header", null,
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Sky View"),
+        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(var(--sky-ink-rgb),.62)", textTransform: "uppercase" } }, "Sky View"),
         React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
-          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
-          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
+          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(var(--accent-rgb),.4)", background: "rgba(var(--sky-glass-rgb),.6)", color: "var(--accent-hi)" } }, "Use my location"),
+          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(var(--sky-ink-rgb),.75)" } }, geoMsg)
         )
       )
     }),
@@ -9843,7 +9876,7 @@ function TwilightApp() {
   // The installed app's status bar is painted in theme-color: keep it the header's --bg, red light mode's too.
   React.useEffect(() => {
     const m = document.querySelector('meta[name="theme-color"]');
-    if (m) m.setAttribute('content', redMode ? '#0a0204' : '#0e0d0b');
+    if (m) m.setAttribute('content', redMode ? '#0a0000' : '#0e0d0b');
   }, [redMode]);
   const h24 = useH24();
   const bortle = useBortle();
@@ -9952,23 +9985,41 @@ function TwilightApp() {
     transition: ".15s"
   });
   return React.createElement(React.Fragment, null,
+    // The film itself (RED_LIGHT_MATRIX), ahead of the rule that points at it.
+    // A 0 x 0 svg, not display:none, which drops the filter in some browsers.
+    redMode && React.createElement("svg", { "aria-hidden": "true", focusable: "false", width: 0, height: 0, style: { position: "absolute" } },
+      React.createElement("filter", { id: "tw-red", colorInterpolationFilters: "sRGB" },
+        React.createElement("feColorMatrix", { type: "matrix", values: RED_LIGHT_MATRIX }))),
     redMode && React.createElement("style", null, `
-      #root{
-        --bg:#0a0204;--bg-glow:#1c0708;--bg-glow-2:#1c0708;
-        --surface:#160506;--surface-2:#1e0708;
-        --panel-glass:linear-gradient(180deg,rgba(40,12,12,.72),rgba(24,8,8,.72));
-        --field-bg:rgba(20,4,4,.7);
-        --ink:#d06a64;--ink-dim:#9a4a46;--ink-faint:#6e302e;
-        --accent:#e06a60;--accent-hi:#ff8a7e;--accent-soft:rgba(224,106,96,.12);
-        --on-accent:#160000;--line:#3a1412;
-        --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
+      /* Red light mode: pure red, no green or blue anywhere (2026-10-21). On :root, so the
+         page behind an overscroll and the welcome (in <body>) are red too. --ink-dim is 4.5:1
+         or better on every surface, --ink-faint 3:1; pure red can't reach more than 5.3:1 on
+         black, so --ink sits only a little above --ink-dim. */
+      :root{
+        --bg:#0a0000;--bg-glow:#1c0000;--bg-glow-2:#1c0000;
+        --surface:#160000;--surface-2:#1e0000;
+        --panel-glass:linear-gradient(180deg,rgba(40,0,0,.72),rgba(24,0,0,.72));
+        --field-bg:rgba(20,0,0,.7);--panel-top:rgba(255,0,0,.06);
+        --ink:#ff0000;--ink-dim:#f40000;--ink-faint:#c80000;--ink-prose:#ff0000;
+        --accent:#f40000;--accent-hi:#ff0000;--accent-soft:rgba(244,0,0,.12);
+        --on-accent:#160000;--line:#460000;
+        --btn-border:rgba(255,0,0,.24);--btn-fill:rgba(255,0,0,.10);--btn-fill-hi:rgba(255,0,0,.17);--btn-ink:#f40000;
+        /* the twilight colours by their brightness (0.3 R + 0.59 G + 0.11 B), so dusk still
+           darkens along the ribbon and the dots keep their order */
+        --band-day:#a20000;--band-civil:#9b0000;--band-naut:#790000;--band-astro:#350000;--band-night:#200000;
+        --band-moon:#e60000;--dot-rise:#bd0000;--dot-astro:#5a0000;
+        --sky-ink-rgb:255,0,0;--accent-rgb:244,0,0;--sky-shade-rgb:5,0,0;--sky-glass-rgb:12,0,0;
+        /* Sky View's chips that are on: filled, since on and off no longer differ in colour */
+        --chip-on:rgba(255,0,0,.34);
       }
-      /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision;
-         and so do Sky View, the charts, the planets' drawings and the welcome (review, 2026-10-10:
-         Sky View stayed white and blue in red mode). Each thing is washed once, not twice. */
+      /* What is painted rather than written in the tokens goes through the red film
+         (RED_LIGHT_MATRIX): the skies and star fields, Sky View and its preview, the charts,
+         the Moon calendar, the planets and the welcome. Filtered where they are, each canvas
+         on its own, never a container: Safari draws url() filters in software, and a moving
+         layer inside a filtered container would refilter everything around it each frame. */
       .tw-stars,#root .hz-sky,
       #root main svg:not([role="dialog"] svg):not(svg svg),#root main canvas:not(.hz-sky):not([role="dialog"] canvas),
-      [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
+      [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:url(#tw-red)}
     `),
     React.createElement("div", { "aria-hidden": "true", style: { height: headerH == null ? "calc(env(safe-area-inset-top) + 46px)" : headerH } }),
     offer && React.createElement("div", {

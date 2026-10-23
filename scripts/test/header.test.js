@@ -48,7 +48,7 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
 const meta = name => (html.match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1];
 const rootBg = html.match(/:root\s*\{[\s\S]*?--bg:(#[0-9a-f]{6});/)[1];
-const redBg = app.match(/redMode && React\.createElement\("style", null, `\s*#root\{\s*--bg:(#[0-9a-f]{6});/)[1];
+const redBg = app.match(/redMode && React\.createElement\("style", null, `[\s\S]*?:root\{\s*--bg:(#[0-9a-f]{6});/)[1];
 
 test('the installed app starts below an opaque status bar, not under a translucent one', () => {
   assert.strictEqual(meta('apple-mobile-web-app-status-bar-style'), 'default');
