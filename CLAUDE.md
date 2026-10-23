@@ -54,6 +54,21 @@ stargazer is the default, navigator material is kept whole but folded.
   stage it shows tomorrow's. The next stage is scanned 48 h ahead
   (`sunAhead`); the old midnight-to-midnight scan had none from
   astronomical dusk to midnight. `twilight-today.test.js`.
+  **The Console ticks once a minute (2026-10-21, for the battery).** It
+  re-rendered whole every second for the one line that shows seconds. Now
+  `TwilightCountdown` (hooks; `TwilightToday` stays hook-free and renders
+  it with `to` and `now`) keeps its own timer, set just after each whole
+  second of the count, and stops at zero; `RealtimeTwilight` ticks just
+  after each minute turns, on return to the tab, and 250 ms after the next
+  stage (`nextStageAt`), so the countdown hands on, the headline moves and
+  the day's times dim at once. A screen reader gets the count in words to
+  the minute (`cdWords`, an sr-only span; the digits are aria-hidden, in no
+  live region). Times are written with kept formatters: `dtf(locale,
+  opts)` keeps one `Intl.DateTimeFormat` per locale, zone and options
+  (bounded; a call with no zone named is made fresh, since the device's
+  zone can change). `fmtT`, `dateKey`, `fmtDate`, `tzOffset`,
+  `localMidnight` and `localDay` use it, so tests that extract them need
+  `dtf` too. `battery.test.js`.
 - **How dark the sky is, under tonight's ribbon (2026-09-29, owner: "the
   idea was to identify the location's Bortle number").** `HorizonHero`'s
   `darkness` prop, after the ribbon and its three facts and before the
@@ -418,8 +433,16 @@ stargazer is the default, navigator material is kept whole but folded.
   below 6.5, nothing before the Sun is 12° down; `newMeteor` flies shower
   meteors straight out from their radiant. On an ordinary night that is one
   every ten minutes or more; at a Perseid peak about one a minute. Don't
-  speed it up. One `requestAnimationFrame` loop at ~30 fps, asleep when the
-  hero is off screen, the tab hidden, or nothing moves (daytime, no tilt).
+  speed it up. One loop, asleep when the hero is off screen, the tab
+  hidden, or nothing moves (daytime, no tilt). **Paced since 2026-10-21**:
+  it asked for every frame the screen had (60 or 120 a second, all night)
+  and drew on every other; now each sky frame is a timer then one
+  `requestAnimationFrame` (`skyFrameWait`, `skyFrameDue`), about 15 a second
+  for the twinkle (`TWINKLE_FRAME_MS` 66; its quickest beat is 1.5 a
+  second) and 30 while a meteor is in flight (`METEOR_FRAME_MS`), with 4 ms
+  of slack so 120 Hz screens land on 15 too. Only a tilt asks for every
+  frame, and then only the ground's transform moves each one. Main thread
+  with the painting on screen, 4x CPU throttle: 560-590 → 285 ms/s.
   `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
   before. `sky-motion.test.js` covers the rates, directions, twinkle and
   the layer split.
@@ -1198,6 +1221,23 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
+- **A sensor reading re-renders only StarFinder and SkyDome (2026-10-21).**
+  `orient` is state in `StarFinder`, so every reading (30 a second from
+  CoreMotion) re-renders the tab; the sections under the dialog went with
+  it. They are now `memoOf(...)` (React.memo, made once per component):
+  `SkyViewPreview`, `SkyChart`, `PlanetViews`, `IssPanel`, with props that
+  hold still between readings (`openSky` and the time words via
+  `useCallback`, deps including `h24`, since memoised sections see the
+  12/24-hour switch only through props; the preview's header via
+  `useMemo`). Measured: 303 renders each in 10 s before, 0 after. The
+  navigators fold is still plain elements (StarFinder's own render is about
+  0.5 ms a reading at 4x). Anything new passed to a memoised section must
+  be stable too, or it renders 30 times a second again. **The Milky Way is
+  kept** in `SkyDome`'s `mwRef` while the view turns under `MW_KEEP_DEG`
+  (1°, `mwReusable`: same sky, size and fov, camera axis and roll within a
+  degree) and drawn moved to match (`mwShift`, a canvas transform fitted
+  around the middle: at most ~4.5 px out at the corners, under a sample
+  cell). Sky View at 4x: 430 → 290 ms/s main thread.
 - **What the tests can and cannot prove.** `orientation.test.js` separates
   *self-consistency* tests (hold by construction — they cannot see a mirrored
   or transposed convention) from *correspondence* tests (the W3C matrix
@@ -1653,6 +1693,16 @@ things a syntax check cannot see:
   partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
   across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
   window, the fix across the date line, and the wiring of the rest.
+- **`battery.test.js`** — how often work is done (2026-10-21): kept
+  formatters writing exactly what fresh ones do across zones, DST days and
+  12/24 hours, one per locale/zone/options, none kept without a zone,
+  bounded; `TwilightCountdown` on fake timers that fire late (ticks just
+  after each whole second, stops at zero, cleans up) and `cdWords`; the
+  Console's minute tick and next-stage wake at source; the painting's
+  pacing simulated on 60 and 120 Hz screens (15 a second, 30 with a meteor,
+  15 while tilting); `mwReusable`'s rules and `mwShift` against the exact
+  projection; the four memoised sections and their stable props. All 24
+  mutations of it were seen to fail.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage

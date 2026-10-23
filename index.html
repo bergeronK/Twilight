@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-GUhDLoNRIGSfs88U5QRnH5XLARxfLypiCO24zLsH8LI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-6dARPIEc/BqOGCuXI6PsbT5vi3qAPMcJSIebYznEifo=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -518,7 +518,7 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 </script>
 <script>
 /* shared hooks destructure */
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
 /* ---- shared math/astronomy constants and helpers (from console) ---- */
 const D2R = Math.PI / 180,
@@ -1467,8 +1467,27 @@ const MOON_THR = [{
   key: "moon",
   h: -0.833
 }];
+/* One Intl.DateTimeFormat for each locale, zone and set of options, made
+   once and kept (2026-10-21). Making one costs an older iPhone a good part
+   of a millisecond, and the app asks for the same few thousands of times:
+   on every render of the Console and the Stars tab, and on every sensor
+   reading while Sky View is open. Formatting with a kept one is the same
+   call, so the words are unchanged. One with no zone named follows the
+   device's, which can change, so that kind is still made fresh. */
+function dtf(locale, opts) {
+  if (!opts || !opts.timeZone) return new Intl.DateTimeFormat(locale, opts);
+  const c = dtf.kept || (dtf.kept = new Map());
+  const k = String(locale) + "|" + JSON.stringify(opts);
+  let f = c.get(k);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, opts);
+    if (c.size >= 200) c.clear();
+    c.set(k, f);
+  }
+  return f;
+}
 function tzOffset(date, tz) {
-  const p = new Intl.DateTimeFormat("en-US", {
+  const p = dtf("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     year: "numeric",
@@ -1481,7 +1500,7 @@ function tzOffset(date, tz) {
   return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - date.getTime()) / 60000);
 }
 function localMidnight(tz, baseMs) {
-  const p = new Intl.DateTimeFormat("en-CA", {
+  const p = dtf("en-CA", {
     timeZone: tz,
     year: "numeric",
     month: "2-digit",
@@ -1988,19 +2007,19 @@ rcInit().then(P => { if (P) P.getCustomerInfo().then(rcApply).catch(() => {}); }
 // To the nearest minute, as almanacs give times (and as the Ephemeris
 // does): Intl alone drops the seconds, so a sunset at 18:37:50 read 18:37
 // here and 18:38 there.
-const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
+const fmtT = (t, tz) => dtf([], {
   timeZone: tz,
   hour: "numeric",
   minute: "2-digit",
   hourCycle: prefStore.getH24() ? "h23" : "h12"
 }).format(new Date(Math.round(t / 60000) * 60000));
-const dateKey = (t, tz) => new Intl.DateTimeFormat("en-CA", {
+const dateKey = (t, tz) => dtf("en-CA", {
   timeZone: tz,
   year: "numeric",
   month: "2-digit",
   day: "2-digit"
 }).format(new Date(t));
-const fmtDate = (t, tz) => new Intl.DateTimeFormat([], {
+const fmtDate = (t, tz) => dtf([], {
   timeZone: tz,
   weekday: "long",
   month: "long",
@@ -3261,6 +3280,19 @@ function starGlow(g, x, y, r, mag, color, alpha) {
   g.fillStyle = gl;
   g.beginPath(); g.arc(x, y, R, 0, 7); g.fill();
 }
+/* How often the moving layer is drawn: about 15 frames a second for the
+   twinkling, whose quickest beat (twinkle's third sine) is one and a half
+   a second, and 30 while a meteor is in flight, so its streak stays as
+   smooth as it was. The painting used to ask for every frame the screen
+   had, 60 or 120 a second all night, to draw on every other one
+   (2026-10-21). A frame up to 4 ms early counts, since frames come on the
+   screen's beat. */
+const TWINKLE_FRAME_MS = 66, METEOR_FRAME_MS = 33;
+const skyFrameMs = meteors => (meteors ? METEOR_FRAME_MS : TWINKLE_FRAME_MS) - 4;
+// Whether the frame at `ts` should draw the sky, the last having been at `last`.
+const skyFrameDue = (last, ts, meteors) => ts - last >= skyFrameMs(meteors);
+// How long from `now` to wait before asking for the next frame.
+const skyFrameWait = (last, now, meteors) => Math.max(0, last + skyFrameMs(meteors) - now);
 /* The moving layer: twinkling stars and any meteor in flight at time t (s).
    `o`: { stars: [{az, alt, mag, seed}], facing, moon, meteors: [{..., t0}] }.
    A star under the painted Moon is not drawn: the disc is drawn larger than
@@ -3310,6 +3342,14 @@ const cdHMS = ms => {
   const m = Math.floor((t % 3600000) / 60000);
   const s = Math.floor((t % 60000) / 1000);
   return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
+};
+// The same count in words for a screen reader, to the minute: "8 hours 33
+// minutes", where the screen shows 8h 33m 51s.
+const cdWords = ms => {
+  const all = Math.floor(Math.max(0, ms) / 60000), h = Math.floor(all / 60), m = all % 60;
+  if (!all) return "less than a minute";
+  const n = (k, w) => k + " " + w + (k === 1 ? "" : "s");
+  return [h && n(h, "hour"), m && n(m, "minute")].filter(Boolean).join(" ");
 };
 
 /* ---- Twilight today (2026-09-25) ----
@@ -3449,6 +3489,34 @@ function nextSunset(sunEv, now) {
   for (let j = i + 1; j < sunEv.length && sunEv[j].dir === "down"; j++) set[sunEv[j].key] = sunEv[j].t;
   return set;
 }
+/* The countdown to the next stage, ticking by itself (2026-10-21), just
+   after each whole second of the count so it reads true, and stopping at
+   zero, when the Console wakes to move on to the next stage. Nothing else
+   on the Console shows seconds, so the rest of it renders once a minute
+   instead of every second. `now` is the Console's clock; the later of it
+   and this one's own is shown. For a screen reader the count is in words,
+   to the minute, and in no live region: read when reached, never
+   announced. */
+function TwilightCountdown({ to, now }) {
+  const [t, setT] = useState(now);
+  useEffect(() => {
+    let id = 0;
+    const tick = () => {
+      const n = Date.now();
+      setT(n);
+      if (to - n > 0) id = setTimeout(tick, (to - n) % 1000 + 20);
+    };
+    const left = to - Date.now();
+    if (left > 0) id = setTimeout(tick, left % 1000 + 20);
+    return () => clearTimeout(id);
+  }, [to]);
+  const left = to - Math.max(t, now);
+  return React.createElement("div", {
+    style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
+  },
+    React.createElement("span", { className: "sr-only" }, "in " + cdWords(left)),
+    React.createElement("span", { "aria-hidden": "true" }, "in ", cdHMS(left)));
+}
 // Hook-free: the next stage with its countdown, then the day's times in two
 // columns (past ones dimmed), then the way to the full day on the Ephemeris.
 function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale }) {
@@ -3472,9 +3540,7 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders,
     next && React.createElement("div", { style: { marginBottom: 16 } },
       React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, color: C.brass, lineHeight: 1.1 } },
         twilightWord(next), " at ", fmt(next.t)),
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
-      }, "in ", cdHMS(next.t - now))),
+      React.createElement(TwilightCountdown, { to: next.t, now })),
     empty
       ? React.createElement("p", { style: { margin: "0 0 14px", fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } },
           sunUp ? "The Sun doesn’t set " + sched.when + "." : "The Sun doesn’t rise " + sched.when + ".")
@@ -4076,10 +4142,10 @@ function weekPlannerEl(nights, loc, h24, pro) {
   if (!pro || !nights || !nights.length) return null;
   const scored = nights.filter(n => n.sum && n.sum.score != null);
   if (!scored.length) return null;
-  const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
+  const fmtH = t => dtf([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
   let pick = scored[0];
   scored.forEach(n => { if (n.sum.score > pick.sum.score) pick = n; });
-  const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
+  const dayLabel = n => n.i === 0 ? "Tonight" : dtf([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
   return React.createElement("div", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
@@ -5066,7 +5132,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       const m = motion.current, t = ts / 1000;
       tilt.x += (tilt.tx - tilt.x) * 0.1; tilt.y += (tilt.ty - tilt.y) * 0.1;
       gd.style.transform = `translate3d(${tilt.x.toFixed(2)}px,${tilt.y.toFixed(2)}px,0)`;
-      if (ts - last >= 33) { // ~30 frames a second is plenty for a twinkle
+      if (skyFrameDue(last, ts, meteors.length)) {
         const dt = last ? Math.min(0.25, (ts - last) / 1000) : 0;
         last = ts;
         if (m.rate.total > 0 && Math.random() < m.rate.total / 3600 * dt) {
@@ -5081,11 +5147,22 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       schedule();
     };
     const schedule = () => {
-      if (raf || timer || !onScreen || document.hidden) return;
+      if (raf || !onScreen || document.hidden) return;
       const m = motion.current;
-      const moving = m.stars.length || meteors.length || m.rate.total > 0 ||
-        Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
-      if (moving) raf = requestAnimationFrame(frame);
+      // The ground follows a tilt every frame, as smoothly as before; the
+      // sky's own frames are paced (skyFrameWait), each a timer and then one
+      // frame, rather than asking for every frame the screen has and
+      // drawing on every other one: that kept the main thread busy all night
+      // (2026-10-21).
+      const tilting = Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
+      if (tilting) {
+        if (timer) { clearTimeout(timer); timer = 0; }
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      if (timer) return;
+      const moving = m.stars.length || meteors.length || m.rate.total > 0;
+      if (moving) timer = setTimeout(() => { timer = 0; if (onScreen && !document.hidden) raf = requestAnimationFrame(frame); }, skyFrameWait(last, performance.now(), meteors.length));
       else {
         // Daytime, no tilt: clear what was drawn, then check back in a second.
         if (last) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); last = 0; }
@@ -5339,9 +5416,17 @@ function RealtimeTwilight({ redMode } = {}) {
     setSaved(next);
     try { localStorage.setItem('tw_saved', JSON.stringify(next)); } catch(e) {}
   };
+  // The Console's clock ticks once a minute, just after the minute turns,
+  // so every hh:mm on it changes on time; the countdown keeps its own
+  // seconds (TwilightCountdown). Every second, this re-rendered the whole
+  // Console for one line (2026-10-21). Back from the background it catches
+  // up at once rather than at the next minute.
   useEffect(() => {
-    tick.current = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick.current);
+    const arm = () => { tick.current = setTimeout(() => { setNow(Date.now()); arm(); }, 60000 - Date.now() % 60000 + 50); };
+    arm();
+    const onVis = () => { if (document.visibilityState === 'visible') setNow(Date.now()); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearTimeout(tick.current); document.removeEventListener('visibilitychange', onVis); };
   }, []);
   React.useEffect(() => {
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
@@ -5519,6 +5604,15 @@ function RealtimeTwilight({ redMode } = {}) {
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
   const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
   const nextSunEv = sunAhead.find(e => e.t > now);
+  // And it wakes as the next stage passes, so the countdown hands on to the
+  // one after, the headline moves on and the day's times dim at once, not
+  // at the next minute.
+  const nextStageAt = nextSunEv ? nextSunEv.t : null;
+  useEffect(() => {
+    if (nextStageAt === null) return;
+    const id = setTimeout(() => setNow(Date.now()), Math.max(0, nextStageAt - Date.now()) + 250);
+    return () => clearTimeout(id);
+  }, [nextStageAt]);
   // The next sunset: its colour from the cloud forecast, and a calendar
   // event with a reminder half an hour before.
   const sunset = useMemo(() => {
@@ -5555,7 +5649,7 @@ function RealtimeTwilight({ redMode } = {}) {
     if (twToday.some(e => e.t > now)) return { when: "today", ...twilightDay(twToday, now) };
     const mid = localMidnight(loc.tz, day.mid + 36 * 3600000);
     return { when: "tomorrow", ...twilightDay(twilightDayEvents(mid, loc.lat, loc.lon), now) };
-  }, [twToday, minute, loc.lat, loc.lon, loc.tz]);
+  }, [twToday, minute, nextStageAt, loc.lat, loc.lon, loc.tz]);
   const glance = tonightGlance(live);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
@@ -5621,7 +5715,7 @@ function RealtimeTwilight({ redMode } = {}) {
     )),
     React.createElement("div", {
       style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
-    }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
+    }, fmtDate(now, loc.tz), " \xB7 ", dtf([], {
       timeZone: loc.tz, hour: "numeric", minute: "2-digit", hourCycle: h24 ? "h23" : "h12"
     }).format(new Date(now)), geoMsg && !pickerOpen ? " \xB7 " + geoMsg : "")
   );
@@ -7628,15 +7722,30 @@ function drawSkyView(g, w, h, o) {
     // The Milky Way, faintly, as on the Stars tab's chart; sampled every
     // 10 px and drawn scaled up. Not over the camera, which shows the real
     // one or doesn't. Below the horizon it fades out with the stars.
+    // Worked out afresh only when the view has turned a degree or more
+    // since (mwReusable), and otherwise the kept picture is moved with the
+    // view (mwShift): sampling ~3,300 directions was half of every frame's
+    // drawing at 30 sensor readings a second (2026-10-21).
     if (mw && lst !== undefined) {
       const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
-      const field = milkyWayField(mw, cols, rows, (i, j) => {
-        const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
-        d.w = d.alt >= 0 ? 0.34 : 0.1;
-        return d;
-      }, lat, lst);
-      if (o.mwRef) o.mwRef.current = milkyWayImage(field, cols, rows, '170,186,228', o.mwRef.current);
-      g.drawImage(o.mwRef ? o.mwRef.current : milkyWayImage(field, cols, rows, '170,186,228'), 0, 0, cols * 10, rows * 10);
+      const mwNow = { mw, lat, lst, w, h, fov, basis };
+      const kept = o.mwRef && o.mwRef.current;
+      const shift = mwReusable(kept, mwNow) ? mwShift(kept.basis, basis, w, h, fov) : null;
+      if (shift) {
+        g.save();
+        g.transform(shift[0], shift[1], shift[2], shift[3], shift[4], shift[5]);
+        g.drawImage(kept.img, 0, 0, cols * 10, rows * 10);
+        g.restore();
+      } else {
+        const field = milkyWayField(mw, cols, rows, (i, j) => {
+          const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
+          d.w = d.alt >= 0 ? 0.34 : 0.1;
+          return d;
+        }, lat, lst);
+        const img = milkyWayImage(field, cols, rows, '170,186,228', kept ? kept.img : undefined);
+        if (o.mwRef) o.mwRef.current = Object.assign(mwNow, { img });
+        g.drawImage(img, 0, 0, cols * 10, rows * 10);
+      }
     }
   }
 
@@ -7852,6 +7961,33 @@ function screenDir(basis, px, py, w, h, fov) {
   const sx = (px - w / 2) / f, sy = -(py - h / 2) / f, b = basis;
   const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
   return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
+}
+/* Whether Sky View's Milky Way, worked out for the view `kept`, will do
+   for the view `now` ({ mw, lat, lst, w, h, fov, basis }): the same sky,
+   screen and field of view, and the camera turned less than MW_KEEP_DEG
+   both in where it points and in its roll. Moved with the view (mwShift),
+   the kept picture is then within half of one of its 10 px cells of a
+   fresh one at the screen's corners, and closer everywhere else. */
+const MW_KEEP_DEG = 1;
+function mwReusable(kept, now) {
+  if (!kept || kept.mw !== now.mw || kept.lat !== now.lat || kept.lst !== now.lst ||
+    kept.w !== now.w || kept.h !== now.h || kept.fov !== now.fov) return false;
+  const c = Math.cos(MW_KEEP_DEG * D2R), dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  return dot(kept.basis.z, now.basis.z) >= c && dot(kept.basis.y, now.basis.y) >= c;
+}
+/* The canvas transform [a, b, c, d, e, f] that carries a picture of the sky
+   drawn for the view `from` to where it lies in the view `to`: where the
+   middle of the screen goes, and how the picture stretches and turns about
+   it, from four points around it (null if one is behind the camera). Good
+   for small turns; a canvas transform can't follow the perspective, so a
+   degree of tilt leaves the corners about 4 px out. */
+function mwShift(from, to, w, h, fov) {
+  const at = (x, y) => { const d = screenDir(from, x, y, w, h, fov); return skyProject(toScreen(to, d.az, d.alt), w, h, fov); };
+  const cx = w / 2, cy = h / 2, dx = w / 4, dy = h / 4;
+  const p0 = at(cx, cy), r = at(cx + dx, cy), l = at(cx - dx, cy), u = at(cx, cy - dy), dn = at(cx, cy + dy);
+  if (!p0 || !r || !l || !u || !dn) return null;
+  const a = (r.x - l.x) / (2 * dx), b = (r.y - l.y) / (2 * dx), c = (dn.x - u.x) / (2 * dy), d = (dn.y - u.y) / (2 * dy);
+  return [a, b, c, d, p0.x - a * cx - c * cy, p0.y - b * cx - d * cy];
 }
 /* ---- Find it: Sky View's guide to one thing in the sky ----
    Words for a direction, for people who don't think in degrees. */
@@ -8481,7 +8617,7 @@ function IssPanel({ passes, failed, when, fmt }) {
     React.createElement('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 10 } }, 'Orbit from CelesTrak, predicted on this device.'));
 }
 // A time's calendar day where the place is, as YYYY-MM-DD.
-const localDay = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined }).format(new Date(t));
+const localDay = (t, tz) => dtf('en-CA', { timeZone: tz || undefined }).format(new Date(t));
 // When to show a planet: now if it's 10°+ up in a sky dark enough (the Sun
 // 6° down), else the first quarter hour in the next 24 hours when it is.
 function planetViewTime(name, now, lat, lon) {
@@ -8684,8 +8820,17 @@ function PlanetViews({ jup, sat, when }) {
     h('Jupiter and Saturn', 'h'), rows,
     el('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 6 } }, 'North up, west on the right, as the eye sees them facing south; most telescopes turn the view round.'));
 }
+/* A component as React.memo makes it: rendered again only when a prop has
+   changed, made once per component. While Sky View is open the Stars tab
+   renders on every sensor reading, 30 or 60 times a second; the sections
+   under the dialog (the preview, the chart, Jupiter and Saturn, the space
+   station) go through this, with props that hold still between readings,
+   so a reading leaves them alone (2026-10-21). */
+function memoOf(C) { return C.memoized || (C.memoized = React.memo(C)); }
 function StarFinder({ redMode } = {}) {
-  useH24();
+  // Read for the times written by the memoised sections below, which only
+  // see a 12/24-hour switch through their props.
+  const h24 = useH24();
   const [loc, setLoc] = useState(() => {
     const fromUrl = urlPlace(window.location.search);
     if (fromUrl) return fromUrl;
@@ -8880,7 +9025,8 @@ function StarFinder({ redMode } = {}) {
     } else setAimSensor('granted');
   };
   const startAim = name => { setAimTargetName(name); return ensureSensors(); };
-  const openSky = () => { setSkyOpen(true); return ensureSensors(); };
+  // Made once: the preview is memoised, and ensureSensors reads no state.
+  const openSky = useCallback(() => { setSkyOpen(true); return ensureSensors(); }, []);
   const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setOrient(null); setShowCalHelp(false); };
   // Poll the tally into state only while the panel is open — sampling at 60Hz
   // to render a debug readout would be worse than the bug it diagnoses.
@@ -9261,7 +9407,7 @@ function StarFinder({ redMode } = {}) {
   }, [minuteKey, loc.lat, loc.lon]);
   const chartMoon = useMemo(() => moonTopo(moonState(new Date(now), loc.lat, loc.lon)), [minuteKey, loc.lat, loc.lon]);
   const chartSunAz = useMemo(() => sunHcZn(new Date(now), loc.lat, loc.lon).az, [minuteKey, loc.lat, loc.lon]);
-  const skyChart = React.createElement(SkyChart, {
+  const skyChart = React.createElement(memoOf(SkyChart), {
     stars: chartStars, lines: chartLines, planets: chartPlanets, deep: chartDeep,
     moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
     fix: fixStars, polaris: showPolaris ? polaris : null,
@@ -9708,31 +9854,39 @@ function StarFinder({ redMode } = {}) {
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
   const pageBg = PAGE_BG;
+  // What the memoised sections are given, made again only when what they
+  // show changes (the place, the clock's tick, the 12/24-hour setting), so
+  // a sensor reading hands them the very same props. useMyLocation reads
+  // no state, so the header's copy of it never goes stale.
+  const previewHeader = useMemo(() => React.createElement("header", null,
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Sky View"),
+    React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
+      React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
+      geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
+    )
+  ), [loc.name, geoMsg]);
+  const planetWhen = useCallback(t => t - now < 60000 ? 'now' : (localDay(t, loc.tz) === localDay(now, loc.tz) ? 'at ' : 'tomorrow at ') + fmtT(t, loc.tz), [now, loc.tz, h24]);
+  const issFmt = useCallback(t => fmtT(t, loc.tz), [loc.tz, h24]);
+  const issWhen = useCallback(t => dtf([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz), [loc.tz, h24]);
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
-    React.createElement(SkyViewPreview, {
+    React.createElement(memoOf(SkyViewPreview), {
       bodies: skyBodies, lines: constellationPaths, names: constellationNames,
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       facing: previewFacing, onOpen: openSky,
-      header: React.createElement("header", null,
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Sky View"),
-        React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
-        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
-          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
-          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
-        )
-      )
+      header: previewHeader
     }),
     starFinderPanel,
-    React.createElement(PlanetViews, {
+    React.createElement(memoOf(PlanetViews), {
       jup: planetViews.jup, sat: planetViews.sat,
-      when: t => t - now < 60000 ? 'now' : (localDay(t, loc.tz) === localDay(now, loc.tz) ? 'at ' : 'tomorrow at ') + fmtT(t, loc.tz)
+      when: planetWhen
     }),
-    React.createElement(IssPanel, {
+    React.createElement(memoOf(IssPanel), {
       passes: issNext, failed: issTle !== undefined && !issSat,
-      fmt: t => fmtT(t, loc.tz),
-      when: t => new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz)
+      fmt: issFmt,
+      when: issWhen
     }),
     // Everything for the sextant, folded shut until wanted: the app began
     // as a navigator's tool, and none of it is removed, only out of the
