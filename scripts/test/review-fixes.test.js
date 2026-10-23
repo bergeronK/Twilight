@@ -194,7 +194,7 @@ test('the Console: forecasts and location fixes can’t land on the wrong place'
   // Every run of the forecast effect takes a new number, the cached one too.
   const fx = rt.slice(rt.indexOf('const key = `tw_wx_'));
   assert.ok(fx.indexOf('const seq = ++wxSeq.current;') < fx.indexOf("=== 'fresh'"), 'before the cache can return');
-  assert.match(fx, /if \(wxKey\.current !== key\) \{ wxKey\.current = key; setWx\(null\); setWxStale\(null\); \}/);
+  assert.match(fx, /if \(wxKey\.current !== key\) \{ wxKey\.current = key; setWx\(null\); setWxStale\(null\); setWxNone\(null\); \}/);
   // A fix that comes back after a pick is dropped.
   assert.equal((rt.match(/if \(seq !== geoSeq\.current\) return;/g) || []).length, 2);
   assert.match(rt, /const pickPlace = p => \{\s*dropFix\(\);/);

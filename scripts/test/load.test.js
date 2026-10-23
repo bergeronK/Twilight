@@ -111,9 +111,11 @@ test('a saved forecast: fresh under an hour, a fallback up to a day, then gone',
 test('offline, the Console shows the saved forecast and says how old it is', () => {
   const { declSource } = require('./extract.js');
   const src = declSource('RealtimeTwilight');
-  // The failure path falls back to the saved copy instead of blanking the score.
-  assert.match(src, /\.catch\(err => \{\s*try \{ noteSource\(localStorage, 'openmeteo', err\); \} catch \(e\) \{\}\s*if \(seq !== wxSeq\.current\) return;\s*if \(wxCacheUse\(cached, Date\.now\(\)\)\) \{ setWx\(wxOf\(cached\.d\)\); setWxStale\(cached\.t\); \}/);
+  // The failure path falls back to a saved copy (the nearest within 25 km:
+  // offline.test.js) instead of blanking the score.
+  assert.match(src, /\.catch\(err => \{\s*try \{ noteSource\(localStorage, 'openmeteo', err\); \} catch \(e\) \{\}\s*if \(seq !== wxSeq\.current\) return;\s*let near = null;\s*try \{ near = nearestWx\(wxSaved\(localStorage\), Date\.now\(\), loc\.lat, loc\.lon\); \} catch \(e\) \{\}\s*if \(near\) \{ setWx\(wxOf\(near\.c\.d\)\); setWxStale\(\{ t: near\.c\.t, km: near\.km \}\);/);
   // ...and the twilight section's forecast line says how old it is (its
   // words are tested in sky-darkness.test.js).
-  assert.match(src, /glows, reminders, stale: wx && wxStale \? staleNote\(wxStale, now\) : null/);
+  assert.match(src, /const wxNote = wx && wxStale \? staleNote\(wxStale\.t, now, wxStale\.km\) : null;/);
+  assert.match(src, /glows, reminders, stale: wxNote,/);
 });
