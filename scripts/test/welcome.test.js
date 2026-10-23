@@ -19,6 +19,9 @@ test('the line names the place, or "you", or says it is still looking', () => {
   assert.strictEqual(welcomeLine({ name: 'Your location' }, false), 'This is the sky over you right now.');
   assert.strictEqual(welcomeLine({ name: 'Boston' }, true), 'Finding your sky…');
   assert.strictEqual(welcomeLine(null, false), 'This is the sky over you right now.');
+  // Boston standing in (no fix, nothing saved) is never called theirs.
+  assert.strictEqual(welcomeLine({ name: 'Boston' }, false, true), 'Twilyte needs your place to show your sky.');
+  assert.strictEqual(welcomeLine({ name: 'Boston' }, true, true), 'Finding your sky…');
 });
 
 test('shown once: the flag is written on the way out, and a deep link skips it', () => {
@@ -45,36 +48,40 @@ test('a saved place is kept quietly when the device’s location can’t be had'
   const src = declSource('RealtimeTwilight');
   const a = src.indexOf('const geoSeq = useRef(0)'), b = src.indexOf('\n  };', src.indexOf('const useMyLocation = (quiet, auto) =>')) + 4;
   const body = src.slice(a, b);
-  // The shipped canLocate/getPosition, on the website (no Capacitor), with
-  // a stand-in for the browser's geolocation.
-  const { canLocate, getPosition } = extract(['nativeGeo', 'canLocate', 'getPosition']);
+  // The shipped canLocate/getPosition/locate, on the website (no
+  // Capacitor), with a stand-in for the browser's geolocation.
+  const { canLocate, locate, appShell, geoFailWords } = extract(['nativeGeo', 'canLocate', 'getPosition', 'locate', 'appShell', 'geoFailWords']);
   const run = (quiet, outcome, hasGeo = true) => {
-    const log = { msg: [], picker: [], loc: [] };
-    const nav = { geolocation: hasGeo ? { getCurrentPosition: (ok, fail) => outcome === 'ok' ? ok({ coords: { latitude: 1, longitude: 2 } }) : fail() } : undefined };
+    const log = { msg: [], picker: [], loc: [], miss: [] };
+    const nav = { geolocation: hasGeo ? { getCurrentPosition: (ok, fail) => outcome === 'ok' ? ok({ coords: { latitude: 1, longitude: 2 } }) : fail({ code: outcome === 'refused' ? 1 : 3 }) } : undefined };
     const savedW = global.window, savedN = Object.getOwnPropertyDescriptor(global, 'navigator');
     global.window = {};
     Object.defineProperty(global, 'navigator', { value: nav, configurable: true, writable: true });
     try {
-      new Function('canLocate', 'getPosition', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'Intl', 'useRef', body + '\nuseMyLocation(arguments[7]);')(
-        canLocate, getPosition, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), Intl, v => ({ current: v }), quiet);
+      new Function('canLocate', 'locate', 'appShell', 'geoFailWords', 'setGeoMsg', 'setPickerOpen', 'setLoc', 'setGeoMiss', 'loc', 'Intl', 'useRef', body + '\nuseMyLocation(arguments[11]);')(
+        canLocate, locate, appShell, geoFailWords, m => log.msg.push(m), v => log.picker.push(v), l => log.loc.push(l), v => log.miss.push(v), { name: 'Home' }, Intl, v => ({ current: v }), quiet);
     } finally {
       global.window = savedW;
       if (savedN) Object.defineProperty(global, 'navigator', savedN); else delete global.navigator;
     }
     return log;
   };
-  // Opened with a saved place: nothing said, the picker stays shut.
-  assert.deepStrictEqual(run(true, 'fail'), { msg: [], picker: [], loc: [] });
-  assert.deepStrictEqual(run(true, 'fail', false), { msg: [], picker: [], loc: [] });
+  // Opened with a saved place: nothing said in the header, the picker
+  // stays shut. A refusal is the person's choice and says nothing at all;
+  // no fix leaves the note under the painting (offline.test.js).
+  assert.deepStrictEqual(run(true, 'refused'), { msg: [], picker: [], loc: [], miss: [] });
+  assert.deepStrictEqual(run(true, 'fail'), { msg: [], picker: [], loc: [], miss: [{ name: 'Home' }] });
+  assert.deepStrictEqual(run(true, 'fail', false), { msg: [], picker: [], loc: [], miss: [] });
   // A fix still replaces it.
   assert.strictEqual(run(true, 'ok').loc[0].name, 'Your location');
   // A tap (the click event is truthy, not true) and a first visit say so.
   const tap = run({ type: 'click' }, 'fail');
-  assert.deepStrictEqual(tap.msg, ['Locating…', 'Couldn\'t get precise location — enter a ZIP code or pick a city below.']);
+  assert.deepStrictEqual(tap.msg, ['Locating…', 'Couldn’t find your position. Try again outside, or search for your town.']);
   assert.deepStrictEqual(tap.picker, [true]);
   assert.deepStrictEqual(run(undefined, 'fail').picker, [true]);
+  assert.deepStrictEqual(run(undefined, 'refused').msg, ['Locating…', 'Location is off for Twilyte. Search for your town, or turn it on in your browser’s settings.']);
   // Where the place came from is read before tw_loc is written, and a
   // shared link's place is not replaced.
-  assert.match(src, /const \[start\] = useState\(startPlace\);[\s\S]*React\.useEffect\(\(\) => \{\s*try \{ localStorage\.setItem\('tw_loc'/);
+  assert.match(src, /const \[start\] = useState\(startPlace\);[\s\S]*React\.useEffect\(\(\) => \{[^}]*if \(loc === PRESETS\[0\]\) return;\s*try \{ localStorage\.setItem\('tw_loc'/);
   assert.match(src, /if \(start !== 'url'\) useMyLocation\(start === 'saved', true\);/);
 });

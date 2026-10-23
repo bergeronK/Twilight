@@ -54,6 +54,21 @@ stargazer is the default, navigator material is kept whole but folded.
   stage it shows tomorrow's. The next stage is scanned 48 h ahead
   (`sunAhead`); the old midnight-to-midnight scan had none from
   astronomical dusk to midnight. `twilight-today.test.js`.
+  **The Console ticks once a minute (2026-10-21, for the battery).** It
+  re-rendered whole every second for the one line that shows seconds. Now
+  `TwilightCountdown` (hooks; `TwilightToday` stays hook-free and renders
+  it with `to` and `now`) keeps its own timer, set just after each whole
+  second of the count, and stops at zero; `RealtimeTwilight` ticks just
+  after each minute turns, on return to the tab, and 250 ms after the next
+  stage (`nextStageAt`), so the countdown hands on, the headline moves and
+  the day's times dim at once. A screen reader gets the count in words to
+  the minute (`cdWords`, an sr-only span; the digits are aria-hidden, in no
+  live region). Times are written with kept formatters: `dtf(locale,
+  opts)` keeps one `Intl.DateTimeFormat` per locale, zone and options
+  (bounded; a call with no zone named is made fresh, since the device's
+  zone can change). `fmtT`, `dateKey`, `fmtDate`, `tzOffset`,
+  `localMidnight` and `localDay` use it, so tests that extract them need
+  `dtf` too. `battery.test.js`.
 - **How dark the sky is, under tonight's ribbon (2026-09-29, owner: "the
   idea was to identify the location's Bortle number").** `HorizonHero`'s
   `darkness` prop, after the ribbon and its three facts and before the
@@ -126,8 +141,10 @@ stargazer is the default, navigator material is kept whole but folded.
 - Stars: `<details id="for-navigators">`, shut by default; the sextant
   window runs on pure `sextantWindows` / `nextSextantWindow` /
   `sextantICS`.
-- A footer "Tell us what you think" opens
-  `.github/ISSUE_TEMPLATE/feedback.md`.
+- A footer "Tell us what you think" opens Help's "Get in touch"
+  (`support.html#contact`, bundled in the apps): support@twilyte.info
+  first, then the GitHub form (`.github/ISSUE_TEMPLATE/feedback.md`).
+  It opened the GitHub form directly until 2026-10-21.
 - `declutter.test.js` pins both halves: nothing of this returns to the
   Console, and the fold holds all four navigator parts.
 
@@ -200,6 +217,70 @@ stargazer is the default, navigator material is kept whole but folded.
     (`skyViewSummary`).
   - The Ephemeris chart is an `img` with the day in words (`daySummary`).
   - Segmented buttons carry `aria-pressed`.
+- **Accessibility, the second pass (2026-10-21)**, from a review of v164 as
+  the iPhone app (axe with its experimental rules, the accessibility tree,
+  computed styles). axe is clean again on every tab, Sky View with Find and
+  Time open, Settings, the welcome, Help and Privacy. What to keep:
+  - **Larger Text.** iOS's text size reaches a web page only through the
+    system font `-apple-system-body` (17 px at the standard size).
+    `readTextScale` reads it; its ratio to 17, clamped to 1-`TS_MAX` (2), is
+    `--ts` on `<html>`, read again on resize and on coming back into view.
+    `followTextSize` wraps `React.createElement` once, before anything
+    renders: a style's `fontSize: 13`, or the px size in a `font` shorthand,
+    becomes `calc(13px * var(--ts, 1))`; a `clamp()` display size grows half
+    as much (`tsBig`); SVG text and the canvases are left alone. So the
+    hundreds of px sizes needed no rewrite, and at scale 1 nothing moves.
+    Only WebKit knows the font: Chromium and desktop Safari stay at 1.
+    **Not yet seen on a device**: check in the iPhone app at AX1 to AX3
+    (Settings, Accessibility, Display & Text Size, Larger Text) that the
+    text grows and follows a change made while the app is in the background.
+    To try a scale in Playwright, add `:root{--ts:1.5 !important}` (a full-
+    page screenshot resizes the viewport, and the app would set it back).
+  - What made room for it: the painting grows only its ground under its
+    words (`heroFit`; the horizon and sky stay as drawn), the place name
+    keeps clear of the measured corner button, the Sky View preview grows the
+    same way, the week's day and score columns widen with `--ts` and its words
+    wrap, tonight's facts go from three across to two or one, the Ephemeris'
+    one column is `minmax(0,1fr)`. Checked at 150% and 200% at 320, 393, 820
+    and 1280 px: no text over text, nothing clipped or off the page.
+  - Pinch zoom is on in the apps (`zoomEnabled` in
+    `native/capacitor.config.json`; Capacitor turns it off by default), with
+    `touch-action: manipulation` so a double tap doesn't zoom.
+  - The smallest information text is 11 px: the Ephemeris chart's axes and
+    band names (were 10 and 9), Jupiter's moon letters and East/West.
+  - **Headings**: section titles are `h2` (subsections `h3`) with their
+    margins reset, so VoiceOver's Headings rotor reaches them: the ribbon,
+    the Bortle block (an `sr-only` title), Twilight today's Dawn and Dusk,
+    Worth a look tonight, the week; For photographers, The Moon, Eclipses,
+    Upcoming sky events; the whole sky, Jupiter and Saturn, the space
+    station, and For navigators (an `sr-only` `h2` before the fold: a heading
+    inside a `summary` isn't reliably one) with its sections as `h3`.
+  - **Tap targets 44 x 44 px** without moving anything: `.tw-hit`, every
+    `summary` and `.rtbtn` get an invisible `::after` 44 px each way, centred.
+    Rows of such chips sit far enough apart that the areas meet (Sky View's
+    top bar 11 px, the aim chips 13). Settings and Red light are 44 x 44, so
+    the header row is 44 px tall on a phone (was 28; iOS's own bar height);
+    the banners' close buttons are 44 with negative margins; Privacy and Help
+    have their own footer line. The sextant's calendar button had the
+    Console's `rtbtn` class, styled only on the Console: a bare 24 px button
+    on the Stars tab, now styled where it is.
+  - **Voice Control**: a button's name starts with the words on it ("Add
+    sunset to calendar, tonight at 18:34"); the test scans every button with
+    a written label. Toggles keep one name and say their state with
+    `aria-pressed` (Red light, Sky View's Camera, which no longer reads
+    "Camera on").
+  - Marks (← → ↗ ✦ ↻ ⌖ ＋ ◆ ▭ ✓) are `aria-hidden`; where one meant
+    something it is said in words (`sr-only`: ", passed" on a past twilight
+    stage, ", magnitude 0.0", "Best fix: ").
+  - **Modals make the page behind them inert** (`inertOutside`: siblings of
+    the dialog and of each ancestor), the welcome and Sky View; Sky View
+    lifts it before giving focus back. Escape closes Settings and the
+    Console's place picker, and focus returns to the button that opened
+    them. Sky View's time line is no longer a live region (it spoke every
+    minute, over the slider's own value); Now hands focus to the slider or
+    the Time chip, since it disappears when pressed.
+  - The Ephemeris' scroll back up to its form is instant under reduced
+    motion.
 - **Offering to install (2026-09-25).** The top banner used to show on
   the first visit, only where the browser has `beforeinstallprompt`
   (Chrome, Edge; never iOS, where Add to Home Screen is also the only way
@@ -230,7 +311,7 @@ stargazer is the default, navigator material is kept whole but folded.
   or meta turns the effect off. So the style is **`default`** (v152): the
   web view starts below an opaque bar painted in `theme-color`, which is now
   the header's `--bg` `#0e0d0b` (was the navy `#070a14`), kept in step with
-  red light mode (`#0a0204`) by an effect in `TwilightApp`; the manifest's
+  red light mode (`#0a0000`) by an effect in `TwilightApp`; the manifest's
   `theme_color` matches. iOS reads the style when the app is added to the
   Home Screen, so an existing install must be removed and added again.
   Safari tabs ignore the meta; there the fixed header is what's sampled.
@@ -290,7 +371,7 @@ stargazer is the default, navigator material is kept whole but folded.
   website (the "PRO" badge and "free preview", unchanged), and nothing in a
   native app that sells nothing, since App Review turns away an app that
   calls itself a preview. The footer links **Help** (`/support.html`: how to
-  get in touch through the GitHub feedback form, your place, lining up Sky
+  get in touch (support@twilyte.info, or the GitHub feedback form), your place, lining up Sky
   View, the Ephemeris, the Bortle class, offline) beside Privacy, and
   `native/sync-web.js` bundles both pages: the in-app privacy link was
   broken before (App Review wants it reachable in the app). `/privacy.html`
@@ -418,8 +499,16 @@ stargazer is the default, navigator material is kept whole but folded.
   below 6.5, nothing before the Sun is 12° down; `newMeteor` flies shower
   meteors straight out from their radiant. On an ordinary night that is one
   every ten minutes or more; at a Perseid peak about one a minute. Don't
-  speed it up. One `requestAnimationFrame` loop at ~30 fps, asleep when the
-  hero is off screen, the tab hidden, or nothing moves (daytime, no tilt).
+  speed it up. One loop, asleep when the hero is off screen, the tab
+  hidden, or nothing moves (daytime, no tilt). **Paced since 2026-10-21**:
+  it asked for every frame the screen had (60 or 120 a second, all night)
+  and drew on every other; now each sky frame is a timer then one
+  `requestAnimationFrame` (`skyFrameWait`, `skyFrameDue`), about 15 a second
+  for the twinkle (`TWINKLE_FRAME_MS` 66; its quickest beat is 1.5 a
+  second) and 30 while a meteor is in flight (`METEOR_FRAME_MS`), with 4 ms
+  of slack so 120 Hz screens land on 15 too. Only a tilt asks for every
+  frame, and then only the ground's transform moves each one. Main thread
+  with the painting on screen, 4x CPU throttle: 560-590 → 285 ms/s.
   `prefers-reduced-motion` gets the one still canvas, drawn whole, exactly as
   before. `sky-motion.test.js` covers the rates, directions, twinkle and
   the layer split.
@@ -843,6 +932,146 @@ stargazer is the default, navigator material is kept whole but folded.
     coordinates, and typed coordinates dropping the place's zone (by
     design: manual mode). `review-fixes.test.js`, every test checked by
     reverting its fix.
+- **The release review of v164 (2026-10-21, owner: "evaluate the app and
+  determine if it's at its optimal state for any user"; then "all 12").**
+  Five reviewers ran v164 as the iPhone app: a first-time user, offline at
+  a dark site, performance and battery, App Review, accessibility. Their
+  fixes are written up where each lives: offline (next entry), red light
+  mode, the battery (the Console's minute tick, the painting's pacing, Sky
+  View's memoised sections), the second accessibility pass, Sun times.
+  The rest:
+  - **The headline says when tonight is cloudy** (owner's choice). Under
+    100% cloud and rain it said "Excellent stargazing" while the week said
+    "Poor, rain likely". `tonightGlance(live, tonight)` takes
+    `clearDarkScore`'s verdict for the dark hours ahead (`wxTonight`): when
+    even its best two hours are "cloudy" or "rain likely", the stargazing
+    heads become "Dark, if it clears" / "Good, if it clears", and the line
+    says "Cloud is forecast for tonight." Clear, some cloud, or no
+    forecast: as before. The painting stays clear.
+  - **Nautical twilight in a stargazer's words**: it said "the sextant
+    window is open" on the Console.
+  - **A shower "peaks tonight" on its peak night only.** It was any night
+    at 80% of the peak's rate, two days either side for the Orionids.
+    `METEOR_SHOWERS` rows gained the Sun's longitude at the peak (IMO's
+    working list), and `showerPeakMs` finds when the Sun gets there (the
+    mean day drifts about six hours a year); `showerPeakWords(sh, start,
+    end)`: a peak in tonight or within 12 hours of it is tonight's, so one
+    by day makes both nights around it peak nights, and the others count
+    from the nearest ("peak tomorrow night", "peaked 2 nights ago").
+    `sunRaDec` returns the Sun's longitude for it (`lon`); the alerts'
+    `sky.js` was regenerated.
+  - **Highlights from now, not from sunset** (`tonightHighlights`' `now`):
+    at 2 AM it quoted 18:48 and 23:18.
+  - **"Your location" is never a title**: calendar events say "Sunset" (or
+    "Sunset at Moab, UT"), and the sight form names the coordinates
+    (`placeName`).
+  - **"iPad", not "phone", on an iPad** (`deviceWord`: iPadOS's WebKit
+    says Macintosh; more than one touch point gives it away), in every line
+    that says to move or point the device.
+  - **Store**: build 2 (`CURRENT_PROJECT_VERSION` 2; build 1, submitted
+    2026-10-06, has none of v162-v165 and must not be released), the
+    support address, the privacy policy's table of services (CelesTrak and
+    NOAA were missing) and wording (the motion sensors don't ask first in
+    the app; the forecast is kept up to a day), and review notes without
+    the website's Pro. `docs/app-store-listing.md` says how to ship build 2
+    and to untick Mac and Apple Vision availability (no motion sensors
+    there).
+  - Left: the Ephemeris lists the day's moonset even when it comes before
+    the moonrise (an almanac's day, correct); label collisions on the
+    whole-sky chart; Sky View's bottom line without a backing.
+- **Offline at a dark site (2026-10-21, a review of v164 run as the iPhone
+  app with every outside request refused, in Utah at night).** The main way
+  stargazers use it. What changed, and the rule each now follows:
+  - **The forecast follows you a little.** Offline, the Console falls back
+    to the nearest saved `tw_wx_*` within 25 km that `wxCacheUse` still
+    accepts (`nearestWx`, `wxSaved`), not only this place's own key: keys
+    are the place to 0.01°, so a fix 2 km from where the forecast was
+    fetched found nothing. The age line says how far away from 1 km
+    ("Forecast from 3 hours ago, for a place 2 km away.", `staleNote`'s
+    `km`), on the twilight section and now in the week planner too.
+  - **No forecast is said, not left blank.** Once a fetch has failed with
+    nothing to fall back on (`wxNone`, from `netWhy`: 'offline' for a
+    TypeError or `navigator.onLine` false, else 'failed'; null while the
+    first is still loading), the twilight section says it where the sunset
+    colour goes and the week planner keeps its heading and says it there
+    (`noWxWords`: "No cloud forecast without a connection, so no sunset or
+    sunrise colour. The times above don't need one.").
+  - **Boston is an example, not your sky.** With no fix and nothing saved,
+    `loc` is `PRESETS[0]` itself, and `standIn` is that identity (any
+    chosen, found or saved place is a new object, even a chosen Boston).
+    The header says "Boston (example)", it isn't written to `tw_loc` (the
+    next launch asks out loud again), and the welcome says "Twilyte needs
+    your place to show your sky." with "Choose your place" first and "See
+    Boston's sky for now" under it.
+  - **A refusal and no fix are told apart** (`geoFailWords`): "Location is
+    off for Twilyte. Search for your town, or turn it on in Settings >
+    Privacy & Security > Location Services." (the iPhone app, by
+    `appShell()`; "your browser's settings" on the website), and
+    "Couldn't find your position. Try again outside, or search for your
+    town." The Stars tab says the same, pointing to the Console.
+  - **Coordinates on the Console's place panel** (`parseCoord`,
+    `coordsPlace`: commas as decimal points, a degree sign, N/S/E/W either
+    side; named "38.57°, -109.55°", the device's zone), the one way to set
+    a place by hand offline; an offline search says to use them.
+  - **With a saved place, a quiet try that found no fix says so** under the
+    painting (`geoNote`, `geoMissWords`: "Couldn't update your location.
+    Showing Home." and Try again), shown while `geoMiss === loc`, so any
+    new place clears it. A refusal there stays silent: the person's choice.
+  - **The GPS on a second try** (`locate`): the try on opening asks at low
+    accuracy (8 s; the app's plugin waits 20 s), then once more with
+    `enableHighAccuracy` for 30 s unless refused; a tap asks for the GPS at
+    once. In airplane mode only the GPS can answer. **Needs a device
+    check**: whether an iPhone in airplane mode answers the low-accuracy
+    request at all, and whether 30 s is enough for a fix there.
+  `offline.test.js`.
+- **Red light mode is red (2026-10-21).** An accessibility review of v164
+  found it wasn't: its filter (`saturate sepia hue-rotate brightness`)
+  turned white into grey (#b2b0a9), so Sky View, the painting's stars and
+  Moon and the charts stayed grey-white, and Sky View's on and off chips
+  came out the same; the words over the painting, the night ribbon and the
+  twilight dots never went through it; and the red tokens carried green and
+  blue (`--ink-faint` 2.0:1, `--ink-dim` 3.3:1). Green and blue are the
+  light that undoes dark adaptation, the one thing the mode is for. Now:
+  - **The tokens are pure red** (`:root` in the red `<style>`, so the
+    overscroll and the welcome follow): `--ink` `#ff0000`, `--ink-dim`
+    `#f40000` (4.6:1 on the lightest surface), `--ink-faint` `#c80000`
+    (3.3:1), surfaces `#0a0000` to `#1e0000`, theme-color `#0a0000`. Pure
+    red tops out at 5.3:1 on black, so `--ink` is only a step above
+    `--ink-dim`; faint is held to large-text 3:1 so the hierarchy keeps a
+    step. Every `:root` token with any green or blue in it is one red mode
+    sets (`red-mode.test.js` fails otherwise), so **a new colour token
+    needs its red value too**.
+  - **What is painted goes through a red film**: `RED_LIGHT_MATRIX`, an
+    inline SVG `feColorMatrix` (`#tw-red`, sRGB) that keeps each pixel's
+    red and drops green and blue, used as `filter: url(#tw-red)` on the
+    same elements as before (the hero's and the chart's canvases, svgs and
+    canvases in `main`, the Sky View and welcome dialogs). White becomes
+    pure red, blue black. Not a grey from luminance: that dims pure red to
+    30%, and the red tokens inside filtered pictures (the Ephemeris chart's
+    labels, icons in `currentColor`) would have gone dark; the film leaves
+    pure red as it is, so filtering twice is filtering once. Each canvas
+    is filtered itself, never a container: Safari draws `url()` filters in
+    software, and a moving layer (the twinkle, the tilting ground) inside a
+    filtered container would refilter all of it every frame.
+  - **Colours that were written out in code are tokens** with their old
+    values, so normal mode is pixel-identical (checked on all five
+    screens): `--sky-ink-rgb` (the date and "Dark until" over the painting,
+    the preview's words), `--accent-rgb` (brass edges of buttons),
+    `--sky-shade-rgb` / `--sky-glass-rgb` (the preview's fades and
+    buttons), `--band-moon`, `--dot-rise`, `--dot-astro` (`TWILIGHT_DOTS`),
+    `--ink-prose` (the almanac). The bands and dots in red are the old
+    colours' brightness (0.3 R + 0.59 G + 0.11 B), so dusk still darkens
+    along the ribbon. All three tabs use `RED_PAGE_BG` (the Ephemeris and
+    Stars kept the navy `PAGE_BG`), and the Ephemeris's dots, which key its
+    chart, take `redFilm`, the same film in code.
+  - **Sky View's on chips are filled** in red (`--chip-on`; normal mode
+    falls back to the off fill), since through the film brass and white are
+    the same red.
+  Measured in Chromium as the iPhone app (Moab, night): over every pixel
+  brighter than 64, green and blue are under 7% and 10% of red (text edges
+  on the dark navy shadows); none above 15 anywhere. Safari is unchecked
+  here: if a device shows a picture unfiltered, the `url()` reference is
+  the suspect.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -1198,6 +1427,23 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
+- **A sensor reading re-renders only StarFinder and SkyDome (2026-10-21).**
+  `orient` is state in `StarFinder`, so every reading (30 a second from
+  CoreMotion) re-renders the tab; the sections under the dialog went with
+  it. They are now `memoOf(...)` (React.memo, made once per component):
+  `SkyViewPreview`, `SkyChart`, `PlanetViews`, `IssPanel`, with props that
+  hold still between readings (`openSky` and the time words via
+  `useCallback`, deps including `h24`, since memoised sections see the
+  12/24-hour switch only through props; the preview's header via
+  `useMemo`). Measured: 303 renders each in 10 s before, 0 after. The
+  navigators fold is still plain elements (StarFinder's own render is about
+  0.5 ms a reading at 4x). Anything new passed to a memoised section must
+  be stable too, or it renders 30 times a second again. **The Milky Way is
+  kept** in `SkyDome`'s `mwRef` while the view turns under `MW_KEEP_DEG`
+  (1°, `mwReusable`: same sky, size and fov, camera axis and roll within a
+  degree) and drawn moved to match (`mwShift`, a canvas transform fitted
+  around the middle: at most ~4.5 px out at the corners, under a sample
+  cell). Sky View at 4x: 430 → 290 ms/s main thread.
 - **What the tests can and cannot prove.** `orientation.test.js` separates
   *self-consistency* tests (hold by construction — they cannot see a mirrored
   or transposed convention) from *correspondence* tests (the W3C matrix
@@ -1263,8 +1509,19 @@ Quito to Tromsø, eight dates) the Console was 29 s out at the median and
   the same change; `solar-parity.test.js` holds the two in step.
 - `fmtT` rounds to the nearest minute, as almanacs and the Ephemeris do
   (Intl alone truncates). The header's live clock still truncates.
-- Result: both within 23 s of PyEphem everywhere (median 1 s) and within
-  4 s of each other. `sun-times.test.js` against
+- Result: both within 23 s of PyEphem everywhere (median 1 s), and since
+  2026-10-21 **the same moment**: one sunset in fifty still showed a
+  different minute on the two tabs (18:18 and 18:17), each a second or so
+  from the other and rounding apart. Now both end on the crossing of the
+  one `sunAltitude`: `scanCrossings` refines each straight-line guess with
+  `refineCrossing` (Newton's method on the altitude itself; left alone
+  where there's no slope to follow), and `sunEvent` takes one more step
+  through it. `twilight-calc.js` carries its own copy of `sunAltitude` and
+  `refineCrossing` (same arithmetic, same order), so `solar-parity.test.js`
+  still asks for identical times; tests that extract `scanCrossings` or
+  `sunEvent` need `refineCrossing` (and `sunAltitude`, `sunHcZn`,
+  `sunRaDec`). Across 1,437 events the two tabs agree to well under a
+  second. `sun-times.test.js` against
   `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
   (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
   `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
@@ -1502,7 +1759,11 @@ things a syntax check cannot see:
   `keepClear` (names under the overlaid text left off, stars still drawn)
   and `reticle: false`, and a source check that `SkyDome` and
   `SkyViewPreview` both draw through it and start facing the same way.
-- **`highlights.test.js`** — `tonightHighlights` on real nights: the
+- **`highlights.test.js`** — since 2026-10-21 also the shower's peak night
+  (the Orionids from Moab, the Perseids' two peak nights in America) and
+  `showerPeakMs` landing where the Sun is at the shower's longitude, year
+  by year, and every time in the list still to come. Before that:
+  `tonightHighlights` on real nights: the
   Perseid peak leads (40-100 an hour, radiant north-east, no Moon), thinner
   and without the Milky Way from a city, Venus and Jupiter ~2° apart on
   2026-06-09 named brighter first, Saturn at its best at opposition and not
@@ -1577,7 +1838,15 @@ things a syntax check cannot see:
   token by the WCAG formula, every input/select named (a source scan, so a
   screen no one visits is covered too), the landmarks and Console `h1`, the
   `!important` focus ring, Sky View's dialog wiring, and the words of
-  `skyViewSummary` and `daySummary`.
+  `skyViewSummary` and `daySummary`. Red light mode's inks too: `--ink`,
+  `--ink-dim`, `--accent` and `--btn-ink` 4.5:1 and `--ink-faint` 3:1 on
+  every red surface, in that order of brightness. Since 2026-10-21 also: zoom allowed,
+  `textScale`/`readTextScale` (a fake probe), `scaleTextStyle`, the
+  `followTextSize` wrapper run from source, the layouts that make room,
+  the 11 px minimum, the headings (hook-free parts rendered with a stub
+  React), the 44 px rules, a scan of every button's label against its
+  words, the toggles, Sky View's time, a scan for unhidden marks,
+  `inertOutside` on a fake tree, and the Escape handlers run from source.
 - **`load.test.js`** — first load and offline: the two Inter faces (core
   = `subset-inter.sh`'s range, no overlap, same in the city pages,
   preloaded, the core precached not the full font), no shipped character in
@@ -1591,7 +1860,10 @@ things a syntax check cannot see:
 - **`welcome.test.js`** — `welcomeLine`'s words, and at source level the
   "once" wiring (flag written on close, deep links skip it, "Not here?"
   opens the picker), the portal, and both store generators setting the flag.
-- **`console-copy.test.js`** — `tonightGlance()`'s branch order and
+- **`console-copy.test.js`** — since 2026-10-21 also the cloudy and rainy
+  verdicts ("Dark, if it clears"; no forecast or some cloud leaves them as
+  they were), nautical twilight in a stargazer's words, and "sextant"
+  among the banned words. Before that: `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
 - **`components.test.js`** — smoke tests for extracted presentational
@@ -1653,6 +1925,34 @@ things a syntax check cannot see:
   partial-only eclipse, the dusk column at Vigo and Fairbanks, the week
   across DST, Apia's day, Auckland's full Moon, Copenhagen's sextant
   window, the fix across the date line, and the wiring of the rest.
+- **`offline.test.js`** — the 2026-10-21 offline review: `nearestWx`
+  (nearest within 25 km, its own key, day-old skipped, ties to the newer,
+  junk, the date line) and `wxSaved` over a fake storage, `staleNote`'s
+  distance, `netWhy` and `noWxWords`, the week planner and the twilight
+  section with a stub React (loading, failed, saved), `geoFailWords` per
+  shell and `appShell`, `locate`'s second try against a fake geolocation,
+  `parseCoord`/`coordsPlace`, and at source level the forecast effect's
+  fallback, Boston as a stand-in, the welcome's buttons and the
+  quiet-failure note.
+- **`red-mode.test.js`** — red light mode is red: `RED_LIGHT_MATRIX` maps
+  white to pure red and blue to black, leaves pure red alone (filtered
+  twice = once) and `redFilm` agrees with it; the filter is in the page and
+  on the painted elements, with no hue-rotate chain; every colour red mode
+  sets is pure red and every `:root` token with green or blue in it is
+  replaced; the bands and dots keep their order; and at source level the
+  colours once written out in code (the words over the painting, the
+  ribbon, the dots, the washes, the Ephemeris's dots, the almanac) follow
+  the tokens, and Sky View's on chips are filled.
+- **`battery.test.js`** — how often work is done (2026-10-21): kept
+  formatters writing exactly what fresh ones do across zones, DST days and
+  12/24 hours, one per locale/zone/options, none kept without a zone,
+  bounded; `TwilightCountdown` on fake timers that fire late (ticks just
+  after each whole second, stops at zero, cleans up) and `cdWords`; the
+  Console's minute tick and next-stage wake at source; the painting's
+  pacing simulated on 60 and 120 Hz screens (15 a second, 30 with a meteor,
+  15 while tilting); `mwReusable`'s rules and `mwShift` against the exact
+  projection; the four memoised sections and their stable props. All 24
+  mutations of it were seen to fail.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
@@ -1881,8 +2181,15 @@ treatment (`'android'`) before the Play listing.
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
-- **`/privacy.html` Contact stays the GitHub repo link** — deliberately no
-  personal email published.
+- **Support contact: support@twilyte.info** (owner, 2026-10-21), a
+  forwarding address, so no personal email is published: App Review asks
+  for a way to get in touch that needs no account, and the GitHub form
+  needs one. Help, the privacy policy and the review notes give it; the
+  GitHub form stays as a second way. **The owner sets up the forwarding**
+  (e.g. Cloudflare Email Routing for twilyte.info) before build 2 is
+  submitted. (Until then the contact was the GitHub repo link.)
+- **The Console's headline says when tonight is cloudy** (owner,
+  2026-10-21), in words only: the painting stays clear.
 - **GitHub Pages deploys from `main`** — switched 2026-09-15; see Deploy.
 - **The header count is labelled "visits"**, and counts one per browser per
   24 hours (2026-09-22).
@@ -1930,6 +2237,16 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
+  **Build 2 is v165 (2026-10-21)**, with the release review's fixes; build
+  1 must not be released (see "The release review of v164"). The owner
+  uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
+  out), `npm run sync`, archive; in App Store Connect remove build 1 from
+  1.0 if it's still in review or pending release, attach build 2, untick
+  Mac and Apple Vision availability, and set up support@twilyte.info's
+  forwarding first. Device checks for build 2: Larger Text at AX1-AX3, red
+  light mode in Sky View and the painting (Safari's `url()` filters), a
+  GPS fix in airplane mode (`locate`'s 30 s), the countdown after coming
+  back from the background, and the painting's tilt at the new pacing.
   **1.0 (build 1) was submitted for App Review on 2026-10-06**, set to
   **manual release**: once approved, the owner clicks Release This Version.
   App Store Connect's app ID is 6819388363. What was entered: App Privacy

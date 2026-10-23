@@ -22,7 +22,8 @@ function sunRaDec(date) {
   return {
     ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D,
     dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D,
-    gmst: 280.46061837 + 360.98564736629 * T * 36525
+    gmst: 280.46061837 + 360.98564736629 * T * 36525,
+    lon: lam * R2D
   };
 }
 function sunHcZn(date, lat, lonE) {

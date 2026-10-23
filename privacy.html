@@ -56,7 +56,7 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
 <main>
   <a class="kicker" href="/">&larr; Twilyte</a>
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated October 10, 2026</div>
+  <div class="updated">Last updated October 21, 2026</div>
 
   <p>Twilyte doesn't track you. There's no account, no advertising, no analytics
   software, and no profile built about you or your device. This page explains,
@@ -101,7 +101,10 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
 
   <h2>Motion sensors and camera</h2>
   <p>Two features in the Stars tab can use hardware beyond location. Both are
-  optional, both ask before they start, and neither sends anything anywhere.</p>
+  optional and neither sends anything anywhere. The motion sensors are read
+  only while Sky View or Aim Assist is open (on the website your browser may
+  ask first), and the camera asks for permission the first time you turn it
+  on.</p>
   <ul>
     <li><strong>Compass and motion sensors</strong> power Aim Assist and Sky
     View, which work out which way your phone is pointed so Twilyte can show
@@ -134,8 +137,8 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
     <li>Your Aim Assist compass correction, if you've set one</li>
     <li>The space station's orbit, for up to a week, so passes can be shown offline</li>
     <li>The geomagnetic forecast, for up to two days, for the aurora</li>
-    <li>A short-lived cache (about an hour) of the weather forecast, to avoid
-    re-fetching it constantly</li>
+    <li>The weather forecast, kept for up to a day so it isn't fetched again
+    and again, and so it can still be shown without a connection</li>
     <li>Whether you've dismissed onboarding messages, and until when the
     “Add to your home screen” suggestion is put off</li>
     <li>The last three days this browser opened Twilyte (dates only), so that
@@ -212,6 +215,8 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   <table>
     <tr><th>Service</th><th>Purpose</th><th>Data sent</th></tr>
     <tr><td>Open-Meteo</td><td>Weather forecast &amp; place search</td><td>Coordinates or search text</td></tr>
+    <tr><td>CelesTrak</td><td>The space station's orbit</td><td>Nothing about you; the same request for everyone</td></tr>
+    <tr><td>NOAA Space Weather Prediction Center</td><td>Geomagnetic forecast, for the northern and southern lights</td><td>Nothing about you; the same request for everyone</td></tr>
     <tr><td>GeoNames</td><td>Place-name database backing search results</td><td>None directly — accessed via Open-Meteo</td></tr>
     <tr><td>Visit counter (Cloudflare Worker, website only)</td><td>Anonymous running visit total</td><td>None sent by the app beyond the request itself; a salted hash of your IP address is kept for 24 hours</td></tr>
     <tr><td>Clear-sky alerts (Cloudflare Worker, website only, if you turn them on)</td><td>A notification when tonight looks clear and dark</td><td>Your browser's push address, the place rounded to 0.1°, time zone, 12/24-hour choice</td></tr>
@@ -230,9 +235,9 @@ td:first-child,th:first-child{color:var(--ink);font-weight:500}
   updated and the "last updated" date above will change accordingly.</p>
 
   <h2>Contact</h2>
-  <p>Questions about this policy or the app can be sent via the
-  <a href="https://github.com/bergeronK/Twilight" target="_blank" rel="noopener noreferrer">GitHub repository</a>.
-  The <a href="support.html">Help page</a> says how.</p>
+  <p>Questions about this policy or the app can be emailed to
+  <a href="mailto:support@twilyte.info">support@twilyte.info</a>. The
+  <a href="support.html">Help page</a> has other ways to get in touch.</p>
 
   <a class="back" href="/">← Back to Twilyte</a>
 </main>

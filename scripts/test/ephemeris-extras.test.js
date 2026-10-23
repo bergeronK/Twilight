@@ -14,7 +14,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'atan2', 'jd', 'gmst', 'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen',
-  'scanCrossings', 'MOON_THR', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows', 'moonRiseSet',
+  'scanCrossings', 'refineCrossing', 'sunAltitude', 'sunHcZn', 'sunRaDec', 'MOON_THR', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows', 'moonRiseSet',
   'localComputeDay', 'photoWindowsFor']);
 
 const len = w => w[1] - w[0];

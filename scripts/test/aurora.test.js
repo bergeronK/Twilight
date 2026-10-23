@@ -12,9 +12,9 @@ const assert = require('node:assert');
 const { extract } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn',
-  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'SUN_THR', 'MOON_THR',
+  'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonElong', 'MOON_PHASE_NAMES', 'moonPhases', 'moonSD', 'moonHP', 'sunState', 'sunSDdeg', 'sunHPdeg', 'angSep', 'lunarShadow', 'bisectTime', 'minTime', 'lunarEclipse', 'eclipseWords', 'planetGeo', 'planetAltAz', 'starHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR', 'MOON_THR',
   'nightSpan', 'HZ_AFTER', 'nightPlan', 'limitingMag', 'BORTLE', 'skyLimit', 'METEOR_SHOWERS', 'SPORADIC_HR',
-  'showerActivity', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
+  'showerActivity', 'showerPeakWords', 'showerPeakMs', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
   'HIGHLIGHT_DSO', 'tonightHighlights',
   'WMM_COF', 'WMM_EPOCH_YEARS', 'wmmCache', 'wmmModel', 'KP_URL', 'noteSource', 'parseKp', 'loadKp', 'geomagPole', 'geomagLat', 'auroraEdge', 'auroraReach', 'auroraTonight', 'auroraWords']);
 
@@ -142,7 +142,7 @@ test('the forecast is allowed by the CSP and loaded by the Console', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
   assert.match(/connect-src[^;"]*/.exec(html)[0], /https:\/\/services\.swpc\.noaa\.gov/);
   assert.match(html, /loadKp\(\)\.then/);
-  assert.match(html, /issPasses\([^\n]*\n?[^\n]*kpRows\)/);
+  assert.match(html, /issPasses\([^\n]*\n?[^\n]*kpRows(, Date\.now\(\))?\)/);
   const priv = fs.readFileSync(path.join(__dirname, '..', '..', 'privacy.html'), 'utf8');
   assert.match(priv, /Space Weather Prediction Center/);
 });

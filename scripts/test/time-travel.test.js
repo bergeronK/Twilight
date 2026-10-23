@@ -59,11 +59,13 @@ test('Sky View gets the shifted sidereal time, a way back to now, and no Align w
   assert.match(dome, /onClose: \(\) => \{\s*setSkyOpen\(false\); setSkyShift\(0\); setShowDiag\(false\);/);
   assert.match(dome, /align: skyShift \? null : \{/);
   // The preview and the chart stay on now: they read minuteKey alone.
-  const preview = src.slice(src.indexOf('React.createElement(SkyViewPreview'), src.indexOf('React.createElement(SkyViewPreview') + 300);
+  const at = src.indexOf('React.createElement(memoOf(SkyViewPreview)');
+  assert.ok(at > 0, 'the preview is drawn');
+  const preview = src.slice(at, at + 300);
   assert.match(preview, /lst: rev\(gmst\(new Date\(minuteKey \* 60000\)\) \+ loc\.lon\)/);
   // The slider, labelled for a screen reader, and the Now button.
   const sd = declSource('SkyDome');
   assert.match(sd, /type: 'range', min: -1440, max: 1440, step: 15/);
   assert.match(sd, /'aria-label': 'Time shown, in minutes from now'/);
-  assert.match(sd, /onClick: \(\) => time\.onShift\(0\)/);
+  assert.match(sd, /onClick: \(\) => \{ time\.onShift\(0\);/);
 });

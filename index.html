@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-GUhDLoNRIGSfs88U5QRnH5XLARxfLypiCO24zLsH8LI=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-vru1sSFTBsopH2iBibXijdGVr8fjOlOXUe/ZSRSFwKQ=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -59,9 +59,16 @@
     --surface-2:#1a1713;     /* raised panel */
     --panel-glass:linear-gradient(180deg,rgba(26,23,19,.72),rgba(20,18,15,.72));
     --field-bg:rgba(16,14,11,.7);
+    --pick-field:#0a0f1c;    /* the place picker's fields, navy like the sky they sit under */
+    --ink-warn:#cc9999;      /* the place picker's "can't" lines */
+    --ink-alert:#e7b3a3;     /* the sight form's warnings */
+    --star-dot:#dfe6ff;      /* the twinkling dots in a wide screen's margins */
+    --btn-alt-bg:rgba(120,140,200,.16);   /* the Ephemeris's second export button */
+    --btn-alt-line:rgba(120,140,200,.28);
     /* ink */
     --ink:#eae7e0;           /* primary text (warm white) */
     --ink-dim:#a09a8f;       /* secondary text */
+    --ink-prose:#d7cfb8;     /* the almanac's running text, softer than --ink for reading at length */
     --ink-faint:#888174;     /* tertiary text: 4.6:1 on the lightest panel, 5.0 on --bg (was #7d766a, 4.3, under AA) */
     /* accent — brass, reserved for data that matters */
     --accent:#d2a04d;
@@ -79,6 +86,16 @@
     --band-naut:#5a7fb0;
     --band-astro:#2b3358;
     --band-night:#1a1f38;
+    --band-moon:#e8e6df;     /* the Moon's time up, under tonight's ribbon */
+    --dot-rise:#e0b96f;      /* the day's times: sunrise and sunset (civil and nautical use their bands) */
+    --dot-astro:#4b5794;     /* astronomical, lighter than its band so a 7 px dot shows */
+    /* the same colours as rgb triplets, for rgba() at the alphas each place
+       uses; red light mode redefines them, so nothing drawn in them stays
+       white or brass there */
+    --sky-ink-rgb:238,241,250;  /* words over the painted sky */
+    --sky-shade-rgb:5,7,15;     /* the near-black Sky View's preview fades into */
+    --sky-glass-rgb:12,14,22;   /* buttons over that preview */
+    --accent-rgb:210,160,77;    /* = --accent */
     /* typography — strict job split: serif is the voice (wordmark, verdicts),
        Inter is the instrument (everything functional, with tabular numerals) */
     --font-display:'Cormorant Garamond',Georgia,serif;  /* wordmark + verdict lines only */
@@ -163,6 +180,20 @@
     outline:2px solid var(--accent-hi) !important;
     outline-offset:2px;
     border-radius:6px;
+  }
+  /* Pinch zoom is on in the apps (zoomEnabled), so a quick double tap on a
+     button must not zoom the page instead. */
+  html{ touch-action:manipulation; }
+  /* Tap targets: at least 44 x 44 px, Apple's minimum, without moving
+     anything. An invisible ::after grows a small control's hit area to 44
+     each way, centred on it; a control already that big gets nothing.
+     Every fold's summary and the Console's .rtbtn buttons (36 px) have it;
+     a one-line summary is 16 px tall. */
+  .tw-hit, summary, .rtbtn{ position:relative; }
+  .tw-hit::after, summary::after, .rtbtn::after{
+    content:""; position:absolute;
+    top:min(0px, calc(50% - 22px)); bottom:min(0px, calc(50% - 22px));
+    left:min(0px, calc(50% - 22px)); right:min(0px, calc(50% - 22px));
   }
   .noscript{
     font-family:ui-sans-serif,system-ui,sans-serif;
@@ -518,7 +549,80 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 </script>
 <script>
 /* shared hooks destructure */
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ---- Larger Text (2026-10-21) ----
+   iOS's text size (Settings, Accessibility, Display & Text Size, Larger
+   Text) reaches a web page only through the system font -apple-system-body:
+   17 px at the standard size, more when it is turned up. Its ratio to 17,
+   clamped to 1-TS_MAX, is --ts on the root element, and every text size the
+   app sets in px is multiplied by it: React.createElement turns a style's
+   fontSize: 13, or the size in a font: "600 13px ..." shorthand, into
+   calc(13px * var(--ts, 1)) (a clamp() display size grows half as much,
+   tsBig). So the hundreds of sizes written in px follow
+   the setting without being rewritten, the painting's canvas text stays as
+   drawn, and SVG text (the charts, drawn to their own scale) is left alone.
+   Only WebKit knows the font: elsewhere, and at iOS's standard size or
+   smaller, --ts is 1 and nothing changes. Read again whenever the page comes
+   back into view, since the setting can change while the app is away. */
+const TS_MAX = 2;
+function textScale(px) {
+  const s = px / 17;
+  return s > 1 ? Math.min(TS_MAX, Math.round(s * 100) / 100) : 1;
+}
+// The probe starts at 1 px, so a browser that ignores the font keyword
+// reads as scale 1.
+function readTextScale(doc) {
+  try {
+    const p = doc.createElement('span');
+    p.style.cssText = 'position:absolute;visibility:hidden;font-size:1px';
+    p.style.font = '-apple-system-body';
+    doc.body.appendChild(p);
+    const px = parseFloat(getComputedStyle(p).fontSize);
+    p.remove();
+    return textScale(px);
+  } catch (e) { return 1; }
+}
+const TS_SVG_TEXT = { text: 1, tspan: 1, textPath: 1 };
+const tsSize = n => 'calc(' + n + 'px * var(--ts, 1))';
+// The display sizes, written as clamp() (the verdict, the place, the
+// almanac's title), grow half as much: already large, they would crowd
+// out the words under them, as iOS's own large titles grow less.
+const tsBig = v => 'calc(' + v + ' * (1 + (var(--ts, 1) - 1) / 2))';
+// A style with its text size scaled; the same object when there is none.
+function scaleTextStyle(st) {
+  let out = null;
+  if (typeof st.fontSize === 'number') (out = Object.assign({}, st)).fontSize = tsSize(st.fontSize);
+  else if (typeof st.fontSize === 'string' && /^clamp\([^()]*\)$/.test(st.fontSize)) (out = Object.assign({}, st)).fontSize = tsBig(st.fontSize);
+  if (typeof st.font === 'string') {
+    let f = st.font.replace(/(^|\s)(\d*\.?\d+)px(?=[\s/])/, (m, a, n) => a + tsSize(n));
+    if (f === st.font) f = st.font.replace(/clamp\([^()]*\)/, tsBig);
+    if (f !== st.font) (out = out || Object.assign({}, st)).font = f;
+  }
+  return out || st;
+}
+(function followTextSize() {
+  const create = React.createElement;
+  React.createElement = function (type, props) {
+    if (props && props.style && typeof type === 'string' && !TS_SVG_TEXT[type]) {
+      const st = scaleTextStyle(props.style);
+      if (st !== props.style) {
+        const args = Array.prototype.slice.call(arguments);
+        args[1] = Object.assign({}, props, { style: st });
+        return create.apply(React, args);
+      }
+    }
+    return create.apply(React, arguments);
+  };
+  const root = document.documentElement;
+  const apply = () => {
+    const v = String(readTextScale(document));
+    if (root.style.getPropertyValue('--ts') !== v) root.style.setProperty('--ts', v);
+  };
+  apply();
+  window.addEventListener('resize', apply);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) apply(); });
+})();
 
 /* ---- shared math/astronomy constants and helpers (from console) ---- */
 const D2R = Math.PI / 180,
@@ -550,7 +654,8 @@ function sunRaDec(date) {
   return {
     ra: Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D,
     dec: Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D,
-    gmst: 280.46061837 + 360.98564736629 * T * 36525
+    gmst: 280.46061837 + 360.98564736629 * T * 36525,
+    lon: lam * R2D
   };
 }
 /* The Sun's altitude and azimuth (true, degrees) from here: for the sky,
@@ -564,6 +669,26 @@ function sunHcZn(date, lat, lonE) {
 }
 function sunAltitude(date, lat, lonE) {
   return sunHcZn(date, lat, lonE).alt;
+}
+/* The moment near `t` (ms) when altFn crosses `h`, by Newton's method on
+   the altitude itself. The Console found its times by a straight line
+   between 1- or 2-minute samples and the Ephemeris by its own formula, a
+   second or three apart, and so one sunset in fifty showed a different
+   minute on the two tabs (18:18 and 18:17; review, 2026-10-21). Both now
+   end on the crossing of this one altitude. Left as it was where the body
+   barely reaches `h` (no slope to follow) or a step runs off. */
+function refineCrossing(t, h, lat, lonE, altFn) {
+  let x = t;
+  for (let k = 0; k < 4; k++) {
+    const a = altFn(new Date(x), lat, lonE) - h;
+    const da = (altFn(new Date(x + 30000), lat, lonE) - altFn(new Date(x - 30000), lat, lonE)) / 60000;
+    if (!(Math.abs(da) > 1e-10)) return t;
+    const dx = -a / da;
+    x += dx;
+    if (!(Math.abs(x - t) < 600000)) return t;
+    if (Math.abs(dx) < 20) break;
+  }
+  return x;
 }
 /* ---- The space station ---- */
 /* SGP4, near-Earth only (periods under 225 minutes: the space station's is
@@ -1439,7 +1564,7 @@ function scanCrossings(startMs, endMs, lat, lonE, altFn, thresholds, stepMin = 2
           out.push({
             key: th.key,
             h: th.h,
-            t: prevT + frac * step,
+            t: refineCrossing(prevT + frac * step, th.h, lat, lonE, altFn),
             dir: alt > prev ? "up" : "down"
           });
         }
@@ -1467,8 +1592,27 @@ const MOON_THR = [{
   key: "moon",
   h: -0.833
 }];
+/* One Intl.DateTimeFormat for each locale, zone and set of options, made
+   once and kept (2026-10-21). Making one costs an older iPhone a good part
+   of a millisecond, and the app asks for the same few thousands of times:
+   on every render of the Console and the Stars tab, and on every sensor
+   reading while Sky View is open. Formatting with a kept one is the same
+   call, so the words are unchanged. One with no zone named follows the
+   device's, which can change, so that kind is still made fresh. */
+function dtf(locale, opts) {
+  if (!opts || !opts.timeZone) return new Intl.DateTimeFormat(locale, opts);
+  const c = dtf.kept || (dtf.kept = new Map());
+  const k = String(locale) + "|" + JSON.stringify(opts);
+  let f = c.get(k);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, opts);
+    if (c.size >= 200) c.clear();
+    c.set(k, f);
+  }
+  return f;
+}
 function tzOffset(date, tz) {
-  const p = new Intl.DateTimeFormat("en-US", {
+  const p = dtf("en-US", {
     timeZone: tz,
     hourCycle: "h23",
     year: "numeric",
@@ -1481,7 +1625,7 @@ function tzOffset(date, tz) {
   return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - date.getTime()) / 60000);
 }
 function localMidnight(tz, baseMs) {
-  const p = new Intl.DateTimeFormat("en-CA", {
+  const p = dtf("en-CA", {
     timeZone: tz,
     year: "numeric",
     month: "2-digit",
@@ -1988,19 +2132,19 @@ rcInit().then(P => { if (P) P.getCustomerInfo().then(rcApply).catch(() => {}); }
 // To the nearest minute, as almanacs give times (and as the Ephemeris
 // does): Intl alone drops the seconds, so a sunset at 18:37:50 read 18:37
 // here and 18:38 there.
-const fmtT = (t, tz) => new Intl.DateTimeFormat([], {
+const fmtT = (t, tz) => dtf([], {
   timeZone: tz,
   hour: "numeric",
   minute: "2-digit",
   hourCycle: prefStore.getH24() ? "h23" : "h12"
 }).format(new Date(Math.round(t / 60000) * 60000));
-const dateKey = (t, tz) => new Intl.DateTimeFormat("en-CA", {
+const dateKey = (t, tz) => dtf("en-CA", {
   timeZone: tz,
   year: "numeric",
   month: "2-digit",
   day: "2-digit"
 }).format(new Date(t));
-const fmtDate = (t, tz) => new Intl.DateTimeFormat([], {
+const fmtDate = (t, tz) => dtf([], {
   timeZone: tz,
   weekday: "long",
   month: "long",
@@ -2140,6 +2284,35 @@ function savedPlace() {
     return { ...p, name: String(p.name || `${p.lat.toFixed(2)}\u00b0, ${p.lon.toFixed(2)}\u00b0`), tz: knownTz(p.tz) };
   } catch (e) { return null; }
 }
+// "Your location" names the device's own fix on the Console; where the name
+// has to stand on its own (the sight form, a calendar event) the place is
+// its coordinates instead (review, 2026-10-21: "Sunrise at Your location").
+function placeName(loc) {
+  return !loc ? "" : loc.name === "Your location" ? `${loc.lat.toFixed(2)}\u00b0, ${loc.lon.toFixed(2)}\u00b0` : loc.name;
+}
+/* A latitude or longitude as typed: a comma works as the decimal point, a
+   degree sign is allowed, and N/S or E/W may come before or after (S and W
+   are negative). NaN when it isn't one, or is off the globe. */
+function parseCoord(s, axis) {
+  const m = /^([NSEW])?\s*([-+\u2212]?(?:\d+(?:[.,]\d*)?|[.,]\d+))\s*\u00b0?\s*([NSEW])?$/i.exec(String(s == null ? '' : s).trim());
+  if (!m || (m[1] && m[3])) return NaN;
+  const h = (m[1] || m[3] || '').toUpperCase();
+  if (h && (axis === 'lat' ? 'NS' : 'EW').indexOf(h) < 0) return NaN;
+  let v = parseFloat(m[2].replace('\u2212', '-').replace(',', '.'));
+  if (h === 'S' || h === 'W') { if (v < 0) return NaN; v = -v; }
+  return Math.abs(v) <= (axis === 'lat' ? 90 : 180) ? v : NaN;
+}
+/* The Console's place from typed coordinates, { place } or { msg } saying
+   what's wrong. Offline it's the one way to set a place by hand (place
+   search needs the network). The time zone is the device's, as with a
+   location fix: a place's zone can't be had from its coordinates without
+   the network. */
+function coordsPlace(latS, lonS) {
+  const lat = parseCoord(latS, 'lat'), lon = parseCoord(lonS, 'lon');
+  if (!Number.isFinite(lat)) return { msg: 'Latitude is a number from -90 to 90, like 38.57 or 38.57 N.' };
+  if (!Number.isFinite(lon)) return { msg: 'Longitude is a number from -180 to 180, like -109.55 or 109.55 W.' };
+  return { place: { name: `${lat.toFixed(2)}\u00b0, ${lon.toFixed(2)}\u00b0`, lat, lon, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } };
+}
 const PRESETS = [{
   name: "Boston",
   lat: 42.3601,
@@ -2243,8 +2416,27 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v164";
+const BUILD = "v165";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
+// In red light mode all three tabs share the red tokens' wash instead: the
+// navy above is blue light, which is what the mode is there to keep out.
+const RED_PAGE_BG = "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)";
+/* Red light mode's filter for what is painted rather than written in the
+   tokens (the skies, Sky View, the charts, the planets, the welcome): a
+   sheet of red film over the screen. The rods, which do the seeing once the
+   eyes are dark-adapted, hardly respond to deep red; green and blue light
+   is what undoes adaptation. So each pixel keeps its red and loses the rest:
+   white becomes pure red, blue goes black. What is already pure red (the
+   red tokens: the Ephemeris chart's labels, an icon in currentColor) passes
+   through unchanged, so nothing goes dim for being filtered twice. A grey
+   from luminance would have dimmed those to 30%. An SVG feColorMatrix, rows
+   R, G, B, A; the hue-rotate chain before it turned white grey (#b2b0a9),
+   not red (accessibility review of v164). */
+const RED_LIGHT_MATRIX = "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0";
+// The same film for a colour set in code (the Ephemeris's dots, which key
+// its chart): '#rrggbb' keeps its red. Anything else (a var()) is already a
+// token, which red light mode sets itself.
+const redFilm = c => /^#[0-9a-f]{6}$/i.test(c) ? c.slice(0, 3) + '0000' : c;
 function phaseOf(alt) {
   if (alt > -0.833) return "day";
   if (alt > -6) return "civil";
@@ -2494,6 +2686,54 @@ function getPosition(ok, fail, opts) {
       const code = String((e && e.code) || '');
       fail({ code: /-000[38]$/.test(code) ? 1 : /-0010$/.test(code) ? 3 : 2, message: (e && e.message) || '' });
     });
+}
+/* The device's position, for the Console. The try on opening asks at low
+   accuracy first, which Wi-Fi or a phone mast answers in a moment; when that
+   finds nothing in time (not a refusal) it asks once more for the GPS. At a
+   dark site in airplane mode only the GPS can answer, and a low-accuracy
+   request may just wait out its timeout. A tap on "Use my location"
+   (`precise`) asks for the GPS straight away: the person is waiting on it,
+   and a second try after a timeout would double the wait.
+   NEEDS A DEVICE CHECK (offline review, v164): whether an iPhone in
+   airplane mode answers the low-accuracy request at all, and whether 30 s
+   is enough for a GPS fix with no network to help it. */
+function locate(ok, fail, precise) {
+  const gps = { enableHighAccuracy: true, timeout: 30000 };
+  if (precise) return getPosition(ok, fail, gps);
+  getPosition(ok, e => (e && e.code === 1 ? fail(e) : getPosition(ok, fail, gps)), { enableHighAccuracy: false, timeout: 8000 });
+}
+// Where Twilyte is running: 'ios' or 'android' in the apps, else 'web'.
+function appShell() {
+  const c = typeof window !== 'undefined' && window.Capacitor;
+  return c && typeof c.getPlatform === 'function' ? c.getPlatform() : 'web';
+}
+/* Why there's no position, in words. A refusal (code 1) says where to turn
+   location back on; no fix in time (3) or none to be had (2) says to try
+   outside, where the sky is open to the GPS. `other` is the way round it
+   from where it's said. Both used to read "Couldn't get precise location". */
+function geoFailWords(err, shell, other = 'search for your town') {
+  if (err && err.code === 1) {
+    const where = shell === 'ios' ? 'Settings > Privacy & Security > Location Services'
+      : shell === 'android' ? 'your phone’s settings' : 'your browser’s settings';
+    return `Location is off for Twilyte. ${other[0].toUpperCase()}${other.slice(1)}, or turn it on in ${where}.`;
+  }
+  return `Couldn’t find your position. Try again outside, or ${other}.`;
+}
+// Under the painting, when the try on opening with a saved place found no
+// fix (a refusal is the person's choice and says nothing): the sky shown is
+// still the saved place's, which at a dark site may be home's.
+function geoMissWords(loc) {
+  const name = loc && loc.name && loc.name !== 'Your location' ? loc.name : null;
+  return 'Couldn’t update your location. ' + (name ? `Showing ${name}.` : 'Showing your last location.');
+}
+// "phone" or "iPad", for the words that tell someone to move it (store
+// review, 2026-10-21: the iPad screenshots said "point your phone").
+// iPadOS's WebKit says Macintosh; the touch points give it away.
+function deviceWord() {
+  try {
+    const n = navigator;
+    return /iPad/.test(n.userAgent) || (/Macintosh/.test(n.userAgent) && n.maxTouchPoints > 1) ? 'iPad' : 'phone';
+  } catch (e) { return 'phone'; }
 }
 function nativeMotion() {
   const c = typeof window !== 'undefined' && window.Capacitor;
@@ -2748,23 +2988,43 @@ function magneticDeclination(lat, lon, date) {
    first thing most visitors read, and the branch order matters: twilight
    phase outranks the Moon, because a bright Moon during nautical twilight is
    still nautical twilight. */
-function tonightGlance(live) {
+// `tonight` is clearDarkScore's verdict for the dark hours ahead, or null
+// with no forecast. The painting stays clear (owner, 2026-09-28), but the
+// words don't promise stars a forecast says clouds will hide (owner,
+// 2026-10-21: under 100% cloud and rain the headline said "Excellent
+// stargazing" while the week planner said "Poor, rain likely"). Its best
+// two hours are cloudy or rainy only when the whole night is.
+function tonightGlance(live, tonight) {
   const moonUp = live.m.alt > 0;
   const illumPct = Math.round(live.m.illum * 100);
   const ph = live.phase;
+  const f = tonight && tonight.factor;
+  const wet = f === "cloudy" || f === "rain likely" ? (f === "rain likely" ? "Rain" : "Cloud") : null;
   // Golden hour is the Sun from 6° up to 4° down and blue hour from 4° to
   // 6° down, as the Ephemeris defines them; at dawn the stars are going,
   // not coming (review, 2026-10-10: the Console said "Golden hour" and
   // "emerging" for the whole of civil twilight, morning and evening).
-  if (ph === "day" && !(live.alt < 6)) return { head: "Daylight", sub: "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
+  if (ph === "day" && !(live.alt < 6)) return { head: "Daylight", sub: wet ? `${wet} is forecast for tonight, so the stars may stay hidden.` : "Tonight's sky show begins after sunset.", tone: "var(--band-day)" };
   if (ph === "day") return { head: "Golden hour", sub: live.rising ? "Low, warm light after sunrise." : "Low, warm light before sunset.", tone: "var(--band-civil)" };
   if (ph === "civil") return {
     head: live.alt <= -4 ? "Blue hour" : "Golden hour",
     sub: live.rising ? "The last stars are fading as the light comes up." : "The brightest planets and stars are coming out.",
     tone: "var(--band-civil)"
   };
-  if (ph === "naut") return { head: "Nautical twilight", sub: "Horizon still visible \u2014 the sextant window is open.", tone: "var(--band-naut)" };
-  if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
+  // The sextant's window was named here, a navigator's idea on the
+  // stargazer's page (review, 2026-10-21).
+  if (ph === "naut") return {
+    head: "Nautical twilight",
+    sub: wet && !live.rising ? `${wet} is forecast for tonight, so the stars may stay hidden.`
+      : live.rising ? "Only the brightest stars are left as the sky pales." : "The brighter stars are out and the sky is deepening toward night.",
+    tone: "var(--band-naut)"
+  };
+  if (moonUp && live.m.illum > 0.6) return { head: "Bright Moon", sub: wet ? `A ${illumPct}%-lit Moon, and ${wet.toLowerCase()} is forecast for tonight.` : `A ${illumPct}%-lit Moon is washing out faint stars.`, tone: "var(--band-civil)" };
+  if (wet) return {
+    head: moonUp && live.m.illum > 0.25 ? "Good, if it clears" : "Dark, if it clears",
+    sub: `${wet} is forecast for tonight. ` + (moonUp ? `The sky is dark, with ${live.m.illum > 0.25 ? "some moonlight" : "only a thin Moon"} (${illumPct}% lit).` : "The sky is dark and the Moon is down."),
+    tone: "var(--accent)"
+  };
   if (moonUp && live.m.illum > 0.25) return { head: "Good stargazing", sub: `Dark skies with some moonlight (${illumPct}% lit).`, tone: "var(--accent)" };
   return { head: "Excellent stargazing", sub: moonUp ? `Dark skies and only a thin Moon (${illumPct}% lit).` : "Dark skies and the Moon is down.", tone: "var(--accent-hi)" };
 }
@@ -3187,18 +3447,48 @@ function twinkle(seed, t, alt) {
 /* The major annual showers, from the International Meteor Organization's
    working list: [name, month, day of peak (UT, fractional), ZHR, radiant RA,
    radiant Dec (degrees), spread either side of the peak in days]. */
+// [name, month, day of peak, ZHR, radiant RA, Dec, spread in days, the
+// Sun's longitude at the peak (IMO's working list)]. The day is the mean
+// one; the year's peak moves about six hours a year with the calendar,
+// which the Sun's longitude follows (showerPeakMs).
 const METEOR_SHOWERS = [
-  ['Quadrantids', 1, 3.5, 110, 230, 49, 0.6],
-  ['Lyrids', 4, 22.5, 18, 271, 34, 1],
-  ['Eta Aquariids', 5, 6, 50, 338, -1, 3],
-  ['Southern Delta Aquariids', 7, 30, 25, 340, -16, 4],
-  ['Perseids', 8, 12.5, 100, 48, 58, 2.5],
-  ['Orionids', 10, 21, 20, 95, 16, 3],
-  ['Leonids', 11, 17.5, 15, 152, 22, 1],
-  ['Geminids', 12, 14, 150, 112, 33, 1],
-  ['Ursids', 12, 22, 10, 217, 76, 0.7]
+  ['Quadrantids', 1, 3.5, 110, 230, 49, 0.6, 283.15],
+  ['Lyrids', 4, 22.5, 18, 271, 34, 1, 32.32],
+  ['Eta Aquariids', 5, 6, 50, 338, -1, 3, 45.5],
+  ['Southern Delta Aquariids', 7, 30, 25, 340, -16, 4, 127],
+  ['Perseids', 8, 12.5, 100, 48, 58, 2.5, 140],
+  ['Orionids', 10, 21, 20, 95, 16, 3, 208],
+  ['Leonids', 11, 17.5, 15, 152, 22, 1, 235.27],
+  ['Geminids', 12, 14, 150, 112, 33, 1, 262.2],
+  ['Ursids', 12, 22, 10, 217, 76, 0.7, 270.7]
 ];
 const SPORADIC_HR = 8; // background meteors an hour under a perfect sky
+// The moment of the shower's peak nearest `ms`: when the Sun reaches the
+// peak's longitude, starting from the mean day (the Sun moves 0.98565° a
+// day; three steps settle it to seconds).
+function showerPeakMs(sh, ms) {
+  const y = new Date(ms).getUTCFullYear();
+  let t = [y - 1, y, y + 1].map(yy => Date.UTC(yy, sh[1] - 1, 1) + (sh[2] - 1) * 86400000)
+    .reduce((a, b) => Math.abs(b - ms) < Math.abs(a - ms) ? b : a);
+  for (let k = 0; k < 3; k++) t += (((sh[7] - sunRaDec(new Date(t)).lon) % 360 + 540) % 360 - 180) / 0.98565 * 86400000;
+  return t;
+}
+// When a shower near its peak peaks, against tonight's dark span. A peak
+// in tonight or within 12 hours of it is tonight's: one by day falls
+// between two nights and makes both peak nights, as observers count them.
+// "Peak tonight" used to be any night at 80% of the peak's rate, which for
+// the Orionids is two days either side (review, 2026-10-21).
+function showerPeakWords(sh, start, end) {
+  const p = showerPeakMs(sh, (start + end) / 2), H = 12 * 3600000, D = 86400000;
+  // Is the peak the night `k` nights from this one's? Others count from it.
+  const peakNight = k => p >= start + k * D - H && p <= end + k * D + H;
+  if (peakNight(0)) return 'peak tonight';
+  for (let k = 1; k <= 30; k++) {
+    if (peakNight(k)) return k === 1 ? 'peak tomorrow night' : `peak in ${k} nights`;
+    if (peakNight(-k)) return k === 1 ? 'peaked last night' : `peaked ${k} nights ago`;
+  }
+  return 'are active';
+}
 // How active a shower is on `date`, 0 to 1 (1 at its peak).
 function showerActivity(sh, date) {
   const y = date.getUTCFullYear();
@@ -3261,13 +3551,27 @@ function starGlow(g, x, y, r, mag, color, alpha) {
   g.fillStyle = gl;
   g.beginPath(); g.arc(x, y, R, 0, 7); g.fill();
 }
+/* How often the moving layer is drawn: about 15 frames a second for the
+   twinkling, whose quickest beat (twinkle's third sine) is one and a half
+   a second, and 30 while a meteor is in flight, so its streak stays as
+   smooth as it was. The painting used to ask for every frame the screen
+   had, 60 or 120 a second all night, to draw on every other one
+   (2026-10-21). A frame up to 4 ms early counts, since frames come on the
+   screen's beat. */
+const TWINKLE_FRAME_MS = 66, METEOR_FRAME_MS = 33;
+const skyFrameMs = meteors => (meteors ? METEOR_FRAME_MS : TWINKLE_FRAME_MS) - 4;
+// Whether the frame at `ts` should draw the sky, the last having been at `last`.
+const skyFrameDue = (last, ts, meteors) => ts - last >= skyFrameMs(meteors);
+// How long from `now` to wait before asking for the next frame.
+const skyFrameWait = (last, now, meteors) => Math.max(0, last + skyFrameMs(meteors) - now);
 /* The moving layer: twinkling stars and any meteor in flight at time t (s).
-   `o`: { stars: [{az, alt, mag, seed}], facing, moon, meteors: [{..., t0}] }.
+   `o`: { stars: [{az, alt, mag, seed}], facing, moon, meteors: [{..., t0}] },
+   and `hy`, the horizon, when the hero's ground has grown for larger text.
    A star under the painted Moon is not drawn: the disc is drawn larger than
    life, and a star twinkling on top of it would give the game away. */
 function drawSkyMotion(g, w, h, o, t) {
   g.clearRect(0, 0, w, h);
-  const hy = heroHorizon(h);
+  const hy = o.hy || heroHorizon(h);
   const md = heroMoonDisc(w, hy, o.moon, o.facing);
   o.stars.forEach(s => {
     const f = panoX(s.az, o.facing, HZ_SPAN);
@@ -3311,6 +3615,14 @@ const cdHMS = ms => {
   const s = Math.floor((t % 60000) / 1000);
   return (h > 0 ? h + "h " : "") + m + "m " + s + "s";
 };
+// The same count in words for a screen reader, to the minute: "8 hours 33
+// minutes", where the screen shows 8h 33m 51s.
+const cdWords = ms => {
+  const all = Math.floor(Math.max(0, ms) / 60000), h = Math.floor(all / 60), m = all % 60;
+  if (!all) return "less than a minute";
+  const n = (k, w) => k + " " + w + (k === 1 ? "" : "s");
+  return [h && n(h, "hour"), m && n(m, "minute")].filter(Boolean).join(" ");
+};
 
 /* ---- Twilight today (2026-09-25) ----
    The day's Sun crossings as the Console shows them, right under the
@@ -3320,7 +3632,7 @@ const TWILIGHT_WORDS = {
   up: { astro: "Astronomical dawn", naut: "Nautical dawn", civil: "Civil dawn", rise: "Sunrise" },
   down: { rise: "Sunset", civil: "Civil dusk", naut: "Nautical dusk", astro: "Astronomical dusk" }
 };
-const TWILIGHT_DOTS = { rise: "#e0b96f", civil: "#e08a3c", naut: "#5a7fb0", astro: "#4b5794" };
+const TWILIGHT_DOTS = { rise: "var(--dot-rise)", civil: "var(--band-civil)", naut: "var(--band-naut)", astro: "var(--dot-astro)" };
 const twilightWord = e => TWILIGHT_WORDS[e.dir][e.key];
 // A day's twilight as people count it, from local midnight `mid`: the dawn
 // stages before the Sun's highest point and the dusk stages after it, on
@@ -3404,7 +3716,7 @@ function sunsetICS(set, place, stamp, fmt) {
   const esc = x => x.replace(/[\\;,]/g, m => "\\" + m);
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT",
     "UID:sunset-" + Math.round(set.t / 60000) + "@twilyte.info", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(set.t), "DTEND:" + dt(end),
-    "SUMMARY:" + esc("Sunset at " + place), "DESCRIPTION:" + esc(lines.join(" ")),
+    "SUMMARY:" + esc(place && place !== "Your location" ? "Sunset at " + place : "Sunset"), "DESCRIPTION:" + esc(lines.join(" ")),
     "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc("Sunset in 30 minutes"), "TRIGGER:-PT30M", "END:VALARM",
     "END:VEVENT", "END:VCALENDAR"].join("\r\n");
 }
@@ -3427,7 +3739,7 @@ function sunriseICS(rise, place, stamp, fmt) {
   const esc = x => x.replace(/[\\;,]/g, m => "\\" + m);
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Twilyte//EN", "BEGIN:VEVENT",
     "UID:sunrise-" + Math.round(rise.t / 60000) + "@twilyte.info", "DTSTAMP:" + dt(stamp), "DTSTART:" + dt(start), "DTEND:" + dt(rise.t),
-    "SUMMARY:" + esc("Sunrise at " + place), "DESCRIPTION:" + esc(lines.join(" ")),
+    "SUMMARY:" + esc(place && place !== "Your location" ? "Sunrise at " + place : "Sunrise"), "DESCRIPTION:" + esc(lines.join(" ")),
     "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc("Dawn colour in 30 minutes"), "TRIGGER:-PT30M", "END:VALARM",
     "END:VEVENT", "END:VCALENDAR"].join("\r\n");
 }
@@ -3449,18 +3761,47 @@ function nextSunset(sunEv, now) {
   for (let j = i + 1; j < sunEv.length && sunEv[j].dir === "down"; j++) set[sunEv[j].key] = sunEv[j].t;
   return set;
 }
+/* The countdown to the next stage, ticking by itself (2026-10-21), just
+   after each whole second of the count so it reads true, and stopping at
+   zero, when the Console wakes to move on to the next stage. Nothing else
+   on the Console shows seconds, so the rest of it renders once a minute
+   instead of every second. `now` is the Console's clock; the later of it
+   and this one's own is shown. For a screen reader the count is in words,
+   to the minute, and in no live region: read when reached, never
+   announced. */
+function TwilightCountdown({ to, now }) {
+  const [t, setT] = useState(now);
+  useEffect(() => {
+    let id = 0;
+    const tick = () => {
+      const n = Date.now();
+      setT(n);
+      if (to - n > 0) id = setTimeout(tick, (to - n) % 1000 + 20);
+    };
+    const left = to - Date.now();
+    if (left > 0) id = setTimeout(tick, left % 1000 + 20);
+    return () => clearTimeout(id);
+  }, [to]);
+  const left = to - Math.max(t, now);
+  return React.createElement("div", {
+    style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
+  },
+    React.createElement("span", { className: "sr-only" }, "in " + cdWords(left)),
+    React.createElement("span", { "aria-hidden": "true" }, "in ", cdHMS(left)));
+}
 // Hook-free: the next stage with its countdown, then the day's times in two
 // columns (past ones dimmed), then the way to the full day on the Ephemeris.
-function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale }) {
+function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders, stale, noWx }) {
   const col = (title, rows) => React.createElement("div", { style: { minWidth: 0 } },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim, marginBottom: 4 } }, title),
+    React.createElement("h3", { style: { margin: "0 0 4px", fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 550, color: C.inkDim } }, title),
     rows.map(r => React.createElement("div", {
       key: r.key,
       style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${C.line}`, fontFamily: "var(--font-ui)", fontSize: 13, color: r.past ? C.inkFaint : C.ink }
     },
       React.createElement("span", { "aria-hidden": "true", style: { width: 7, height: 7, borderRadius: "50%", flex: "0 0 7px", background: TWILIGHT_DOTS[r.key], opacity: r.past ? 0.4 : 1 } }),
       React.createElement("span", { style: { flex: 1, minWidth: 0 } }, r.label),
-      React.createElement("span", { style: { fontVariantNumeric: "tabular-nums" } }, fmt(r.t)))));
+      // Dimmed on screen; said in words to a screen reader.
+      React.createElement("span", { style: { fontVariantNumeric: "tabular-nums" } }, fmt(r.t), r.past && React.createElement("span", { className: "sr-only" }, ", passed")))));
   const empty = !sched.dawn.length && !sched.dusk.length;
   return React.createElement("section", {
     "aria-label": "Twilight " + sched.when,
@@ -3472,9 +3813,7 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders,
     next && React.createElement("div", { style: { marginBottom: 16 } },
       React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 600, color: C.brass, lineHeight: 1.1 } },
         twilightWord(next), " at ", fmt(next.t)),
-      React.createElement("div", {
-        style: { fontFamily: "var(--font-ui)", fontSize: 33, fontWeight: 300, lineHeight: 1.1, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", marginTop: 4 }
-      }, "in ", cdHMS(next.t - now))),
+      React.createElement(TwilightCountdown, { to: next.t, now })),
     empty
       ? React.createElement("p", { style: { margin: "0 0 14px", fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } },
           sunUp ? "The Sun doesn’t set " + sched.when + "." : "The Sun doesn’t rise " + sched.when + ".")
@@ -3490,9 +3829,14 @@ function TwilightToday({ next, now, sched, fmt, sunUp, onMore, glows, reminders,
       React.createElement("div", { style: { fontSize: 11.5, color: C.inkFaint, marginTop: 8 } },
         (glows.length > 1 ? "Estimates from the cloud forecast." : "An estimate from the cloud forecast.") +
         (stale ? ` ${stale[0].toUpperCase()}${stale.slice(1)}.` : ""))),
+    // No forecast at all: one line where the colour would be, rather than
+    // nothing (offline review, v164).
+    noWx && !(glows && glows.length) && React.createElement("p", {
+      style: { margin: "0 0 16px", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim, maxWidth: "52ch" }
+    }, noWx),
     React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
       (reminders || []).map(m => React.createElement("button", { key: m.kind, className: "rtbtn", onClick: m.onClick, "aria-label": m.aria }, m.label)),
-      React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris \u2192")));
+      React.createElement("button", { className: "rtbtn", onClick: onMore }, "The whole day on the Ephemeris", React.createElement("span", { "aria-hidden": "true" }, " \u2192"))));
 }
 
 /* ---- Orientation fusion ----
@@ -3833,9 +4177,58 @@ function wxCacheUse(c, nowMs) {
   const age = nowMs - c.t;
   return age < 0 ? null : age < 3600000 ? 'fresh' : age < 86400000 ? 'stale' : null;
 }
-function staleNote(t, nowMs) {
+// `km`: how far away the place it was fetched for is, said from 1 km.
+function staleNote(t, nowMs, km) {
   const h = Math.floor((nowMs - t) / 3600000);
-  return 'forecast from ' + (h < 1 ? 'under an hour' : h === 1 ? 'an hour' : h + ' hours') + ' ago';
+  return 'forecast from ' + (h < 1 ? 'under an hour' : h === 1 ? 'an hour' : h + ' hours') + ' ago' +
+    (km >= 1 ? ', for a place ' + Math.round(km) + ' km away' : '');
+}
+// The saved forecasts, as [key, {t, d} or null] pairs.
+function wxSaved(store) {
+  const out = [];
+  for (let i = 0; i < store.length; i++) {
+    const k = store.key(i);
+    if (!k || !k.startsWith('tw_wx_')) continue;
+    let c = null;
+    try { c = JSON.parse(store.getItem(k) || 'null'); } catch (e) {}
+    out.push([k, c]);
+  }
+  return out;
+}
+/* The saved forecast to fall back on when a new one can't be fetched: the
+   nearest within 25 km that wxCacheUse still accepts, this spot's own
+   included; { key, c, km } or null. Keys are the place to 0.01°, so a fix
+   at the dark site a couple of km from where the forecast was fetched (at
+   home, at the trailhead) is another key, and looking up only that key found
+   nothing there (offline review, v164). Cloud forecasts are made on grids
+   several km across, and the points toward sunset and sunrise are 150 km
+   out, so a neighbour's forecast is still this place's. */
+function nearestWx(entries, nowMs, lat, lon, maxKm = 25) {
+  let best = null;
+  for (const [key, c] of entries || []) {
+    const m = /^tw_wx_(-?\d+(?:\.\d+)?)_(-?\d+(?:\.\d+)?)$/.exec(key || '');
+    if (!m || !wxCacheUse(c, nowMs)) continue;
+    const la = +m[1] * D2R, dLa = la - lat * D2R, dLo = (+m[2] - lon) * D2R;
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(la) * Math.cos(lat * D2R) * Math.sin(dLo / 2) ** 2;
+    const km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
+    if (km <= maxKm && (!best || km < best.km || (km === best.km && c.t > best.c.t))) best = { key, c, km };
+  }
+  return best;
+}
+// Why a request got nothing: 'offline' when no answer came at all (fetch's
+// TypeError, or the device says it's offline), 'failed' when one came back
+// wrong.
+function netWhy(err, onLine) {
+  return onLine === false || (err && err.name === 'TypeError') ? 'offline' : 'failed';
+}
+// What the Console says where the forecast would be, when there is none
+// at all: in the twilight section ('twilight'), where the sunset colour
+// goes, and in the week planner ('week').
+function noWxWords(why, where) {
+  const off = why === 'offline';
+  return (off ? 'No cloud forecast without a connection' : 'The cloud forecast couldn’t be fetched just now') +
+    (where === 'week' ? '. The darkness times above don’t need ' : ', so no sunset or sunrise colour. The times above don’t need ') +
+    (off ? 'one.' : 'it.');
 }
 // "Clear AND Dark" scoring: fuse the cloud forecast (the only new, variable
 // input) with the darkness Twilyte already models (twilight phase + moon).
@@ -3946,6 +4339,9 @@ function SkyDarkness({ bortle, auto, from }) {
   const b = BORTLE_SEE[bortle] ? bortle : 0;
   const ui = { fontFamily: 'var(--font-ui)' };
   return React.createElement('div', { style: { padding: '0 0 18px', display: 'grid', gap: 4 } },
+    // The block has no title on screen; a screen reader's list of headings
+    // needs one (out of flow, so the grid's gaps don't move).
+    React.createElement('h2', { className: 'sr-only' }, 'How dark the sky is here'),
     React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', gap: 8 } },
       React.createElement('div', { style: { ...ui, fontSize: 33, fontWeight: 450, color: C.brass, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' } }, b ? String(b) : '\u2014'),
       b > 0 && React.createElement('div', { style: { ...ui, fontSize: 13, color: C.inkFaint } }, 'of 9 on the Bortle scale')),
@@ -4070,43 +4466,50 @@ function ClearAlerts({ loc, h24 }) {
   return React.createElement(AlertsRow, { support, on, busy, msg, h24, place: !loc.name ? "this place" : loc.name === "Your location" ? "where you are" : loc.name.split(",")[0], onToggle });
 }
 // Pro multi-night planner: the next 7 nights ranked by their clear-and-dark
-// score, with the pick of the week flagged. Hidden when Pro is off or no
-// forecast is available.
-function weekPlannerEl(nights, loc, h24, pro) {
-  if (!pro || !nights || !nights.length) return null;
-  const scored = nights.filter(n => n.sum && n.sum.score != null);
-  if (!scored.length) return null;
-  const fmtH = t => new Intl.DateTimeFormat([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
+// score, with the pick of the week flagged. Hidden when Pro is off, or while
+// the first forecast is on its way. `stale` says a saved forecast's age (and
+// place); `none` is said in the list's place when there is no forecast at
+// all (offline review, v164: the section just vanished).
+function weekPlannerEl(nights, loc, h24, pro, stale, none) {
+  if (!pro) return null;
+  const scored = (nights || []).filter(n => n.sum && n.sum.score != null);
+  if (!none && !scored.length) return null;
+  const fmtH = t => dtf([], { timeZone: loc.tz, hour: "numeric", hourCycle: h24 ? "h23" : "h12" }).format(new Date(t));
   let pick = scored[0];
   scored.forEach(n => { if (n.sum.score > pick.sum.score) pick = n; });
-  const dayLabel = n => n.i === 0 ? "Tonight" : new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
+  const dayLabel = n => n.i === 0 ? "Tonight" : dtf([], { timeZone: loc.tz, weekday: "long" }).format(new Date(n.mid - 6 * 3600000));
+  const say = (text, size, color) => React.createElement("p", { style: { margin: "0 0 6px", fontFamily: "var(--font-ui)", fontSize: size, color, maxWidth: "52ch" } }, text);
   return React.createElement("div", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "15px 0 20px" }
   },
     React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
-      React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
+      React.createElement("h2", { style: { margin: 0, fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The week ahead"),
       proShown() && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 9, letterSpacing: "0.1em", color: C.brass, border: `1px solid var(--btn-border)`, padding: "1px 6px", borderRadius: 4, fontWeight: 600 } }, "PRO"),
       proShown() === 'preview' && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkFaint } }, "free preview"),
-      React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
+      !none && React.createElement("span", { style: { marginLeft: "auto", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim } }, "scores out of 100")
     ),
-    React.createElement("div", null,
+    none ? say(none, 13, C.inkDim) : stale && say(`${stale[0].toUpperCase()}${stale.slice(1)}.`, 11.5, C.inkFaint),
+    !none && React.createElement("div", null,
       nights.map((n, idx) => {
         const ok = n.sum && n.sum.score != null;
         const isPick = ok && n === pick && pick.sum.score >= 40;
+        // The day and score columns widen with larger text (--ts), and the
+        // words drop to their own line once the row runs out of room:
+        // "Wednesday" ran into its score at 150%.
         return React.createElement("div", {
           key: n.i,
           style: {
-            display: "flex", alignItems: "baseline", gap: 12, padding: "9px 0",
+            display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "2px 12px", padding: "9px 0",
             borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,.035)"
           }
         },
-          React.createElement("div", { style: { width: 76, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: isPick ? C.brass : C.ink } }, dayLabel(n)),
+          React.createElement("div", { style: { width: "calc(76px * var(--ts, 1))", flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 550, color: isPick ? C.brass : C.ink } }, dayLabel(n)),
           React.createElement("div", {
-            style: { width: 38, flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.brass : C.inkDim, fontVariantNumeric: "tabular-nums" }
+            style: { width: "calc(38px * var(--ts, 1))", flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.brass : C.inkDim, fontVariantNumeric: "tabular-nums" }
           }, ok ? String(n.sum.score) : "—"),
-          React.createElement("div", { style: { flex: 1, minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.ink : C.inkDim, fontVariantNumeric: "tabular-nums" } },
+          React.createElement("div", { style: { flex: "1 1 calc(80px * var(--ts, 1) * var(--ts, 1))", minWidth: 0, fontFamily: "var(--font-ui)", fontSize: 13, color: isPick ? C.ink : C.inkDim, fontVariantNumeric: "tabular-nums" } },
             ok ? `${scoreRating(n.sum.score)} · ${n.sum.score >= 40 ? fmtH(n.sum.bestMs) + "–" + fmtH(n.sum.bestMs + 2 * 3600000) + " · " : ""}${SCORE_SHORT[n.sum.factor] || n.sum.factor}` : "no dark window"),
-          isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 11.5, fontWeight: 550, color: C.brass } }, "◆ finest")
+          isPick && React.createElement("span", { style: { flexShrink: 0, fontFamily: "var(--font-ui)", fontSize: 11.5, fontWeight: 550, color: C.brass } }, React.createElement("span", { "aria-hidden": "true" }, "◆ "), "finest")
         );
       })
     )
@@ -4188,7 +4591,7 @@ function NightRibbon({ plan, now, fmt }) {
   const band = { civil: 'var(--band-civil)', naut: 'var(--band-naut)', astro: 'var(--band-astro)', night: 'var(--band-night)' };
   const small = { fontFamily: 'var(--font-ui)', fontSize: 11.5, color: C.inkFaint, fontVariantNumeric: 'tabular-nums' };
   return React.createElement('div', { style: { display: 'grid', gap: 6 } },
-    React.createElement('div', { style: { ...small, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' } }, 'Tonight, sunset to sunrise'),
+    React.createElement('h2', { style: { ...small, margin: 0, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase' } }, 'Tonight, sunset to sunrise'),
     React.createElement('div', {
       role: 'img',
       'aria-label': `Sunset ${fmt(plan.start)}, ` +
@@ -4207,14 +4610,15 @@ function NightRibbon({ plan, now, fmt }) {
     ),
     React.createElement('div', { style: { position: 'relative', height: 6 } },
       plan.moonUp.map((m, i) => React.createElement('div', {
-        key: i, style: { position: 'absolute', top: 1, height: 4, borderRadius: 2, left: at(m.from), width: len(m.from, m.to), background: '#e8e6df', opacity: 0.8 }
+        key: i, style: { position: 'absolute', top: 1, height: 4, borderRadius: 2, left: at(m.from), width: len(m.from, m.to), background: 'var(--band-moon)', opacity: 0.8 }
       }))
     ),
     React.createElement('div', { style: { ...small, display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' } },
       React.createElement('span', null, 'Sunset ', fmt(plan.start)),
+      // The key's marks are pictures of the ribbon's, not words.
       React.createElement('span', null,
-        plan.moonUp.length ? '— Moon up   ' : '',
-        plan.darkest ? '▭ Darkest' : ''),
+        plan.moonUp.length ? [React.createElement('span', { key: 'm', 'aria-hidden': 'true' }, '— '), 'Moon up   '] : '',
+        plan.darkest ? [React.createElement('span', { key: 'd', 'aria-hidden': 'true' }, '▭ '), 'Darkest'] : ''),
       React.createElement('span', null, 'Sunrise ', fmt(plan.end))
     )
   );
@@ -4240,7 +4644,8 @@ function NightFacts({ plan, now, fmt, illum, planets, sunDown }) {
     React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 17, fontWeight: 600, color: C.ink, fontVariantNumeric: 'tabular-nums', lineHeight: 1.25 } }, f.v),
     React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 12, color: C.inkDim, lineHeight: 1.35 } }, f.c)
   );
-  return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' } },
+  // Three across; two, then one, as larger text (--ts) needs the room.
+  return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, calc(92px * var(--ts, 1))), 1fr))', rowGap: 14 } },
     cell('Darkest', darkest, true), cell('Moon', moon), cell('Planets', pl));
 }
 
@@ -4270,10 +4675,14 @@ const HIGHLIGHT_DSO = [
   ['the Beehive Cluster', 130.1, 19.67, 3.7, 'a hazy patch that binoculars turn into a swarm of stars'],
   ['the Lagoon Nebula', 270.9, -24.38, 6.0, 'a glow in the Milky Way just above the spout of the Sagittarius teapot']
 ];
-function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
+// `now`, when given, drops the part of the night already gone: at 2 AM the
+// list said "The Moon is in the SSE at 18:48" and "around 23:18" (review,
+// 2026-10-21). The samples stay on the plan's 15-minute grid.
+function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp, now) {
   if (!plan) return [];
   const STEP = 15 * 60000, samples = [];
-  for (let t = plan.start; t <= plan.end; t += STEP) {
+  const from = now > plan.start ? plan.start + Math.ceil((now - plan.start) / STEP) * STEP : plan.start;
+  for (let t = from; t <= plan.end; t += STEP) {
     const d = new Date(t), sunAlt = sunAltitude(d, lat, lon);
     if (sunAlt > -6) continue;
     const moon = moonTopo(moonState(d, lat, lon));
@@ -4296,7 +4705,7 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
     const e = lunarEclipse(ph.t);
     if (!e || (e.kind === 'penumbral' && e.penumbral < 0.9)) return;
     const a = e.kind === 'penumbral' ? e.P1 : e.U1, b = e.kind === 'penumbral' ? e.P4 : e.U4;
-    if (b < plan.start || a > plan.end) return;
+    if (b < Math.max(plan.start, now || 0) || a > plan.end) return;
     const w = eclipseWords(e, lat, lon, fmt);
     if (/^Not seen/.test(w.line)) return;
     out.push({ kind: 'eclipse', rank: -1, title: e.kind === 'penumbral' ? 'A faint eclipse of the Moon tonight' : w.partial ? 'Part of an eclipse of the Moon tonight' : `A ${e.kind} eclipse of the Moon tonight`, detail: w.line });
@@ -4323,14 +4732,14 @@ function tonightHighlights(plan, lat, lon, bortle, fmt, iss, kp) {
   samples.forEach(s => meteorRate(s.d, lat, lon, s.lm, s.sunAlt).parts.forEach(p => {
     if (!p.sh) return;
     const k = p.sh[0];
-    if (!showers[k] || p.hr > showers[k].hr) showers[k] = { hr: p.hr, t: s.t, radiant: p.radiant, act: showerActivity(p.sh, s.d) };
+    if (!showers[k] || p.hr > showers[k].hr) showers[k] = { hr: p.hr, t: s.t, radiant: p.radiant, act: showerActivity(p.sh, s.d), sh: p.sh };
   }));
   Object.entries(showers).forEach(([name, m]) => {
     const n = Math.round(m.hr);
     if (n < 5) return;
     out.push({
       kind: 'meteors', rank: n >= 20 ? 0 : 5,
-      title: `The ${name} ${m.act > 0.8 ? 'peak tonight' : 'are active'}`,
+      title: `The ${name} ${m.act > 0.8 ? showerPeakWords(m.sh, plan.start, plan.end) : 'are active'}`,
       detail: `Up to about ${n} meteors an hour from here, best around ${fmt(m.t)}. They can appear anywhere, flying out from the ${compass16(m.radiant.az)}.`
     });
   });
@@ -4473,7 +4882,7 @@ function highlightIcon(kind) {
 function TonightHighlights({ items }) {
   if (!items || !items.length) return null;
   return React.createElement('section', { 'aria-label': 'Worth a look tonight' },
-    React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint, marginBottom: 6 } }, 'Worth a look tonight'),
+    React.createElement('h2', { style: { margin: '0 0 6px', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: C.inkFaint } }, 'Worth a look tonight'),
     items.map((h, i) => React.createElement('div', {
       key: h.title,
       style: { display: 'flex', gap: 12, padding: '9px 0', borderTop: i ? '1px solid var(--line, rgba(255,255,255,.1))' : 'none' }
@@ -4836,28 +5245,58 @@ const HERO_BLEED = 10; // px the ground can slide under tilt, and is drawn past 
 function heroHeight(width) {
   return width < 560 ? 380 : 420;
 }
+/* Larger Text (2026-10-21): the painting keeps its size and its horizon,
+   and only its ground grows when the words over it (the verdict and the
+   lines with it, `words` px tall) need more room: at 150% they spilled up
+   over the compass points. They start HERO_WORDS_GAP under the horizon,
+   clear of the compass points, and end 18 px from the foot. */
+const HERO_WORDS_GAP = 28;
+function heroFit(width, words) {
+  const H0 = heroHeight(width), hy = heroHorizon(H0);
+  return { H: Math.max(H0, hy + HERO_WORDS_GAP + Math.ceil(words || 0) + 18), hy };
+}
 /* The first-run welcome: the Console's painting of this place's sky, full
    screen, filling in as it loads, with one line and a way in. Drawn by the
    same painter from the same scene as the hero beneath it, which is already
    laid out, so dismissing it just fades it away onto the dashboard. Shown
    once (tw_welcomed). `line` is the words, `onDone(pick)` closes it; `pick`
    opens the place picker for someone whose sky this isn't. */
-function welcomeLine(loc, locating) {
+// `standIn`: the place is Boston standing in, with no fix and nothing saved
+// (refused, timed out, offline on a first launch). It isn't anyone's sky,
+// so the welcome doesn't call it theirs (offline review, v164).
+function welcomeLine(loc, locating, standIn) {
   if (locating) return 'Finding your sky\u2026';
+  if (standIn) return 'Twilyte needs your place to show your sky.';
   const place = !loc || loc.name === 'Your location' ? 'you' : loc.name.split(',')[0];
   return `This is the sky over ${place} right now.`;
 }
-function WelcomeSky({ o, line, onDone }) {
-  const cvRef = useRef(null), btnRef = useRef(null);
+/* While a modal dialog is open, everything else on the page is inert: a
+   screen reader can't wander behind it (aria-modal alone doesn't stop
+   VoiceOver), and Tab and taps can't reach it. Marks the siblings of the
+   dialog and of each of its ancestors up to <body>; returns the undo. */
+function inertOutside(el) {
+  const done = [];
+  for (let n = el; n && n.parentElement && n !== document.body; n = n.parentElement) {
+    for (const s of n.parentElement.children) {
+      if (s !== n && !s.inert && !/^(SCRIPT|STYLE|NOSCRIPT)$/.test(s.tagName)) { s.inert = true; done.push(s); }
+    }
+  }
+  return () => done.forEach(s => { s.inert = false; });
+}
+// `standIn`: the stand-in's name once it's known there's no fix; then
+// choosing a place is the way in, and the stand-in's sky the way past.
+function WelcomeSky({ o, line, onDone, standIn }) {
+  const cvRef = useRef(null), btnRef = useRef(null), dlgRef = useRef(null);
   const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
   const [leaving, setLeaving] = useState(false);
   useEffect(() => {
     const r = () => setSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', r);
+    const free = dlgRef.current ? inertOutside(dlgRef.current) : () => {};
     if (btnRef.current) btnRef.current.focus();
     const esc = e => { if (e.key === 'Escape') close(false); };
     window.addEventListener('keydown', esc);
-    return () => { window.removeEventListener('resize', r); window.removeEventListener('keydown', esc); };
+    return () => { free(); window.removeEventListener('resize', r); window.removeEventListener('keydown', esc); };
   }, []);
   useEffect(() => {
     const cv = cvRef.current;
@@ -4874,28 +5313,28 @@ function WelcomeSky({ o, line, onDone }) {
   // Into <body> directly: the tab content's own layering (its fade-in) would
   // otherwise keep this under the bottom tab bar, whatever its z-index.
   return ReactDOM.createPortal(React.createElement('div', {
-    role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome to Twilyte',
+    ref: dlgRef, role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome to Twilyte',
     style: { position: 'fixed', inset: 0, zIndex: 1000, background: '#05070f', opacity: leaving ? 0 : 1, transition: 'opacity .45s ease' }
   },
     React.createElement('canvas', { ref: cvRef, className: 'hz-sky', 'aria-hidden': 'true',
       style: { position: 'absolute', inset: 0, width: '100%', height: '100%', animation: 'skyIn 1.8s ease both' } }),
-    React.createElement('div', { style: { position: 'absolute', left: 24, top: 'calc(18px + env(safe-area-inset-top))', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--accent-hi)', animation: 'wordsIn .8s ease .3s both' } }, '\u2726 Twilyte'),
+    React.createElement('div', { style: { position: 'absolute', left: 24, top: 'calc(18px + env(safe-area-inset-top))', fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--accent-hi)', animation: 'wordsIn .8s ease .3s both' } }, React.createElement('span', { 'aria-hidden': 'true' }, '\u2726 '), 'Twilyte'),
     React.createElement('div', {
       style: { position: 'absolute', left: 24, right: 24, bottom: 'calc(40px + env(safe-area-inset-bottom))', maxWidth: 560, margin: '0 auto', animation: 'wordsIn .9s ease 1s both' }
     },
       React.createElement('p', { 'aria-live': 'polite', style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(30px, 7.5vw, 44px)', lineHeight: 1.08, color: C.ink, margin: '0 0 22px', textWrap: 'balance' } }, line),
       React.createElement('button', {
-        ref: btnRef, onClick: () => close(false),
+        ref: btnRef, onClick: () => close(!!standIn),
         style: { display: 'inline-flex', alignItems: 'center', gap: 10, padding: '13px 22px', borderRadius: 999, border: 0, cursor: 'pointer', background: 'var(--accent)', color: 'var(--on-accent)', fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 650 }
-      }, 'Show me tonight', React.createElement('span', { 'aria-hidden': 'true' }, '\u2192')),
+      }, standIn ? 'Choose your place' : 'Show me tonight', React.createElement('span', { 'aria-hidden': 'true' }, '\u2192')),
       React.createElement('button', {
-        onClick: () => close(true),
+        onClick: () => close(!standIn), className: 'tw-hit',
         style: { display: 'block', marginTop: 14, padding: 0, border: 0, background: 'none', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 13.5, color: 'rgba(238,241,250,.7)', textDecoration: 'underline', textUnderlineOffset: 3 }
-      }, 'Not here? Choose your place')
+      }, standIn ? `See ${standIn}\u2019s sky for now` : 'Not here? Choose your place')
     )
   ), document.body);
 }
-function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, darkness }) {
+function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, locating, onIntroDone, twilight, corner, darkness, standIn }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
   const groundRef = useRef(null);
@@ -4906,7 +5345,25 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   const headerRef = useRef(null);
   const cornerRef = useRef(null);
   const wrapRef = useRef(null);
+  const wordsRef = useRef(null);
   const [width, setWidth] = useState(390);
+  // The words over the painting and the corner button, measured: both grow
+  // with larger text, and the painting and the place name make room.
+  const [wordsH, setWordsH] = useState(0);
+  const [cornerW, setCornerW] = useState(0);
+  useEffect(() => {
+    const wd = wordsRef.current, cn = cornerRef.current;
+    const measure = () => {
+      if (wd) setWordsH(Math.ceil(wd.offsetHeight));
+      if (cn) setCornerW(Math.ceil(cn.offsetWidth));
+    };
+    measure();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(measure);
+    if (wd) ro.observe(wd);
+    if (cn) ro.observe(cn);
+    return () => ro.disconnect();
+  }, []);
   const [catalog, setCatalog] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -4947,7 +5404,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   // times follow the 12/24-hour setting at once, not ten minutes later.
   const hlSpan = plan || { start: tenMin * 600000, end: tenMin * 600000 + 24 * 3600000 };
   const highlights = useMemo(() => tonightHighlights(hlSpan, loc.lat, loc.lon, bortle, fmt,
-    issSat ? issPasses(issSat, Math.max(hlSpan.start, Date.now()), hlSpan.end, loc.lat, loc.lon) : null, kpRows),
+    issSat ? issPasses(issSat, Math.max(hlSpan.start, Date.now()), hlSpan.end, loc.lat, loc.lon) : null, kpRows, Date.now()),
     [plan, tenMin, loc.lat, loc.lon, bortle, loc.tz, issSat, kpRows, prefStore.getH24()]);
   // Planets worth a look tonight: those up once it's dark, or now if later.
   const planetsTonight = useMemo(() => {
@@ -4980,7 +5437,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         .filter(p => p.alt > 0)
     };
   }, [minute, loc.lat, loc.lon, catalog, live]);
-  const H = heroHeight(width);
+  const { H, hy } = heroFit(width, wordsH);
   const facing = heroFacing(loc.lat, live.m);
   // No Milky Way in the painting (owner, 2026-10-02): a soft grey band, a
   // warmer textured one and a sharp grainy one were all tried that day, and
@@ -4992,7 +5449,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
   // What the animation loop reads each frame; refreshed every render, so the
   // loop itself never restarts.
   const motion = useRef(null);
-  motion.current = { stars: scene.stars.filter(s => s.mag <= TWINKLE_MAG), facing, moon: live.m, rate, w: width, H };
+  motion.current = { stars: scene.stars.filter(s => s.mag <= TWINKLE_MAG), facing, moon: live.m, rate, w: width, H, hy };
   useEffect(() => {
     const cv = canvasRef.current;
     if (!cv) return;
@@ -5022,7 +5479,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     const o = {
       sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m,
       facing, stars: scene.stars, planets: scene.planets,
-      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight
+      bortle, lat: loc.lat, lon: loc.lon, reserve, reserveRight, hy
     };
     const gc = groundRef.current;
     if (still || !gc) { drawHorizonScene(g, width, H, o); return; }
@@ -5034,7 +5491,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     g2.setTransform(dpr, 0, 0, dpr, HERO_BLEED * dpr, 0);
     drawHorizonScene(g2, width, H, Object.assign({}, o, { part: 'ground', bleed: HERO_BLEED }));
     if (animRef.current) size(animRef.current, width, H);
-  }, [width, H, scene, live, bortle, loc.lat, loc.lon, loc.name, still]);
+  }, [width, H, hy, scene, live, bortle, loc.lat, loc.lon, loc.name, still, cornerW]);
 
   /* The moving layer: twinkling, meteors at the rate meteorRate gives, and
      the ground sliding a few px as the phone tilts, like a view through a
@@ -5066,26 +5523,37 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       const m = motion.current, t = ts / 1000;
       tilt.x += (tilt.tx - tilt.x) * 0.1; tilt.y += (tilt.ty - tilt.y) * 0.1;
       gd.style.transform = `translate3d(${tilt.x.toFixed(2)}px,${tilt.y.toFixed(2)}px,0)`;
-      if (ts - last >= 33) { // ~30 frames a second is plenty for a twinkle
+      if (skyFrameDue(last, ts, meteors.length)) {
         const dt = last ? Math.min(0.25, (ts - last) / 1000) : 0;
         last = ts;
         if (m.rate.total > 0 && Math.random() < m.rate.total / 3600 * dt) {
-          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, heroHorizon(m.H), m.facing), { t0: t }));
+          meteors.push(Object.assign(newMeteor(Math.random, m.rate, m.w, m.hy, m.facing), { t0: t }));
         }
         meteors = meteors.filter(x => t - x.t0 < x.dur);
         const dpr = cv.width / m.w;
         const g = cv.getContext('2d');
         g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawSkyMotion(g, m.w, m.H, { stars: m.stars, facing: m.facing, moon: m.moon, meteors }, t);
+        drawSkyMotion(g, m.w, m.H, { stars: m.stars, facing: m.facing, moon: m.moon, meteors, hy: m.hy }, t);
       }
       schedule();
     };
     const schedule = () => {
-      if (raf || timer || !onScreen || document.hidden) return;
+      if (raf || !onScreen || document.hidden) return;
       const m = motion.current;
-      const moving = m.stars.length || meteors.length || m.rate.total > 0 ||
-        Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
-      if (moving) raf = requestAnimationFrame(frame);
+      // The ground follows a tilt every frame, as smoothly as before; the
+      // sky's own frames are paced (skyFrameWait), each a timer and then one
+      // frame, rather than asking for every frame the screen has and
+      // drawing on every other one: that kept the main thread busy all night
+      // (2026-10-21).
+      const tilting = Math.abs(tilt.tx - tilt.x) > 0.05 || Math.abs(tilt.ty - tilt.y) > 0.05;
+      if (tilting) {
+        if (timer) { clearTimeout(timer); timer = 0; }
+        raf = requestAnimationFrame(frame);
+        return;
+      }
+      if (timer) return;
+      const moving = m.stars.length || meteors.length || m.rate.total > 0;
+      if (moving) timer = setTimeout(() => { timer = 0; if (onScreen && !document.hidden) raf = requestAnimationFrame(frame); }, skyFrameWait(last, performance.now(), meteors.length));
       else {
         // Daytime, no tilt: clear what was drawn, then check back in a second.
         if (last) { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); last = 0; }
@@ -5146,18 +5614,18 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
       // Kept clear of the corner button: a long place name ran under it at
       // 375 px ("Cape Town, South Africa"), and its covered end opened the
       // almanac instead of the picker (review, 2026-10-10).
-      header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto', paddingRight: corner ? 132 : 0, boxSizing: 'border-box' } }, header),
+      header && React.createElement('div', { ref: headerRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto', paddingRight: corner ? Math.max(132, cornerW + 19) : 0, boxSizing: 'border-box' } }, header),
       corner && React.createElement('div', {
         style: { position: 'absolute', left: pad, right: pad, top: 14, maxWidth: 1080, margin: '0 auto', display: 'flex', justifyContent: 'flex-end', pointerEvents: 'none' }
       }, React.createElement('div', { ref: cornerRef, style: { pointerEvents: 'auto' } }, corner)),
       React.createElement('div', {
         // Changes on its own as twilight advances, rarely enough that
         // announcing it is useful rather than noisy.
-        role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
+        ref: wordsRef, role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
         style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto' }
       },
         React.createElement('div', {
-          style: { fontFamily: 'var(--font-ui)', fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(238,241,250,.72)', fontVariantNumeric: 'tabular-nums' }
+          style: { fontFamily: 'var(--font-ui)', fontSize: 11.5, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(var(--sky-ink-rgb),.72)', fontVariantNumeric: 'tabular-nums' }
         }, heroLabel(plan, now, live.alt, fmt)),
         React.createElement('h2', {
           style: { fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'clamp(32px, 8vw, 46px)', lineHeight: 1.02, margin: '4px 0 6px', color: C.ink, textWrap: 'balance' }
@@ -5169,7 +5637,8 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
     ),
     panel || null,
     intro && React.createElement(WelcomeSky, {
-      line: welcomeLine(loc, locating), onDone: onIntroDone,
+      line: welcomeLine(loc, locating, standIn), onDone: onIntroDone,
+      standIn: standIn && !locating ? loc.name.split(',')[0] : null,
       o: {
         sky: live.sky, sunAlt: live.alt, sun: scene.sun, moon: live.m, facing, stars: scene.stars,
         planets: scene.planets, bortle, lat: loc.lat, lon: loc.lon
@@ -5185,7 +5654,7 @@ function HorizonHero({ loc, now, live, glance, bortle, header, panel, intro, loc
         React.createElement('button', {
           className: 'rtbtn', onClick: share, disabled: shareMsg === 'Making the picture\u2026',
           style: { fontSize: 13, padding: '9px 16px' }
-        }, '\u2197 Share tonight\u2019s sky'),
+        }, React.createElement('span', { 'aria-hidden': 'true' }, '\u2197 '), 'Share tonight\u2019s sky'),
         shareMsg && React.createElement('span', { role: 'status', style: { fontFamily: 'var(--font-ui)', fontSize: 12.5, color: C.inkDim } }, shareMsg))
     )
   );
@@ -5283,8 +5752,17 @@ function RealtimeTwilight({ redMode } = {}) {
   const searchSeq = useRef(0);
   const [wx, setWx] = useState(null);
   // When the forecast shown is an older saved one (offline, or Open-Meteo
-  // down), when it was fetched; null when it is current.
+  // down), when it was fetched and how far away (`{ t, km }`); null when it
+  // is current.
   const [wxStale, setWxStale] = useState(null);
+  // Why there's no forecast at all once a fetch has failed ('offline' or
+  // 'failed'); null while one is shown or the first is still on its way.
+  const [wxNone, setWxNone] = useState(null);
+  // The saved place, when the quiet try on opening found no fix.
+  const [geoMiss, setGeoMiss] = useState(null);
+  const [coordLat, setCoordLat] = useState("");
+  const [coordLon, setCoordLon] = useState("");
+  const [coordMsg, setCoordMsg] = useState("");
   const wxSeq = useRef(0);
   const wxKey = useRef(null);
   const [saved, setSaved] = React.useState(() => {
@@ -5323,12 +5801,12 @@ function RealtimeTwilight({ redMode } = {}) {
     }));
   };
   const factCorner = React.createElement("button", {
-    onClick: jumpToFact,
-    "aria-label": "A twilight fact from the almanac",
+    onClick: jumpToFact, className: "tw-hit",
+    "aria-label": "Twilight fact, from the almanac",
     title: "A Twilight Almanac",
     style: {
       display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "6px 12px",
-      borderRadius: 999, border: "1px solid rgba(238,241,250,.28)", background: "rgba(8,10,20,.42)",
+      borderRadius: 999, border: "1px solid rgba(var(--sky-ink-rgb),.28)", background: "rgba(8,10,20,.42)",
       color: C.ink, fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, cursor: "pointer",
       backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", textShadow: "0 1px 6px rgba(3,5,12,.8)"
     }
@@ -5339,11 +5817,22 @@ function RealtimeTwilight({ redMode } = {}) {
     setSaved(next);
     try { localStorage.setItem('tw_saved', JSON.stringify(next)); } catch(e) {}
   };
+  // The Console's clock ticks once a minute, just after the minute turns,
+  // so every hh:mm on it changes on time; the countdown keeps its own
+  // seconds (TwilightCountdown). Every second, this re-rendered the whole
+  // Console for one line (2026-10-21). Back from the background it catches
+  // up at once rather than at the next minute.
   useEffect(() => {
-    tick.current = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick.current);
+    const arm = () => { tick.current = setTimeout(() => { setNow(Date.now()); arm(); }, 60000 - Date.now() % 60000 + 50); };
+    arm();
+    const onVis = () => { if (document.visibilityState === 'visible') setNow(Date.now()); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearTimeout(tick.current); document.removeEventListener('visibilitychange', onVis); };
   }, []);
   React.useEffect(() => {
+    // Boston standing in isn't anyone's place, so it isn't saved: the next
+    // launch asks for the device's position again, out loud.
+    if (loc === PRESETS[0]) return;
     try { localStorage.setItem('tw_loc', JSON.stringify(loc)); } catch(e) {}
   }, [loc]);
   // `quiet` (strictly true: a click passes an event) is the automatic try
@@ -5360,6 +5849,7 @@ function RealtimeTwilight({ redMode } = {}) {
     quiet = quiet === true;
     const seq = ++geoSeq.current;
     geoAuto.current = auto === true;
+    if (!quiet) setGeoMiss(null);
     if (!canLocate()) {
       if (quiet) return;
       setGeoMsg("Geolocation unavailable — enter a ZIP code or pick a city below.");
@@ -5367,7 +5857,7 @@ function RealtimeTwilight({ redMode } = {}) {
       return;
     }
     if (!quiet) setGeoMsg("Locating…");
-    getPosition(p => {
+    locate(p => {
       if (seq !== geoSeq.current) return;
       geoAuto.current = false;
       setLoc({
@@ -5378,16 +5868,16 @@ function RealtimeTwilight({ redMode } = {}) {
       });
       setGeoMsg("");
       setPickerOpen(false);
-    }, () => {
+    }, err => {
       if (seq !== geoSeq.current) return;
       geoAuto.current = false;
-      if (quiet) return;
-      setGeoMsg("Couldn't get precise location — enter a ZIP code or pick a city below.");
+      // Quietly, a refusal keeps the saved place without a word (the
+      // person's choice); no fix says so under the painting, since the sky
+      // shown may be home's, not the dark site's (offline review, v164).
+      if (quiet) { if (!(err && err.code === 1)) setGeoMiss(loc); return; }
+      setGeoMsg(geoFailWords(err, appShell()));
       setPickerOpen(true);
-    }, {
-      timeout: 8000,
-      enableHighAccuracy: false
-    });
+    }, auto !== true);
   };
   useEffect(() => {
     // A shared link's place stays put; a saved place is tried quietly.
@@ -5406,7 +5896,9 @@ function RealtimeTwilight({ redMode } = {}) {
       setSearchMsg(list.length === 0 ? "No matches \u2014 try another spelling." : "");
       setResults(list);
     } catch (e) {
-      if (seq === searchSeq.current) setSearchMsg("Couldn't search \u2014 check your connection.");
+      if (seq === searchSeq.current) setSearchMsg(netWhy(e, navigator.onLine) === 'offline'
+        ? "Search needs a connection. Enter latitude and longitude below instead."
+        : "Couldn't search \u2014 check your connection.");
     }
     if (seq === searchSeq.current) setSearchBusy(false);
   };
@@ -5414,6 +5906,13 @@ function RealtimeTwilight({ redMode } = {}) {
     dropFix();
     setLoc({ name: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
     setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg(""); setPickerOpen(false);
+  };
+  // Typed coordinates: the way to set a place with no connection.
+  const useCoords = () => {
+    const r = coordsPlace(coordLat, coordLon);
+    if (!r.place) { setCoordMsg(r.msg); return; }
+    setCoordLat(""); setCoordLon(""); setCoordMsg("");
+    pickPlace(r.place);
   };
   const dKey = dateKey(now, loc.tz);
   // The clock/countdown need per-second `now`, but the heavy astronomical
@@ -5435,8 +5934,8 @@ function RealtimeTwilight({ redMode } = {}) {
     const seq = ++wxSeq.current;
     // A new place shows no forecast until its own arrives, not the last
     // place's sunset colour and week under the new name.
-    if (wxKey.current !== key) { wxKey.current = key; setWx(null); setWxStale(null); }
-    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); return; }
+    if (wxKey.current !== key) { wxKey.current = key; setWx(null); setWxStale(null); setWxNone(null); }
+    if (wxCacheUse(cached, Date.now()) === 'fresh') { setWx(wxOf(cached.d)); setWxStale(null); setWxNone(null); return; }
     // Two more points, 150 km toward the next sunset and sunrise, for the
     // colour of each.
     const west = pointToward(loc.lat, loc.lon, horizonBearing(loc.lat, loc.lon, Date.now(), "down"), 150);
@@ -5448,6 +5947,7 @@ function RealtimeTwilight({ redMode } = {}) {
         if (seq !== wxSeq.current) return;
         setWx(wxOf(d));
         setWxStale(null);
+        setWxNone(null);
         try {
           localStorage.setItem(key, JSON.stringify({ t: Date.now(), d }));
           // Prune stale per-location entries (e.g. from earlier searched
@@ -5462,12 +5962,16 @@ function RealtimeTwilight({ redMode } = {}) {
       })
       // Offline, or the forecast service down: a saved forecast up to a day
       // old still covers tonight (it runs 8 days ahead), so show that, said
-      // to be older, rather than nothing.
+      // to be older, rather than nothing; the nearest within 25 km, since
+      // the dark site is rarely the very spot it was fetched for. With none,
+      // say so.
       .catch(err => {
         try { noteSource(localStorage, 'openmeteo', err); } catch (e) {}
         if (seq !== wxSeq.current) return;
-        if (wxCacheUse(cached, Date.now())) { setWx(wxOf(cached.d)); setWxStale(cached.t); }
-        else { setWx(null); setWxStale(null); }
+        let near = null;
+        try { near = nearestWx(wxSaved(localStorage), Date.now(), loc.lat, loc.lon); } catch (e) {}
+        if (near) { setWx(wxOf(near.c.d)); setWxStale({ t: near.c.t, km: near.km }); setWxNone(null); }
+        else { setWx(null); setWxStale(null); setWxNone(netWhy(err, navigator.onLine)); }
       });
   }, [loc.lat, loc.lon, hourKey]);
   // Auto light-pollution estimate: recompute whenever the location changes
@@ -5515,10 +6019,22 @@ function RealtimeTwilight({ redMode } = {}) {
     };
   }, [minute, loc.lat, loc.lon, bortle]);
   const wxWeek = useMemo(() => pro ? weekOutlook(wx, loc, bortle, now) : [], [wx, hourKey, bortle, loc.lat, loc.lon, pro]);
+  // A saved forecast's age, and where it's for when that isn't here; said
+  // on the twilight section's forecast line and in the week planner.
+  const wxNote = wx && wxStale ? staleNote(wxStale.t, now, wxStale.km) : null;
   // Two days ahead, so the next stage is found after the day's last one too
   // (the old midnight-to-midnight scan had none from astronomical dusk on).
   const sunAhead = useMemo(() => scanCrossings(now - 60000, now + 48 * 3600000, loc.lat, loc.lon, sunAltitude, SUN_THR, 2), [minute, loc.lat, loc.lon]);
   const nextSunEv = sunAhead.find(e => e.t > now);
+  // And it wakes as the next stage passes, so the countdown hands on to the
+  // one after, the headline moves on and the day's times dim at once, not
+  // at the next minute.
+  const nextStageAt = nextSunEv ? nextSunEv.t : null;
+  useEffect(() => {
+    if (nextStageAt === null) return;
+    const id = setTimeout(() => setNow(Date.now()), Math.max(0, nextStageAt - Date.now()) + 250);
+    return () => clearTimeout(id);
+  }, [nextStageAt]);
   // The next sunset: its colour from the cloud forecast, and a calendar
   // event with a reminder half an hour before.
   const sunset = useMemo(() => {
@@ -5544,9 +6060,11 @@ function RealtimeTwilight({ redMode } = {}) {
   const saveICS = (text, name) => saveFile(name, text, "text/calendar");
   // Calendar events with a reminder: the next sunset and sunrise, soonest first.
   const reminders = [
-    sunset && { kind: "sunset", t: sunset.t, label: "Add sunset to calendar", aria: "Add " + (sunset.when === "today" ? "tonight" : "tomorrow") + "\u2019s sunset to your calendar",
+    // The name starts with the words on the button, so Voice Control's
+    // "tap Add sunset to calendar" finds it (WCAG 2.5.3).
+    sunset && { kind: "sunset", t: sunset.t, label: "Add sunset to calendar", aria: "Add sunset to calendar, " + (sunset.when === "today" ? "tonight" : "tomorrow") + " at " + fmtT(sunset.t, loc.tz),
       onClick: () => saveICS(sunsetICS(sunset, loc.name, Date.now(), t => fmtT(t, loc.tz)), "sunset.ics") },
-    sunrise && { kind: "sunrise", t: sunrise.t, label: "Add sunrise to calendar", aria: "Add " + (sunrise.when === "today" ? "this morning" : "tomorrow") + "\u2019s sunrise to your calendar",
+    sunrise && { kind: "sunrise", t: sunrise.t, label: "Add sunrise to calendar", aria: "Add sunrise to calendar, " + (sunrise.when === "today" ? "this morning" : "tomorrow") + " at " + fmtT(sunrise.t, loc.tz),
       onClick: () => saveICS(sunriseICS(sunrise, loc.name, Date.now(), t => fmtT(t, loc.tz)), "sunrise.ics") }
   ].filter(Boolean).sort((a, b) => a.t - b.t);
   // Today's times while any are still to come; after the last, tomorrow's.
@@ -5555,8 +6073,10 @@ function RealtimeTwilight({ redMode } = {}) {
     if (twToday.some(e => e.t > now)) return { when: "today", ...twilightDay(twToday, now) };
     const mid = localMidnight(loc.tz, day.mid + 36 * 3600000);
     return { when: "tomorrow", ...twilightDay(twilightDayEvents(mid, loc.lat, loc.lon), now) };
-  }, [twToday, minute, loc.lat, loc.lon, loc.tz]);
-  const glance = tonightGlance(live);
+  }, [twToday, minute, nextStageAt, loc.lat, loc.lon, loc.tz]);
+  // The dark hours ahead against the forecast, for the headline's words.
+  const wxTonight = useMemo(() => clearDarkScore(wx, loc, bortle, now), [wx, hourKey, bortle, loc.lat, loc.lon]);
+  const glance = tonightGlance(live, wxTonight);
   const bgStars = useMemo(() => Array.from({ length: 70 }, () => ({
     top: Math.random() * 100,
     left: Math.random() * 100,
@@ -5569,14 +6089,14 @@ function RealtimeTwilight({ redMode } = {}) {
     @keyframes twk{0%,100%{opacity:var(--o)}50%{opacity:calc(var(--o)*.45)}}
     .twk{animation:twk var(--d) ease-in-out infinite}
     *{box-sizing:border-box}
-    .rtbtn{font-family:var(--font-ui);font-size:12px;font-weight:500;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s}
+    .rtbtn{font-family:var(--font-ui);font-size:calc(12px * var(--ts, 1));font-weight:500;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid var(--btn-border);background:transparent;color:var(--btn-ink);transition:background .15s,color .15s,border-color .15s}
     .rtbtn:hover{background:var(--btn-fill);border-color:var(--accent);color:var(--accent-hi)}
-    .rtbtn.solid{background:var(--btn-fill);border-color:rgba(210,160,77,.4);color:var(--accent-hi);font-weight:550}
+    .rtbtn.solid{background:var(--btn-fill);border-color:rgba(var(--accent-rgb),.4);color:var(--accent-hi);font-weight:550}
     .rtbtn.solid:hover{background:var(--btn-fill-hi);border-color:var(--accent-hi)}
     @media (max-width:780px){
     }
     @media (max-width:520px){
-      .rtbtn{font-size:12px;padding:9px 14px}
+      .rtbtn{font-size:calc(12px * var(--ts, 1));padding:9px 14px}
       .rt-readouts{gap:12px !important}
       .rt-readouts>div{flex:1 1 30% !important;min-width:0 !important}
       .rt-ziprow input{flex:1 1 auto;width:auto !important}
@@ -5589,9 +6109,7 @@ function RealtimeTwilight({ redMode } = {}) {
   const darkenTo = (c, k) => lerpC(c, "#04050c", k);
   // Live sky glow only once the sun is at/below the horizon (twilight & night);
   // by day, keep the original dark background for full contrast.
-  const pageBg = redMode
-    ? "radial-gradient(120% 80% at 50% -10%, var(--bg-glow) 0%, var(--bg) 55%)"
-    : PAGE_BG;
+  const pageBg = redMode ? RED_PAGE_BG : PAGE_BG;
   // The place, as the header of the painting: tap it to change it. The
   // panel it opens sits right under the painting, where the tap was.
   const togglePicker = () => {
@@ -5600,9 +6118,25 @@ function RealtimeTwilight({ redMode } = {}) {
     setPickerOpen(open);
     if (!open) { setResults([]); setQuery(""); setSearchMsg(""); }
   };
+  // Boston, standing in while there's no fix and no saved place: the
+  // header calls it an example rather than claim it's this person's sky.
+  const standIn = loc === PRESETS[0];
+  // Escape closes the picker, and focus goes back to the place that opened it.
+  const placeBtnRef = useRef(null);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onKey = e => {
+      if (e.key !== "Escape") return;
+      togglePicker();
+      if (placeBtnRef.current) placeBtnRef.current.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pickerOpen]);
   // The place is the Console's heading: what a screen reader lists first.
   const placeHeader = React.createElement("div", null,
     React.createElement("h1", { style: { margin: 0, font: "inherit" } }, React.createElement("button", {
+      ref: placeBtnRef,
       onClick: togglePicker,
       "aria-expanded": pickerOpen,
       "aria-controls": "rt-place-panel",
@@ -5615,13 +6149,13 @@ function RealtimeTwilight({ redMode } = {}) {
         letterSpacing: "-0.015em", lineHeight: 1.1, textAlign: "left",
         textShadow: "0 1px 10px rgba(3,5,12,.85)"
       }
-    }, loc.name,
+    }, loc.name, standIn ? " (example)" : null,
       React.createElement("svg", { "aria-hidden": "true", width: 14, height: 14, viewBox: "0 0 14 14", style: { flexShrink: 0, transform: pickerOpen ? "rotate(180deg)" : "none", transition: "transform .15s" } },
         React.createElement("path", { d: "M2.5 5l4.5 4.5L11.5 5", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" }))
     )),
     React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
-    }, fmtDate(now, loc.tz), " \xB7 ", new Intl.DateTimeFormat([], {
+      style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(var(--sky-ink-rgb),.78)", fontVariantNumeric: "tabular-nums", textShadow: "0 1px 8px rgba(3,5,12,.9)" }
+    }, fmtDate(now, loc.tz), " \xB7 ", dtf([], {
       timeZone: loc.tz, hour: "numeric", minute: "2-digit", hourCycle: h24 ? "h23" : "h12"
     }).format(new Date(now)), geoMsg && !pickerOpen ? " \xB7 " + geoMsg : "")
   );
@@ -5691,7 +6225,7 @@ function RealtimeTwilight({ redMode } = {}) {
       padding: "9px 12px",
       borderRadius: 10,
       border: `1px solid ${C.line}`,
-      background: "#0a0f1c",
+      background: "var(--pick-field)",
       color: C.ink,
       outline: "none"
     }
@@ -5706,7 +6240,7 @@ function RealtimeTwilight({ redMode } = {}) {
     style: {
       fontFamily: "var(--font-ui)",
       fontSize: 11,
-      color: searchMsg.includes("…") ? C.inkDim : "#c99"
+      color: searchMsg.includes("…") ? C.inkDim : "var(--ink-warn)"
     }
   }, searchMsg)), results.length > 0 && React.createElement("div", {
     style: {
@@ -5729,7 +6263,32 @@ function RealtimeTwilight({ redMode } = {}) {
       background: "rgba(255,255,255,0.03)",
       cursor: "pointer"
     }
-  }, p.label)))));
+  }, p.label)))),
+  React.createElement("div", { style: { marginTop: 14 } },
+    React.createElement("div", {
+      style: { fontFamily: "var(--font-ui)", fontSize: 10, letterSpacing: 2, color: C.brass, textTransform: "uppercase", marginBottom: 7 }
+    }, "Latitude and longitude"),
+    React.createElement("div", { className: "rt-ziprow", style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+      [["Latitude", coordLat, setCoordLat], ["Longitude", coordLon, setCoordLon]].map(([label, value, set]) =>
+        React.createElement("input", {
+          key: label, value, placeholder: label, "aria-label": label,
+          autoComplete: "off", autoCapitalize: "off", spellCheck: false,
+          onChange: e => { set(e.target.value); setCoordMsg(""); },
+          onKeyDown: e => { if (e.key === "Enter") useCoords(); },
+          style: { fontFamily: "var(--font-ui)", fontSize: 15, flex: "1 1 130px", minWidth: 0, padding: "9px 12px", borderRadius: 10, border: `1px solid ${C.line}`, background: "var(--pick-field)", color: C.ink, outline: "none" }
+        })),
+      React.createElement("button", { className: "rtbtn solid", onClick: useCoords }, "Use these")),
+    React.createElement("div", {
+      role: coordMsg ? "alert" : undefined,
+      style: { fontFamily: "var(--font-ui)", fontSize: 11, color: coordMsg ? "var(--ink-warn)" : C.inkFaint, marginTop: 7 }
+    }, coordMsg || "Like 38.57 and -109.55. Times are in this device’s time zone.")));
+  // When the try on opening with a saved place found no fix: said under
+  // the painting, with a way to try again (offline review, v164).
+  const geoNote = geoMiss && geoMiss === loc && React.createElement("div", {
+    role: "status",
+    style: { maxWidth: 1080, margin: "0 auto 18px", display: "flex", alignItems: "center", gap: "8px 12px", flexWrap: "wrap", fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.inkDim }
+  }, React.createElement("span", null, geoMissWords(loc)),
+    React.createElement("button", { className: "rtbtn", onClick: () => useMyLocation() }, "Try again"));
   return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -5758,21 +6317,21 @@ function RealtimeTwilight({ redMode } = {}) {
       width: s.s,
       height: s.s,
       borderRadius: "50%",
-      background: "#dfe6ff",
+      background: "var(--star-dot)",
       opacity: s.o,
       animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
     }
   }))),
   React.createElement(HorizonHero, {
-    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel,
-    intro, locating: geoMsg === "Locating\u2026",
+    loc, now, live, glance, bortle, header: placeHeader, panel: placePanel || geoNote,
+    intro, locating: geoMsg === "Locating\u2026", standIn,
     // Twilight right under the painting's facts, before the highlights
     // (2026-09-25; the next stage and the day's times had been at the foot
     // of the page).
     twilight: React.createElement(TwilightToday, {
       next: nextSunEv, now, sched: twSched, fmt: t => fmtT(t, loc.tz), sunUp: live.alt > -0.833,
       onMore: () => goTab("ephemeris"),
-      glows, reminders, stale: wx && wxStale ? staleNote(wxStale, now) : null
+      glows, reminders, stale: wxNote, noWx: wxNone ? noWxWords(wxNone, 'twilight') : null
     }),
     // How dark this place's sky is, right under tonight's ribbon and facts
     // (2026-09-29: the owner's original idea for this spot; it replaced the
@@ -5789,7 +6348,7 @@ function RealtimeTwilight({ redMode } = {}) {
     }
   }),
   (ALERTS_LIVE || /[?&]alerts=1\b/.test(window.location.search)) && React.createElement(ClearAlerts, { loc, h24 }),
-  weekPlannerEl(wxWeek, loc, h24, pro),
+  weekPlannerEl(wxWeek, loc, h24, pro, wxNote, wxNone ? noWxWords(wxNone, 'week') : null),
   React.createElement("section", {
     ref: factRef,
     tabIndex: -1,
@@ -5833,7 +6392,8 @@ function RealtimeTwilight({ redMode } = {}) {
     },
     onClick: nextFact,
     disabled: fact === "loading"
-  }, fact === null || fact === "loading" || fact === "error" ? "✦ Tell me a twilight fact" : "↻ Another fact")), React.createElement("div", {
+  }, React.createElement("span", { "aria-hidden": "true" }, fact === null || fact === "loading" || fact === "error" ? "✦ " : "↻ "),
+    fact === null || fact === "loading" || fact === "error" ? "Tell me a twilight fact" : "Another fact")), React.createElement("div", {
     style: {
       marginTop: 20
     },
@@ -5849,6 +6409,7 @@ function RealtimeTwilight({ redMode } = {}) {
       fontStyle: "italic"
     }
   }, React.createElement("span", {
+    "aria-hidden": "true",
     style: {
       fontSize: 28,
       opacity: .7
@@ -5884,7 +6445,7 @@ function RealtimeTwilight({ redMode } = {}) {
       fontFamily: "var(--font-body)",
       fontSize: 16.5,
       lineHeight: 1.62,
-      color: "#d7cfb8",
+      color: "var(--ink-prose)",
       maxWidth: 760,
       margin: 0
     }
@@ -6040,6 +6601,8 @@ const ALT = {
 // with the Sun's place at the event's own time (2026-09-25). With noon's
 // alone, an evening in the Americas was worked out with a Sun ten hours
 // stale: Boston's sunset 50 seconds late, and minutes far north.
+// Then on to the crossing of the Console's own Sun (`refineCrossing`), so
+// the two tabs give the same minute (2026-10-21).
 function sunEvent(lat, lon, p, a, r) {
   let e = eventUTC(lat, lon, p, a, r);
   for (let k = 0; k < 2 && e.utc !== undefined; k++) {
@@ -6047,7 +6610,9 @@ function sunEvent(lat, lon, p, a, r) {
     if (e2.utc === undefined) break;
     e = e2;
   }
-  return e;
+  if (e.utc === undefined) return e;
+  const day = Date.UTC(p.y, p.m - 1, p.d);
+  return { utc: (refineCrossing(day + e.utc * 60000, a, lat, lon, sunAltitude) - day) / 60000 };
 }
 function computeDay(lat, lon, y, m, d) {
   const p = solarParams(y, m, d);
@@ -6250,7 +6815,7 @@ function MoonMonth({ days, Y, Mo, D, south, onPick }) {
       key: d.day, onClick: () => onPick && onPick(d.day), 'aria-label': label, 'aria-pressed': d.day === D,
       style: {
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '6px 0 5px', cursor: 'pointer',
-        background: 'none', border: 0, borderRadius: 9, boxShadow: d.day === D ? 'inset 0 0 0 1px rgba(210,160,77,.7)' : 'none',
+        background: 'none', border: 0, borderRadius: 9, boxShadow: d.day === D ? 'inset 0 0 0 1px rgba(var(--accent-rgb),.7)' : 'none',
         color: 'var(--ink)', font: '550 11.5px var(--font-ui)', fontVariantNumeric: 'tabular-nums'
       }
     },
@@ -6422,8 +6987,12 @@ function TwilightEphemeris({ redMode } = {}) {
     // "Today" is the new place's today: it can already be tomorrow there.
     if (isToday) setDateStr(dateKey(Date.now(), p.tz));
     setResults([]); setQuery(""); setSearchMsg(""); setGeoMsg("");
-    // On a phone the form sits below the answer; go back up to it.
-    try { if (window.matchMedia("(max-width:780px)").matches) window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
+    // On a phone the form sits below the answer; go back up to it, at once
+    // for anyone who has asked for less motion.
+    try {
+      if (window.matchMedia("(max-width:780px)").matches)
+        window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    } catch (e) {}
   }
 
   /* ---------- export ---------- */
@@ -6640,6 +7209,9 @@ function TwilightEphemeris({ redMode } = {}) {
   const ink = "var(--ink)",
     dim = "var(--ink-dim)",
     gold = "var(--accent)";
+  // The dots beside the times key the chart's colours, so in red light mode
+  // they go through the same red film as the chart.
+  const dotColor = c => redMode ? redFilm(c) : c;
   const panel = {
     borderTop: "1px solid var(--line)"
   };
@@ -6754,7 +7326,7 @@ function TwilightEphemeris({ redMode } = {}) {
   const eclipseSection = valid && eclipses && eclipses.length > 0 && React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase", marginBottom: 6 } }, "Eclipses"),
+    React.createElement("h2", { style: { margin: "0 0 6px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase" } }, "Eclipses"),
     // The ones that can be seen from here, open; the rest behind a fold
     // (2026-09-25: three of four usually read "Not seen from here").
     (() => {
@@ -6829,7 +7401,7 @@ function TwilightEphemeris({ redMode } = {}) {
   const eValid = !redMode && isFinite(eLat) && isFinite(eLon) && Math.abs(eLat) <= 90 && Math.abs(eLon) <= 180;
   const eAlt = eValid ? sunAltitude(new Date(), eLat, eLon) : 0;
   const eSky = (eValid && eAlt <= 0) ? skyColors(eAlt) : null;
-  const pageBg = eSky
+  const pageBg = redMode ? RED_PAGE_BG : eSky
     ? `radial-gradient(1200px 760px at 75% -12%, ${lerpC(eSky.h, "#04050c", 0.5)} 0%, ${lerpC(eSky.m, "#04050c", 0.66)} 28%, var(--bg) 60%, #05060f 100%)`
     : PAGE_BG;
   // Place and date, a day at a time either way: the usual next question is
@@ -6847,7 +7419,7 @@ function TwilightEphemeris({ redMode } = {}) {
       // The place is the way to change it, as on the Console: tap for the
       // search, coordinates, date and time zone.
       React.createElement("button", {
-        onClick: () => setFormOpen(o => !o), "aria-expanded": formOpen, "aria-controls": "te-form",
+        onClick: () => setFormOpen(o => !o), "aria-expanded": formOpen, "aria-controls": "te-form", className: "tw-hit",
         style: { display: "inline-flex", alignItems: "baseline", gap: 8, padding: 0, border: 0, background: "none", cursor: "pointer", font: "650 clamp(22px,5vw,30px) var(--font-ui)", color: ink, letterSpacing: "-0.01em", textAlign: "left" }
       },
         placeName || (valid ? `${latN.toFixed(2)}\u00B0, ${lonN.toFixed(2)}\u00B0` : "Enter a place"),
@@ -6855,12 +7427,12 @@ function TwilightEphemeris({ redMode } = {}) {
       React.createElement("div", { style: { font: "13px var(--font-ui)", color: dim, marginTop: 3, fontVariantNumeric: "tabular-nums" } },
         dateLabel, dayLen != null ? ` \u00B7 ${Math.floor(dayLen / 60)} h ${pad2(dayLen % 60)} m of daylight` : "")),
     React.createElement("div", { style: { display: "flex", gap: 6 } },
-      React.createElement("button", { onClick: () => stepDay(-1), style: stepBtn, "aria-label": "Previous day" }, "\u2039"),
+      React.createElement("button", { onClick: () => stepDay(-1), style: stepBtn, className: "tw-hit", "aria-label": "Previous day" }, "\u2039"),
       React.createElement("button", {
-        onClick: goToday, "aria-pressed": isToday,
-        style: { ...stepBtn, ...(isToday ? { color: "var(--accent-hi)", borderColor: "rgba(210,160,77,.5)" } : null) }
+        onClick: goToday, "aria-pressed": isToday, className: "tw-hit",
+        style: { ...stepBtn, ...(isToday ? { color: "var(--accent-hi)", borderColor: "rgba(var(--accent-rgb),.5)" } : null) }
       }, "Today"),
-      React.createElement("button", { onClick: () => stepDay(1), style: stepBtn, "aria-label": "Next day" }, "\u203A")));
+      React.createElement("button", { onClick: () => stepDay(1), style: stepBtn, className: "tw-hit", "aria-label": "Next day" }, "\u203A")));
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -6880,10 +7452,10 @@ function TwilightEphemeris({ redMode } = {}) {
         ::selection{background:var(--accent);color:var(--on-accent)}
         .te-wrap{max-width:1180px;margin:0 auto;padding:40px 22px 64px}
         .te-grid{display:grid;grid-template-columns:minmax(280px,340px) 1fr;gap:22px;align-items:start}
-        .te-grid.te-solo{grid-template-columns:1fr}
+        .te-grid.te-solo{grid-template-columns:minmax(0,1fr)}
         @media (max-width:780px){
           .te-wrap{padding:26px 14px 52px}
-          .te-grid{grid-template-columns:1fr}
+          .te-grid{grid-template-columns:minmax(0,1fr)}
           .te-chart{padding:18px 0 8px !important}
         }
       `), /*#__PURE__*/React.createElement("div", {
@@ -6904,7 +7476,7 @@ function TwilightEphemeris({ redMode } = {}) {
       width: s.s,
       height: s.s,
       borderRadius: "50%",
-      background: "#dfe6ff",
+      background: "var(--star-dot)",
       opacity: s.o,
       animation: `tw ${4 + s.d}s ease-in-out ${s.d}s infinite`
     }
@@ -6960,7 +7532,7 @@ function TwilightEphemeris({ redMode } = {}) {
       gap: 10
     }
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: exportICS,
+    onClick: exportICS, className: "tw-hit",
     disabled: !valid,
     style: {
       ...btn,
@@ -6968,17 +7540,17 @@ function TwilightEphemeris({ redMode } = {}) {
       color: "var(--on-accent)",
       opacity: valid ? 1 : 0.4
     }
-  }, "\u2193 iCal"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCSV,
+  }, React.createElement("span", { "aria-hidden": "true" }, "\u2193 "), "iCal"), /*#__PURE__*/React.createElement("button", {
+    onClick: exportCSV, className: "tw-hit",
     disabled: !valid,
     style: {
       ...btn,
-      background: "rgba(120,140,200,.16)",
+      background: "var(--btn-alt-bg)",
       color: ink,
-      border: "1px solid rgba(120,140,200,.28)",
+      border: "1px solid var(--btn-alt-line)",
       opacity: valid ? 1 : 0.4
     }
-  }, "\u2193 CSV")))), formOpen && /*#__PURE__*/React.createElement("section", {
+  }, React.createElement("span", { "aria-hidden": "true" }, "\u2193 "), "CSV")))), formOpen && /*#__PURE__*/React.createElement("section", {
     id: "te-form",
     style: {
       ...panel,
@@ -6995,7 +7567,7 @@ function TwilightEphemeris({ redMode } = {}) {
       style: { ...inputSt, marginTop: 0, flex: 1 }
     }),
     React.createElement("button", {
-      onClick: findPlaces,
+      onClick: findPlaces, className: "tw-hit",
       disabled: searchBusy,
       style: { ...btn, background: "rgba(242,200,121,.14)", color: gold, border: "1px solid rgba(242,200,121,.3)", padding: "0 14px", flexShrink: 0, opacity: searchBusy ? 0.6 : 1 }
     }, searchBusy ? "\u2026" : "Search")
@@ -7024,9 +7596,9 @@ function TwilightEphemeris({ redMode } = {}) {
     )
   ),
   /*#__PURE__*/React.createElement("button", {
-    onClick: useMyLocation,
-    style: { ...btn, marginTop: 10, width: "100%", background: "rgba(120,140,200,.14)", color: ink, border: "1px solid rgba(120,140,200,.25)" }
-  }, "\u2316 Use my location"),
+    onClick: useMyLocation, className: "tw-hit",
+    style: { ...btn, marginTop: 10, width: "100%", background: "var(--btn-alt-bg)", color: ink, border: "1px solid var(--btn-alt-line)" }
+  }, React.createElement("span", { "aria-hidden": "true" }, "\u2316 "), "Use my location"),
   geoMsg && /*#__PURE__*/React.createElement("div", {
     style: { marginTop: 6, fontSize: 12, color: dim, fontFamily: "var(--font-ui)" }
   }, geoMsg),
@@ -7047,7 +7619,7 @@ function TwilightEphemeris({ redMode } = {}) {
           onChange: e => { goManual(); setOffset(e.target.value); }
         }),
         /*#__PURE__*/React.createElement("button", {
-          onClick: autoOffset,
+          onClick: autoOffset, className: "tw-hit",
           style: { ...btn, background: "rgba(242,200,121,.14)", color: gold, border: "1px solid rgba(242,200,121,.3)", padding: "0 14px", flexShrink: 0 }
         }, "Auto")
       )
@@ -7063,7 +7635,7 @@ function TwilightEphemeris({ redMode } = {}) {
   }, /*#__PURE__*/React.createElement("button", {
     // A button, so the keyboard and VoiceOver reach it and a tap on the
     // words beside it (inside this label) works too; it was a bare span.
-    type: "button", role: "switch", "aria-checked": !!dstShown, "aria-label": "Daylight saving, one hour",
+    type: "button", role: "switch", "aria-checked": !!dstShown, "aria-label": "Daylight saving, one hour", className: "tw-hit",
     onClick: () => { const cur = dstShown; goManual(); setDst(!cur); },
     style: {
       width: 46,
@@ -7201,7 +7773,7 @@ function TwilightEphemeris({ redMode } = {}) {
   }),
   [30, 60, 90].map(a => React.createElement("g", { key: "u" + a },
     React.createElement("line", { x1: padL, x2: W - padR, y1: Yc(a), y2: Yc(a), stroke: "rgba(220,228,255,.16)", strokeWidth: 1, strokeDasharray: "2 5" }),
-    React.createElement("text", { x: padL - 7, y: Yc(a) + (a === 90 ? 8 : 3), textAnchor: "end", style: { font: "10px var(--font-ui)", fill: dim } }, a, "\xB0"))),
+    React.createElement("text", { x: padL - 7, y: Yc(a) + (a === 90 ? 8 : 3), textAnchor: "end", style: { font: "11px var(--font-ui)", fill: dim } }, a, "\xB0"))),
   nightStars, [0, -6, -12, -18].map(a => /*#__PURE__*/React.createElement("g", {
     key: a
   }, /*#__PURE__*/React.createElement("line", {
@@ -7217,7 +7789,7 @@ function TwilightEphemeris({ redMode } = {}) {
     y: Yc(a) + 3,
     textAnchor: "end",
     style: {
-      font: "10px var(--font-ui)",
+      font: "11px var(--font-ui)",
       fill: a === 0 ? gold : dim
     }
   }, a, "\xB0"))), [0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => /*#__PURE__*/React.createElement("g", {
@@ -7234,7 +7806,7 @@ function TwilightEphemeris({ redMode } = {}) {
     y: H - padB + 16,
     textAnchor: "middle",
     style: {
-      font: "10px var(--font-ui)",
+      font: "11px var(--font-ui)",
       fill: dim
     }
   }, narrow && h % 6 ? "" : pad2(h) + ":00"))), bands.map((b, i) => {
@@ -7252,7 +7824,7 @@ function TwilightEphemeris({ redMode } = {}) {
       y: y + h / 2 + 3,
       textAnchor: at == null ? "end" : "middle",
       style: {
-        font: "9px var(--font-ui)",
+        font: "11px var(--font-ui)",
         fill: "rgba(220,228,255,.45)",
         letterSpacing: ".08em",
         textTransform: "uppercase"
@@ -7307,7 +7879,7 @@ function TwilightEphemeris({ redMode } = {}) {
     x: "8",
     y: "32",
     style: {
-      font: "10px var(--font-ui)",
+      font: "11px var(--font-ui)",
       fill: gold
     }
   }, hover.phase))))), valid && /*#__PURE__*/React.createElement("div", {
@@ -7331,7 +7903,7 @@ function TwilightEphemeris({ redMode } = {}) {
       font: "500 17px var(--font-ui)",
       color: ink
     }
-  }, darkStart != null ? `${fmtLocal(darkStart, offMin)} \u2192 ${fmtLocal(darkEnd, offMin)}` : "No true darkness \u2014 sun stays above \u221218\u00B0")), /*#__PURE__*/React.createElement("div", {
+  }, darkStart != null ? [fmtLocal(darkStart, offMin), React.createElement("span", { key: "a", "aria-hidden": "true" }, " \u2192 "), React.createElement("span", { key: "t", className: "sr-only" }, " to "), fmtLocal(darkEnd, offMin)] : "No true darkness \u2014 sun stays above \u221218\u00B0")), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "right"
     }
@@ -7355,7 +7927,7 @@ function TwilightEphemeris({ redMode } = {}) {
       key: name,
       style: {
         display: "grid",
-        gridTemplateColumns: "16px 1fr auto",
+        gridTemplateColumns: "16px minmax(0, 1fr) auto",
         gap: 12,
         alignItems: "center",
         padding: "11px 0",
@@ -7366,10 +7938,10 @@ function TwilightEphemeris({ redMode } = {}) {
         width: 9,
         height: 9,
         borderRadius: "50%",
-        background: color,
-        boxShadow: `0 0 8px ${color}`
+        background: dotColor(color),
+        boxShadow: `0 0 8px ${dotColor(color)}`
       }
-    }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }), /*#__PURE__*/React.createElement("div", { style: { overflowWrap: "break-word" } }, /*#__PURE__*/React.createElement("div", {
       style: {
         font: "550 14px var(--font-ui)",
         color: ink
@@ -7399,13 +7971,13 @@ function TwilightEphemeris({ redMode } = {}) {
   valid && extraRows.map(([title, rows]) => /*#__PURE__*/React.createElement("div", {
     key: title,
     style: { ...panel, padding: "14px 6px 6px" }
-  }, /*#__PURE__*/React.createElement("div", { style: labelSt }, title),
+  }, /*#__PURE__*/React.createElement("h2", { style: { ...labelSt, margin: 0 } }, title),
     rows.map(([name, sub, val, color], i) => /*#__PURE__*/React.createElement("div", {
       key: name + i,
-      style: { display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 12, alignItems: "center", padding: "11px 0", borderTop: i ? "1px solid rgba(255,255,255,.05)" : "none" }
+      style: { display: "grid", gridTemplateColumns: "16px minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "11px 0", borderTop: i ? "1px solid rgba(255,255,255,.05)" : "none" }
     },
-      /*#__PURE__*/React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: color, boxShadow: `0 0 8px ${color}` } }),
-      /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: dotColor(color), boxShadow: `0 0 8px ${dotColor(color)}` } }),
+      /*#__PURE__*/React.createElement("div", { style: { overflowWrap: "break-word" } },
         /*#__PURE__*/React.createElement("div", { style: { font: "550 14px var(--font-ui)", color: ink } }, name),
         /*#__PURE__*/React.createElement("div", { style: { font: "11px var(--font-ui)", color: dim } }, sub)),
       /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", font: "600 16px var(--font-ui)", color: /^No|^Not/.test(val) ? dim : ink, fontVariantNumeric: "tabular-nums" } }, val))))),
@@ -7413,8 +7985,8 @@ function TwilightEphemeris({ redMode } = {}) {
   , eclipseSection, /*#__PURE__*/React.createElement("section", {
     style: { maxWidth: 1180, margin: "0 auto", borderTop: "1px solid var(--line)", padding: "18px 0 22px" }
   },
-    /*#__PURE__*/React.createElement("div", {
-      style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase", marginBottom: 16 }
+    /*#__PURE__*/React.createElement("h2", {
+      style: { margin: "0 0 16px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: ".07em", color: "var(--ink-faint)", textTransform: "uppercase" }
     }, "Upcoming sky events"),
     /*#__PURE__*/React.createElement("div", {
       style: { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 10 }
@@ -7628,15 +8200,30 @@ function drawSkyView(g, w, h, o) {
     // The Milky Way, faintly, as on the Stars tab's chart; sampled every
     // 10 px and drawn scaled up. Not over the camera, which shows the real
     // one or doesn't. Below the horizon it fades out with the stars.
+    // Worked out afresh only when the view has turned a degree or more
+    // since (mwReusable), and otherwise the kept picture is moved with the
+    // view (mwShift): sampling ~3,300 directions was half of every frame's
+    // drawing at 30 sensor readings a second (2026-10-21).
     if (mw && lst !== undefined) {
       const cols = Math.ceil(w / 10), rows = Math.ceil(h / 10);
-      const field = milkyWayField(mw, cols, rows, (i, j) => {
-        const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
-        d.w = d.alt >= 0 ? 0.34 : 0.1;
-        return d;
-      }, lat, lst);
-      if (o.mwRef) o.mwRef.current = milkyWayImage(field, cols, rows, '170,186,228', o.mwRef.current);
-      g.drawImage(o.mwRef ? o.mwRef.current : milkyWayImage(field, cols, rows, '170,186,228'), 0, 0, cols * 10, rows * 10);
+      const mwNow = { mw, lat, lst, w, h, fov, basis };
+      const kept = o.mwRef && o.mwRef.current;
+      const shift = mwReusable(kept, mwNow) ? mwShift(kept.basis, basis, w, h, fov) : null;
+      if (shift) {
+        g.save();
+        g.transform(shift[0], shift[1], shift[2], shift[3], shift[4], shift[5]);
+        g.drawImage(kept.img, 0, 0, cols * 10, rows * 10);
+        g.restore();
+      } else {
+        const field = milkyWayField(mw, cols, rows, (i, j) => {
+          const d = screenDir(basis, (i + 0.5) * w / cols, (j + 0.5) * h / rows, w, h, fov);
+          d.w = d.alt >= 0 ? 0.34 : 0.1;
+          return d;
+        }, lat, lst);
+        const img = milkyWayImage(field, cols, rows, '170,186,228', kept ? kept.img : undefined);
+        if (o.mwRef) o.mwRef.current = Object.assign(mwNow, { img });
+        g.drawImage(img, 0, 0, cols * 10, rows * 10);
+      }
     }
   }
 
@@ -7853,6 +8440,33 @@ function screenDir(basis, px, py, w, h, fov) {
   const v = [0, 1, 2].map(k => sx * b.x[k] + sy * b.y[k] - b.z[k]);
   return { az: vecAz(v), alt: asin(v[2] / Math.hypot(v[0], v[1], v[2])) };
 }
+/* Whether Sky View's Milky Way, worked out for the view `kept`, will do
+   for the view `now` ({ mw, lat, lst, w, h, fov, basis }): the same sky,
+   screen and field of view, and the camera turned less than MW_KEEP_DEG
+   both in where it points and in its roll. Moved with the view (mwShift),
+   the kept picture is then within half of one of its 10 px cells of a
+   fresh one at the screen's corners, and closer everywhere else. */
+const MW_KEEP_DEG = 1;
+function mwReusable(kept, now) {
+  if (!kept || kept.mw !== now.mw || kept.lat !== now.lat || kept.lst !== now.lst ||
+    kept.w !== now.w || kept.h !== now.h || kept.fov !== now.fov) return false;
+  const c = Math.cos(MW_KEEP_DEG * D2R), dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  return dot(kept.basis.z, now.basis.z) >= c && dot(kept.basis.y, now.basis.y) >= c;
+}
+/* The canvas transform [a, b, c, d, e, f] that carries a picture of the sky
+   drawn for the view `from` to where it lies in the view `to`: where the
+   middle of the screen goes, and how the picture stretches and turns about
+   it, from four points around it (null if one is behind the camera). Good
+   for small turns; a canvas transform can't follow the perspective, so a
+   degree of tilt leaves the corners about 4 px out. */
+function mwShift(from, to, w, h, fov) {
+  const at = (x, y) => { const d = screenDir(from, x, y, w, h, fov); return skyProject(toScreen(to, d.az, d.alt), w, h, fov); };
+  const cx = w / 2, cy = h / 2, dx = w / 4, dy = h / 4;
+  const p0 = at(cx, cy), r = at(cx + dx, cy), l = at(cx - dx, cy), u = at(cx, cy - dy), dn = at(cx, cy + dy);
+  if (!p0 || !r || !l || !u || !dn) return null;
+  const a = (r.x - l.x) / (2 * dx), b = (r.y - l.y) / (2 * dx), c = (dn.x - u.x) / (2 * dy), d = (dn.y - u.y) / (2 * dy);
+  return [a, b, c, d, p0.x - a * cx - c * cy, p0.y - b * cx - d * cy];
+}
 /* ---- Find it: Sky View's guide to one thing in the sky ----
    Words for a direction, for people who don't think in degrees. */
 const COMPASS_WORDS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
@@ -7957,8 +8571,26 @@ function skyViewSummary(centre, inView) {
    Console's painting carries its place. */
 const PREVIEW_ALT = 28, PREVIEW_FOV = 64;
 function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, header }) {
-  const canvasRef = useRef(null), wrapRef = useRef(null);
+  const canvasRef = useRef(null), wrapRef = useRef(null), topRef = useRef(null), footRef = useRef(null);
   const [width, setWidth] = useState(390);
+  // The words over the picture, measured: with larger text they need more
+  // room, and the picture grows and keeps its labels clear of them, as the
+  // Console's painting does (heroFit).
+  const [over, setOver] = useState({ top: 0, foot: 0, ts: 1 });
+  useEffect(() => {
+    const t = topRef.current, f = footRef.current;
+    const measure = () => setOver(o => {
+      const ts = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ts')) || 1;
+      const n = { top: t ? Math.ceil(t.offsetHeight) : 0, foot: f ? Math.ceil(f.offsetHeight) : 0, ts };
+      return n.top === o.top && n.foot === o.foot && n.ts === o.ts ? o : n;
+    });
+    measure();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver(measure);
+    if (t) ro.observe(t);
+    if (f) ro.observe(f);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     const el = wrapRef.current;
     const measure = () => { const w = el && el.getBoundingClientRect().width; if (w) setWidth(Math.round(w)); };
@@ -7966,7 +8598,8 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, []);
-  const H = width < 560 ? 400 : 460;
+  const H = Math.max(width < 560 ? 400 : 460, 10 + over.top + 24 + over.foot + 18);
+  const clearTop = Math.max(150, 10 + over.top + 8), clearBottom = Math.max(120, 18 + over.foot + 8);
   const showLines = useSkyLines();
   useEffect(() => {
     const cv = canvasRef.current;
@@ -7980,10 +8613,10 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
     const aimed = viewBasis(quatFromEuler((360 - facing) % 360, 90 + PREVIEW_ALT, 0), 0);
     drawSkyView(g, width, H, {
       basis: aimed, fov: PREVIEW_FOV, cam: false, bodies, lines, names, showLines, targetName: null,
-      mw, lat, lst, clearTop: 150, clearBottom: 120, reticle: false,
-      keepClear: { w: 240, h: 150, bottom: 120 }
+      mw, lat, lst, clearTop, clearBottom, reticle: false,
+      keepClear: { w: Math.round(240 * over.ts), h: clearTop, bottom: clearBottom }
     });
-  }, [width, H, bodies, lines, names, showLines, mw, lat, lst, facing]);
+  }, [width, H, bodies, lines, names, showLines, mw, lat, lst, facing, clearTop, clearBottom, over.ts]);
   const pad = 'clamp(14px,3.5vw,40px)';
   return React.createElement('div', {
     ref: wrapRef,
@@ -7996,23 +8629,24 @@ function SkyViewPreview({ bodies, lines, names, mw, lat, lst, facing, onOpen, he
     // Soft fades at the top and bottom, so the text over the sky reads and
     // the picture settles into the page, as the Console's painting does.
     React.createElement('div', { 'aria-hidden': 'true', style: { position: 'absolute', inset: 0, pointerEvents: 'none',
-      background: 'linear-gradient(180deg, rgba(5,7,15,.55) 0%, rgba(5,7,15,0) 26%, rgba(5,7,15,0) 62%, rgba(5,7,15,.9) 100%)' } }),
-    React.createElement('div', { style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
+      background: 'linear-gradient(180deg, rgba(var(--sky-shade-rgb),.55) 0%, rgba(var(--sky-shade-rgb),0) 26%, rgba(var(--sky-shade-rgb),0) 62%, rgba(var(--sky-shade-rgb),.9) 100%)' } }),
+    React.createElement('div', { ref: topRef, style: { position: 'absolute', left: pad, right: pad, top: 10, maxWidth: 1080, margin: '0 auto' } }, header),
     React.createElement('div', {
+      ref: footRef,
       style: { position: 'absolute', left: pad, right: pad, bottom: 18, maxWidth: 1080, margin: '0 auto', pointerEvents: 'none' }
     },
       React.createElement('button', {
         onClick: onOpen,
         style: {
           pointerEvents: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 18px',
-          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(210,160,77,.55)',
-          background: 'rgba(12,14,22,.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+          borderRadius: 999, cursor: 'pointer', border: '1px solid rgba(var(--accent-rgb),.55)',
+          background: 'rgba(var(--sky-glass-rgb),.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
           color: 'var(--accent-hi)', fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600
         }
       }, React.createElement('span', { 'aria-hidden': 'true' }, '✦'), 'Open Sky View', React.createElement('span', { 'aria-hidden': 'true' }, '→')),
       React.createElement('p', {
-        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(238,241,250,.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
-      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your phone to see the rest, labelled.')
+        style: { fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(var(--sky-ink-rgb),.72)', margin: '10px 0 0', maxWidth: '40ch', textShadow: '0 1px 6px rgba(0,0,0,.8)' }
+      }, 'This is your sky right now, looking ' + compass16(facing) + '. Open Sky View and point your ' + deviceWord() + ' to see the rest, labelled.')
     )
   );
 }
@@ -8032,6 +8666,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const [camErr, setCamErr] = useState(null);
   const [findOpen, setFindOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
+  const sliderRef = useRef(null), timeBtnRef = useRef(null);
   const shifted = !!(time && time.shift);
   const [size, setSize] = useState({ w: 360, h: 640 });
   // The overlay whose box the canvas fills, and therefore the box the
@@ -8158,6 +8793,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
   const backRef = useRef(null);
   useEffect(() => {
     const before = document.activeElement;
+    const free = wrapRef.current ? inertOutside(wrapRef.current) : () => {};
     if (backRef.current) backRef.current.focus();
     const onKey = e => {
       if (e.key === 'Escape') { onClose(); return; }
@@ -8170,7 +8806,9 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
       else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
     };
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); if (before && before.focus) before.focus(); };
+    // The page is made live again before focus goes back to it: an inert
+    // element can't take focus.
+    return () => { window.removeEventListener('keydown', onKey); free(); if (before && before.focus) before.focus(); };
   }, []);
   // Arriving on it: said once to a screen reader, and a short buzz where the
   // phone can (Android; iOS has no web vibration).
@@ -8231,7 +8869,9 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     borderRadius: 9, cursor: 'pointer', border: '1px solid rgba(255,255,255,.18)',
     background: 'rgba(10,12,20,.72)', color: '#eef2ff', backdropFilter: 'blur(6px)'
   };
-  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' };
+  // On: brass, and in red light mode also filled (--chip-on), since through the red film
+  // brass and white come out the same red and only the fill tells on from off.
+  const chipOn = { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563', background: 'var(--chip-on, rgba(10,12,20,.72))' };
   /* Controls sit on top of the sky, and a press that starts on one must not
      also count as a tap on the sky beneath it — that would identify whatever
      is under the button, or clear the target when nothing is. Stopping the
@@ -8257,30 +8897,33 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     // Top bar
     React.createElement('div', {
       ...keepTap,
-      style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: 8, padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
+      style: { position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', gap: '11px 8px', padding: 'max(12px, env(safe-area-inset-top)) 12px 12px', alignItems: 'center', flexWrap: 'wrap' }
     },
-      React.createElement('button', { ref: backRef, onClick: onClose, style: chip }, '← Back'),
-      React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, style: { ...chip, ...(cam ? { borderColor: 'rgba(210,160,77,.6)', color: '#e8b563' } : null) } }, cam ? 'Camera on' : 'Camera'),
+      React.createElement('button', { ref: backRef, onClick: onClose, className: 'tw-hit', style: chip }, React.createElement('span', { 'aria-hidden': 'true' }, '← '), 'Back'),
+      // One name, and whether it's on: "Camera on" as a name read as a
+      // different button to Voice Control.
+      React.createElement('button', { onClick: () => { setCamErr(null); setCam(v => !v); }, 'aria-pressed': cam, className: 'tw-hit', style: { ...chip, ...(cam ? chipOn : null) } }, 'Camera'),
       React.createElement('button', {
-        onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines,
+        onClick: () => prefStore.setSkyLines(!showLines), 'aria-pressed': showLines, className: 'tw-hit',
         style: { ...chip, ...(showLines ? chipOn : {}) }
       }, 'Lines'),
       React.createElement('button', {
-        onClick: () => { setFindOpen(v => !v); if (diag && diag.open) diag.onToggle(); }, 'aria-expanded': findOpen,
+        onClick: () => { setFindOpen(v => !v); if (diag && diag.open) diag.onToggle(); }, 'aria-expanded': findOpen, className: 'tw-hit',
         style: { ...chip, ...(findOpen ? chipOn : {}) }
       }, 'Find'),
       time && React.createElement('button', {
-        onClick: () => setTimeOpen(v => !v), 'aria-expanded': timeOpen,
+        ref: timeBtnRef, onClick: () => setTimeOpen(v => !v), 'aria-expanded': timeOpen, className: 'tw-hit',
         style: { ...chip, ...(timeOpen || shifted ? chipOn : {}) }
       }, shifted ? time.label : 'Time'),
       diag && React.createElement('button', {
-        onClick: () => { setFindOpen(false); diag.onToggle(); }, 'aria-expanded': diag.open,
+        onClick: () => { setFindOpen(false); diag.onToggle(); }, 'aria-expanded': diag.open, className: 'tw-hit',
         style: { ...chip, ...(diag.open ? chipOn : {}) }
       }, 'Sensors'),
+      // The name starts with what the chip says, for Voice Control.
       targetName && React.createElement('button', {
-        onClick: () => onPick && onPick(null), 'aria-label': 'Stop finding ' + targetName,
-        style: { ...chip, ...chipOn, background: 'rgba(10,12,20,.5)' }
-      }, targetName + ' \u00d7'),
+        onClick: () => onPick && onPick(null), 'aria-label': targetName + ', stop finding', className: 'tw-hit',
+        style: { ...chip, ...chipOn, background: 'var(--chip-on, rgba(10,12,20,.5))' }
+      }, targetName, React.createElement('span', { 'aria-hidden': 'true' }, ' \u00d7')),
       // The Find list: what's up now, in plain words, one tap to be guided to
       // it. The bar's last row, so it sits under the buttons however many
       // rows they wrap to.
@@ -8303,7 +8946,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             onClick: () => { onPick && onPick(it.name); setFindOpen(false); },
             style: {
               display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'baseline', gap: 12,
-              padding: '9px 0', background: 'none', border: 'none', borderTop: '1px solid rgba(255,255,255,.06)',
+              padding: '13px 0', background: 'none', border: 'none', borderTop: '1px solid rgba(255,255,255,.06)',
               color: it.name === targetName ? '#e8b563' : '#eef2ff', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 550,
               textAlign: 'left', cursor: 'pointer'
             }
@@ -8332,8 +8975,8 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
           React.createElement('span', { style: { color: 'rgba(238,242,255,.6)' } },
             targetName ? 'Centre ' + targetName + ' on screen, then copy.' : 'Pick a target in Aim Assist to measure the error.'),
           React.createElement('span', { style: { display: 'flex', gap: 6, flexShrink: 0 } },
-            React.createElement('button', { onClick: diag.onCopy, style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel),
-            React.createElement('button', { onClick: diag.onToggle, 'aria-label': 'Close sensor details', style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, 'Close'))
+            React.createElement('button', { onClick: diag.onCopy, className: 'tw-hit', style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, diag.copyLabel),
+            React.createElement('button', { onClick: diag.onToggle, 'aria-label': 'Close sensor details', className: 'tw-hit', style: { ...chip, padding: '5px 10px', fontSize: 11.5 } }, 'Close'))
         ),
         diag.entries.map(([k, v]) => React.createElement('div', {
           key: k, style: { display: 'flex', gap: 10, justifyContent: 'space-between' }
@@ -8356,10 +8999,10 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         style: { display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 10 }
       },
         React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)' } }, 'Match to camera'),
-        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov - 3), style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Narrower field of view' }, '−'),
+        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov - 3), className: 'tw-hit', style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Narrower field of view' }, '−'),
         React.createElement('span', { style: { fontVariantNumeric: 'tabular-nums', minWidth: 38, color: '#eef2ff' } }, fov.toFixed(0) + '°'),
-        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov + 3), style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Wider field of view' }, '+'),
-        fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), style: { ...chip, padding: '6px 12px' } }, 'Reset')
+        React.createElement('button', { onClick: () => prefStore.setSkyFov(fov + 3), className: 'tw-hit', style: { ...chip, padding: '6px 12px' }, 'aria-label': 'Wider field of view' }, '+'),
+        fov !== SKY_FOV_DEFAULT && React.createElement('button', { onClick: () => prefStore.setSkyFov(SKY_FOV_DEFAULT), className: 'tw-hit', style: { ...chip, padding: '6px 12px' } }, 'Reset')
       ),
       camErr ? camErr + ' ' : '',
       /* Time travel: where things will be (or were), up to a day either way,
@@ -8369,15 +9012,23 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         ...keepTap,
         style: { display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }
       },
-        React.createElement('span', { style: { fontSize: 12.5, color: shifted ? '#e8b563' : '#eef2ff', minWidth: 170 }, 'aria-live': 'polite' },
+        // Not a live region: it changed every minute while open and said
+        // again what the slider's own value says as it moves.
+        React.createElement('span', { style: { fontSize: 12.5, color: shifted ? '#e8b563' : '#eef2ff', minWidth: 170 } },
           (shifted ? 'The sky at ' : 'The sky now, ') + time.label + (shifted ? ', ' + timeShiftWords(time.shift) : '')),
+        // 44 px tall to the touch; the negative margins keep the row as it was.
         timeOpen && React.createElement('input', {
-          type: 'range', min: -1440, max: 1440, step: 15, value: time.shift,
+          ref: sliderRef, type: 'range', min: -1440, max: 1440, step: 15, value: time.shift,
           'aria-label': 'Time shown, in minutes from now', 'aria-valuetext': time.label + ', ' + timeShiftWords(time.shift),
           onChange: e => time.onShift(+e.target.value),
-          style: { flex: '1 1 220px', maxWidth: 360, accentColor: '#e8b563' }
+          style: { flex: '1 1 220px', maxWidth: 360, height: 44, margin: '-12px 0', accentColor: '#e8b563' }
         }),
-        shifted && React.createElement('button', { onClick: () => time.onShift(0), style: { ...chip, padding: '6px 12px' } }, 'Now')
+        // Now disappears once pressed: focus goes to the slider, or the Time
+        // chip, which say the time now, rather than to nowhere.
+        shifted && React.createElement('button', {
+          onClick: () => { time.onShift(0); const f = sliderRef.current || timeBtnRef.current; if (f) f.focus(); },
+          className: 'tw-hit', style: { ...chip, padding: '6px 12px' }
+        }, 'Now')
       ),
       // A north warning takes precedence: until north is settled, what is
       // drawn cannot be trusted, and that matters more than the target line.
@@ -8397,8 +9048,8 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
           : React.createElement(React.Fragment, null,
               React.createElement('span', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.6)' } },
                 'Drawn ' + target.name + ' not on the real one? Put the real one in the ring, then'),
-              React.createElement('button', { onClick: align.onAlign, style: { ...chip, ...chipOn, padding: '6px 12px' } }, 'Align')),
-        align.offset !== 0 && React.createElement('button', { onClick: align.onReset, style: { ...chip, padding: '6px 12px' } },
+              React.createElement('button', { onClick: align.onAlign, className: 'tw-hit', style: { ...chip, ...chipOn, padding: '6px 12px' } }, 'Align')),
+        align.offset !== 0 && React.createElement('button', { onClick: align.onReset, className: 'tw-hit', style: { ...chip, padding: '6px 12px' } },
           'Reset ' + (align.offset > 0 ? '+' : '\u2212') + Math.abs(align.offset).toFixed(0) + '\u00b0')
       ),
       // Before anything is picked, Align has nothing to measure against, and
@@ -8413,7 +9064,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             ? 'Drawn sky not lining up with the real one?'
             : 'Drawn sky not lining up? Tap a bright star or planet you can see, then Align.'),
         bodies.some(b => b.kind === 'moon' && b.alt > 0) && React.createElement('button', {
-          onClick: () => onPick && onPick('Moon'), style: { ...chip, ...chipOn, padding: '6px 12px' }
+          onClick: () => onPick && onPick('Moon'), className: 'tw-hit', style: { ...chip, ...chipOn, padding: '6px 12px' }
         }, 'Align on the Moon')
       ),
       target
@@ -8422,7 +9073,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
             React.createElement('div', { style: { fontSize: 11.5, color: 'rgba(238,242,255,.55)', marginTop: 2 } },
               capFirst(theName(target.name)) + ' is ' + Math.round(target.alt) + '\u00b0 up, ' + (target.alt < 0 ? 'toward the ' + compassWord(target.az) : whereWords(target.az, target.alt)) + '.'))
         : (live
-            ? 'Live — move your phone to look around. Tap anything to identify it.'
+            ? 'Live — move your ' + deviceWord() + ' to look around. Tap anything to identify it.'
             : (sensorMsg || 'No compass here — drag to look around. Tap anything to identify it.'))
     ),
     // Off screen: an arrow at the edge the target lies beyond, with its name
@@ -8461,7 +9112,7 @@ function IssPanel({ passes, failed, when, fmt }) {
   // show and nothing the reader can do about it, so no panel, as the
   // Console simply has no station highlight then.
   if (failed) return null;
-  const head = React.createElement('div', { style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, 'The space station');
+  const head = React.createElement('h2', { style: { margin: '0 0 10px', fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase' } }, 'The space station');
   const note = t => React.createElement('div', { style: { font: '13.5px/1.5 var(--font-body)', color: 'var(--ink-dim)', maxWidth: 640 } }, t);
   const row = (p, i) => React.createElement('div', { key: p.start.t, style: { padding: '11px 0', borderTop: i ? '1px solid rgba(255,255,255,.06)' : 'none' } },
     React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' } }, when(p.start.t)),
@@ -8481,7 +9132,7 @@ function IssPanel({ passes, failed, when, fmt }) {
     React.createElement('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 10 } }, 'Orbit from CelesTrak, predicted on this device.'));
 }
 // A time's calendar day where the place is, as YYYY-MM-DD.
-const localDay = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined }).format(new Date(t));
+const localDay = (t, tz) => dtf('en-CA', { timeZone: tz || undefined }).format(new Date(t));
 // When to show a planet: now if it's 10°+ up in a sky dark enough (the Sun
 // 6° down), else the first quarter hour in the next 24 hours when it is.
 function planetViewTime(name, now, lat, lon) {
@@ -8542,7 +9193,7 @@ function jupiterDrawing(moons, W, R, id, cy0) {
     // Close up, each moon off the disc gets its initial; the line of moons labels its own.
     R > 20 && el('g', { key: 'labels', className: 'jup-labels' },
       moons.filter(mo => moonStatus(mo) !== 'hidden' && moonStatus(mo) !== 'transit' && !mo.eclipsed && inView(mo.x)).map(mo => el('text', {
-        key: mo.name, x: cx + mo.x * R, y: cy - mo.y * R + 12, textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif'
+        key: mo.name, x: cx + mo.x * R, y: cy - mo.y * R + 14, textAnchor: 'middle', fontSize: 11, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif'
       }, mo.name[0])))];
   return { H, kids };
 }
@@ -8644,8 +9295,8 @@ function saturnDrawing(B, W) {
    { t, rings }, either null when the planet isn't up tonight. */
 function PlanetViews({ jup, sat, when }) {
   if (!jup && !sat) return null;
-  const h = (t, k) => React.createElement('div', { key: k, style: { fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase', marginBottom: 10 } }, t);
-  const title = (t, at) => React.createElement('div', { style: { font: '600 14.5px var(--font-ui)', color: 'var(--ink)' } }, t,
+  const h = (t, k) => React.createElement('h2', { key: k, style: { margin: '0 0 10px', fontFamily: 'var(--font-ui)', fontSize: 10.5, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--ink-faint)', textTransform: 'uppercase' } }, t);
+  const title = (t, at) => React.createElement('h3', { style: { margin: 0, font: '600 14.5px var(--font-ui)', color: 'var(--ink)' } }, t,
     React.createElement('span', { style: { fontWeight: 400, color: 'var(--ink-faint)', marginLeft: 8, fontVariantNumeric: 'tabular-nums' } }, when(at)));
   const words = t => React.createElement('div', { style: { font: '13px/1.5 var(--font-ui)', color: 'var(--ink-dim)', marginTop: 4, maxWidth: 640 } }, t);
   const W = 320, cx = W / 2, el = React.createElement;
@@ -8668,9 +9319,9 @@ function PlanetViews({ jup, sat, when }) {
       el('svg', { viewBox: `0 0 ${W} ${close.H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '8px 0 0' }, role: 'img', 'aria-label': 'Jupiter close up: ' + jupiterSurfaceWords(jup.moons) }, close.kids),
       el('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { maxWidth: 520, display: 'block', margin: '2px 0 2px' }, role: 'img', 'aria-label': 'Jupiter and its moons: ' + jupiterWords(jup.moons) },
         strip.kids,
-        pts.filter(o => moonStatus(o.mo) !== 'transit').map(o => el('text', { key: o.mo.name, x: o.x, y: labelY(o), textAnchor: 'middle', fontSize: 8.5, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, o.mo.name[0])),
-        el('text', { x: 4, y: H - 4, fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'East'),
-        el('text', { x: W - 4, y: H - 4, textAnchor: 'end', fontSize: 8, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'West')),
+        pts.filter(o => moonStatus(o.mo) !== 'transit').map(o => el('text', { key: o.mo.name, x: o.x, y: labelY(o), textAnchor: 'middle', fontSize: 11, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, o.mo.name[0])),
+        el('text', { x: 4, y: H - 4, fontSize: 11, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'East'),
+        el('text', { x: W - 4, y: H - 4, textAnchor: 'end', fontSize: 11, fill: 'var(--ink-faint)', fontFamily: 'Inter, system-ui, sans-serif' }, 'West')),
       words(jupiterWords(jup.moons) + ' Binoculars held steady show them as tiny stars in a line; they move from night to night, Io within hours.')));
   }
   if (sat) {
@@ -8684,8 +9335,17 @@ function PlanetViews({ jup, sat, when }) {
     h('Jupiter and Saturn', 'h'), rows,
     el('div', { style: { font: '11px var(--font-ui)', color: 'var(--ink-faint)', marginTop: 6 } }, 'North up, west on the right, as the eye sees them facing south; most telescopes turn the view round.'));
 }
+/* A component as React.memo makes it: rendered again only when a prop has
+   changed, made once per component. While Sky View is open the Stars tab
+   renders on every sensor reading, 30 or 60 times a second; the sections
+   under the dialog (the preview, the chart, Jupiter and Saturn, the space
+   station) go through this, with props that hold still between readings,
+   so a reading leaves them alone (2026-10-21). */
+function memoOf(C) { return C.memoized || (C.memoized = React.memo(C)); }
 function StarFinder({ redMode } = {}) {
-  useH24();
+  // Read for the times written by the memoised sections below, which only
+  // see a 12/24-hour switch through their props.
+  const h24 = useH24();
   const [loc, setLoc] = useState(() => {
     const fromUrl = urlPlace(window.location.search);
     if (fromUrl) return fromUrl;
@@ -8718,11 +9378,11 @@ function StarFinder({ redMode } = {}) {
   const useMyLocation = () => {
     if (!canLocate()) { setGeoMsg("Geolocation isn't available on this device."); return; }
     setGeoMsg("Locating…");
-    getPosition(p => {
+    locate(p => {
       const nl = { lat: p.coords.latitude, lon: p.coords.longitude, name: `${p.coords.latitude.toFixed(2)}°, ${p.coords.longitude.toFixed(2)}°`, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
       setLoc(nl); setGeoMsg("");
       try { localStorage.setItem('tw_loc', JSON.stringify(nl)); } catch (e) {}
-    }, () => setGeoMsg("Couldn't get your location — set it on the Console tab."), { enableHighAccuracy: false, timeout: 8000 });
+    }, e => setGeoMsg(geoFailWords(e, appShell(), "choose your place on the Console")), true);
   };
   const sunAlt = sunAltitude(new Date(now), loc.lat, loc.lon);
 
@@ -8880,7 +9540,8 @@ function StarFinder({ redMode } = {}) {
     } else setAimSensor('granted');
   };
   const startAim = name => { setAimTargetName(name); return ensureSensors(); };
-  const openSky = () => { setSkyOpen(true); return ensureSensors(); };
+  // Made once: the preview is memoised, and ensureSensors reads no state.
+  const openSky = useCallback(() => { setSkyOpen(true); return ensureSensors(); }, []);
   const stopAim = () => { setAimTargetName(null); setAimSensor('idle'); setOrient(null); setShowCalHelp(false); };
   // Poll the tally into state only while the panel is open — sampling at 60Hz
   // to render a debug readout would be worse than the bug it diagnoses.
@@ -9134,8 +9795,8 @@ function StarFinder({ redMode } = {}) {
   // kept in agreement, they are computed from the same object.
   // What to tell someone looking at Sky View about north, if anything.
   const northMsg = !orient ? null
-    : orient.abs && !orient.trusted ? "North is a first guess \u2014 raise the phone toward the sky to confirm it."
-    : !orient.abs && orient.northKind === 'heading' ? "Finding north \u2014 raise the phone toward the sky."
+    : orient.abs && !orient.trusted ? `North is a first guess \u2014 raise the ${deviceWord()} toward the sky to confirm it.`
+    : !orient.abs && orient.northKind === 'heading' ? `Finding north \u2014 raise the ${deviceWord()} toward the sky.`
     : !orient.abs ? "This phone gives no true-north reference \u2014 use Align in Aim Assist to set north."
     : null;
   const viewQ = useMemo(
@@ -9183,7 +9844,7 @@ function StarFinder({ redMode } = {}) {
   const sextWins = useMemo(() => sextantWindows(Date.now(), loc.lat, loc.lon), [Math.floor(now / 600000), loc.lat, loc.lon]);
   const sextWin = nextSextantWindow(sextWins, now);
   const downloadSextantICS = () => {
-    if (sextWin) saveFile("sextant-window.ics", sextantICS(sextWin, loc.name, Date.now()), "text/calendar");
+    if (sextWin) saveFile("sextant-window.ics", sextantICS(sextWin, placeName(loc), Date.now()), "text/calendar");
   };
   const showPolaris = loc.lat > 0 && polaris.alt > 0;
   const navHint = sunAlt > 0
@@ -9261,7 +9922,7 @@ function StarFinder({ redMode } = {}) {
   }, [minuteKey, loc.lat, loc.lon]);
   const chartMoon = useMemo(() => moonTopo(moonState(new Date(now), loc.lat, loc.lon)), [minuteKey, loc.lat, loc.lon]);
   const chartSunAz = useMemo(() => sunHcZn(new Date(now), loc.lat, loc.lon).az, [minuteKey, loc.lat, loc.lon]);
-  const skyChart = React.createElement(SkyChart, {
+  const skyChart = React.createElement(memoOf(SkyChart), {
     stars: chartStars, lines: chartLines, planets: chartPlanets, deep: chartDeep,
     moon: chartMoon.alt > -1 ? chartMoon : null, sunAz: chartSunAz,
     fix: fixStars, polaris: showPolaris ? polaris : null,
@@ -9279,8 +9940,10 @@ function StarFinder({ redMode } = {}) {
   },
     React.createElement("div", { style: { ...navHdr, color: "var(--accent)", marginBottom: 6 } }, "Recommended 3-star fix · ", fixQual),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "5px 16px" } },
-      ...fixStars.map(s => React.createElement("span", { key: s.name, style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.ink, whiteSpace: "nowrap" } },
-        React.createElement("span", { style: { color: "var(--accent-hi)" } }, "◆ "), s.name,
+      // Each star on one line where it fits; wrapped when larger text makes
+      // one wider than the page.
+      ...fixStars.map(s => React.createElement("span", { key: s.name, style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.ink } },
+        React.createElement("span", { "aria-hidden": "true", style: { color: "var(--accent-hi)" } }, "◆ "), s.name,
         React.createElement("span", { style: { color: C.inkDim } }, " ", s.alt.toFixed(0), "° / ", s.az.toFixed(0), "° ", compass16(s.az))))
     )
   );
@@ -9294,23 +9957,31 @@ function StarFinder({ redMode } = {}) {
       ...navStars.slice(0, 14).flatMap((s, i) => {
         const isFix = fixNames.has(s.name);
         return [
-          React.createElement("div", { key: "n" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500, color: isFix ? "var(--accent)" : C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
-            isFix ? React.createElement("span", { style: { marginRight: 4 } }, "◆") : null,
+          // Wraps, rather than cutting the name short, when larger text
+          // leaves the column narrow.
+          React.createElement("div", { key: "n" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500, color: isFix ? "var(--accent)" : C.ink, minWidth: 0, overflowWrap: "break-word" } },
+            // The diamond, in words for a screen reader.
+            isFix ? React.createElement("span", { "aria-hidden": "true", style: { marginRight: 4 } }, "◆") : null,
+            isFix ? React.createElement("span", { className: "sr-only" }, "Best fix: ") : null,
             s.name,
-            React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginLeft: 7 } }, "m", s.mag.toFixed(1))),
+            React.createElement("span", { "aria-hidden": "true", style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginLeft: 7, whiteSpace: "nowrap" } }, "m", s.mag.toFixed(1)),
+            React.createElement("span", { className: "sr-only" }, ", magnitude ", s.mag.toFixed(1))),
           React.createElement("div", { key: "a" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.ink, textAlign: "right" } }, s.alt.toFixed(0), "°"),
-          React.createElement("div", { key: "z" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.inkDim, textAlign: "right", whiteSpace: "nowrap" } }, s.az.toFixed(0), "° ", compass16(s.az))
+          React.createElement("div", { key: "z" + i, style: { fontFamily: "var(--font-ui)", fontSize: 14, color: C.inkDim, textAlign: "right" } }, s.az.toFixed(0), "° ", compass16(s.az))
         ];
       })
     ),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, color: C.inkDim, marginTop: 14, lineHeight: 1.5 } },
-      navStars.length, " of the 57 navigational stars are more than 8° above your horizon. ◆ marks the three that would give the best fix. Altitude is how high a star sits above the horizon; azimuth is the compass bearing you'd face to see it.")
+      navStars.length, " of the 57 navigational stars are more than 8° above your horizon. ",
+      React.createElement("span", { "aria-hidden": "true" }, "◆ marks the three that would give the best fix. "),
+      React.createElement("span", { className: "sr-only" }, "The three marked best fix are the ones to use. "),
+      "Altitude is how high a star sits above the horizon; azimuth is the compass bearing you'd face to see it.")
   );
   // The whole sky on one disc, for everyone.
   const starFinderPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "The whole sky now"),
+    React.createElement("h2", { style: { margin: "0 0 12px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "The whole sky now"),
     skyChart
   );
   // The navigation stars, the best three for a fix, and Polaris: for the
@@ -9318,7 +9989,7 @@ function StarFinder({ redMode } = {}) {
   const navStarsPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", padding: "16px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 } }, "Navigation stars up now"),
+    React.createElement("h3", { style: { margin: "0 0 12px", fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase" } }, "Navigation stars up now"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 16 } }, navHint),
     polarisBox,
     navStars.length === 0
@@ -9331,28 +10002,33 @@ function StarFinder({ redMode } = {}) {
     "aria-label": "Sextant window",
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "18px 0 20px" }
   },
-    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: sextWin && sextWin.open ? C.brass : C.inkFaint, textTransform: "uppercase" } },
+    React.createElement("h3", { style: { margin: 0, fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: sextWin && sextWin.open ? C.brass : C.inkFaint, textTransform: "uppercase" } },
       sextWin ? sextWin.open ? "Sextant window open now" : `Next sextant window \u00b7 ${sextWin.kind.toLowerCase()}` : "Sextant window"),
     sextWin
       ? React.createElement(React.Fragment, null,
           React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 25, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, fontVariantNumeric: "tabular-nums", margin: "6px 0 2px" } },
-            fmtT(sextWin.s, loc.tz), " ", React.createElement("span", { style: { color: C.inkDim, fontSize: 18 } }, "\u2192"), " ", fmtT(sextWin.e, loc.tz)),
+            fmtT(sextWin.s, loc.tz), " ", React.createElement("span", { "aria-hidden": "true", style: { color: C.inkDim, fontSize: 18 } }, "\u2192"), React.createElement("span", { className: "sr-only" }, "to"), " ", fmtT(sextWin.e, loc.tz)),
           React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: sextWin.open ? C.brassHi : C.inkDim } },
             sextWin.open ? `closes in ${cdText(sextWin.e - now)}` : `opens in ${cdText(sextWin.s - now)}`),
-          React.createElement("button", { className: "rtbtn", style: { marginTop: 12 }, onClick: downloadSextantICS }, "\uFF0B Add to calendar (.ics)"))
+          // Styled here: its old rtbtn class is styled on the Console only,
+          // so on this tab it was a bare 24 px button.
+          React.createElement("button", {
+            className: "tw-hit", onClick: downloadSextantICS,
+            style: { marginTop: 12, fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 500, padding: "9px 14px", borderRadius: 8, cursor: "pointer", border: "1px solid var(--btn-border)", background: "transparent", color: "var(--btn-ink)" }
+          }, React.createElement("span", { "aria-hidden": "true" }, "\uFF0B "), "Add to calendar (.ics)"))
       : React.createElement("div", { style: { fontSize: 13.5, color: C.inkDim, marginTop: 6 } }, "No nautical-twilight window in the next 48 h at this latitude \u2014 continuous daylight or twilight."),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkDim, marginTop: 12, fontVariantNumeric: "tabular-nums" } },
       "Sun ", sunAlt >= 0 ? "+" : "", sunAlt.toFixed(1), "\u00b0 \u00b7 horizon visible ", (horizonVis(Math.max(0, -sunAlt)) * 100).toFixed(0), "%")
   );
   // ---- Navigator: sight reduction calculator + aim assist UI ----
-  const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", marginBottom: 12 };
+  const navSectionHdr = { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: C.inkFaint, textTransform: "uppercase", margin: "0 0 12px" };
   // Small and quiet like the app's other labels, but not upper-cased: "Hs"
   // is how every sextant manual writes it.
   const navLabelSt = { font: "600 12px var(--font-ui)", letterSpacing: ".01em", color: "var(--ink-dim)" };
   const navInputSt = { width: "100%", minWidth: 0, marginTop: 6, padding: "9px 11px", color: C.ink, background: "var(--field-bg)", border: "1px solid var(--line)", borderRadius: 9, font: "15px var(--font-ui)", outline: "none" };
   const segBtn = active => ({
     fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 550, padding: "7px 14px", cursor: "pointer",
-    border: `1px solid ${active ? "rgba(210,160,77,.5)" : "var(--btn-border)"}`, borderRadius: 8,
+    border: `1px solid ${active ? "rgba(var(--accent-rgb),.5)" : "var(--btn-border)"}`, borderRadius: 8,
     background: active ? "var(--btn-fill-hi)" : "transparent", color: active ? "var(--accent-hi)" : "var(--btn-ink)"
   });
   const fmtDM = deg => { const d = Math.floor(Math.abs(deg)), m = (Math.abs(deg) - d) * 60; return `${deg < 0 ? "-" : ""}${d}° ${m.toFixed(1)}'`; };
@@ -9368,7 +10044,7 @@ function StarFinder({ redMode } = {}) {
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Ho ", fmtDM(s.ho)),
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Hc ", fmtDM(s.hc)),
     React.createElement("div", { style: { color: C.inkDim, whiteSpace: "nowrap" } }, "Zn ", s.zn.toFixed(0), "°"),
-    React.createElement("div", { style: { color: s.nm >= 0 ? "var(--accent-hi)" : "#e7b3a3", whiteSpace: "nowrap", fontWeight: 500 } },
+    React.createElement("div", { style: { color: s.nm >= 0 ? "var(--accent-hi)" : "var(--ink-alert)", whiteSpace: "nowrap", fontWeight: 500 } },
       Math.abs(s.nm).toFixed(1), " nm ", s.nm >= 0 ? "toward" : "away"),
       React.createElement("button", {
         onClick: () => removeSight(s.id), "aria-label": "Remove sight",
@@ -9378,34 +10054,34 @@ function StarFinder({ redMode } = {}) {
     // Flat text under the row, per the "no box unless actionable" rule — a
     // warning is something to read, not something to click.
     s.warnings.length > 0 && React.createElement("div", {
-      style: { fontFamily: "var(--font-body)", fontSize: 12.5, color: "#e7b3a3", lineHeight: 1.5, marginTop: 6, maxWidth: 620 }
+      style: { fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--ink-alert)", lineHeight: 1.5, marginTop: 6, maxWidth: 620 }
     }, s.warnings.map((t, i) => React.createElement("div", { key: i }, t)))
   ));
   const fixPanel = sightFix && React.createElement("div", {
-    style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(210,160,77,.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
+    style: { marginTop: 4, marginBottom: 20, padding: "14px 16px", border: "1px solid rgba(var(--accent-rgb),.35)", borderRadius: "var(--radius-sm)", background: "var(--accent-soft)" }
   },
     React.createElement("div", { style: { ...navLabelSt, fontSize: 10.5, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 } }, "Fix · ", sightFix.quality),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 18, color: C.ink, fontWeight: 600 } },
       Math.abs(sightFix.lat).toFixed(4), "° ", sightFix.lat >= 0 ? "N" : "S", ", ",
       Math.abs(sightFix.lon).toFixed(4), "° ", sightFix.lon >= 0 ? "E" : "W"),
     React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkDim, marginTop: 4 } },
-      sightFix.nm.toFixed(1), " nm from your assumed position (", loc.name, ")"),
+      sightFix.nm.toFixed(1), " nm from your assumed position (", placeName(loc), ")"),
     sightFix.used < sightFix.total && React.createElement("div", {
-      style: { fontFamily: "var(--font-body)", fontSize: 12, color: "#e7b3a3", marginTop: 6, lineHeight: 1.5 }
+      style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--ink-alert)", marginTop: 6, lineHeight: 1.5 }
     }, "Using ", sightFix.used, " of ", sightFix.total, " sights — the rest were of a body below the horizon or too near the zenith to give a position line.")
   );
   const navigatorPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 20px" }
   },
-    React.createElement("div", { style: navSectionHdr }, "Navigator · Sight Reduction"),
+    React.createElement("h3", { style: navSectionHdr }, "Navigator · Sight Reduction"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 18, maxWidth: 640 } },
       "Enter a reading from a real sextant. Twilyte applies the standard corrections — for your height above the water, for the way the atmosphere bends light, and for the size and nearness of the Sun or Moon — then compares the result with where the body should have been from your assumed position, ",
-      loc.name, ". Two or three sights of bodies in different directions will give you a fix."),
+      placeName(loc), ". Two or three sights of bodies in different directions will give you a fix."),
     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 18 } },
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", { style: navLabelSt }, "Body"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, "aria-pressed": sightBody === b, style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
+          ["star", "sun", "moon"].map(b => React.createElement("button", { key: b, "aria-pressed": sightBody === b, className: "tw-hit", style: segBtn(sightBody === b), onClick: () => setSightBody(b) }, b === "star" ? "Star" : b === "sun" ? "Sun" : "Moon"))
         )
       ),
       sightBody === "star" && React.createElement("div", { style: { flex: "1 1 160px", minWidth: 140 } },
@@ -9417,7 +10093,7 @@ function StarFinder({ redMode } = {}) {
       (sightBody === "sun" || sightBody === "moon") && React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", { style: navLabelSt }, "Limb"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          ["lower", "upper"].map(l => React.createElement("button", { key: l, "aria-pressed": sightLimb === l, style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
+          ["lower", "upper"].map(l => React.createElement("button", { key: l, "aria-pressed": sightLimb === l, className: "tw-hit", style: segBtn(sightLimb === l), onClick: () => setSightLimb(l) }, l === "lower" ? "Lower" : "Upper"))
         )
       ),
       React.createElement("div", { style: { flex: "1 1 180px", minWidth: 160 } },
@@ -9445,8 +10121,8 @@ function StarFinder({ redMode } = {}) {
       React.createElement("div", { style: { flex: "0 0 auto" } },
         React.createElement("div", { style: navLabelSt }, "Index error is"),
         React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
-          React.createElement("button", { "aria-pressed": sightIeOnArc, style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
-          React.createElement("button", { "aria-pressed": !sightIeOnArc, style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
+          React.createElement("button", { "aria-pressed": sightIeOnArc, className: "tw-hit", style: segBtn(sightIeOnArc), onClick: () => setSightIeOnArc(true) }, "On the arc"),
+          React.createElement("button", { "aria-pressed": !sightIeOnArc, className: "tw-hit", style: segBtn(!sightIeOnArc), onClick: () => setSightIeOnArc(false) }, "Off the arc")
         )
       )
     ),
@@ -9471,7 +10147,7 @@ function StarFinder({ redMode } = {}) {
         : null
     ),
     React.createElement("button", {
-      onClick: addSight,
+      onClick: addSight, className: "tw-hit",
       style: { fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", marginBottom: 22 }
     }, "Add sight"),
     sightMsg && React.createElement("div", { role: "alert", style: { fontFamily: "var(--font-ui)", fontSize: 12.5, color: C.ink, marginTop: -14, marginBottom: 18 } }, sightMsg),
@@ -9508,8 +10184,8 @@ function StarFinder({ redMode } = {}) {
         title: "Point at " + aimTargetName + " by eye first, then tap",
         style: { fontFamily: "var(--font-ui)", fontSize: 12.5, fontWeight: 600, padding: "7px 14px", borderRadius: 8, cursor: "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)" }
       }, "Align to ", aimTargetName),
-      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset - 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "Nudge compass 5 degrees left" }, "−5°"),
-      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset + 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "Nudge compass 5 degrees right" }, "+5°"),
+      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset - 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "−5°, nudge the compass left" }, "−5°"),
+      React.createElement("button", { onClick: () => prefStore.setAimOffset(aimOffset + 5), style: { ...segBtn(false), padding: "6px 12px" }, "aria-label": "+5°, nudge the compass right" }, "+5°"),
       aimOffset !== 0 && React.createElement("button", { onClick: () => prefStore.setAimOffset(0), style: { ...segBtn(false), padding: "6px 12px" } }, "Reset"),
       React.createElement("button", { onClick: () => setShowCalHelp(v => !v), style: { ...segBtn(showCalHelp), padding: "6px 12px" } }, "Calibrate")
     ),
@@ -9526,7 +10202,7 @@ function StarFinder({ redMode } = {}) {
       compassQuality === "bad"
         ? "Your compass is reporting itself unreliable. "
         : "",
-      "Wave the phone in a figure-8, rotating your wrist, for a few seconds — that re-fits the magnetometer. Then step away from cars, railings and speakers, and take your phone out of any magnetic case; those throw the heading off by more than the sky ever moves. If it's still wrong, aim at ",
+      `Wave the ${deviceWord()} in a figure-8, rotating your wrist, for a few seconds — that re-fits the magnetometer. Then step away from cars, railings and speakers, and take your ${deviceWord()} out of any magnetic case; those throw the heading off by more than the sky ever moves. If it's still wrong, aim at `,
       aimTargetName,
       " by eye and tap Align."
     )
@@ -9565,7 +10241,7 @@ function StarFinder({ redMode } = {}) {
       "turn " + turnWord(aimTurn) + (aimTilt !== null ? " \u00b7 tilt " + tiltWord(aimTilt) : "")],
     ["North offset", !orient || orient.yaw === null || orient.yaw === undefined ? "\u2014"
       : orient.yaw.toFixed(1) + "\u00b0" + (orient.trusted ? " (confirmed)" : " (first guess)")],
-    nativeOn && ["CoreMotion frame", (sensorStats.nativeTrueNorth ? "true north" : "magnetic north (no location yet)") + " \u00b7 matrix " + (sensorStats.nativeDir || "direction not settled yet: turn the phone a little")],
+    nativeOn && ["CoreMotion frame", (sensorStats.nativeTrueNorth ? "true north" : "magnetic north (no location yet)") + " \u00b7 matrix " + (sensorStats.nativeDir || `direction not settled yet: turn the ${deviceWord()} a little`)],
     ["North source", !orient || !orient.northKind ? "\u2014"
       : nativeOn ? "CoreMotion"
       : orient.northKind === 'heading' ? "compass heading (read off the back of the phone)" : "absolute orientation"],
@@ -9596,7 +10272,7 @@ function StarFinder({ redMode } = {}) {
     ? "No orientation events are arriving at all \u2014 the browser is withholding the sensors entirely. Check the site's Motion sensors permission, or try a different browser."
     : sensorStats.usable === 0
       ? "Events are arriving but contain no angles, so the sensors aren't delivering data. On Android this is usually the Motion sensors site permission: tap the icon left of the address bar, then Permissions."
-      : "Sensors are working. Move the phone and these numbers should change.";
+      : `Sensors are working. Move the ${deviceWord()} and these numbers should change.`;
   // Copy as plain text, so a report can be pasted rather than retyped from a
   // screenshot.
   const [diagCopied, setDiagCopied] = useState(null);
@@ -9637,22 +10313,24 @@ function StarFinder({ redMode } = {}) {
   const aimPanel = React.createElement("section", {
     style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "20px 0 30px" }
   },
-    React.createElement("div", { style: navSectionHdr }, "Navigator · Aim Assist"),
+    React.createElement("h3", { style: navSectionHdr }, "Navigator · Aim Assist"),
     React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 13.5, color: C.inkDim, lineHeight: 1.5, marginBottom: 14, maxWidth: 640 } },
-      "Pick a body, raise your phone and aim its back at the sky — Twilyte reads the compass and tilt sensors and tells you which way to move to land on it."),
+      `Pick a body, raise your ${deviceWord()} and aim its back at the sky — Twilyte reads the compass and tilt sensors and tells you which way to move to land on it.`),
     !aimTargetName
       ? React.createElement("div", null,
-          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+          // Rows 13 px apart, so each chip's 44 px hit area (tw-hit) meets
+          // the next row's without overlapping it.
+          React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "13px 8px" } },
             aimableBodies.length === 0
               ? React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: C.inkDim } }, "No bright bodies above the horizon right now.")
-              : aimableBodies.map(b => React.createElement("button", { key: b.name, style: segBtn(false), onClick: () => startAim(b.name) }, b.name))
+              : aimableBodies.map(b => React.createElement("button", { key: b.name, className: "tw-hit", style: segBtn(false), onClick: () => startAim(b.name) }, b.name))
           ),
           // iOS only grants motion access from a real tap, so the body buttons
           // double as the permission gesture — worth saying, so the prompt
           // isn't a surprise.
           aimableBodies.length > 0 && typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function" &&
             React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 11.5, color: C.inkFaint, marginTop: 10 } },
-              "Your phone will ask permission to use motion sensors.")
+              `Your ${deviceWord()} will ask permission to use motion sensors.`)
         )
       : React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" } },
@@ -9686,7 +10364,7 @@ function StarFinder({ redMode } = {}) {
                       onTarget && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 13, color: "var(--accent-hi)", fontWeight: 600 } }, "On target")
                     ),
                     aimTilt === null && React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: C.inkFaint, marginTop: 10 } },
-                      "Raise the phone toward the sky for tilt guidance — lying flat, only the bearing is meaningful."),
+                      `Raise the ${deviceWord()} toward the sky for tilt guidance — lying flat, only the bearing is meaningful.`),
                     // Throttled and quantised in useAimAnnouncement; the raw
                     // numbers above deliberately stay outside this region.
                     React.createElement("div", {
@@ -9707,36 +10385,47 @@ function StarFinder({ redMode } = {}) {
   const previewFacing = loc.lat >= 0 ? 180 : 0;
   // Star Finder keeps a steady dark background (it has little content, so a
   // time-varying glow shows too much) — no live-sky tint here.
-  const pageBg = PAGE_BG;
+  const pageBg = redMode ? RED_PAGE_BG : PAGE_BG;
+  // What the memoised sections are given, made again only when what they
+  // show changes (the place, the clock's tick, the 12/24-hour setting), so
+  // a sensor reading hands them the very same props. useMyLocation reads
+  // no state, so the header's copy of it never goes stale.
+  const previewHeader = useMemo(() => React.createElement("header", null,
+    React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(var(--sky-ink-rgb),.62)", textTransform: "uppercase" } }, "Sky View"),
+    React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
+    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
+      React.createElement("button", { onClick: useMyLocation, className: "tw-hit", style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(var(--accent-rgb),.4)", background: "rgba(var(--sky-glass-rgb),.6)", color: "var(--accent-hi)" } }, "Use my location"),
+      geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(var(--sky-ink-rgb),.75)" } }, geoMsg)
+    )
+  ), [loc.name, geoMsg]);
+  const planetWhen = useCallback(t => t - now < 60000 ? 'now' : (localDay(t, loc.tz) === localDay(now, loc.tz) ? 'at ' : 'tomorrow at ') + fmtT(t, loc.tz), [now, loc.tz, h24]);
+  const issFmt = useCallback(t => fmtT(t, loc.tz), [loc.tz, h24]);
+  const issWhen = useCallback(t => dtf([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz), [loc.tz, h24]);
   return React.createElement("div", {
     style: { minHeight: "100vh", width: "100%", overflowX: "hidden", position: "relative", background: pageBg, color: C.ink, fontFamily: "var(--font-body)", padding: "clamp(14px,3.5vw,40px)" }
   },
-    React.createElement(SkyViewPreview, {
+    React.createElement(memoOf(SkyViewPreview), {
       bodies: skyBodies, lines: constellationPaths, names: constellationNames,
       mw: milkyWay, lat: loc.lat, lst: rev(gmst(new Date(minuteKey * 60000)) + loc.lon),
       facing: previewFacing, onOpen: openSky,
-      header: React.createElement("header", null,
-        React.createElement("div", { style: { fontFamily: "var(--font-ui)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.07em", color: "rgba(238,241,250,.62)", textTransform: "uppercase" } }, "Sky View"),
-        React.createElement("h1", { style: { fontFamily: "var(--font-ui)", fontSize: 24, fontWeight: 650, color: C.ink, margin: "4px 0 6px", letterSpacing: "-0.01em", textShadow: "0 1px 8px rgba(0,0,0,.7)" } }, loc.name),
-        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 } },
-          React.createElement("button", { onClick: useMyLocation, style: { fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 550, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: "1px solid rgba(210,160,77,.4)", background: "rgba(12,14,22,.6)", color: "var(--accent-hi)" } }, "Use my location"),
-          geoMsg && React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "rgba(238,241,250,.75)" } }, geoMsg)
-        )
-      )
+      header: previewHeader
     }),
     starFinderPanel,
-    React.createElement(PlanetViews, {
+    React.createElement(memoOf(PlanetViews), {
       jup: planetViews.jup, sat: planetViews.sat,
-      when: t => t - now < 60000 ? 'now' : (localDay(t, loc.tz) === localDay(now, loc.tz) ? 'at ' : 'tomorrow at ') + fmtT(t, loc.tz)
+      when: planetWhen
     }),
-    React.createElement(IssPanel, {
+    React.createElement(memoOf(IssPanel), {
       passes: issNext, failed: issTle !== undefined && !issSat,
-      fmt: t => fmtT(t, loc.tz),
-      when: t => new Intl.DateTimeFormat([], { timeZone: loc.tz, weekday: 'long' }).format(new Date(t)) + ', ' + fmtT(t, loc.tz)
+      fmt: issFmt,
+      when: issWhen
     }),
     // Everything for the sextant, folded shut until wanted: the app began
     // as a navigator's tool, and none of it is removed, only out of the
     // casual stargazer's way (2026-09-25).
+    // The fold's name as a heading too, so a screen reader's list of
+    // headings reaches it (a heading inside a summary isn't reliably one).
+    React.createElement("h2", { className: "sr-only" }, "For navigators"),
     React.createElement("details", {
       id: "for-navigators",
       style: { maxWidth: 1080, margin: "0 auto", borderTop: `1px solid ${C.line}`, padding: "16px 0 8px" }
@@ -9744,6 +10433,7 @@ function StarFinder({ redMode } = {}) {
       React.createElement("summary", {
         style: { cursor: "pointer", fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600, color: C.ink }
       }, "For navigators",
+        React.createElement("span", { className: "sr-only" }, ": "),
         React.createElement("span", { style: { fontWeight: 400, fontSize: 12.5, color: C.inkDim, marginLeft: 8 } }, "navigation stars, sextant window, sight reduction, Aim Assist")),
       navStarsPanel,
       sextantPanel,
@@ -9843,7 +10533,7 @@ function TwilightApp() {
   // The installed app's status bar is painted in theme-color: keep it the header's --bg, red light mode's too.
   React.useEffect(() => {
     const m = document.querySelector('meta[name="theme-color"]');
-    if (m) m.setAttribute('content', redMode ? '#0a0204' : '#0e0d0b');
+    if (m) m.setAttribute('content', redMode ? '#0a0000' : '#0e0d0b');
   }, [redMode]);
   const h24 = useH24();
   const bortle = useBortle();
@@ -9905,11 +10595,16 @@ function TwilightApp() {
   });
   const [installed, setInstalled] = React.useState(false);
 
+  // Settings closes on a tap elsewhere, and on Escape, which puts focus
+  // back on the button that opened it.
+  const settingsBtnRef = React.useRef(null);
   React.useEffect(() => {
     if (!settingsOpen) return;
     const close = () => setSettingsOpen(false);
+    const esc = e => { if (e.key === 'Escape') { close(); if (settingsBtnRef.current) settingsBtnRef.current.focus(); } };
     const id = setTimeout(() => document.addEventListener('click', close), 0);
-    return () => { clearTimeout(id); document.removeEventListener('click', close); };
+    window.addEventListener('keydown', esc);
+    return () => { clearTimeout(id); document.removeEventListener('click', close); window.removeEventListener('keydown', esc); };
   }, [settingsOpen]);
 
   React.useEffect(() => {
@@ -9952,23 +10647,43 @@ function TwilightApp() {
     transition: ".15s"
   });
   return React.createElement(React.Fragment, null,
+    // The film itself (RED_LIGHT_MATRIX), ahead of the rule that points at it.
+    // A 0 x 0 svg, not display:none, which drops the filter in some browsers.
+    redMode && React.createElement("svg", { "aria-hidden": "true", focusable: "false", width: 0, height: 0, style: { position: "absolute" } },
+      React.createElement("filter", { id: "tw-red", colorInterpolationFilters: "sRGB" },
+        React.createElement("feColorMatrix", { type: "matrix", values: RED_LIGHT_MATRIX }))),
     redMode && React.createElement("style", null, `
-      #root{
-        --bg:#0a0204;--bg-glow:#1c0708;--bg-glow-2:#1c0708;
-        --surface:#160506;--surface-2:#1e0708;
-        --panel-glass:linear-gradient(180deg,rgba(40,12,12,.72),rgba(24,8,8,.72));
-        --field-bg:rgba(20,4,4,.7);
-        --ink:#d06a64;--ink-dim:#9a4a46;--ink-faint:#6e302e;
-        --accent:#e06a60;--accent-hi:#ff8a7e;--accent-soft:rgba(224,106,96,.12);
-        --on-accent:#160000;--line:#3a1412;
-        --btn-border:rgba(224,106,96,.20);--btn-fill:rgba(224,106,96,.10);--btn-fill-hi:rgba(224,106,96,.17);--btn-ink:rgba(224,106,96,.70);
+      /* Red light mode: pure red, no green or blue anywhere (2026-10-21). On :root, so the
+         page behind an overscroll and the welcome (in <body>) are red too. --ink-dim is 4.5:1
+         or better on every surface, --ink-faint 3:1; pure red can't reach more than 5.3:1 on
+         black, so --ink sits only a little above --ink-dim. */
+      :root{
+        --bg:#0a0000;--bg-glow:#1c0000;--bg-glow-2:#1c0000;
+        --surface:#160000;--surface-2:#1e0000;
+        --panel-glass:linear-gradient(180deg,rgba(40,0,0,.72),rgba(24,0,0,.72));
+        --field-bg:rgba(20,0,0,.7);--panel-top:rgba(255,0,0,.06);--pick-field:#120000;--ink-warn:#ff0000;--ink-alert:#ff0000;--star-dot:#ff0000;--btn-alt-bg:rgba(255,0,0,.10);--btn-alt-line:rgba(255,0,0,.28);
+        --ink:#ff0000;--ink-dim:#f40000;--ink-faint:#c80000;--ink-prose:#ff0000;
+        --accent:#f40000;--accent-hi:#ff0000;--accent-soft:rgba(244,0,0,.12);
+        --on-accent:#160000;--line:#460000;
+        --btn-border:rgba(255,0,0,.24);--btn-fill:rgba(255,0,0,.10);--btn-fill-hi:rgba(255,0,0,.17);--btn-ink:#f40000;
+        /* the twilight colours by their brightness (0.3 R + 0.59 G + 0.11 B), so dusk still
+           darkens along the ribbon and the dots keep their order */
+        --band-day:#a20000;--band-civil:#9b0000;--band-naut:#790000;--band-astro:#350000;--band-night:#200000;
+        --band-moon:#e60000;--dot-rise:#bd0000;--dot-astro:#5a0000;
+        --sky-ink-rgb:255,0,0;--accent-rgb:244,0,0;--sky-shade-rgb:5,0,0;--sky-glass-rgb:12,0,0;
+        /* Sky View's chips that are on: filled, since on and off no longer differ in colour */
+        --chip-on:rgba(255,0,0,.34);
       }
-      /* the live sky + star fields carry hardcoded scene colors, so wash them red for night vision;
-         and so do Sky View, the charts, the planets' drawings and the welcome (review, 2026-10-10:
-         Sky View stayed white and blue in red mode). Each thing is washed once, not twice. */
+      /* What is painted rather than written in the tokens goes through the red film
+         (RED_LIGHT_MATRIX): the skies and star fields, Sky View and its preview, the charts,
+         the Moon calendar, the planets and the welcome. Filtered where they are, each canvas
+         on its own, never a container: Safari draws url() filters in software, and a moving
+         layer inside a filtered container would refilter everything around it each frame. */
       .tw-stars,#root .hz-sky,
       #root main svg:not([role="dialog"] svg):not(svg svg),#root main canvas:not(.hz-sky):not([role="dialog"] canvas),
-      [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:saturate(.35) sepia(.5) hue-rotate(318deg) brightness(.7)}
+      [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:url(#tw-red)}
+      /* The browser's own grey for an empty field's hint (review, 2026-10-23). */
+      input::placeholder,textarea::placeholder{color:var(--ink-faint);opacity:1}
     `),
     React.createElement("div", { "aria-hidden": "true", style: { height: headerH == null ? "calc(env(safe-area-inset-top) + 46px)" : headerH } }),
     offer && React.createElement("div", {
@@ -9999,7 +10714,7 @@ function TwilightApp() {
         onClick: dismissInstall,
         "aria-label": "Not now",
         title: "Not now",
-        style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 16, cursor: "pointer", padding: "2px 6px" }
+        style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 16, cursor: "pointer", padding: 0, width: 44, height: 44, margin: "-10px -9px", flexShrink: 0 }
       }, "✕")
     ),
     React.createElement("header", {
@@ -10059,17 +10774,19 @@ function TwilightApp() {
           whiteSpace: "nowrap"
         }
       }, visitorCount.toLocaleString(), visitorCount === 1 ? " visit" : " visits"),
+      // 44 px each, Apple's minimum (they were 27 px, side by side).
       React.createElement("button", {
+        ref: settingsBtnRef,
         onClick: e => { e.stopPropagation(); setSettingsOpen(o => !o); },
         title: "Settings",
         "aria-label": "Settings",
         "aria-expanded": settingsOpen,
         style: {
           marginLeft: "auto",
-          marginRight: 2,
+          marginRight: 0,
           background: "transparent", border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center",
-          opacity: settingsOpen ? 1 : 0.7, padding: "6px",
+          display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, flexShrink: 0,
+          opacity: settingsOpen ? 1 : 0.7, padding: 0,
           color: settingsOpen ? "var(--accent)" : "var(--ink-dim)"
         }
       }, React.createElement("svg", { "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" },
@@ -10096,6 +10813,7 @@ function TwilightApp() {
           React.createElement("button", {
             type: "button", onClick: () => prefStore.setH24(!h24),
             role: "switch", "aria-checked": h24, "aria-label": "24-hour time",
+            className: "tw-hit",
             style: {
               width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
               background: h24 ? "var(--accent)" : "rgba(190,180,160,.18)",
@@ -10115,6 +10833,7 @@ function TwilightApp() {
           React.createElement("button", {
             type: "button", onClick: () => prefStore.setBortleMode(bortleMode === "auto" ? "manual" : "auto"),
             role: "switch", "aria-checked": bortleMode === "auto", "aria-label": "Sky brightness from your location",
+            className: "tw-hit",
             style: {
               width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
               background: bortleMode === "auto" ? "var(--accent)" : "rgba(190,180,160,.18)",
@@ -10153,7 +10872,7 @@ function TwilightApp() {
           React.createElement("span", null, "Week planner ", proShown() && React.createElement("span", { style: { fontSize: 9, letterSpacing: "0.1em", color: "var(--accent)", border: "1px solid var(--btn-border)", padding: "1px 5px", borderRadius: 4, fontWeight: 600 } }, "PRO")),
           iapMode
             ? (pro
-                ? React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--accent-hi)", flexShrink: 0 } }, "✓ Unlocked")
+                ? React.createElement("span", { style: { fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--accent-hi)", flexShrink: 0 } }, React.createElement("span", { "aria-hidden": "true" }, "✓ "), "Unlocked")
                 : React.createElement("button", {
                     onClick: buyPro, disabled: iapBusy,
                     style: { fontFamily: "var(--font-ui)", fontSize: 12, letterSpacing: ".4px", padding: "6px 14px", borderRadius: 8, cursor: iapBusy ? "default" : "pointer", border: "none", background: "var(--accent)", color: "var(--on-accent)", fontWeight: 600, flexShrink: 0, opacity: iapBusy ? 0.6 : 1 }
@@ -10161,6 +10880,7 @@ function TwilightApp() {
             : React.createElement("button", {
                 type: "button", onClick: () => prefStore.setPro(!pro),
                 role: "switch", "aria-checked": pro, "aria-label": "Week planner",
+                className: "tw-hit",
                 style: {
                   width: 42, height: 24, borderRadius: 20, padding: 3, flexShrink: 0, border: 0, cursor: "pointer",
                   background: pro ? "var(--accent)" : "rgba(190,180,160,.18)",
@@ -10182,18 +10902,20 @@ function TwilightApp() {
       ),
       React.createElement("button", {
         onClick: toggleRed,
-        title: redMode ? "Exit red light mode" : "Red light mode",
-        "aria-label": redMode ? "Exit red light mode" : "Enable red light mode",
+        // One name; whether it's on is aria-pressed ("Exit red light mode,
+        // selected" said both at once).
+        title: "Red light mode",
+        "aria-label": "Red light mode",
         "aria-pressed": redMode,
         style: {
           marginLeft: redMode ? 8 : 0,
-          marginRight: 10,
+          marginRight: 2,
           background: "transparent",
           border: "none",
           cursor: "pointer",
-          display: "flex", alignItems: "center",
+          display: "flex", alignItems: "center", justifyContent: "center", width: 44, height: 44, flexShrink: 0,
           opacity: redMode ? 1 : 0.7,
-          padding: "6px",
+          padding: 0,
           color: redMode ? "var(--accent-hi)" : "var(--ink-dim)"
         }
       }, React.createElement("svg", { "aria-hidden": "true", width: 15, height: 15, viewBox: "0 0 16 16" },
@@ -10240,7 +10962,7 @@ function TwilightApp() {
         onClick: dismissHint,
         "aria-label": "Dismiss tip",
         title: "Got it",
-        style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 15, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }
+        style: { background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 15, cursor: "pointer", padding: 0, width: 44, height: 44, margin: "-11px -9px", flexShrink: 0 }
       }, "✕")
     ),
     React.createElement("main", {
@@ -10261,7 +10983,7 @@ function TwilightApp() {
     },
       (() => { try { return new URLSearchParams(window.location.search).has('sources'); } catch (e) { return false; } })() && React.createElement(SourcesNote),
       React.createElement("span", null, "Twilyte — a live sky dashboard & twilight ephemeris. ",
-        React.createElement("a", { href: "https://github.com/bergeronK/Twilight/issues/new?template=feedback.md", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
+        React.createElement("a", { href: "support.html#contact", style: { color: "var(--ink-dim)" } }, "Tell us what you think"), "."),
       React.createElement("span", null,
         "Sun and Moon: Meeus (Astronomical Algorithms; ELP-2000/82) · Place search: ",
         React.createElement("a", { href: "https://open-meteo.com/", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "Open-Meteo"),
@@ -10276,11 +10998,14 @@ function TwilightApp() {
         // (and a new window there opens nothing): the website's copy goes
         // to Safari instead. The apps count no visits (review, 2026-10-10).
         React.createElement("a", { href: window.Capacitor ? "https://twilyte.info/constellations.LICENSE.txt" : "constellations.LICENSE.txt", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--ink-dim)" } }, "BSD 3-Clause"),
-        window.Capacitor ? ") · No tracking. " : ") · No tracking — only an anonymous visit count. ",
-        React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)" } }, "Privacy"),
-        " · ",
-        React.createElement("a", { href: "/support.html", style: { color: "var(--ink-dim)" } }, "Help")
-      )
+        window.Capacitor ? ") · No tracking." : ") · No tracking — only an anonymous visit count."
+      ),
+      // Their own line, each 44 px tall to the touch (they were 14 px
+      // links at the end of the credits).
+      React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 6, margin: "-6px 0" } },
+        React.createElement("a", { href: "/privacy.html", style: { color: "var(--ink-dim)", display: "inline-flex", alignItems: "center", minHeight: 44, minWidth: 44 } }, "Privacy"),
+        React.createElement("span", { "aria-hidden": "true" }, "·"),
+        React.createElement("a", { href: "/support.html", style: { color: "var(--ink-dim)", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 } }, "Help"))
     )
   );
 }

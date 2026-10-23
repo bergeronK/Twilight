@@ -47,7 +47,7 @@ test('the week planner says Pro and preview on the website only', () => {
 
 test('the privacy policy and the Help page are linked from the app and bundled into it', () => {
   const footer = declSource('TwilightApp');
-  assert.match(footer, /href: "\/privacy\.html", style: \{[^}]*\} \}, "Privacy"\),\s*" · ",\s*React\.createElement\("a", \{ href: "\/support\.html", style: \{[^}]*\} \}, "Help"\)/);
+  assert.match(footer, /href: "\/privacy\.html", style: \{[^}]*\} \}, "Privacy"\),\s*React\.createElement\("span", \{ "aria-hidden": "true" \}, "·"\),\s*React\.createElement\("a", \{ href: "\/support\.html", style: \{[^}]*\} \}, "Help"\)/);
   const sync = read('native/sync-web.js');
   for (const f of ['privacy.html', 'support.html']) {
     assert.ok(sync.includes(`'${f}'`), `${f} bundled into the apps`);
@@ -65,6 +65,10 @@ test('the Help page: contact, no scripts, links that resolve, the app’s own wo
   assert.doesNotMatch(page, /<script/);
   assert.match(page, /<link rel="canonical" href="https:\/\/twilyte\.info\/support\.html" \/>/);
   assert.ok(page.includes('https://github.com/bergeronK/Twilight/issues/new?template=feedback.md'), 'a way to get in touch');
+  // And one that needs no account (App Review guideline 1.5), on the
+  // privacy policy too.
+  assert.ok(page.includes('href="mailto:support@twilyte.info"'), 'an email address');
+  assert.ok(read('privacy.html').includes('href="mailto:support@twilyte.info"'));
   assert.ok(page.includes('href="privacy.html"'));
   // Every local file it uses exists (the app bundles the same files).
   for (const [, f] of page.matchAll(/url\(([^)]+)\)|href="([^"#:]+\.(?:png|html))"/g)) {
@@ -204,6 +208,35 @@ test('in the apps, location comes from the system, with the browser’s error co
   const calls = HTML.match(/navigator\.geolocation\.getCurrentPosition/g) || [];
   assert.strictEqual(calls.length, 1, 'only getPosition itself calls the browser');
   for (const name of ['RealtimeTwilight', 'TwilightEphemeris', 'StarFinder']) {
-    assert.match(declSource(name), /getPosition\(/, name);
+    assert.match(declSource(name), /\b(getPosition|locate)\(/, name);
   }
+  // locate (the Console's and the Stars tab's) asks through getPosition too.
+  assert.match(declSource('locate'), /return getPosition\(ok, fail, gps\);[\s\S]*getPosition\(ok, e =>/);
+});
+
+// The iPad screenshots said "point your phone" (store review, 2026-10-21).
+// iPadOS's WebKit calls itself a Mac; the touch points give it away.
+test('the words that say to move the device say iPad on an iPad', () => {
+  const { extract: ex } = require('./extract.js');
+  const { deviceWord } = ex(['deviceWord']);
+  const was = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const as = (userAgent, maxTouchPoints) => {
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent, maxTouchPoints }, configurable: true });
+    return deviceWord();
+  };
+  try {
+    assert.strictEqual(as('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 5), 'phone');
+    assert.strictEqual(as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 5), 'iPad');
+    assert.strictEqual(as('Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X)', 5), 'iPad');
+    assert.strictEqual(as('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 0), 'phone', 'a real Mac');
+    assert.strictEqual(as('Mozilla/5.0 (Linux; Android 14)', 5), 'phone');
+  } finally {
+    if (was) Object.defineProperty(globalThis, 'navigator', was); else delete globalThis.navigator;
+  }
+  // No user-facing string still says "the phone" or "your phone".
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+  const strings = html.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .flatMap(l => l.match(/(["'`])(?:(?!\1).)*\b(?:the|your|Your) phone\b(?:(?!\1).)*\1/g) || []);
+  // Android's settings are a phone's; the rest are comments the scan catches.
+  assert.deepStrictEqual(strings.filter(x => !/back of the phone|your phone’s settings|written in the phone/.test(x)), []);
 });

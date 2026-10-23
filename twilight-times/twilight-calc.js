@@ -45,7 +45,40 @@
     return { utc: utc };
   }
 
-  // Found with noon's Sun, then twice more with the Sun at the event's time.
+  // index.html's sunRaDec/sunHcZn/sunAltitude (Meeus's low-precision Sun at
+  // the moment given) and refineCrossing, the same arithmetic in the same
+  // order, so the last step lands where the app's does.
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  function sunAltitude(date, lat, lonE) {
+    var T = (date.getTime() / 86400000 + 2440587.5 - 2451545) / 36525, r = D2R;
+    var L0 = 280.46646 + T * (36000.76983 + T * 0.0003032);
+    var M = 357.52911 + T * (35999.05029 - 0.0001537 * T);
+    var C = Math.sin(M * r) * (1.914602 - T * (0.004817 + 0.000014 * T)) + Math.sin(2 * M * r) * (0.019993 - 0.000101 * T) + Math.sin(3 * M * r) * 0.000289;
+    var om = 125.04 - 1934.136 * T;
+    var lam = (L0 + C - 0.00569 - 0.00478 * Math.sin(om * r)) * r;
+    var eps = (23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60 + 0.00256 * Math.cos(om * r)) * r;
+    var ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)) * R2D;
+    var dec = Math.asin(Math.sin(eps) * Math.sin(lam)) * R2D;
+    var gmst = 280.46061837 + 360.98564736629 * T * 36525;
+    var ha = (gmst + lonE - ra) * D2R, la = lat * D2R, de = dec * D2R;
+    return Math.asin(Math.max(-1, Math.min(1, Math.sin(la) * Math.sin(de) + Math.cos(la) * Math.cos(de) * Math.cos(ha)))) * R2D;
+  }
+  function refineCrossing(t, h, lat, lonE, altFn) {
+    var x = t;
+    for (var k = 0; k < 4; k++) {
+      var a = altFn(new Date(x), lat, lonE) - h;
+      var da = (altFn(new Date(x + 30000), lat, lonE) - altFn(new Date(x - 30000), lat, lonE)) / 60000;
+      if (!(Math.abs(da) > 1e-10)) return t;
+      var dx = -a / da;
+      x += dx;
+      if (!(Math.abs(x - t) < 600000)) return t;
+      if (Math.abs(dx) < 20) break;
+    }
+    return x;
+  }
+
+  // Found with noon's Sun, then twice more with the Sun at the event's time,
+  // then on to the crossing of the app's own Sun.
   function sunEvent(lat, lon, p, a, rise) {
     var e = eventUTC(lat, lon, p, a, rise);
     for (var k = 0; k < 2 && e.utc !== undefined; k++) {
@@ -53,7 +86,9 @@
       if (e2.utc === undefined) break;
       e = e2;
     }
-    return e;
+    if (e.utc === undefined) return e;
+    var day = Date.UTC(p.y, p.m - 1, p.d);
+    return { utc: (refineCrossing(day + e.utc * 60000, a, lat, lon, sunAltitude) - day) / 60000 };
   }
 
   var ALT = { sun: -0.833, civil: -6, nautical: -12, astro: -18 };

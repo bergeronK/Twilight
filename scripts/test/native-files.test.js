@@ -52,6 +52,21 @@ test('a sunrise runs from civil dawn to sunrise, and the alarm’s own words are
   assert.match(ev.notes, /^Nautical dawn .* Sunrise 22:37\.$/);
 });
 
+// "Your location" is the Console's name for the device's own fix; on its
+// own in a calendar it read "Sunrise at Your location" (review, 2026-10-21).
+test('a place called "Your location" isn\u2019t written into an event\u2019s title', () => {
+  const set = { t: T, civil: T + 28 * 60000 }, rise = { t: T, civil: T - 27 * 60000 };
+  assert.strictEqual(m.icsEvents(m.sunsetICS(set, 'Your location', T, fmt))[0].title, 'Sunset');
+  assert.strictEqual(m.icsEvents(m.sunriseICS(rise, 'Your location', T, fmt))[0].title, 'Sunrise');
+  const { placeName } = extract(['placeName']);
+  assert.strictEqual(placeName({ name: 'Your location', lat: 38.5712, lon: -109.5498 }), '38.57\u00b0, -109.55\u00b0');
+  assert.strictEqual(placeName({ name: 'Moab, UT', lat: 38.57, lon: -109.55 }), 'Moab, UT');
+  // The sight form names the assumed position the same way.
+  const nav = declSource('StarFinder');
+  assert.match(nav, /nm from your assumed position \(", placeName\(loc\), "\)"/);
+  assert.match(nav, /from your assumed position, ",\s*placeName\(loc\), "\./);
+});
+
 test('the sextant window, which has no reminder', () => {
   const win = { s: T, e: T + 32 * 60000, kind: 'evening' };
   const [ev] = m.icsEvents(m.sextantICS(win, 'Boston, MA', Date.UTC(2026, 9, 9)));
@@ -63,8 +78,8 @@ test('the sextant window, which has no reminder', () => {
 });
 
 test('a month’s export: every window, in order', () => {
-  const x = extract(['D2R', 'R2D', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows',
-    'localComputeDay', 'photoWindowsFor', 'pad2', 'icalStamp', 'utcDate', 'daysInMonth', 'tzOffset', 'zoneOffsets']);
+  const x = extract(['D2R', 'R2D', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'refineCrossing', 'sunAltitude', 'sunHcZn', 'sunRaDec', 'ALT', 'computeDay', 'photoWindows',
+    'localComputeDay', 'photoWindowsFor', 'pad2', 'icalStamp', 'utcDate', 'daysInMonth', 'dtf', 'tzOffset', 'zoneOffsets']);
   const run = mode => {
     let out = null;
     new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'localComputeDay', 'icalStamp', 'utcDate', 'photoWindowsFor', 'download', 'pad2',
@@ -167,7 +182,7 @@ test('every calendar button and both exports go through saveFile', () => {
   assert.match(rt, /saveICS\(sunsetICS\(/);
   assert.match(rt, /saveICS\(sunriseICS\(/);
   assert.match(declSource('TwilightEphemeris'), /const download = \(name, text, mime\) => saveFile\(name, text, mime\);/);
-  assert.match(declSource('StarFinder'), /saveFile\("sextant-window\.ics", sextantICS\(sextWin, loc\.name, Date\.now\(\)\), "text\/calendar"\)/);
+  assert.match(declSource('StarFinder'), /saveFile\("sextant-window\.ics", sextantICS\(sextWin, placeName\(loc\), Date\.now\(\)\), "text\/calendar"\)/);
 });
 
 test('the Swift calendar plugin is registered under the name the page looks for', () => {

@@ -56,13 +56,39 @@ test('the illumination thresholds are where they claim to be', () => {
   assert.strictEqual(tonightGlance(sky('night', 30, 0.24)).head, 'Excellent stargazing');
 });
 
+// The painting stays clear (owner, 2026-09-28), but the words don't promise
+// stars the forecast says clouds will hide (owner, 2026-10-21).
+test('a cloudy or rainy night is said, not called excellent', () => {
+  const cloudy = { factor: 'cloudy' }, rain = { factor: 'rain likely' }, clear = { factor: 'clear & dark' };
+  const dark = tonightGlance(sky('night', -20, 0), cloudy);
+  assert.strictEqual(dark.head, 'Dark, if it clears');
+  assert.match(dark.sub, /^Cloud is forecast for tonight\. The sky is dark and the Moon is down\.$/);
+  assert.match(tonightGlance(sky('night', -20, 0), rain).sub, /^Rain is forecast/);
+  assert.strictEqual(tonightGlance(sky('night', 30, 0.4), cloudy).head, 'Good, if it clears');
+  assert.match(tonightGlance(sky('night', 30, 0.9), cloudy).sub, /Moon, and cloud is forecast/);
+  assert.match(tonightGlance(sky('day', 45, 0.1), cloudy).sub, /Cloud is forecast for tonight/);
+  assert.match(tonightGlance(sky('naut', -20, 0), rain).sub, /Rain is forecast/);
+  // A clear night, some cloud, or no forecast at all: the verdicts as before.
+  assert.strictEqual(tonightGlance(sky('night', -20, 0), clear).head, 'Excellent stargazing');
+  assert.strictEqual(tonightGlance(sky('night', -20, 0), { factor: 'some cloud' }).head, 'Excellent stargazing');
+  assert.strictEqual(tonightGlance(sky('night', -20, 0), null).head, 'Excellent stargazing');
+});
+
+test('nautical twilight is put in a stargazer\u2019s words, not a navigator\u2019s', () => {
+  const dusk = tonightGlance(Object.assign(sky('naut', -20, 0), { rising: false }));
+  const dawn = tonightGlance(Object.assign(sky('naut', -20, 0), { rising: true }));
+  for (const g of [dusk, dawn]) assert.doesNotMatch(g.sub, /sextant|horizon/i);
+  assert.match(dusk.sub, /stars are out/);
+  assert.match(dawn.sub, /sky pales/);
+});
+
 test('every verdict has a head, a sub and a tone', () => {
   const cases = [
     sky('day', 0, 0), sky('civil', 0, 0), sky('naut', 0, 0),
     sky('night', 30, 0.9), sky('night', 30, 0.4), sky('night', 30, 0.05), sky('night', -5, 0.5)
   ];
-  for (const c of cases) {
-    const g = tonightGlance(c);
+  for (const c of cases) for (const f of [null, { factor: 'cloudy' }, { factor: 'rain likely' }]) {
+    const g = tonightGlance(c, f);
     assert.ok(g.head && g.sub && g.tone, `incomplete verdict for ${JSON.stringify(c)}`);
     assert.ok(g.tone.startsWith('var(--'), `tone should be a design token, got ${g.tone}`);
     assert.ok(/[.!]$/.test(g.sub), `sub should be a full sentence: "${g.sub}"`);
@@ -72,7 +98,7 @@ test('every verdict has a head, a sub and a tone', () => {
 test('Console copy keeps the Navigator vocabulary out', () => {
   // The voice rule: a casual stargazer lands on the Console first, and terms
   // like Bortle, limiting magnitude and marine horizon do not belong there.
-  const banned = /bortle|limiting magnitude|marine horizon|\bcut\b|\bHs\b|index error/i;
+  const banned = /bortle|limiting magnitude|marine horizon|\bcut\b|\bHs\b|index error|sextant/i;
   const cases = [
     sky('day', 0, 0), sky('civil', 0, 0), sky('naut', 0, 0),
     sky('night', 30, 0.9), sky('night', 30, 0.4), sky('night', 20, 0.05), sky('night', -5, 0.5)

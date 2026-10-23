@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
-const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'SUN_THR',
+const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR',
   'TWILIGHT_WORDS', 'twilightWord', 'twilightDay', 'cdHMS',
   'pointToward', 'wxOf', 'cloudAt', 'skyGlow', 'sunsetICS', 'sunriseICS', 'horizonBearing', 'nextSunset', 'nextSunrise']);
 
@@ -162,8 +162,8 @@ test('the sunrise calendar event: civil dawn to sunrise, a reminder before it', 
 
 test('in the Twilight section: the colour line and the calendar button', () => {
   const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
-  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', `${declSource('TwilightToday')}; return TwilightToday;`)(
-    R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {});
+  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', 'TwilightCountdown', `${declSource('TwilightToday')}; return TwilightToday;`)(
+    R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {}, 'TwilightCountdown');
   const text = n => typeof n === 'string' || typeof n === 'number' ? String(n) : (n.c || []).map(text).join('');
   const sched = { when: 'today', ...m.twilightDay(sunEv.filter(e => e.t < MID + 86400000), MID) };
   let cal = [];
@@ -172,8 +172,8 @@ test('in the Twilight section: the colour line and the calendar button', () => {
     { kind: 'sunset', label: 'Tonight’s sunset', level: 'vivid', title: 'Likely colourful', detail: 'High cloud.' },
     { kind: 'sunrise', label: 'Tomorrow’s sunrise', level: 'grey', title: 'Probably grey', detail: 'Low cloud.' }];
   const reminders = [
-    { kind: 'sunset', label: 'Add sunset to calendar', aria: 'Add tonight’s sunset to your calendar', onClick: () => cal.push('set') },
-    { kind: 'sunrise', label: 'Add sunrise to calendar', aria: 'Add tomorrow’s sunrise to your calendar', onClick: () => cal.push('rise') }];
+    { kind: 'sunset', label: 'Add sunset to calendar', aria: 'Add sunset to calendar, tonight at 18:34', onClick: () => cal.push('set') },
+    { kind: 'sunrise', label: 'Add sunrise to calendar', aria: 'Add sunrise to calendar, tomorrow at 07:02', onClick: () => cal.push('rise') }];
   const out = TT({ ...base, glows, reminders });
   const all = text(out);
   assert.match(all, /Tonight’s sunset colourLikely colourfulHigh cloud\.Tomorrow’s sunrise colourProbably greyLow cloud\.Estimates from the cloud forecast\./);
@@ -181,7 +181,7 @@ test('in the Twilight section: the colour line and the calendar button', () => {
   assert.ok(!JSON.stringify(out).includes('"border":'), 'no boxes');
   const btns = out.c[out.c.length - 1].c;
   assert.deepStrictEqual(btns.slice(0, 2).map(text), ['Add sunset to calendar', 'Add sunrise to calendar']);
-  assert.strictEqual(btns[0].p['aria-label'], 'Add tonight’s sunset to your calendar', 'the full words for a screen reader');
+  assert.strictEqual(btns[0].p['aria-label'], 'Add sunset to calendar, tonight at 18:34', 'the full words for a screen reader');
   btns[0].p.onClick(); btns[1].p.onClick(); assert.deepStrictEqual(cal, ['set', 'rise']);
   // The vivid title in amber, anything else in ink.
   const colour = t => JSON.stringify(out).match(new RegExp('"color":"(\\w+)"\\}\\},"c":\\["' + t + '"'))[1];
@@ -218,7 +218,9 @@ test('the Console asks for the cloud layers here and toward the sunset', () => {
 test('the almanac button over the painting deals a fact and goes to it', async () => {
   const rt = declSource('RealtimeTwilight');
   assert.match(rt, /corner: factCorner,/);
-  assert.match(rt, /const factCorner = React\.createElement\("button", \{\s*onClick: jumpToFact,\s*"aria-label": "A twilight fact from the almanac"/);
+  // The name starts with the words on the button ("Twilight fact"), for
+  // Voice Control.
+  assert.match(rt, /const factCorner = React\.createElement\("button", \{\s*onClick: jumpToFact, className: "tw-hit",\s*"aria-label": "Twilight fact, from the almanac"/);
   // Run jumpToFact from source: a fact is dealt only when none is showing,
   // and the almanac is scrolled to and focused.
   const src = rt.slice(rt.indexOf('const jumpToFact = '), rt.indexOf('const factCorner = '));
