@@ -3,6 +3,7 @@
   "appName": "Twilyte",
   "webDir": "www",
   "backgroundColor": "#0e0d0b",
+  "zoomEnabled": true,
   "ios": {
     "contentInset": "never"
   },

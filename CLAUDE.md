@@ -215,6 +215,70 @@ stargazer is the default, navigator material is kept whole but folded.
     (`skyViewSummary`).
   - The Ephemeris chart is an `img` with the day in words (`daySummary`).
   - Segmented buttons carry `aria-pressed`.
+- **Accessibility, the second pass (2026-10-21)**, from a review of v164 as
+  the iPhone app (axe with its experimental rules, the accessibility tree,
+  computed styles). axe is clean again on every tab, Sky View with Find and
+  Time open, Settings, the welcome, Help and Privacy. What to keep:
+  - **Larger Text.** iOS's text size reaches a web page only through the
+    system font `-apple-system-body` (17 px at the standard size).
+    `readTextScale` reads it; its ratio to 17, clamped to 1-`TS_MAX` (2), is
+    `--ts` on `<html>`, read again on resize and on coming back into view.
+    `followTextSize` wraps `React.createElement` once, before anything
+    renders: a style's `fontSize: 13`, or the px size in a `font` shorthand,
+    becomes `calc(13px * var(--ts, 1))`; a `clamp()` display size grows half
+    as much (`tsBig`); SVG text and the canvases are left alone. So the
+    hundreds of px sizes needed no rewrite, and at scale 1 nothing moves.
+    Only WebKit knows the font: Chromium and desktop Safari stay at 1.
+    **Not yet seen on a device**: check in the iPhone app at AX1 to AX3
+    (Settings, Accessibility, Display & Text Size, Larger Text) that the
+    text grows and follows a change made while the app is in the background.
+    To try a scale in Playwright, add `:root{--ts:1.5 !important}` (a full-
+    page screenshot resizes the viewport, and the app would set it back).
+  - What made room for it: the painting grows only its ground under its
+    words (`heroFit`; the horizon and sky stay as drawn), the place name
+    keeps clear of the measured corner button, the Sky View preview grows the
+    same way, the week's day and score columns widen with `--ts` and its words
+    wrap, tonight's facts go from three across to two or one, the Ephemeris'
+    one column is `minmax(0,1fr)`. Checked at 150% and 200% at 320, 393, 820
+    and 1280 px: no text over text, nothing clipped or off the page.
+  - Pinch zoom is on in the apps (`zoomEnabled` in
+    `native/capacitor.config.json`; Capacitor turns it off by default), with
+    `touch-action: manipulation` so a double tap doesn't zoom.
+  - The smallest information text is 11 px: the Ephemeris chart's axes and
+    band names (were 10 and 9), Jupiter's moon letters and East/West.
+  - **Headings**: section titles are `h2` (subsections `h3`) with their
+    margins reset, so VoiceOver's Headings rotor reaches them: the ribbon,
+    the Bortle block (an `sr-only` title), Twilight today's Dawn and Dusk,
+    Worth a look tonight, the week; For photographers, The Moon, Eclipses,
+    Upcoming sky events; the whole sky, Jupiter and Saturn, the space
+    station, and For navigators (an `sr-only` `h2` before the fold: a heading
+    inside a `summary` isn't reliably one) with its sections as `h3`.
+  - **Tap targets 44 x 44 px** without moving anything: `.tw-hit`, every
+    `summary` and `.rtbtn` get an invisible `::after` 44 px each way, centred.
+    Rows of such chips sit far enough apart that the areas meet (Sky View's
+    top bar 11 px, the aim chips 13). Settings and Red light are 44 x 44, so
+    the header row is 44 px tall on a phone (was 28; iOS's own bar height);
+    the banners' close buttons are 44 with negative margins; Privacy and Help
+    have their own footer line. The sextant's calendar button had the
+    Console's `rtbtn` class, styled only on the Console: a bare 24 px button
+    on the Stars tab, now styled where it is.
+  - **Voice Control**: a button's name starts with the words on it ("Add
+    sunset to calendar, tonight at 18:34"); the test scans every button with
+    a written label. Toggles keep one name and say their state with
+    `aria-pressed` (Red light, Sky View's Camera, which no longer reads
+    "Camera on").
+  - Marks (← → ↗ ✦ ↻ ⌖ ＋ ◆ ▭ ✓) are `aria-hidden`; where one meant
+    something it is said in words (`sr-only`: ", passed" on a past twilight
+    stage, ", magnitude 0.0", "Best fix: ").
+  - **Modals make the page behind them inert** (`inertOutside`: siblings of
+    the dialog and of each ancestor), the welcome and Sky View; Sky View
+    lifts it before giving focus back. Escape closes Settings and the
+    Console's place picker, and focus returns to the button that opened
+    them. Sky View's time line is no longer a live region (it spoke every
+    minute, over the slider's own value); Now hands focus to the slider or
+    the Time chip, since it disappears when pressed.
+  - The Ephemeris' scroll back up to its form is instant under reduced
+    motion.
 - **Offering to install (2026-09-25).** The top banner used to show on
   the first visit, only where the browser has `beforeinstallprompt`
   (Chrome, Edge; never iOS, where Add to Home Screen is also the only way
@@ -1713,6 +1777,13 @@ things a syntax check cannot see:
   `skyViewSummary` and `daySummary`. Red light mode's inks too: `--ink`,
   `--ink-dim`, `--accent` and `--btn-ink` 4.5:1 and `--ink-faint` 3:1 on
   every red surface, in that order of brightness.
+  `skyViewSummary` and `daySummary`. Since 2026-10-21 also: zoom allowed,
+  `textScale`/`readTextScale` (a fake probe), `scaleTextStyle`, the
+  `followTextSize` wrapper run from source, the layouts that make room,
+  the 11 px minimum, the headings (hook-free parts rendered with a stub
+  React), the 44 px rules, a scan of every button's label against its
+  words, the toggles, Sky View's time, a scan for unhidden marks,
+  `inertOutside` on a fake tree, and the Escape handlers run from source.
 - **`load.test.js`** — first load and offline: the two Inter faces (core
   = `subset-inter.sh`'s range, no overlap, same in the city pages,
   preloaded, the core precached not the full font), no shipped character in

@@ -14,7 +14,9 @@ const m = extract(['BORTLE', 'BORTLE_WORD', 'skyWord', 'BORTLE_SEE', 'staleNote'
 const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
 const C = { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' };
 const SkyDarkness = new Function('React', 'C', 'skyWord', 'BORTLE_SEE', `${declSource('SkyDarkness')}; return SkyDarkness;`)(R, C, m.skyWord, m.BORTLE_SEE);
-const texts = n => typeof n === 'string' ? [n] : (n.c || []).flatMap(texts);
+// What shows on screen: the block's heading is for screen readers only
+// (accessibility.test.js checks it).
+const texts = n => typeof n === 'string' ? [n] : n.p && n.p.className === 'sr-only' ? [] : (n.c || []).flatMap(texts);
 
 test('every class from 1 to 9 has a sentence, darkest first', () => {
   for (let b = 1; b <= 9; b++) {
