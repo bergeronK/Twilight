@@ -16,7 +16,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'rev', 'sin', 'cos', 'asin', 'acos', 'atan2', 'jd', 'gmst',
-  'tzOffset', 'zoneOffsets', 'shiftDate', 'hx', 'toHex', 'lerpC', 'skyColors', 'daySkyStops',
+  'dtf', 'tzOffset', 'zoneOffsets', 'shiftDate', 'hx', 'toHex', 'lerpC', 'skyColors', 'daySkyStops',
   'MOON_LR', 'MOON_B', 'moonEcliptic', 'moonState', 'moonTopo', 'moonAltSeen', 'moonDayTrack', 'bandLabelX']);
 
 test('zoneOffsets: the offset a real zone has on the date, daylight saving included', () => {
@@ -123,7 +123,7 @@ const choosePlaceWith = (isToday, now) => {
   const set = k => v => { calls[k] = v; };
   const env = { setLat: set('lat'), setLon: set('lon'), setTz: set('tz'), setPlaceName: set('name'),
     setResults: set('results'), setQuery: set('query'), setSearchMsg: set('msg'), setGeoMsg: set('geo'),
-    setDateStr: set('date'), isToday, dateKey: extract(['dateKey']).dateKey,
+    setDateStr: set('date'), isToday, dateKey: extract(['dtf', 'dateKey']).dateKey,
     Date: { now: () => now }, window: { matchMedia: () => ({ matches: false }) } };
   const choosePlace = new Function(...Object.keys(env), declSource('choosePlace') + '\nreturn choosePlace;')(...Object.values(env));
   return { choosePlace, calls };

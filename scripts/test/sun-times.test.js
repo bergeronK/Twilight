@@ -92,7 +92,7 @@ test('Boston, 24 September 2026: sunset 18:38 on both tabs', () => {
   const ev = REF.events.find(r => r[0] === 'Boston' && r[3] === 'rise' && r[4] === 'down' && new Date(r[5]).toISOString().startsWith('2026-09-24'));
   // Rounded to the minute, the way each tab writes it.
   const R = { getH24: () => true };
-  const fmtT = new Function('prefStore', declSource('fmtT') + '; return fmtT;')(R);
+  const fmtT = new Function('prefStore', declSource('dtf') + ';' + declSource('fmtT') + '; return fmtT;')(R);
   assert.strictEqual(fmtT(ev[5], 'America/New_York'), '18:38', 'PyEphem, rounded');
   assert.strictEqual(fmtT(consoleTime(ev), 'America/New_York'), '18:38', 'the Console');
   const c = m.computeDay(42.36, -71.06, 2026, 9, 24).sunset.utc - 240;
@@ -100,7 +100,7 @@ test('Boston, 24 September 2026: sunset 18:38 on both tabs', () => {
 });
 
 test('fmtT rounds to the nearest minute: 18:37:29 is 18:37, 18:37:30 is 18:38', () => {
-  const fmtT = new Function('prefStore', declSource('fmtT') + '; return fmtT;')({ getH24: () => true });
+  const fmtT = new Function('prefStore', declSource('dtf') + ';' + declSource('fmtT') + '; return fmtT;')({ getH24: () => true });
   const at = s => Date.UTC(2026, 8, 24, 22, 37, s);
   assert.strictEqual(fmtT(at(29), 'America/New_York'), '18:37');
   assert.strictEqual(fmtT(at(30), 'America/New_York'), '18:38');

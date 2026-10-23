@@ -9,7 +9,7 @@ const assert = require('node:assert');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', 'jd', 'gmst', 'sunAltitude', 'sunRaDec', 'sunHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR',
-  'TWILIGHT_WORDS', 'twilightWord', 'twilightDay', 'cdHMS']);
+  'TWILIGHT_WORDS', 'twilightWord', 'twilightDay', 'cdHMS', 'cdWords']);
 
 // Boston, 24 September 2026, local midnight (EDT, UTC-4) to midnight.
 const BOS = [42.36, -71.06], MID = Date.UTC(2026, 8, 24, 4);
@@ -47,16 +47,31 @@ test('a summer night far north has no nautical or astronomical dusk, and nothing
 test('the section: heading, next stage and countdown, two columns, a way on', () => {
   const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
   let clicked = 0;
-  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', `${declSource('TwilightToday')}; return TwilightToday;`)(
-    R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {});
-  const text = n => typeof n === 'string' || typeof n === 'number' ? String(n) : (n.c || []).map(text).join('');
+  const C = { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' };
+  // The countdown is a child with its own clock (2026-10-21); TwilightToday
+  // stays hook-free and hands it the moment and the Console's time. Its
+  // hooks stubbed: the state is its first value, the effect not run.
+  const TC = new Function('React', 'C', 'cdHMS', 'cdWords', 'useState', 'useEffect', `${declSource('TwilightCountdown')}; return TwilightCountdown;`)(
+    R, C, m.cdHMS, m.cdWords, v => [v, () => {}], () => {});
+  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', 'TwilightCountdown', `${declSource('TwilightToday')}; return TwilightToday;`)(
+    R, C, m.cdHMS, m.twilightWord, {}, TC);
+  const text = n => typeof n === 'string' || typeof n === 'number' ? String(n) : n.t === TC ? text(TC(n.p)) : (n.c || []).map(text).join('');
   const noon = MID + 12 * 3600000;
   const sched = { when: 'today', ...m.twilightDay(sunEv, noon) };
   const next = sunEv.find(e => e.t > noon);
-  const out = TT({ next, now: next.t - (2 * 3600000 + 14 * 60000 + 5000), sched, fmt: t => 'T' + Math.round(t / 1e9), sunUp: true, onMore: () => clicked++ });
+  const now = next.t - (2 * 3600000 + 14 * 60000 + 5000);
+  const out = TT({ next, now, sched, fmt: t => 'T' + Math.round(t / 1e9), sunUp: true, onMore: () => clicked++ });
   const all = text(out);
   assert.match(all, /^Twilight today/);
-  assert.match(all, /Sunset at T\d+in 2h 14m 5s/);
+  // On screen the seconds; for a screen reader words, to the minute.
+  assert.match(all, /Sunset at T\d+in 2 hours 14 minutesin 2h 14m 5s/);
+  const cd = out.c[1].c[1];
+  assert.strictEqual(cd.t, TC);
+  assert.deepStrictEqual(cd.p, { to: next.t, now });
+  const shown = TC(cd.p);
+  assert.strictEqual(shown.c[0].p.className, 'sr-only');
+  assert.strictEqual(shown.c[1].p['aria-hidden'], 'true');
+  assert.ok(!/aria-live|"role"/.test(JSON.stringify(shown)), 'not a live region');
   assert.match(all, /Dawn.*Astronomical dawn.*Sunrise.*Dusk.*Sunset.*Astronomical dusk/);
   assert.ok(!JSON.stringify(out).includes('"border":'), 'no boxes: hairlines only');
   const btns = out.c[out.c.length - 1].c, btn = btns[btns.length - 1];

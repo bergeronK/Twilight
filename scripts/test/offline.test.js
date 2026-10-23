@@ -97,8 +97,8 @@ test('no forecast: offline or failed, said once in each place', () => {
 });
 
 test('the week planner stays, and says why it has nothing, or how old its forecast is', () => {
-  const week = new Function('React', 'C', 'proShown', 'scoreRating', 'SCORE_SHORT', `${declSource('weekPlannerEl')}; return weekPlannerEl;`)(
-    R, C, () => null, s => s >= 78 ? 'Excellent' : 'Poor', { clear: 'clear' });
+  const week = new Function('React', 'C', 'proShown', 'scoreRating', 'SCORE_SHORT', 'dtf', `${declSource('weekPlannerEl')}; return weekPlannerEl;`)(
+    R, C, () => null, s => s >= 78 ? 'Excellent' : 'Poor', { clear: 'clear' }, (l, o) => new Intl.DateTimeFormat(l, o));
   const loc = { tz: 'America/Denver' };
   const none = m.noWxWords('offline', 'week');
   // Loading the first forecast: nothing yet, as before.

@@ -162,8 +162,8 @@ test('the sunrise calendar event: civil dawn to sunrise, a reminder before it', 
 
 test('in the Twilight section: the colour line and the calendar button', () => {
   const R = { createElement: (t, p, ...c) => ({ t, p, c: c.flat().filter(x => x != null && x !== false) }) };
-  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', `${declSource('TwilightToday')}; return TwilightToday;`)(
-    R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {});
+  const TT = new Function('React', 'C', 'cdHMS', 'twilightWord', 'TWILIGHT_DOTS', 'TwilightCountdown', `${declSource('TwilightToday')}; return TwilightToday;`)(
+    R, { ink: 'INK', inkDim: 'DIM', inkFaint: 'FAINT', brass: 'AMBER', line: 'LINE' }, m.cdHMS, m.twilightWord, {}, 'TwilightCountdown');
   const text = n => typeof n === 'string' || typeof n === 'number' ? String(n) : (n.c || []).map(text).join('');
   const sched = { when: 'today', ...m.twilightDay(sunEv.filter(e => e.t < MID + 86400000), MID) };
   let cal = [];

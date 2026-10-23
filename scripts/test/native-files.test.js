@@ -79,7 +79,7 @@ test('the sextant window, which has no reminder', () => {
 
 test('a month’s export: every window, in order', () => {
   const x = extract(['D2R', 'R2D', 'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'refineCrossing', 'sunAltitude', 'sunHcZn', 'sunRaDec', 'ALT', 'computeDay', 'photoWindows',
-    'localComputeDay', 'photoWindowsFor', 'pad2', 'icalStamp', 'utcDate', 'daysInMonth', 'tzOffset', 'zoneOffsets']);
+    'localComputeDay', 'photoWindowsFor', 'pad2', 'icalStamp', 'utcDate', 'daysInMonth', 'dtf', 'tzOffset', 'zoneOffsets']);
   const run = mode => {
     let out = null;
     new Function('Y', 'Mo', 'latN', 'lonN', 'icalMode', 'daysInMonth', 'localComputeDay', 'icalStamp', 'utcDate', 'photoWindowsFor', 'download', 'pad2',

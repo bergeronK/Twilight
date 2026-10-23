@@ -21,7 +21,7 @@ const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'acos', 'atan2', 'rev', '
   'starHcZn', 'scanCrossings', 'refineCrossing', 'SUN_THR', 'MOON_THR', 'nightSpan', 'HZ_AFTER', 'nightPlan', 'heroLabel', 'limitingMag', 'BORTLE', 'skyLimit',
   'METEOR_SHOWERS', 'SPORADIC_HR', 'showerActivity', 'showerPeakWords', 'showerPeakMs', 'meteorRate', 'milkyWayVisibility', 'COMPASS16', 'compass16', 'HIGHLIGHT_STARS', 'sepAltAz',
   'HIGHLIGHT_DSO', 'tonightHighlights', 'auroraTonight', 'auroraWords', 'MOON_FEATURES', 'moonLibration', 'moonSunAlt', 'terminatorFeatures',
-  'tonightGlance', 'twilightDayEvents', 'twilightDay', 'TWILIGHT_WORDS', 'twilightWord', 'tzOffset', 'localMidnight', 'sextantWindows',
+  'tonightGlance', 'twilightDayEvents', 'twilightDay', 'TWILIGHT_WORDS', 'twilightWord', 'dtf', 'tzOffset', 'localMidnight', 'sextantWindows',
   'RAD', 'rad', 'deg', 'solarParams', 'eventUTC', 'sunEvent', 'ALT', 'computeDay', 'photoWindows', 'localComputeDay', 'photoWindowsFor',
   'daysInMonth', 'zoneOffsets', 'moonMonth', 'solveFix', 'knownTz', 'geocodePlaces']);
 

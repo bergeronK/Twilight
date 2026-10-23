@@ -163,6 +163,6 @@ test('the Console and the Stars tab show it; the request is allowed and declared
   assert.match(src.match(/connect-src[^;]*/)[0], /https:\/\/celestrak\.org/);
   assert.match(declSource('tonightHighlights'), /kind: 'iss', rank: 1/);
   assert.match(declSource('HorizonHero'), /issSat \? issPasses\(issSat, Math\.max\(hlSpan\.start, Date\.now\(\)\), hlSpan\.end, loc\.lat, loc\.lon\) : null/);
-  assert.match(declSource('StarFinder'), /React\.createElement\(IssPanel, \{/);
+  assert.match(declSource('StarFinder'), /React\.createElement\(memoOf\(IssPanel\), \{/);
   assert.match(fs.readFileSync(path.join(__dirname, '..', '..', 'privacy.html'), 'utf8'), /CelesTrak/);
 });
