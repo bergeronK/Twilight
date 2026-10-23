@@ -141,8 +141,10 @@ stargazer is the default, navigator material is kept whole but folded.
 - Stars: `<details id="for-navigators">`, shut by default; the sextant
   window runs on pure `sextantWindows` / `nextSextantWindow` /
   `sextantICS`.
-- A footer "Tell us what you think" opens
-  `.github/ISSUE_TEMPLATE/feedback.md`.
+- A footer "Tell us what you think" opens Help's "Get in touch"
+  (`support.html#contact`, bundled in the apps): support@twilyte.info
+  first, then the GitHub form (`.github/ISSUE_TEMPLATE/feedback.md`).
+  It opened the GitHub form directly until 2026-10-21.
 - `declutter.test.js` pins both halves: nothing of this returns to the
   Console, and the fold holds all four navigator parts.
 
@@ -369,7 +371,7 @@ stargazer is the default, navigator material is kept whole but folded.
   website (the "PRO" badge and "free preview", unchanged), and nothing in a
   native app that sells nothing, since App Review turns away an app that
   calls itself a preview. The footer links **Help** (`/support.html`: how to
-  get in touch through the GitHub feedback form, your place, lining up Sky
+  get in touch (support@twilyte.info, or the GitHub feedback form), your place, lining up Sky
   View, the Ephemeris, the Bortle class, offline) beside Privacy, and
   `native/sync-web.js` bundles both pages: the in-app privacy link was
   broken before (App Review wants it reachable in the app). `/privacy.html`
@@ -930,6 +932,53 @@ stargazer is the default, navigator material is kept whole but folded.
     coordinates, and typed coordinates dropping the place's zone (by
     design: manual mode). `review-fixes.test.js`, every test checked by
     reverting its fix.
+- **The release review of v164 (2026-10-21, owner: "evaluate the app and
+  determine if it's at its optimal state for any user"; then "all 12").**
+  Five reviewers ran v164 as the iPhone app: a first-time user, offline at
+  a dark site, performance and battery, App Review, accessibility. Their
+  fixes are written up where each lives: offline (next entry), red light
+  mode, the battery (the Console's minute tick, the painting's pacing, Sky
+  View's memoised sections), the second accessibility pass, Sun times.
+  The rest:
+  - **The headline says when tonight is cloudy** (owner's choice). Under
+    100% cloud and rain it said "Excellent stargazing" while the week said
+    "Poor, rain likely". `tonightGlance(live, tonight)` takes
+    `clearDarkScore`'s verdict for the dark hours ahead (`wxTonight`): when
+    even its best two hours are "cloudy" or "rain likely", the stargazing
+    heads become "Dark, if it clears" / "Good, if it clears", and the line
+    says "Cloud is forecast for tonight." Clear, some cloud, or no
+    forecast: as before. The painting stays clear.
+  - **Nautical twilight in a stargazer's words**: it said "the sextant
+    window is open" on the Console.
+  - **A shower "peaks tonight" on its peak night only.** It was any night
+    at 80% of the peak's rate, two days either side for the Orionids.
+    `METEOR_SHOWERS` rows gained the Sun's longitude at the peak (IMO's
+    working list), and `showerPeakMs` finds when the Sun gets there (the
+    mean day drifts about six hours a year); `showerPeakWords(sh, start,
+    end)`: a peak in tonight or within 12 hours of it is tonight's, so one
+    by day makes both nights around it peak nights, and the others count
+    from the nearest ("peak tomorrow night", "peaked 2 nights ago").
+    `sunRaDec` returns the Sun's longitude for it (`lon`); the alerts'
+    `sky.js` was regenerated.
+  - **Highlights from now, not from sunset** (`tonightHighlights`' `now`):
+    at 2 AM it quoted 18:48 and 23:18.
+  - **"Your location" is never a title**: calendar events say "Sunset" (or
+    "Sunset at Moab, UT"), and the sight form names the coordinates
+    (`placeName`).
+  - **"iPad", not "phone", on an iPad** (`deviceWord`: iPadOS's WebKit
+    says Macintosh; more than one touch point gives it away), in every line
+    that says to move or point the device.
+  - **Store**: build 2 (`CURRENT_PROJECT_VERSION` 2; build 1, submitted
+    2026-10-06, has none of v162-v165 and must not be released), the
+    support address, the privacy policy's table of services (CelesTrak and
+    NOAA were missing) and wording (the motion sensors don't ask first in
+    the app; the forecast is kept up to a day), and review notes without
+    the website's Pro. `docs/app-store-listing.md` says how to ship build 2
+    and to untick Mac and Apple Vision availability (no motion sensors
+    there).
+  - Left: the Ephemeris lists the day's moonset even when it comes before
+    the moonrise (an almanac's day, correct); label collisions on the
+    whole-sky chart; Sky View's bottom line without a backing.
 - **Offline at a dark site (2026-10-21, a review of v164 run as the iPhone
   app with every outside request refused, in Utah at night).** The main way
   stargazers use it. What changed, and the rule each now follows:
@@ -1460,8 +1509,19 @@ Quito to Tromsø, eight dates) the Console was 29 s out at the median and
   the same change; `solar-parity.test.js` holds the two in step.
 - `fmtT` rounds to the nearest minute, as almanacs and the Ephemeris do
   (Intl alone truncates). The header's live clock still truncates.
-- Result: both within 23 s of PyEphem everywhere (median 1 s) and within
-  4 s of each other. `sun-times.test.js` against
+- Result: both within 23 s of PyEphem everywhere (median 1 s), and since
+  2026-10-21 **the same moment**: one sunset in fifty still showed a
+  different minute on the two tabs (18:18 and 18:17), each a second or so
+  from the other and rounding apart. Now both end on the crossing of the
+  one `sunAltitude`: `scanCrossings` refines each straight-line guess with
+  `refineCrossing` (Newton's method on the altitude itself; left alone
+  where there's no slope to follow), and `sunEvent` takes one more step
+  through it. `twilight-calc.js` carries its own copy of `sunAltitude` and
+  `refineCrossing` (same arithmetic, same order), so `solar-parity.test.js`
+  still asks for identical times; tests that extract `scanCrossings` or
+  `sunEvent` need `refineCrossing` (and `sunAltitude`, `sunHcZn`,
+  `sunRaDec`). Across 1,437 events the two tabs agree to well under a
+  second. `sun-times.test.js` against
   `scripts/test/sun-reference.json`, written by `scripts/sun-reference.py`
   (PyEphem, not the app). Tests that `extract` `sunAltitude` also need
   `sunHcZn` and `sunRaDec`; those that extract `eventUTC` need `sunEvent`.
@@ -1699,7 +1759,11 @@ things a syntax check cannot see:
   `keepClear` (names under the overlaid text left off, stars still drawn)
   and `reticle: false`, and a source check that `SkyDome` and
   `SkyViewPreview` both draw through it and start facing the same way.
-- **`highlights.test.js`** — `tonightHighlights` on real nights: the
+- **`highlights.test.js`** — since 2026-10-21 also the shower's peak night
+  (the Orionids from Moab, the Perseids' two peak nights in America) and
+  `showerPeakMs` landing where the Sun is at the shower's longitude, year
+  by year, and every time in the list still to come. Before that:
+  `tonightHighlights` on real nights: the
   Perseid peak leads (40-100 an hour, radiant north-east, no Moon), thinner
   and without the Milky Way from a city, Venus and Jupiter ~2° apart on
   2026-06-09 named brighter first, Saturn at its best at opposition and not
@@ -1776,8 +1840,7 @@ things a syntax check cannot see:
   `!important` focus ring, Sky View's dialog wiring, and the words of
   `skyViewSummary` and `daySummary`. Red light mode's inks too: `--ink`,
   `--ink-dim`, `--accent` and `--btn-ink` 4.5:1 and `--ink-faint` 3:1 on
-  every red surface, in that order of brightness.
-  `skyViewSummary` and `daySummary`. Since 2026-10-21 also: zoom allowed,
+  every red surface, in that order of brightness. Since 2026-10-21 also: zoom allowed,
   `textScale`/`readTextScale` (a fake probe), `scaleTextStyle`, the
   `followTextSize` wrapper run from source, the layouts that make room,
   the 11 px minimum, the headings (hook-free parts rendered with a stub
@@ -1797,7 +1860,10 @@ things a syntax check cannot see:
 - **`welcome.test.js`** — `welcomeLine`'s words, and at source level the
   "once" wiring (flag written on close, deep links skip it, "Not here?"
   opens the picker), the portal, and both store generators setting the flag.
-- **`console-copy.test.js`** — `tonightGlance()`'s branch order and
+- **`console-copy.test.js`** — since 2026-10-21 also the cloudy and rainy
+  verdicts ("Dark, if it clears"; no forecast or some cloud leaves them as
+  they were), nautical twilight in a stargazer's words, and "sextant"
+  among the banned words. Before that: `tonightGlance()`'s branch order and
   thresholds, plus the two countdown formatters. Every branch returns a
   sentence that reads fine even when it is the wrong one for the sky outside.
 - **`components.test.js`** — smoke tests for extracted presentational
@@ -2115,8 +2181,15 @@ treatment (`'android'`) before the Play listing.
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
-- **`/privacy.html` Contact stays the GitHub repo link** — deliberately no
-  personal email published.
+- **Support contact: support@twilyte.info** (owner, 2026-10-21), a
+  forwarding address, so no personal email is published: App Review asks
+  for a way to get in touch that needs no account, and the GitHub form
+  needs one. Help, the privacy policy and the review notes give it; the
+  GitHub form stays as a second way. **The owner sets up the forwarding**
+  (e.g. Cloudflare Email Routing for twilyte.info) before build 2 is
+  submitted. (Until then the contact was the GitHub repo link.)
+- **The Console's headline says when tonight is cloudy** (owner,
+  2026-10-21), in words only: the painting stays clear.
 - **GitHub Pages deploys from `main`** — switched 2026-09-15; see Deploy.
 - **The header count is labelled "visits"**, and counts one per browser per
   24 hours (2026-09-22).
@@ -2164,6 +2237,16 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
+  **Build 2 is v165 (2026-10-21)**, with the release review's fixes; build
+  1 must not be released (see "The release review of v164"). The owner
+  uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
+  out), `npm run sync`, archive; in App Store Connect remove build 1 from
+  1.0 if it's still in review or pending release, attach build 2, untick
+  Mac and Apple Vision availability, and set up support@twilyte.info's
+  forwarding first. Device checks for build 2: Larger Text at AX1-AX3, red
+  light mode in Sky View and the painting (Safari's `url()` filters), a
+  GPS fix in airplane mode (`locate`'s 30 s), the countdown after coming
+  back from the background, and the painting's tilt at the new pacing.
   **1.0 (build 1) was submitted for App Review on 2026-10-06**, set to
   **manual release**: once approved, the owner clicks Release This Version.
   App Store Connect's app ID is 6819388363. What was entered: App Privacy

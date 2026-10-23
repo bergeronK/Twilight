@@ -65,10 +65,18 @@ test('the navigator\'s material is whole, under one fold on the Stars tab', () =
   assert.match(sf, /onClick: downloadSextantICS/);
 });
 
+// The footer's link goes to Help's "Get in touch" (2026-10-21): an email
+// address first, which App Review wants (the GitHub form needs an account),
+// and the GitHub form, which uses this template, second. Help is bundled
+// into the apps, so the link works offline there too.
 test('the feedback link and its template', () => {
   const root = path.join(__dirname, '..', '..');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(html, /href: "https:\/\/github\.com\/bergeronK\/Twilight\/issues\/new\?template=feedback\.md"/);
+  assert.match(html, /href: "support\.html#contact", style: \{ color: "var\(--ink-dim\)" \} \}, "Tell us what you think"/);
+  const help = fs.readFileSync(path.join(root, 'support.html'), 'utf8');
+  assert.match(help, /<h2 id="contact">/);
+  assert.match(help, /href="mailto:support@twilyte\.info"/);
+  assert.ok(help.includes('https://github.com/bergeronK/Twilight/issues/new?template=feedback.md'));
   const tpl = fs.readFileSync(path.join(root, '.github', 'ISSUE_TEMPLATE', 'feedback.md'), 'utf8');
   assert.match(tpl, /^---\nname: Feedback\n/);
 });

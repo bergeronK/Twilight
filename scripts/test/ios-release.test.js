@@ -65,6 +65,10 @@ test('the Help page: contact, no scripts, links that resolve, the app’s own wo
   assert.doesNotMatch(page, /<script/);
   assert.match(page, /<link rel="canonical" href="https:\/\/twilyte\.info\/support\.html" \/>/);
   assert.ok(page.includes('https://github.com/bergeronK/Twilight/issues/new?template=feedback.md'), 'a way to get in touch');
+  // And one that needs no account (App Review guideline 1.5), on the
+  // privacy policy too.
+  assert.ok(page.includes('href="mailto:support@twilyte.info"'), 'an email address');
+  assert.ok(read('privacy.html').includes('href="mailto:support@twilyte.info"'));
   assert.ok(page.includes('href="privacy.html"'));
   // Every local file it uses exists (the app bundles the same files).
   for (const [, f] of page.matchAll(/url\(([^)]+)\)|href="([^"#:]+\.(?:png|html))"/g)) {
