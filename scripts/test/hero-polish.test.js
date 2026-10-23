@@ -17,7 +17,7 @@ const path = require('node:path');
 const { extract, declSource } = require('./extract.js');
 
 const m = extract(['D2R', 'R2D', 'sin', 'cos', 'asin', 'atan2', 'rev', 'hx', 'toHex', 'lerpC',
-  'heroHeight', 'heroHorizon', 'panoY', 'HZ_SPAN', 'panoX', 'hzRandom', 'COMPASS16', 'compass16',
+  'heroHeight', 'heroHorizon', 'HERO_WORDS_GAP', 'heroFit', 'panoY', 'HZ_SPAN', 'panoX', 'hzRandom', 'COMPASS16', 'compass16',
   'drawHorizonGround']);
 const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
 
@@ -32,11 +32,26 @@ test('the painting keeps its size: a taller sky was too much (owner, 2026-10-02)
   for (const h of [420, 506, 600]) assert.strictEqual(h - m.heroHorizon(h), 150, `${h} px`);
 });
 
+test('larger text: the painting keeps its sky and grows only its ground (2026-10-21)', () => {
+  // At the standard text size the words fit, as they always did.
+  assert.deepStrictEqual(m.heroFit(390, 90), { H: 380, hy: 236 });
+  assert.deepStrictEqual(m.heroFit(1280, 90), { H: 420, hy: 270 });
+  assert.deepStrictEqual(m.heroFit(390, 0), { H: 380, hy: 236 }, 'before they are measured');
+  // 200 px of words at 150%: the horizon stays where it was, and the ground
+  // under it grows to hold them, clear of the compass points (hy + 21).
+  const f = m.heroFit(390, 200);
+  assert.strictEqual(f.hy, 236);
+  assert.strictEqual(f.H, 236 + m.HERO_WORDS_GAP + 200 + 18);
+  assert.ok(f.H - 18 - 200 >= f.hy + 21 + 6, 'the words start below the compass points');
+});
+
 test('the painting and its moving layer agree on where the horizon is', () => {
   const hero = declSource('HorizonHero');
-  assert.match(hero, /const H = heroHeight\(width\);/);
-  assert.match(hero, /newMeteor\(Math\.random, m\.rate, m\.w, heroHorizon\(m\.H\), m\.facing\)/, 'meteors');
-  assert.match(declSource('drawSkyMotion'), /const hy = heroHorizon\(h\);/);
+  assert.match(hero, /const \{ H, hy \} = heroFit\(width, wordsH\);/);
+  assert.match(hero, /newMeteor\(Math\.random, m\.rate, m\.w, m\.hy, m\.facing\)/, 'meteors');
+  assert.match(hero, /drawSkyMotion\(g, m\.w, m\.H, \{ [^}]*hy: m\.hy \}, t\)/, 'twinkle');
+  assert.match(hero, /bortle, lat: loc\.lat, lon: loc\.lon, reserve, reserveRight, hy\n/, 'the still picture');
+  assert.match(declSource('drawSkyMotion'), /const hy = o\.hy \|\| heroHorizon\(h\);/);
   assert.match(declSource('drawHorizonScene'), /const hy = o\.hy \|\| heroHorizon\(h\);/);
   assert.doesNotMatch(hero + declSource('drawSkyMotion'), /\* 0\.62/);
   // The welcome and the share picture keep their own layouts, 62% down.

@@ -47,7 +47,7 @@ test('the week planner says Pro and preview on the website only', () => {
 
 test('the privacy policy and the Help page are linked from the app and bundled into it', () => {
   const footer = declSource('TwilightApp');
-  assert.match(footer, /href: "\/privacy\.html", style: \{[^}]*\} \}, "Privacy"\),\s*" · ",\s*React\.createElement\("a", \{ href: "\/support\.html", style: \{[^}]*\} \}, "Help"\)/);
+  assert.match(footer, /href: "\/privacy\.html", style: \{[^}]*\} \}, "Privacy"\),\s*React\.createElement\("span", \{ "aria-hidden": "true" \}, "·"\),\s*React\.createElement\("a", \{ href: "\/support\.html", style: \{[^}]*\} \}, "Help"\)/);
   const sync = read('native/sync-web.js');
   for (const f of ['privacy.html', 'support.html']) {
     assert.ok(sync.includes(`'${f}'`), `${f} bundled into the apps`);

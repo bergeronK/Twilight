@@ -231,7 +231,7 @@ test('the app shell: status bar, red light, switches, pages and footer', () => {
   assert.strictEqual(switches.length, 3, 'named buttons');
   assert.doesNotMatch(app, /React\.createElement\("span", \{\s*onClick: [^\n]*\n\s*role: "switch"/);
   assert.match(app, /window\.Capacitor \? "https:\/\/twilyte\.info\/constellations\.LICENSE\.txt" : "constellations\.LICENSE\.txt"/);
-  assert.match(app, /window\.Capacitor \? "\) · No tracking\. " :/);
+  assert.match(app, /window\.Capacitor \? "\) · No tracking\." :/);
   for (const p of ['privacy.html', 'support.html']) {
     const h = read(p);
     assert.match(h, /<main>\n  <a class="kicker" href="\/">&larr; Twilyte<\/a>/, p + ': the way back at the top');

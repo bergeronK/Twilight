@@ -65,5 +65,5 @@ test('Sky View gets the shifted sidereal time, a way back to now, and no Align w
   const sd = declSource('SkyDome');
   assert.match(sd, /type: 'range', min: -1440, max: 1440, step: 15/);
   assert.match(sd, /'aria-label': 'Time shown, in minutes from now'/);
-  assert.match(sd, /onClick: \(\) => time\.onShift\(0\)/);
+  assert.match(sd, /onClick: \(\) => \{ time\.onShift\(0\);/);
 });
