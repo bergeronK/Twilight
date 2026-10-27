@@ -1427,6 +1427,22 @@ orient.q --correctView(headingCorr)--> viewQ --> aimOf / screenUpAz  (Aim Assist
 - **One corrected rotation.** `viewQ` is computed once in `StarFinder` and
   passed to `SkyDome` as a prop; both Aim Assist and Sky View read that one
   object, so they cannot disagree (the v1.3 bug class).
+- **Align can't save a wild correction (2026-10-27, v166).** The owner's
+  iPhone drew Sky View "not even close" on v165: CoreMotion was right (true
+  north, ±5°), but Sensor details showed Manual correction +123°, saved
+  earlier and applied on every visit. Reproduced: "Align on the Moon" picks
+  the Moon and Align appears almost where it was, so a second tap saved the
+  Moon's bearing less wherever the camera pointed (87° and 162° in two
+  runs). Now Align refuses a correction over `ALIGN_MAX` (30°) when north
+  comes from a compass (`orient.abs`; `alignTo`, `alignFar`) and says why
+  (`alignFarWords`, in Sky View's row and Aim Assist's note). The limit is
+  on the correction left, not the step, so aiming at the real body still
+  undoes a wrong one, and a relative heading is unlimited (Align sets north
+  there). Sky View's Align ignores a tap within `ALIGN_SETTLE_MS` (1 s) of
+  a pick, and its Reset chip shows with nothing picked whenever a
+  correction is in use. **When Sky View is wrong on a device, read Manual
+  correction in Sensor details first**: `tw_aim_offset` outlives builds.
+  `orientation.test.js`, `components.test.js`.
 - **A sensor reading re-renders only StarFinder and SkyDome (2026-10-21).**
   `orient` is state in `StarFinder`, so every reading (30 a second from
   CoreMotion) re-renders the tab; the sections under the dialog went with
@@ -2244,7 +2260,8 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
-  **Build 2 is v165 (2026-10-21)**, with the release review's fixes; build
+  **Build 2 is v166 (2026-10-27)**: v165 (2026-10-21) with the release
+  review's fixes, plus Align's limit (see the pipeline section); build
   1 must not be released (see "The release review of v164"). The owner
   uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
   out), `npm run sync`, archive; in App Store Connect remove build 1 from
