@@ -2181,13 +2181,20 @@ treatment (`'android'`) before the Play listing.
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
   layout QA are done; see the backlog entry below.
-- **Support contact: support@twilyte.info** (owner, 2026-10-21), a
-  forwarding address, so no personal email is published: App Review asks
-  for a way to get in touch that needs no account, and the GitHub form
-  needs one. Help, the privacy policy and the review notes give it; the
-  GitHub form stays as a second way. **The owner sets up the forwarding**
-  (e.g. Cloudflare Email Routing for twilyte.info) before build 2 is
-  submitted. (Until then the contact was the GitHub repo link.)
+- **Support contact: support@twilyte.info** (owner, 2026-10-21), so no
+  personal email is published: App Review asks for a way to get in touch
+  that needs no account, and the GitHub form needs one. Help, the privacy
+  policy and the review notes give it; the GitHub form stays as a second
+  way. (Until then the contact was the GitHub repo link.) **It is a shared
+  mailbox in the owner's Microsoft 365 (Exchange Online)**, set up and
+  tested both ways 2026-10-27, so replies go out from support@twilyte.info.
+  **twilyte.info's DNS is at GoDaddy** (the registrar; its nameservers),
+  which holds Microsoft's MX, `autodiscover` CNAME, SPF and `MS=` TXT
+  records beside GitHub Pages' A records and `www` CNAME. The owner means
+  to move the DNS to Cloudflare later: check that those mail records come
+  across (and set `autodiscover` to DNS only) before switching the
+  nameservers, and don't turn on Cloudflare Email Routing, whose MX
+  records would replace Microsoft's.
 - **The Console's headline says when tonight is cloudy** (owner,
   2026-10-21), in words only: the painting stays clear.
 - **GitHub Pages deploys from `main`** — switched 2026-09-15; see Deploy.
@@ -2242,8 +2249,8 @@ treatment (`'android'`) before the Play listing.
   uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
   out), `npm run sync`, archive; in App Store Connect remove build 1 from
   1.0 if it's still in review or pending release, attach build 2, untick
-  Mac and Apple Vision availability, and set up support@twilyte.info's
-  forwarding first. Device checks for build 2: Larger Text at AX1-AX3, red
+  Mac and Apple Vision availability (support@twilyte.info works: set up
+  2026-10-27). Device checks for build 2: Larger Text at AX1-AX3, red
   light mode in Sky View and the painting (Safari's `url()` filters), a
   GPS fix in airplane mode (`locate`'s 30 s), the countdown after coming
   back from the background, and the painting's tilt at the new pacing.
