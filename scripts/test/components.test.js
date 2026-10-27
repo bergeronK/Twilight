@@ -132,7 +132,7 @@ function renderSkyDome(props) {
     useSkyFov: () => 63,
     useSkyLines: () => skyLinesOn,
     prefStore: { setSkyFov: () => {}, setSkyLines: v => { skyLinesSet = v; } },
-    SKY_FOV_DEFAULT: 63,
+    SKY_FOV_DEFAULT: 63, ALIGN_SETTLE_MS: 1000,
     deviceWord: () => 'phone',
     compass16: az => 'N',
     quatFromEuler: O.quatFromEuler, viewBasis: O.viewBasis,
@@ -342,6 +342,49 @@ test('Sky View offers Align before anything is picked: on the Moon when it is up
   assert.match(textOf(down), /Tap a bright star or planet you can see, then Align\./);
   // Not in drag-to-look mode, where there is no compass to correct.
   assert.ok(!/lining up/.test(textOf(renderSkyDome({ targetName: null, align, viewQ: null, diag: diagProp(false) }))));
+});
+
+test('Sky View shows a correction in use with nothing picked, so it can be reset', () => {
+  // Owner's iPhone, v165: a wrong +123° turned Sky View, and Reset showed
+  // only once a target was picked.
+  let reset = false;
+  const align = { onAlign: () => {}, onReset: () => { reset = true; }, offset: 123 };
+  const tree = renderSkyDome({ targetName: null, align, diag: diagProp(false) });
+  const btn = find(tree, n => n.type === 'button' && textOf(n).trim() === 'Reset +123°');
+  assert.ok(btn, 'a Reset +123° button');
+  btn.props.onClick();
+  assert.ok(reset);
+  // And with a target, as before.
+  assert.ok(find(renderSkyDome({ align, diag: diagProp(false) }), n => n.type === 'button' && textOf(n).trim() === 'Reset +123°'));
+  // None when nothing is corrected.
+  assert.ok(!/Reset/.test(textOf(renderSkyDome({ targetName: null, align: { ...align, offset: 0 }, diag: diagProp(false) }))));
+});
+
+test('Sky View says why Align was refused, and keeps the button', () => {
+  const words = 'That would correct the compass by 123°, too much for a compass’s error. Aim at the real one first, then Align.';
+  const tree = renderSkyDome({ align: { onAlign: () => {}, onReset: () => {}, offset: 0, far: words }, diag: diagProp(false) });
+  assert.ok(textOf(tree).includes(words));
+  assert.ok(!textOf(tree).includes('not on the real one?'));
+  assert.ok(find(tree, n => n.type === 'button' && textOf(n).trim() === 'Align'));
+});
+
+test('Sky View\'s Align ignores a tap within a second of the target being picked', () => {
+  // "Align on the Moon" picks the Moon, and Align appears where that button
+  // was: a double tap saved the Moon's bearing less the camera's as the
+  // compass's error (owner's iPhone, v165).
+  const realNow = Date.now, realEffect = hooks.useEffect;
+  let t = 5e12, aligned = 0;
+  Date.now = () => t;
+  // Run the effects (those needing a browser can't here, and don't matter).
+  hooks.useEffect = f => { try { f(); } catch (e) {} };
+  try {
+    const tree = renderSkyDome({ align: { onAlign: () => { aligned++; }, onReset: () => {}, offset: 0 }, diag: diagProp(false) });
+    const btn = find(tree, n => n.type === 'button' && textOf(n).trim() === 'Align');
+    t += 300; btn.props.onClick();
+    assert.strictEqual(aligned, 0, 'the second half of a double tap');
+    t += 1000; btn.props.onClick();
+    assert.strictEqual(aligned, 1, 'a tap once the target has settled');
+  } finally { Date.now = realNow; hooks.useEffect = realEffect; }
 });
 
 test('the readout says when CoreMotion is the source, and what it settled', () => {

@@ -319,14 +319,18 @@ test('the live view uses the corrected rotation untouched', () => {
  */
 const alignScope = extra => {
   const scope = Object.assign({
-    aimTurn: null, aimOffset: 0, alignOk: true,
+    aimTurn: null, aimOffset: 0, alignOk: true, alignFar: false,
     prefStore: { setAimOffset: v => { scope.stored = v; } },
-    setNeedsCal: () => {}, setShowCalHelp: () => {}
+    setNeedsCal: () => {}, setShowCalHelp: () => {}, setAlignRefused: v => { scope.refused = v; }
   }, extra);
-  const fn = new Function('aimTurn', 'aimOffset', 'prefStore', 'setNeedsCal', 'setShowCalHelp', 'alignOk',
-    declSource('alignHere') + '\nreturn alignHere;')(scope.aimTurn, scope.aimOffset, scope.prefStore, scope.setNeedsCal, scope.setShowCalHelp, scope.alignOk);
+  const fn = new Function('aimTurn', 'aimOffset', 'prefStore', 'setNeedsCal', 'setShowCalHelp', 'alignOk', 'alignFar', 'setAlignRefused',
+    declSource('alignHere') + '\nreturn alignHere;')(scope.aimTurn, scope.aimOffset, scope.prefStore, scope.setNeedsCal, scope.setShowCalHelp, scope.alignOk, scope.alignFar, scope.setAlignRefused);
   return { run: fn, scope };
 };
+// alignTo and alignFar as StarFinder works them out, from source.
+const ALIGN_MAX = Number(/const ALIGN_MAX = (\d+)/.exec(require('fs').readFileSync(require('./extract.js').INDEX, 'utf8'))[1]);
+const alignFarOf = (orient, aimTurn, aimOffset) => new Function('orient', 'aimTurn', 'aimOffset', 'ALIGN_MAX',
+  declSource('alignTo') + '\n' + declSource('alignFar') + '\nreturn alignFar;')(orient, aimTurn, aimOffset, ALIGN_MAX);
 const norm180 = a => ((a % 360) + 540) % 360 - 180;
 const turnTo = (targetAz, aimAzC) => norm180(targetAz - aimAzC);   // the shipped aimTurn
 
@@ -348,6 +352,37 @@ test('Align looking almost straight up does nothing', () => {
   const a = alignScope({ aimTurn: 166, aimOffset: 0, alignOk: false });
   a.run();
   assert.strictEqual(a.scope.stored, undefined);
+});
+
+test('Align refuses a correction bigger than a compass error, on a compass\'s own north', () => {
+  // Owner's iPhone, v165: a second tap on "Align on the Moon" landed on
+  // Align with the camera far from the Moon, and saved +123°, which turned
+  // Sky View on every visit after.
+  const coreMotion = { abs: true };
+  assert.strictEqual(ALIGN_MAX, 30);
+  assert.strictEqual(alignFarOf(coreMotion, 123, 0), true);
+  assert.strictEqual(alignFarOf(coreMotion, -87, 0), true);
+  assert.strictEqual(alignFarOf(coreMotion, 12, 0), false, 'an ordinary compass error goes');
+  assert.strictEqual(alignFarOf(coreMotion, 29, 0), false);
+  assert.strictEqual(alignFarOf(coreMotion, 25, 10), true, 'it is the correction left that counts, not the step');
+  // Undoing a wrong correction is allowed: aiming at the real Moon with
+  // +123° applied, Align takes it back to a few degrees.
+  assert.strictEqual(alignFarOf(coreMotion, -120, 123), false);
+  // Across the date line of bearings: 350° of correction is -10°.
+  assert.strictEqual(alignFarOf(coreMotion, 340, 10), false);
+  // No north at all (a relative heading): Align is what sets north.
+  assert.strictEqual(alignFarOf({ abs: false }, 123, 0), false);
+  assert.strictEqual(alignFarOf(null, 123, 0), false);
+  assert.strictEqual(alignFarOf(coreMotion, null, 0), false, 'nothing to align on');
+
+  const far = alignScope({ aimTurn: 123, aimOffset: 0, alignFar: true });
+  far.run();
+  assert.strictEqual(far.scope.stored, undefined, 'nothing saved');
+  assert.strictEqual(far.scope.refused, true, 'and said');
+  const near = alignScope({ aimTurn: 12, aimOffset: 0, alignFar: false });
+  near.run();
+  assert.strictEqual(near.scope.stored, 12);
+  assert.strictEqual(near.scope.refused, false);
 });
 
 test('one tap of Align lands the view on the body, whatever was applied before', () => {
