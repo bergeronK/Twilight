@@ -170,3 +170,19 @@ test('Sky View: a chip that is on is filled in red light, not only brass', () =>
   assert.ok(fill[0] >= 200 && /,\.(2|3|4)\d?\)$/.test(RED['chip-on']), 'a clear red fill: ' + RED['chip-on']);
   assert.match(dome, /style: \{ \.\.\.chip, \.\.\.\(cam \? chipOn : null\) \}/, 'Camera on uses the same on style');
 });
+
+test('Safari: no backdrop blur inside the filtered dialogs, or it escapes the film', () => {
+  // Owner's iPhone, v166: in Sky View the sky and the words at the bottom
+  // were red, but the top bar's chips (each with a backdrop blur) stayed
+  // white and brass. WebKit leaves an element with a backdrop filter out of
+  // its parent's url() filter; Chromium doesn't, so only a device showed it.
+  const rule = RED_CSS.match(/([^{}]*)\{-webkit-backdrop-filter:none!important;backdrop-filter:none!important\}/);
+  assert.ok(rule, 'red mode turns the blur off');
+  for (const sel of ['[role="dialog"][aria-label="Sky View"] *', '[role="dialog"][aria-label="Welcome to Twilyte"] *'])
+    assert.ok(rule[1].includes(sel), sel);
+  // Every dialog the film covers as a whole is covered here too.
+  const filtered = RED_CSS.match(/([^}]*)\{filter:url\(#tw-red\)\}/)[1].match(/\[role="dialog"\]\[aria-label="[^"]+"\]/g);
+  for (const d of filtered) assert.ok(rule[1].includes(d + ' *'), d);
+  // And Sky View does use the blur, so the rule has something to do.
+  assert.match(declSource('SkyDome'), /backdropFilter: 'blur\(/);
+});

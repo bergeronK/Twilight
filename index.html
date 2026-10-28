@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-VGDidOcMzWbBEa61sowPnjdy6LpUkb78sqT3MoZi3lk=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-jwBeKyJpzmfX9RN5CxLcGZwZ2rgX17VtCg2z0JZ5hfE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2416,7 +2416,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v166";
+const BUILD = "v167";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 // In red light mode all three tabs share the red tokens' wash instead: the
 // navy above is blue light, which is what the mode is there to keep out.
@@ -10717,6 +10717,10 @@ function TwilightApp() {
       .tw-stars,#root .hz-sky,
       #root main svg:not([role="dialog"] svg):not(svg svg),#root main canvas:not(.hz-sky):not([role="dialog"] canvas),
       [role="dialog"][aria-label="Sky View"],[role="dialog"][aria-label="Welcome to Twilyte"]{filter:url(#tw-red)}
+      /* Safari leaves anything with a backdrop blur out of its parent's url() filter: Sky View's
+         chips stayed white and brass on the owner's iPhone (v166) while the sky and the words
+         beside them went red. Inside the filtered dialogs the blur goes, so all of it is filtered. */
+      [role="dialog"][aria-label="Sky View"] *,[role="dialog"][aria-label="Welcome to Twilyte"] *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
       /* The browser's own grey for an empty field's hint (review, 2026-10-23). */
       input::placeholder,textarea::placeholder{color:var(--ink-faint);opacity:1}
     `),
