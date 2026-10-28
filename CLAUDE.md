@@ -1069,9 +1069,14 @@ stargazer is the default, navigator material is kept whole but folded.
     the same red.
   Measured in Chromium as the iPhone app (Moab, night): over every pixel
   brighter than 64, green and blue are under 7% and 10% of red (text edges
-  on the dark navy shadows); none above 15 anywhere. Safari is unchecked
-  here: if a device shows a picture unfiltered, the `url()` reference is
-  the suspect.
+  on the dark navy shadows); none above 15 anywhere. **On the owner's
+  iPhone (v166, 2026-10-28)** the film worked on the sky and on Sky View's
+  words, but **WebKit leaves an element with a backdrop blur out of its
+  parent's `url()` filter**: Sky View's chips stayed white and brass. Red
+  mode now turns `backdrop-filter` off inside the filtered dialogs (v167),
+  so anything with a blur inside one is filtered with the rest; Chromium
+  can't show this, so a new blur in a filtered container needs a device
+  look. `red-mode.test.js`.
 - **First-run welcome (2026-09-23).** On a first visit to the Console
   (no `tw_welcomed`, no `?tab=` deep link) `WelcomeSky` covers the screen
   with the same painting the hero draws, from the same scene, fading in as
@@ -2260,8 +2265,10 @@ treatment (`'android'`) before the Play listing.
   `docs/app-store-listing.md`; the screenshots are `store-assets/ios/`.
   Recommended, not yet confirmed: Android after iOS. Steps are in
   `native/README.md` ("iOS on a Mac").
-  **Build 2 is v166 (2026-10-27)**: v165 (2026-10-21) with the release
-  review's fixes, plus Align's limit (see the pipeline section); build
+  **Build 2 is v167 (2026-10-28)**: v165 (2026-10-21) with the release
+  review's fixes, plus Align's limit (v166, see the pipeline section) and
+  red mode's chips in Sky View (v167; the rest of v166 checked out on the
+  owner's iPhone); build
   1 must not be released (see "The release review of v164"). The owner
   uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
   out), `npm run sync`, archive; in App Store Connect remove build 1 from
