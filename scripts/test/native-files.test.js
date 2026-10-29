@@ -224,6 +224,19 @@ test('Info.plist says why Twilyte adds to the calendar, on every iOS it runs on'
   assert.match(read('docs/app-store-privacy-answers.md'), /NSCalendarsWriteOnlyAccessUsageDescription/);
 });
 
+test('Info.plist has both location strings, the same words, and the app asks only while in use', () => {
+  // Apple's upload check (ITMS-90683, build 2, 2026-10-29) wants the
+  // Always-and-When-In-Use string because the geolocation plugin's library
+  // can report location in the background. The app never asks for that, so
+  // iOS never shows it; the plugin's README says to reuse the same words.
+  const str = key => (PLIST.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]+)</string>`)) || [])[1];
+  const inUse = str('NSLocationWhenInUseUsageDescription'), always = str('NSLocationAlwaysAndWhenInUseUsageDescription');
+  assert.ok(inUse && inUse.length > 40, 'when in use');
+  assert.strictEqual(always, inUse, 'the same words');
+  assert.doesNotMatch(PLIST, /UIBackgroundModes/, 'no background location');
+  assert.doesNotMatch(read('index.html'), /watchPosition|requestAlwaysAuthorization/, 'one fix at a time, while in use');
+});
+
 test('the observing log is gone, and what it kept goes with it', () => {
   const html = read('index.html');
   for (const name of ['ObservingLog', 'seenStore', 'useSeen', 'logSummary', 'Messier checklist', 'I’ve seen it']) {

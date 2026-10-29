@@ -2269,7 +2269,18 @@ treatment (`'android'`) before the Play listing.
   review's fixes, plus Align's limit (v166, see the pipeline section) and
   red mode's chips in Sky View (v167; the rest of v166 checked out on the
   owner's iPhone); build
-  1 must not be released (see "The release review of v164"). The owner
+  1 must not be released (see "The release review of v164").
+  **Build 2's upload drew ITMS-90683** (2026-10-29; a warning, delivery
+  succeeded): no `NSLocationAlwaysAndWhenInUseUsageDescription`. The app
+  only asks "while using", but `@capacitor/geolocation`'s library can
+  report location in the background, so Apple's scan wants the key; it is
+  now in `Info.plist` with the when-in-use words, as the plugin's README
+  says (`native-files.test.js`), and the Xcode project is at **Build 3**
+  so the next upload doesn't collide with 2. Build 2 can still go through
+  review. The same day App Review asked this new account for a screen
+  recording and answers on purpose, use, services, regions and licences
+  (Guideline 2.1, "limited App Review history"), to be kept in the Notes
+  field for later submissions. The owner
   uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
   out), `npm run sync`, archive; in App Store Connect remove build 1 from
   1.0 if it's still in review or pending release, attach build 2, untick
