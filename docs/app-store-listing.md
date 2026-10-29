@@ -124,6 +124,63 @@ No.
 
 ### Notes (4000)
 ```
+Thank you. The answers below are also in the Notes field of App Review Information.
+
+1. SCREEN RECORDING
+Attached: recorded on an iPhone running the latest iOS, with build 2. It starts at launch and shows the main flow. Twilyte has no account registration or login, no user-generated content and no paid content.
+
+2. PURPOSE AND AUDIENCE
+Twilyte is an astronomy reference app for people who watch the sky: casual stargazers, photographers planning golden and blue hour, campers and hikers, and sailors who practise celestial navigation. It answers three questions for wherever the user is: when does it get dark tonight, how dark does the sky get here, and what is worth looking at? On the device it works out sunrise, sunset and each stage of twilight, the Moon's phase and rise and set, the planets and stars, eclipses and meteor showers. It rates the local sky's darkness on the Bortle scale from NASA satellite measurements of light at night. Sky View uses the motion sensors to name the stars, planets and constellations the phone is pointed at.
+
+3. HOW TO USE IT
+No login; every feature is free. On first launch, allow location, or tap "Choose your place" and search for a town. Three tabs along the bottom:
+- Console: the sky now as a painting, today's twilight times with a countdown, the sky's Bortle class, things worth a look tonight and the next seven nights. The red light button at the top keeps night vision.
+- Ephemeris: twilight, Sun and Moon times for any date and place, a chart of the day, and calendar export.
+- Stars: tap "Open Sky View" and point the phone at the sky (it also works indoors). Tap a star to name it; "Find" lists what is up and turns you toward it; "Time" moves the sky forward or back. "For navigators", at the foot of the tab, holds sight reduction and Aim Assist.
+Permissions: Location while in use (the local sky and forecast); Core Motion (Sky View; no prompt); Camera, optional and off by default (Sky View's Camera button, nothing recorded); Photos add-only (Share, then Save Image); Calendar add-only ("Add to calendar").
+
+4. EXTERNAL SERVICES
+- Open-Meteo forecast API (cloud forecast) and geocoding API (place search): the coordinates or the search text are sent, with no identifier.
+- CelesTrak (celestrak.org): the space station's orbit, from a fixed URL.
+- NOAA Space Weather Prediction Center (services.swpc.noaa.gov): the geomagnetic forecast, from a fixed URL.
+No authentication, payment, advertising, analytics or AI services, and no server of our own. All the astronomy is computed on the device.
+Bundled data, credited in the app: the HYG star database (CC BY-SA 4.0); d3-celestial constellations, Milky Way and Messier objects (BSD 3-Clause); NASA Black Marble night lights, processed into light-pollution tiles; NOAA's World Magnetic Model 2025; the IAU's lunar place names; SimpleMaps World Cities (CC BY 4.0).
+
+5. REGIONS
+The app works the same in every region. Everything is worked out for the user's own location, polar day and night included. The app is in English.
+
+6. REGULATION AND THIRD-PARTY MATERIAL
+Twilyte is not in a regulated industry and uses no protected third-party material. The bundled data sets are published under open licences or by public agencies, credited in the app, and their licence files ship with it.
+
+Support: support@twilyte.info
+```
+
+Since 2026-10-29 the Notes field holds the answers App Review asked this
+new account for, as they asked, so later submissions carry them.
+
+### App Review's request (2026-10-29)
+Build 1 came back as **Guideline 2.1, Performance: App Completeness**, but
+the message was a request, not a fault: the account has "a limited App
+Review history", and App Review asked for a screen recording from a
+physical device on the latest iOS, starting at launch, plus the purpose and
+audience, how to reach the main features, the outside services, regional
+differences, and any licences for regulated or protected material. They
+asked for the answers both as a reply and in the Notes field. The text
+above went in both, with the recording attached to the reply, when build 2
+replaced build 1 on version 1.0.
+
+What the recording showed, in order (about two minutes, the iPhone app at
+v167, which is build 2's code): Twilyte opened from the Home Screen; the
+Console scrolled through the painting, the twilight times and countdown,
+the Bortle block, "Worth a look" and the week; the place search; the
+Ephemeris's chart and times, and another date; Stars, Open Sky View, the
+phone moved around, a star tapped, Find and its guide; Back; red light on
+and off. A later submission may be asked for a new recording: the same
+order still covers everything.
+
+The Notes before 2026-10-29, kept for what they said about each
+permission:
+```text
 Twilyte needs no account; every feature is available without one.
 
 Location: asked for on first launch, to work out the sky and twilight times for where the user is; the coordinates are also sent, with no identifier, to Open-Meteo for the local weather forecast. If declined, the app still works: tap the place name over the painted sky to search for a town or enter coordinates.

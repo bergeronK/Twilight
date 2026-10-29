@@ -2280,7 +2280,9 @@ treatment (`'android'`) before the Play listing.
   review. The same day App Review asked this new account for a screen
   recording and answers on purpose, use, services, regions and licences
   (Guideline 2.1, "limited App Review history"), to be kept in the Notes
-  field for later submissions. The owner
+  field for later submissions: the text is `docs/app-store-listing.md`'s
+  Notes block, with what the recording showed under "App Review's
+  request". The owner
   uploads it on the Mac: Build 2, Version 1.0 (or 1.0.1 if 1.0 is already
   out), `npm run sync`, archive; in App Store Connect remove build 1 from
   1.0 if it's still in review or pending release, attach build 2, untick
