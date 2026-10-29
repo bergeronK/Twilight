@@ -101,7 +101,12 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
 - **Geolocation:** uses the same `navigator.geolocation` code as the web
   app, bridged by `@capacitor/geolocation`. The Android manifest declares
   COARSE+FINE location (GPS marked not-required); the iOS
-  `NSLocationWhenInUseUsageDescription` string is in `Info.plist`.
+  `NSLocationWhenInUseUsageDescription` string is in `Info.plist`, and
+  `NSLocationAlwaysAndWhenInUseUsageDescription` beside it with the same
+  words. The app only ever asks for "while using", so iOS never shows the
+  second; Apple's upload check wants it anyway (ITMS-90683 on build 2,
+  2026-10-29) because the plugin's library can report location in the
+  background, and the plugin's own README says to add it this way.
 - **App ID:** `info.twilyte.app` (Android `applicationId` and iOS bundle id).
 
 ## Release checklist (owner actions — cannot be automated)
