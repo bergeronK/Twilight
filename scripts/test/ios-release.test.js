@@ -160,8 +160,12 @@ test('the App Store listing fits Apple’s limits and says nothing the app doesn
   assert.strictEqual(L['Support URL'], 'https://twilyte.info/support.html');
   assert.strictEqual(L['Privacy Policy URL'], 'https://twilyte.info/privacy.html');
   assert.ok(fs.existsSync(path.join(ROOT, 'support.html')) && fs.existsSync(path.join(ROOT, 'privacy.html')));
-  // 1.0 sells nothing, and says so to the reviewer.
-  assert.match(L['Notes (4000)'], /no in-app purchases in this version/);
+  // 1.0 sells nothing, and says so to the reviewer (since 2026-10-29 in the
+  // answers App Review asked for, which also fill the Notes field).
+  assert.match(L['Notes (4000)'], /no paid content/);
+  assert.match(L['Notes (4000)'], /every feature is free/);
+  for (const n of ['1. SCREEN RECORDING', '2. PURPOSE AND AUDIENCE', '3. HOW TO USE IT', '4. EXTERNAL SERVICES', '5. REGIONS', '6. REGULATION'])
+    assert.ok(L['Notes (4000)'].includes(n), n);
   assert.doesNotMatch(L['Description (4000)'], /\bPro\b|purchase|subscription|preview/i);
   // Left out until seen working in the app (CelesTrak's and NOAA's replies).
   assert.doesNotMatch(L['Description (4000)'], /space station|northern lights|aurora/i);
