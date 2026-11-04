@@ -118,23 +118,24 @@ function withWindow(w, fn) {
 }
 const app = (plugins, platform = 'ios') => ({ Capacitor: { getPlatform: () => platform, Plugins: plugins } });
 
-test('the calendar is the iPhone app’s plugin, and nothing on the website', () => {
-  const { nativeCalendar } = extract(['nativeCalendar']);
+test('the calendar is the apps’ plugin, and nothing on the website', () => {
+  const { nativeCalendar } = extract(['NATIVE_FILES', 'nativeCalendar']);
   const plugin = { add() {} };
   assert.strictEqual(withWindow({}, nativeCalendar), null, 'website');
   assert.strictEqual(withWindow(app({}), nativeCalendar), null, 'an app without the plugin');
-  assert.strictEqual(withWindow(app({ TwilyteCalendar: plugin }, 'android'), nativeCalendar), null);
+  assert.strictEqual(withWindow(app({ TwilyteCalendar: plugin }, 'web'), nativeCalendar), null, 'Capacitor on the web');
+  assert.strictEqual(withWindow(app({ TwilyteCalendar: plugin }, 'android'), nativeCalendar), plugin, 'TwilyteCalendarPlugin.java');
   assert.strictEqual(withWindow(app({ TwilyteCalendar: plugin }), nativeCalendar), plugin);
 });
 
 // saveFile with a recording document, and the plugins it can find.
-async function save(plugins, name, text, mime) {
-  const { saveFile } = extract(['saveFile', 'nativeCalendar', 'nativeShare', 'icsEvents']);
+async function save(plugins, name, text, mime, platform) {
+  const { saveFile } = extract(['saveFile', 'NATIVE_FILES', 'nativeCalendar', 'nativeShare', 'icsEvents']);
   const saved = {};
   for (const k of ['window', 'document', 'URL', 'Blob']) saved[k] = Object.getOwnPropertyDescriptor(global, k);
   const set = (k, v) => Object.defineProperty(global, k, { value: v, configurable: true, writable: true });
   const clicked = [];
-  set('window', plugins ? app(plugins) : {});
+  set('window', plugins ? app(plugins, platform) : {});
   set('document', { createElement: () => ({ click() { clicked.push({ name: this.download, href: this.href }); }, remove() {} }), body: { appendChild() {} } });
   set('URL', { createObjectURL: b => 'blob:' + b.type, revokeObjectURL() {} });
   set('Blob', function Blob(parts, o) { this.type = o.type; });
@@ -161,7 +162,8 @@ test('the iPhone app: a calendar to Calendar, anything else to the share sheet, 
   const ics = m.sextantICS({ s: T, e: T + 60000, kind: 'evening' }, 'Boston', T);
   let out = await save(plugins, 'sextant-window.ics', ics, 'text/calendar');
   assert.deepStrictEqual(out, { r: { added: 1 }, clicked: [] });
-  assert.deepStrictEqual(calls.pop(), ['add', { events: m.icsEvents(ics) }]);
+  // The file goes too, for Android's month (iOS reads only the events).
+  assert.deepStrictEqual(calls.pop(), ['add', { events: m.icsEvents(ics), ics, fileName: 'sextant-window.ics' }]);
   out = await save(plugins, 'twilight_2026-10.csv', '"Date"\n"2026-10-01"', 'text/csv');
   assert.deepStrictEqual(out.clicked, []);
   assert.deepStrictEqual(calls.pop(), ['share', { fileName: 'twilight_2026-10.csv', fileText: '"Date"\n"2026-10-01"' }]);

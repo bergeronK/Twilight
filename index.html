@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-jwBeKyJpzmfX9RN5CxLcGZwZ2rgX17VtCg2z0JZ5hfE=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-zYfMos0KzMRLmZn+PsKGXJQBgUb9BqJZaN9JuhWYIag=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2416,7 +2416,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v167";
+const BUILD = "v168";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 // In red light mode all three tabs share the red tokens' wash instead: the
 // navy above is blue light, which is what the mode is there to keep out.
@@ -2596,19 +2596,23 @@ function swipeDir(dx, dy) {
 function swipeAllowed(target) {
   return !(target && typeof target.closest === 'function' && target.closest(NO_SWIPE));
 }
-// The iPhone app's share sheet (TwilyteSharePlugin in AppDelegate.swift).
-// In the app the browser's navigator.share did nothing (owner's iPhone, v153)
-// and a download has nowhere to go, so "Share tonight's sky" hands its
-// picture to iOS through this when it's present.
+// The apps that save files and calendar events through their own plugins.
+const NATIVE_FILES = ['ios', 'android'];
+// The apps' share sheet (TwilyteSharePlugin in AppDelegate.swift and in
+// TwilyteSharePlugin.java). In the iPhone app the browser's navigator.share
+// did nothing (owner's iPhone, v153), Android's web view has none, and a
+// download has nowhere to go in either, so "Share tonight's sky" hands its
+// picture to the phone through this when it's present.
 function nativeShare() {
   const c = typeof window !== 'undefined' && window.Capacitor;
-  if (!c || !c.Plugins || !c.Plugins.TwilyteShare || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteShare || !c.getPlatform || !NATIVE_FILES.includes(c.getPlatform())) return null;
   return c.Plugins.TwilyteShare;
 }
-// The iPhone app's calendar (TwilyteCalendarPlugin in AppDelegate.swift).
+// The apps' calendar (TwilyteCalendarPlugin in AppDelegate.swift and in
+// TwilyteCalendarPlugin.java).
 function nativeCalendar() {
   const c = typeof window !== 'undefined' && window.Capacitor;
-  if (!c || !c.Plugins || !c.Plugins.TwilyteCalendar || !c.getPlatform || c.getPlatform() !== 'ios') return null;
+  if (!c || !c.Plugins || !c.Plugins.TwilyteCalendar || !c.getPlatform || !NATIVE_FILES.includes(c.getPlatform())) return null;
   return c.Plugins.TwilyteCalendar;
 }
 // The events in a calendar file this page made, for the iPhone app's
@@ -2648,14 +2652,15 @@ function icsEvents(text) {
   }
   return out;
 }
-// Saves a file the page made. A browser downloads it. In the iPhone app a
+// Saves a file the page made. A browser downloads it. In the apps a
 // download goes nowhere (owner's iPhone, v161: every "Add to calendar"
 // button and both month exports did nothing), so there a calendar's events
-// go to iOS's Calendar and anything else to the share sheet (Save to Files,
-// Numbers, Mail).
+// go to the phone's calendar and anything else to the share sheet (Save to
+// Files, Numbers, Mail). iOS takes the events; Android takes one event, or
+// the file itself for a month (TwilyteCalendarPlugin.java says why).
 function saveFile(name, text, mime) {
   const cal = mime === 'text/calendar' ? nativeCalendar() : null;
-  if (cal) return cal.add({ events: icsEvents(text) }).catch(() => null);
+  if (cal) return cal.add({ events: icsEvents(text), ics: text, fileName: name }).catch(() => null);
   const ns = nativeShare();
   if (ns) return ns.share({ fileName: name, fileText: text }).catch(() => null);
   const a = document.createElement('a');
@@ -2666,6 +2671,16 @@ function saveFile(name, text, mime) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   return Promise.resolve(null);
+}
+// Android's back button (MainActivity.java): an Escape to whatever is open
+// on the page (Sky View, the welcome, Settings, the place picker), each of
+// which already closes on one and says so with preventDefault. True when
+// one did, so back goes no further.
+function twBack(w) {
+  const win = w || window;
+  const e = new win.KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+  win.dispatchEvent(e);
+  return e.defaultPrevented;
 }
 function nativeGeo() {
   const c = typeof window !== 'undefined' && window.Capacitor;
@@ -4960,7 +4975,7 @@ function shareSkyCard(o) {
   const text = `${o.place}: ${o.head}. twilyte.info`;
   return ready.then(() => {
     drawShareCard(cv.getContext('2d'), 1080, 1350, o);
-    // The iPhone app: iOS's own share sheet, which can also save the picture.
+    // The apps: the phone's own share sheet, which can also save the picture.
     const ns = nativeShare();
     if (ns) return ns.share({ image: cv.toDataURL('image/png').split(',')[1], text })
       .then(r => r && r.completed ? 'shared' : 'cancelled');
@@ -5294,7 +5309,7 @@ function WelcomeSky({ o, line, onDone, standIn }) {
     window.addEventListener('resize', r);
     const free = dlgRef.current ? inertOutside(dlgRef.current) : () => {};
     if (btnRef.current) btnRef.current.focus();
-    const esc = e => { if (e.key === 'Escape') close(false); };
+    const esc = e => { if (e.key === 'Escape') { e.preventDefault(); close(false); } };
     window.addEventListener('keydown', esc);
     return () => { free(); window.removeEventListener('resize', r); window.removeEventListener('keydown', esc); };
   }, []);
@@ -6127,6 +6142,7 @@ function RealtimeTwilight({ redMode } = {}) {
     if (!pickerOpen) return;
     const onKey = e => {
       if (e.key !== "Escape") return;
+      e.preventDefault();
       togglePicker();
       if (placeBtnRef.current) placeBtnRef.current.focus();
     };
@@ -8809,7 +8825,7 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
     const free = wrapRef.current ? inertOutside(wrapRef.current) : () => {};
     if (backRef.current) backRef.current.focus();
     const onKey = e => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
       if (e.key !== 'Tab' || !wrapRef.current) return;
       const f = [...wrapRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
         .filter(el => !el.disabled && el.getClientRects().length);
@@ -10636,7 +10652,7 @@ function TwilightApp() {
   React.useEffect(() => {
     if (!settingsOpen) return;
     const close = () => setSettingsOpen(false);
-    const esc = e => { if (e.key === 'Escape') { close(); if (settingsBtnRef.current) settingsBtnRef.current.focus(); } };
+    const esc = e => { if (e.key === 'Escape') { e.preventDefault(); close(); if (settingsBtnRef.current) settingsBtnRef.current.focus(); } };
     const id = setTimeout(() => document.addEventListener('click', close), 0);
     window.addEventListener('keydown', esc);
     return () => { clearTimeout(id); document.removeEventListener('click', close); window.removeEventListener('keydown', esc); };
