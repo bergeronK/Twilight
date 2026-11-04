@@ -9,8 +9,22 @@ set -euo pipefail
 APK=native/android/app/build/outputs/apk/debug/app-debug.apk
 PKG=info.twilyte.app
 
-running() { adb shell pidof "$PKG" | tr -d '\r'; }
+running() { adb shell pidof "$PKG" | tr -d '\r' || true; }
 resumed() { adb shell dumpsys activity activities | grep -E 'mResumedActivity|topResumedActivity' | grep -q "$PKG"; }
+
+# However it ends, keep the log and what was on screen, and on a failure say
+# why in the job's own output: a crash's stack, Capacitor's and the page's
+# console lines.
+finish() {
+  code=$?
+  adb logcat -d > android-logcat.txt 2>/dev/null || true
+  [ -s android-launch.png ] || adb exec-out screencap -p > android-launch.png 2>/dev/null || true
+  if [ "$code" -ne 0 ]; then
+    echo "---- crash and app log lines ----"
+    grep -E 'AndroidRuntime|FATAL|Capacitor|chromium|info\.twilyte' android-logcat.txt | tail -80 || true
+  fi
+}
+trap finish EXIT
 
 adb install -r -g "$APK"          # -g: location granted, so no system dialog over the page
 adb logcat -c
