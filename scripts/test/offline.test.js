@@ -285,3 +285,22 @@ test('a failed quiet try with a saved place says so under the painting, with Try
   assert.match(rt, /React\.createElement\("span", null, geoMissWords\(loc\)\),\s*React\.createElement\("button", \{ className: "rtbtn", onClick: \(\) => useMyLocation\(\) \}, "Try again"\)\)/);
   assert.match(rt, /panel: placePanel \|\| geoNote,/);
 });
+
+// Open-Meteo's data is CC BY 4.0 and its README asks for a credit beside
+// where the data is shown (checked 2026-11-04); the footer had named it only
+// for the place search.
+test('the week planner credits Open-Meteo when it shows a forecast, and the footer says what for', () => {
+  const week = new Function('React', 'C', 'proShown', 'scoreRating', 'SCORE_SHORT', 'dtf', `${declSource('weekPlannerEl')}; return weekPlannerEl;`)(
+    R, C, () => null, s => s >= 78 ? 'Excellent' : 'Poor', { clear: 'clear' }, (l, o) => new Intl.DateTimeFormat(l, o));
+  const loc = { tz: 'America/Denver' };
+  const nights = [{ i: 0, mid: NOW + 6 * H, sum: { score: 80, bestMs: NOW, factor: 'clear' } }];
+  const links = n => n == null || typeof n !== 'object' ? [] : [...(n.t === 'a' ? [n] : []), ...(n.c || []).flatMap(links)];
+  const shown = week(nights, loc, true, true, null, null);
+  assert.deepStrictEqual(texts(shown).slice(-3), ['Cloud forecast by ', 'Open-Meteo.com', ' (CC BY 4.0).']);
+  assert.deepStrictEqual(links(shown).map(a => a.p.href), ['https://open-meteo.com/']);
+  assert.strictEqual(links(shown)[0].p.rel, 'noopener noreferrer');
+  // No forecast to credit: no credit.
+  assert.ok(!texts(week([], loc, true, true, null, m.noWxWords('offline', 'week'))).some(t => /Open-Meteo/.test(t)));
+  const app = declSource('TwilightApp');
+  assert.match(app, /"Sun and Moon: Meeus \(Astronomical Algorithms; ELP-2000\/82\) · Cloud forecast and place search: ",\s*React\.createElement\("a", \{ href: "https:\/\/open-meteo\.com\/"[^\n]*?\}, "Open-Meteo"\),\s*" \(CC BY 4\.0\), places from GeoNames \(CC BY 4\.0\) · Light pollution: "/);
+});
