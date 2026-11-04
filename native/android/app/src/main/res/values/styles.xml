@@ -13,7 +13,7 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- The header's colour (index.html's --bg), behind the status and
+        <!-- The header's colour (index.html's bg token), behind the status and
              navigation bars where an older web view (before 140) is inset
              from them rather than drawn under them (Capacitor's SystemBars):
              the day theme's white there hid the bars' light icons. -->

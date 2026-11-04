@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- index.html's --bg: the header, the status bar's backdrop. -->
+    <!-- index.html's bg token: the header, the status bar's backdrop. -->
     <color name="twilyte_bg">#0e0d0b</color>
 </resources>

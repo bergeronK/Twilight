@@ -166,3 +166,16 @@ test('the motion permission: only "denied" is a refusal', async () => {
   assert.strictEqual(await run('denied'), 'denied');
   assert.strictEqual(await run(() => Promise.reject(new Error('not from a tap'))), 'denied');
 });
+
+// XML allows no "--" inside a comment, and Android's resource merger
+// refuses the file ("index.html's --bg" in styles.xml stopped CI's first
+// build, 2026-11-04).
+test('the Android resources and manifest are XML a build accepts', () => {
+  const files = ['native/android/app/src/main/AndroidManifest.xml'];
+  const res = path.join(ROOT, 'native/android/app/src/main/res');
+  for (const d of fs.readdirSync(res)) for (const f of fs.readdirSync(path.join(res, d))) if (f.endsWith('.xml')) files.push(`native/android/app/src/main/res/${d}/${f}`);
+  assert.ok(files.length > 5);
+  for (const f of files) {
+    for (const c of read(f).matchAll(/<!--([^]*?)-->/g)) assert.ok(!c[1].includes('--'), `${f}: "--" in a comment`);
+  }
+});
