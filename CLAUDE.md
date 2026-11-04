@@ -344,8 +344,14 @@ stargazer is the default, navigator material is kept whole but folded.
   bundles assets itself; nothing for a SW to cache there).
 - **`native/`**: Capacitor 8 shell (iOS + Android), documented in
   `native/README.md`. `npm run sync` stages the web app into `native/www/`.
-  **CI compiles the iOS app** for the simulator, unsigned, on every change
-  under `native/` (`.github/workflows/ios-build.yml`, macOS runner, newest
+  **CI compiles the iOS app** for the simulator, unsigned, on a PR that
+  changes `native/ios/` or the shared native files (`package.json`, the
+  lock, `capacitor.config.json`, `sync-web.js`; since 2026-11-04, when the
+  owner ran out of Actions minutes: every push to a PR had run each
+  workflow twice, push and PR, and Android-only changes ran the macOS job
+  too; the build guard now runs on PRs and on main, the Android job on
+  `native/android/`; after editing a workflow, run it by hand)
+  (`.github/workflows/ios-build.yml`, macOS runner, newest
   Xcode, Node 22 for Capacitor 8's CLI) and checks the built app carries
   the web app, `lp/`, `PrivacyInfo.xcprivacy` and the Info.plist keys App
   Store Connect reads (`ITSAppUsesNonExemptEncryption` false: HTTPS only;

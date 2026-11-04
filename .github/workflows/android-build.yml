@@ -10,18 +10,18 @@ name: Android build
 # No keys or secrets: a debug build only. Signing and the Play upload need
 # the owner's upload key (native/README.md).
 
+# On a PR that changes what the Android app is built from, once (push and
+# PR both ran it before). The page's side of the plugins and the back hook
+# is held in step by android-app.test.js; after a change there that this
+# should see, run it by hand from the Actions tab (workflow_dispatch).
 on:
-  push:
-    paths:
-      - 'native/**'
-      - 'index.html'
-      - 'scripts/android-check.js'
-      - 'scripts/android-launch-check.sh'
-      - '.github/workflows/android-build.yml'
   pull_request:
     paths:
-      - 'native/**'
-      - 'index.html'
+      - 'native/android/**'
+      - 'native/package.json'
+      - 'native/package-lock.json'
+      - 'native/capacitor.config.json'
+      - 'native/sync-web.js'
       - 'scripts/android-check.js'
       - 'scripts/android-launch-check.sh'
       - '.github/workflows/android-build.yml'

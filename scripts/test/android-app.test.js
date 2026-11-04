@@ -208,3 +208,24 @@ test('the Play listing fits Google’s limits, and its images are the sizes Play
   // No advertising ID, as the form answers: CI's permission check holds it.
   assert.match(read('.github/workflows/android-build.yml'), /CALENDAR\|BACKGROUND_LOCATION\|READ_EXTERNAL\|WRITE_EXTERNAL\|AD_ID/);
 });
+
+// The owner ran out of Actions minutes (2026-11-04): every push to an open
+// PR ran each workflow twice (push and PR), and Android-only changes ran
+// the macOS iOS build, whose minutes cost the most.
+test('CI runs each workflow once per change, and only where it applies', () => {
+  const wf = f => read('.github/workflows/' + f);
+  const on = y => y.slice(y.indexOf('\non:\n'), y.indexOf('\n', y.indexOf('workflow_dispatch:')) + 1 || undefined);
+  const guard = wf('build-guard.yml');
+  assert.match(guard, /\non:\n  push:\n    branches: \[main\]\n  pull_request:\n/);
+  for (const f of ['ios-build.yml', 'android-build.yml']) {
+    const t = on(wf(f));
+    assert.doesNotMatch(t, /\n  push:/, `${f}: not on push as well as on the PR`);
+    assert.match(t, /\n  pull_request:\n    paths:\n/, f);
+    assert.match(t, /\n  workflow_dispatch:\n/, `${f}: can be run by hand`);
+  }
+  const ios = on(wf('ios-build.yml')), android = on(wf('android-build.yml'));
+  assert.doesNotMatch(ios, /native\/\*\*|native\/android|android-|index\.html/, 'the macOS job: iOS changes only');
+  assert.match(ios, /'native\/ios\/\*\*'/);
+  assert.doesNotMatch(android, /native\/\*\*|native\/ios|index\.html/);
+  assert.match(android, /'native\/android\/\*\*'/);
+});

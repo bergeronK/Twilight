@@ -107,8 +107,9 @@ After **any** change to the web app, re-run `npm run sync` before building.
 - `res/values/styles.xml`'s window background is the header's colour, for
   a web view older than 140, which Capacitor insets from the bars.
 
-**CI builds and launches it** (`.github/workflows/android-build.yml`, on any
-change under `native/` or to `index.html`): a debug APK on a GitHub runner,
+**CI builds and launches it** (`.github/workflows/android-build.yml`, on a
+PR that changes `native/android/` or the shared native files; by hand from
+the Actions tab otherwise): a debug APK on a GitHub runner,
 its contents and permissions checked, then an API 34 emulator that starts
 it, reads the page through the web view's DevTools socket (a debug build
 opens one), and presses back. Nothing else here can build Android: the
