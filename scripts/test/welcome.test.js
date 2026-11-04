@@ -38,10 +38,15 @@ test('above everything, the tab bar included', () => {
 });
 
 test('the store screenshots skip it', () => {
-  for (const f of ['generate.js', 'generate-android.js']) {
-    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'store-assets', f), 'utf8');
-    assert.match(src, /localStorage\.setItem\('tw_welcomed', '1'\)/, f);
-  }
+  const read = f => fs.readFileSync(path.join(__dirname, '..', '..', 'store-assets', f), 'utf8');
+  assert.match(read('generate.js'), /localStorage\.setItem\('tw_welcomed', '1'\)/);
+  // The Play shots are taken through the App Store's own capture, as the
+  // Android app.
+  const android = read('generate-android.js');
+  assert.match(android, /const \{ capture, openSkyView \} = require\('\.\/generate\.js'\);/);
+  assert.match(android, /const PHONE = \{ w: 360, h: 640, dsr: 3, mobile: true, app: 'android' \};/);
+  assert.strictEqual((android.match(/await capture\(browser, '\w+', path\.join\(OUT, 'phone-0\d-\w+\.png'\), (null|openSkyView), PHONE\);/g) || []).length, 4);
+  assert.match(read('generate.js'), /module\.exports = \{ capture, openSkyView \};/);
 });
 
 test('a saved place is kept quietly when the device’s location can’t be had', () => {

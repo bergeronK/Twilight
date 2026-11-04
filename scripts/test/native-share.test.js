@@ -31,12 +31,13 @@ function withWindow(w, fn) {
 }
 const app = plugins => ({ Capacitor: { getPlatform: () => 'ios', Plugins: plugins } });
 
-test('the share sheet is the iPhone app’s plugin, and nothing on the website', () => {
-  const { nativeShare } = extract(['nativeShare']);
+test('the share sheet is the apps’ plugin, and nothing on the website', () => {
+  const { nativeShare } = extract(['NATIVE_FILES', 'nativeShare']);
   const plugin = { share() {} };
   assert.strictEqual(withWindow({}, nativeShare), null, 'website');
   assert.strictEqual(withWindow(app({}), nativeShare), null, 'an app without the plugin');
-  assert.strictEqual(withWindow({ Capacitor: { getPlatform: () => 'android', Plugins: { TwilyteShare: plugin } } }, nativeShare), null, 'Android has no such plugin');
+  assert.strictEqual(withWindow({ Capacitor: { getPlatform: () => 'web', Plugins: { TwilyteShare: plugin } } }, nativeShare), null, 'Capacitor on the web');
+  assert.strictEqual(withWindow({ Capacitor: { getPlatform: () => 'android', Plugins: { TwilyteShare: plugin } } }, nativeShare), plugin, 'Android (TwilyteSharePlugin.java)');
   assert.strictEqual(withWindow(app({ TwilyteShare: plugin }), nativeShare), plugin);
 });
 
@@ -54,7 +55,7 @@ test('the Share link is the website’s only: the apps have no link to give', ()
 
 // "Share tonight's sky", with a canvas that records how it was asked for the picture.
 function card({ plugin, canShare }) {
-  const { shareSkyCard, nativeShare } = extract(['shareSkyCard', 'nativeShare']);
+  const { shareSkyCard, nativeShare } = extract(['shareSkyCard', 'NATIVE_FILES', 'nativeShare']);
   const asked = [];
   const cv = {
     getContext: () => ({}),

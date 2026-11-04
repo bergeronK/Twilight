@@ -89,7 +89,8 @@ test('Sky View is a dialog: named, modal, focus on Back, Escape closes', () => {
   assert.match(src, /role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Sky View'/);
   assert.match(src, /createElement\('button', \{ ref: backRef, onClick: onClose/);
   assert.match(src, /if \(backRef\.current\) backRef\.current\.focus\(\);/);
-  assert.match(src, /if \(e\.key === 'Escape'\) \{ onClose\(\); return; \}/);
+  // preventDefault says it was taken: Android's back stops there (twBack).
+  assert.match(src, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); onClose\(\); return; \}/);
   // Tab goes round the dialog's own controls, not on to the page behind.
   assert.match(src, /if \(e\.key !== 'Tab' \|\| !wrapRef\.current\) return;/);
   assert.match(src, /else if \(!e\.shiftKey && \(document\.activeElement === last \|\| !inside\)\) \{ e\.preventDefault\(\); first\.focus\(\); \}/);
@@ -403,7 +404,7 @@ test('the page behind a dialog is inert while it is open', () => {
 
 test('Escape closes Settings and the place picker, and focus goes back to what opened them', () => {
   const app = declSource('TwilightApp');
-  assert.match(app, /const esc = e => \{ if \(e\.key === 'Escape'\) \{ close\(\); if \(settingsBtnRef\.current\) settingsBtnRef\.current\.focus\(\); \} \};/);
+  assert.match(app, /const esc = e => \{ if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); close\(\); if \(settingsBtnRef\.current\) settingsBtnRef\.current\.focus\(\); \} \};/);
   assert.match(app, /window\.addEventListener\('keydown', esc\);/);
   assert.match(app, /window\.removeEventListener\('keydown', esc\);/);
   assert.match(app, /ref: settingsBtnRef,\s*onClick: e => \{ e\.stopPropagation\(\); setSettingsOpen/);
@@ -414,9 +415,10 @@ test('Escape closes Settings and the place picker, and focus goes back to what o
   let toggled = 0, focused = 0, cleanup;
   const win = { addEventListener: (k, f) => { on[k] = f; }, removeEventListener: (k, f) => { if (on[k] === f) delete on[k]; } };
   new Function('useEffect', 'window', 'pickerOpen', 'togglePicker', 'placeBtnRef', eff)(f => { cleanup = f(); }, win, true, () => toggled++, { current: { focus: () => focused++ } });
-  on.keydown({ key: 'Enter' });
+  const key = k => { const e = { key: k, taken: false, preventDefault() { this.taken = true; } }; on.keydown(e); return e.taken; };
+  assert.strictEqual(key('Enter'), false);
   assert.deepStrictEqual([toggled, focused], [0, 0]);
-  on.keydown({ key: 'Escape' });
+  assert.strictEqual(key('Escape'), true, 'taken, so Android\u2019s back stops there');
   assert.deepStrictEqual([toggled, focused], [1, 1]);
   cleanup();
   assert.ok(!on.keydown, 'the listener goes when the picker closes');

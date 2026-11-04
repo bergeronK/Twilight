@@ -3,7 +3,14 @@
 /*
  * Regenerates Google Play Store assets into store-assets/android/:
  *   - feature-graphic.png   1024 x 500  (Play Store listing header art)
- *   - phone-01/02/03.png    1080 x 1920 (Console / Stars / Ephemeris)
+ *   - phone-01..04.png      1080 x 1920 (Console / Stars / Ephemeris / Sky View)
+ *
+ * The phone shots go through generate.js's own capture, so they are taken
+ * the way the App Store's are: the Grand Canyon, tonight at 22:15 with a
+ * clear forecast, and the page loaded as the Android app (app: 'android',
+ * a Capacitor bridge with no plugins), with none of the website's "PRO",
+ * "free preview", Share link or visit count (2026-11-04; until then they
+ * showed the website, at Stowe, VT).
  *
  * Requires: a local server for the repo root (e.g.
  * `python3 -m http.server 8137` from the repo root) and Playwright.
@@ -16,58 +23,15 @@ const fs = require('fs');
 let chromium;
 try { ({ chromium } = require('playwright')); }
 catch (e) { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
+const { capture, openSkyView } = require('./generate.js');
 
-const SERVER = process.argv[2] || 'http://localhost:8137';
 const OUT = path.join(__dirname, 'android');
 
-// Google Play has no fixed phone-screenshot pixel requirement, only bounds
-// (320-3840px per side, max:min ratio <= 2:1). 1080x1920 (9:16) is the most
-// common published resolution and renders cleanly from a 3x-DSR 360x640
-// CSS viewport.
-const W = 360, H = 640, DSR = 3;
-
-function mkForecast() {
-  const off = -4 * 3600; // EDT
-  const base = Math.floor(Date.now() / 3600000) * 3600000;
-  const time = [], cc = [], hi = [], pp = [];
-  for (let i = -1; i < 8 * 24; i++) {
-    const ep = base + i * 3600000;
-    time.push(new Date(ep + off * 1000).toISOString().slice(0, 16));
-    let v;
-    if (i < 48) v = 8;
-    else { const day = Math.floor(i / 24); v = [8, 8, 65, 20, 90, 35, 12, 55][day % 8]; }
-    cc.push(v); hi.push(0); pp.push(i >= 96 && i < 120 ? 60 : 0);
-  }
-  return { utc_offset_seconds: off, timezone: "America/New_York", hourly: { time, cloud_cover: cc, cloud_cover_high: hi, precipitation_probability: pp } };
-}
-
-const tonight = new Date(Math.floor(Date.now() / 86400000) * 86400000 + 26.25 * 3600000);
-
-async function capture(browser, tab, outPath, after) {
-  const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: DSR, isMobile: true, timezoneId: 'America/New_York' });
-  await ctx.grantPermissions(['geolocation']);
-  await ctx.setGeolocation({ latitude: 44.2601, longitude: -72.5806 }); // Stowe, VT
-  const page = await ctx.newPage();
-  await page.addInitScript(() => {
-    localStorage.setItem('tw_loc', JSON.stringify({ lat: 44.2601, lon: -72.5806, name: "Stowe, VT", tz: "America/New_York" }));
-    localStorage.setItem('tw_bortle_mode', 'auto');
-    localStorage.setItem('tw_hint', '1');
-    localStorage.setItem('tw_welcomed', '1'); // skip the first-run welcome
-  });
-  await page.route('**/api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkForecast()) }));
-  await page.clock.install({ time: tonight });
-  // Never swallow a navigation failure here — see the note in generate.js.
-  // A silently-captured error page overwrites a good committed asset.
-  const resp = await page.goto(`${SERVER}/index.html?tab=${tab}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  if (!resp || !resp.ok()) throw new Error(`${SERVER} returned ${resp ? resp.status() : 'no response'} — is the local server running?`);
-  await page.waitForTimeout(2600);
-  const mounted = await page.evaluate(() => !/Starting Twilyte/.test(document.body.innerText) && document.body.innerText.trim().length > 200);
-  if (!mounted) throw new Error('app did not render — stale CSP hashes? run scripts/verify-build.js');
-  if (after) await after(page);
-  await page.screenshot({ path: outPath });
-  await ctx.close();
-  console.log(outPath, 'captured');
-}
+// Google Play has no fixed phone-screenshot size, only bounds (320-3840 px a
+// side, the long side at most twice the short). 1080 x 1920 (9:16), at
+// least 1080 px wide, is what Play asks for a listing to be eligible for
+// its recommendations; a 360 x 640 CSS viewport at 3x renders exactly that.
+const PHONE = { w: 360, h: 640, dsr: 3, mobile: true, app: 'android' };
 
 async function captureFeatureGraphic(browser, outPath) {
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 500 }, deviceScaleFactor: 1 });
@@ -85,12 +49,10 @@ async function captureFeatureGraphic(browser, outPath) {
   const launchOpts = fs.existsSync(sandboxChrome) ? { executablePath: sandboxChrome } : {};
   const browser = await chromium.launch(launchOpts);
   await captureFeatureGraphic(browser, path.join(OUT, 'feature-graphic.png'));
-  await capture(browser, 'console', path.join(OUT, 'phone-01-console.png'));
-  await capture(browser, 'stars', path.join(OUT, 'phone-02-stars.png'));
-  await capture(browser, 'ephemeris', path.join(OUT, 'phone-03-ephemeris.png'));
-  // Shares generate.js's Sky View helper so both stores show the same shot
-  // and there's only one place to fix when the view changes.
-  await capture(browser, 'stars', path.join(OUT, 'phone-04-skyview.png'), require('./generate.js').openSkyView);
+  await capture(browser, 'console', path.join(OUT, 'phone-01-console.png'), null, PHONE);
+  await capture(browser, 'stars', path.join(OUT, 'phone-02-stars.png'), null, PHONE);
+  await capture(browser, 'ephemeris', path.join(OUT, 'phone-03-ephemeris.png'), null, PHONE);
+  await capture(browser, 'stars', path.join(OUT, 'phone-04-skyview.png'), openSkyView, PHONE);
   await browser.close();
   console.log('done');
 })().catch(e => { console.error(e); process.exit(1); });

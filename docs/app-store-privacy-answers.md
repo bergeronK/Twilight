@@ -143,6 +143,12 @@ older permission is the only one), added 2026-10-09. Current text: *"Twilyte
 adds the twilight times you choose to your calendar. It can't see what's in
 your calendar."*
 
+On **Android** (2026-11-04) the app has no calendar permission at all:
+one event opens the calendar app's own new-event screen, and a month's
+export hands its .ics to a calendar app or the share sheet
+(`TwilyteCalendarPlugin.java`). Nothing to declare on Play's form either
+(**Calendar → Calendar events: No**).
+
 **Every other category** (Contact Info, Health & Fitness, Financial Info,
 Sensitive Info, Contacts, User Content, Browsing History, Search History,
 Usage Data, Diagnostics, Other Data) → **not collected**.

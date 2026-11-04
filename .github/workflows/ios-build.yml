@@ -8,15 +8,18 @@ name: iOS build
 # No Apple account or secrets: signing, archiving and uploading to App Store
 # Connect happen in Xcode on the owner's Mac (native/README.md).
 
+# On a PR that changes what the iOS app is built from, once (push and PR
+# both ran it before, and every Android-only change ran it too: macOS
+# minutes are the costly ones, 2026-11-04). After editing this file, run it
+# by hand from the Actions tab (workflow_dispatch).
 on:
-  push:
-    paths:
-      - 'native/**'
-      - '.github/workflows/ios-build.yml'
   pull_request:
     paths:
-      - 'native/**'
-      - '.github/workflows/ios-build.yml'
+      - 'native/ios/**'
+      - 'native/package.json'
+      - 'native/package-lock.json'
+      - 'native/capacitor.config.json'
+      - 'native/sync-web.js'
   workflow_dispatch:
 
 defaults:

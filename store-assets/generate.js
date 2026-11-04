@@ -129,9 +129,11 @@ async function openSkyView(page) {
   await page.evaluate(() => { const f = document.getElementById('for-navigators'); if (f) f.open = true; });
   await page.waitForTimeout(400);
   const target = await page.evaluate(() => {
-    // Star table rows read "Arcturusm0.0\n29°\n270° W" (the name and the
-    // magnitude chip are adjacent inline spans, hence no space).
-    const stars = [...document.body.innerText.matchAll(/([A-Z][a-z]+)m(-?\d+\.\d+)\s*\n\s*(-?\d+)°\s*\n\s*(\d+)°/g)]
+    // Star table rows read "Arcturusm0.0\n, magnitude 0.0\n29°\n270° W"
+    // (the name and the magnitude chip are adjacent inline spans, hence no
+    // space; the second line is the screen reader's words for the chip,
+    // since 2026-10-21).
+    const stars = [...document.body.innerText.matchAll(/([A-Z][a-z]+)m(-?\d+\.\d+)\s*\n(?:\s*, magnitude -?\d+\.\d+\s*\n)?\s*(-?\d+)°\s*\n\s*(\d+)°/g)]
       .map(x => ({ name: x[1], mag: +x[2], alt: +x[3], az: +x[4] }));
     const R = Math.PI / 180;
     const sep = (a, b) => Math.acos(Math.max(-1, Math.min(1,
@@ -164,9 +166,10 @@ async function openSkyView(page) {
   console.log(`  sky view aimed near ${target.name} (alt ${target.alt}°, az ${target.az}°)`);
 }
 
-// generate-android.js reuses openSkyView, so only run the iOS set when this
-// file is the entry point rather than a require().
-module.exports = { openSkyView };
+// generate-android.js takes its shots through the same capture (place,
+// clock, forecast, as an app) and openSkyView, so only run the iOS set when
+// this file is the entry point rather than a require().
+module.exports = { capture, openSkyView };
 
 if (require.main === module) (async () => {
   fs.mkdirSync(OUT, { recursive: true });

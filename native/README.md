@@ -89,6 +89,32 @@ npm run open:android  # Android Studio (or: cd android && ./gradlew assembleDebu
 
 After **any** change to the web app, re-run `npm run sync` before building.
 
+**What the Android app adds to Capacitor** (2026-11-04), in
+`android/app/src/main/java/info/twilyte/app/`, as the iPhone app does in
+`AppDelegate.swift`, because the web view drops downloads and has no
+`navigator.share`:
+- `TwilyteSharePlugin.java` (JS `TwilyteShare`): "Share tonight's sky" and
+  the month as CSV go to Android's share sheet, written to the cache and
+  handed over through the manifest's `FileProvider`.
+- `TwilyteCalendarPlugin.java` (JS `TwilyteCalendar`): one event opens the
+  calendar app's own new-event screen, filled in (no permission; the
+  reminder is the calendar's default); a month opens its .ics in a calendar
+  app that imports one, else the share sheet. No calendar permission.
+- `MainActivity.java` registers both before the bridge is made, and handles
+  **back**: first it asks the page (`twBack`), which closes Sky View, the
+  welcome, Settings or the place picker; then it goes back from Help or
+  Privacy; only then does it leave the app.
+- `res/values/styles.xml`'s window background is the header's colour, for
+  a web view older than 140, which Capacitor insets from the bars.
+
+**CI builds and launches it** (`.github/workflows/android-build.yml`, on a
+PR that changes `native/android/` or the shared native files; by hand from
+the Actions tab otherwise): a debug APK on a GitHub runner,
+its contents and permissions checked, then an API 34 emulator that starts
+it, reads the page through the web view's DevTools socket (a debug build
+opens one), and presses back. Nothing else here can build Android: the
+sandbox has no SDK.
+
 If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
 `python3 generate-assets.py` (needs `pip install pillow`).
 
@@ -115,9 +141,12 @@ If the brand art (`../icon-512.png` / `../icon-512-maskable.png`) changes:
    in App Store Connect with bundle id `info.twilyte.app` → build, sign and
    upload in Xcode on a Mac (see "iOS on a Mac" above) → TestFlight →
    submit.
-2. **Google:** Play Console account ($25 once) → create the app → build a
-   signed AAB (`cd android && ./gradlew bundleRelease`, then sign, or use
-   Play App Signing) → internal testing track → production.
+2. **Google:** Play Console account ($25 once) → create the app → a
+   signed AAB from Android Studio (Build → Generate Signed App Bundle, with
+   an upload key kept out of the repo; Play App Signing holds the app key)
+   → a closed test (a new personal account needs 12 testers for 14 days)
+   → production. The listing, the App content answers and the device
+   checks are in `../docs/play-store-listing.md`.
 3. **Store listings:** the repo's `screenshot-narrow.png`/`screenshot-wide.png`
    are the right starting points; both stores need their own size variants.
 4. **Pro monetization (wired, awaiting keys):** the web app already contains

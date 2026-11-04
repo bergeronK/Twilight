@@ -9,9 +9,11 @@ name: Build guard
 # Assist still apply the manual heading correction the same way, and that a
 # sight below the horizon is still kept out of the fix.
 
+# Once per change: on a PR, and on main when one merges. On every branch
+# push as well, each push to an open PR ran it twice (2026-11-04).
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 
 jobs:
