@@ -395,6 +395,17 @@ stargazer is the default, navigator material is kept whole but folded.
   After pulling, the owner's routine is `npm install && npm run sync`, then
   ⌘R (sync is what copies the web app into the Xcode project; Team needs
   setting again only after switching branches). `ios-release.test.js`.
+  **Picking the Team edits `project.pbxproj`**, so a pull that changes that
+  file stops, and `git stash` / `git stash pop` around it left conflict
+  markers in `project.pbxproj` and `Info.plist` on the owner's Mac
+  (2026-11-04: "not a valid property list", then "unable to read property
+  list"). The clean way: `git checkout HEAD -- <file>` for each, `git stash
+  drop`, `plutil -lint native/ios/App/App/Info.plist` (says OK), pick the
+  Team again, Clean Build Folder, archive. **Uploading needs Apple's latest
+  Program License Agreement accepted** at developer.apple.com/account
+  (Account Holder): until it is, Distribute fails with "PLA Update
+  available" and, because Xcode's cloud signing can't reach the account,
+  "No signing certificate iOS Distribution found".
   RevenueCat IAP is fully wired in `index.html` (`RC_KEYS`, `rcPlugin()`,
   purchase/restore flow) but **inert until a public SDK key is set** — see
   "Pending" below.
@@ -2276,8 +2287,9 @@ treatment (`'android'`) before the Play listing.
   report location in the background, so Apple's scan wants the key; it is
   now in `Info.plist` with the when-in-use words, as the plugin's README
   says (`native-files.test.js`), and the Xcode project is at **Build 3**
-  so the next upload doesn't collide with 2. Build 2 can still go through
-  review. The same day App Review asked this new account for a screen
+  so the next upload doesn't collide with 2. **Build 3 went to App Review
+  on 2026-11-04** in build 2's place on version 1.0, with the reply below
+  (manual release). The same day App Review asked this new account for a screen
   recording and answers on purpose, use, services, regions and licences
   (Guideline 2.1, "limited App Review history"), to be kept in the Notes
   field for later submissions: the text is `docs/app-store-listing.md`'s

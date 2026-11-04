@@ -127,7 +127,7 @@ No.
 Thank you. The answers below are also in the Notes field of App Review Information.
 
 1. SCREEN RECORDING
-Attached: recorded on an iPhone running the latest iOS, with build 2. It starts at launch and shows the main flow. Twilyte has no account registration or login, no user-generated content and no paid content.
+Attached: recorded on an iPhone running the latest iOS, with build 3. It starts at launch and shows the main flow. Twilyte has no account registration or login, no user-generated content and no paid content.
 
 2. PURPOSE AND AUDIENCE
 Twilyte is an astronomy reference app for people who watch the sky: casual stargazers, photographers planning golden and blue hour, campers and hikers, and sailors who practise celestial navigation. It answers three questions for wherever the user is: when does it get dark tonight, how dark does the sky get here, and what is worth looking at? On the device it works out sunrise, sunset and each stage of twilight, the Moon's phase and rise and set, the planets and stars, eclipses and meteor showers. It rates the local sky's darkness on the Bortle scale from NASA satellite measurements of light at night. Sky View uses the motion sensors to name the stars, planets and constellations the phone is pointed at.
@@ -166,11 +166,21 @@ physical device on the latest iOS, starting at launch, plus the purpose and
 audience, how to reach the main features, the outside services, regional
 differences, and any licences for regulated or protected material. They
 asked for the answers both as a reply and in the Notes field. The text
-above went in both, with the recording attached to the reply, when build 2
-replaced build 1 on version 1.0.
+above went in both, with the recording, when **build 3** replaced the
+build on version 1.0 and 1.0 was resubmitted (2026-11-04). Build 3 is
+build 2's app with the Always-and-When-In-Use location string, which
+build 2's upload had been warned about (ITMS-90683).
+
+App Review's page allows each rejected item **one edit** before
+resubmitting, so everything went in one pass: Edit on the item, swap the
+build (hover over it, the **–**, then **+**), the Notes, Save, the reply
+with the recording, then **Resubmit to App Review**. The reply's
+attachment refused an iPhone screen recording saved as `.MP4`; a
+lowercase name, a smaller copy (Finder's **Encode Selected Video Files**,
+720p, H.264) or a shared iCloud link are the ways round it.
 
 What the recording showed, in order (about two minutes, the iPhone app at
-v167, which is build 2's code): Twilyte opened from the Home Screen; the
+v167, the same web app as builds 2 and 3): Twilyte opened from the Home Screen; the
 Console scrolled through the painting, the twilight times and countdown,
 the Bortle block, "Worth a look" and the week; the place search; the
 Ephemeris's chart and times, and another date; Stars, Open Sky View, the
