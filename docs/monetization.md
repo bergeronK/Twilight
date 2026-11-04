@@ -78,6 +78,27 @@ the Build field in Xcode). So:
 
 ## Turning it on (1.1)
 
+0. **The forecast's terms, first.** Open-Meteo, which every forecast in
+   the app (the week planner, the sunset and sunrise colour, the cloudy
+   headline) and the alerts Worker come from, says in its README
+   (github.com/open-meteo/open-meteo, read 2026-11-04; open-meteo.com
+   itself couldn't be reached from the session): *"Open-Meteo APIs are free
+   for open-source developers and non-commercial use"*, *"If your
+   application exceeds 10'000 requests per day, please contact us"* and
+   *"For commercial use of Open-Meteo APIs, please contact us."* An app
+   that sells Pro is commercial, so before 1.1 goes on sale: write to
+   Open-Meteo (the contact on open-meteo.com) with how Twilyte uses it
+   (from people's phones, about one forecast an hour while open, three
+   points a request, plus place search and the alerts Worker's hourly
+   run) and take the plan they offer; its key would go in the request
+   from a Worker, not in the app, since anything shipped in the app can
+   be read. The other way is to move the forecast behind our own Worker
+   to a source that allows commercial use (Apple's WeatherKit REST has
+   cloud cover by height and precipitation chance, with calls included
+   in the developer membership; MET Norway's free forecast has cloud by
+   height but rain chance only in some regions), which is a bigger
+   change. The data is CC BY 4.0 either way: the week planner and the
+   footer credit it (v169).
 1. **App Store Connect:** sign the Paid Apps agreement (Agreements, Tax
    and Banking; needed for any purchase) and enrol in the Small Business
    Program.
