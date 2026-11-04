@@ -87,6 +87,36 @@ test('compass letters stay clear of the buttons and the words over the picture',
   assert.ok(letters(pv).every(t => t.y <= 450 - 120 && t.y - 12 >= 150));
 });
 
+// The Play screenshots (2026-11-04): on a 360 px phone Sky View's bottom
+// words ran to four lines, taller than the fixed 76 px kept clear, and
+// "Mirzam" and the horizon's E were written under them. Now the words are
+// measured; the buttons along the top aren't (a name beside their short
+// second row is clear of them).
+test('Sky View keeps names and letters out from under its bottom words, however tall', () => {
+  const dome = declSource('SkyDome');
+  assert.match(dome, /const statusRef = useRef\(null\);/);
+  assert.match(dome, /const measure = \(\) => setFootH\(Math\.ceil\(b\.offsetHeight\)\);/);
+  assert.match(dome, /ro\.observe\(b\);/);
+  assert.match(dome, /\/\/ Bottom status\n\s*React\.createElement\('div', \{\n\s*ref: statusRef,/);
+  assert.match(dome, /const clearBottom = Math\.max\(76, footH\);/);
+  assert.match(dome, /clearBottom, keepClear: \{ w: 0, h: 0, bottom: clearBottom \}/);
+  assert.match(dome, /mw, lat, lst, footH\]\);/, 'redrawn when the words change height');
+  // What that asks of the painter: a name in the band is left off, one at
+  // the top-left (w 0: no top box) kept, and the letters out of the band.
+  const inHeader = at(60, 40), atFoot = at(120, 330);
+  const bodies = [
+    { name: 'Top star', kind: 'star', mag: 1, nav: true, az: inHeader.az, alt: inHeader.alt },
+    { name: 'Foot star', kind: 'star', mag: 1, nav: true, az: atFoot.az, alt: atFoot.alt }
+  ];
+  const r = recCtx();
+  m.drawSkyView(r.g, W, H, { basis, fov: 64, cam: false, bodies, lines: [], names: [], showLines: false, targetName: null,
+    clearBottom: 110, keepClear: { w: 0, h: 0, bottom: 110 } });
+  const said = r.texts.map(t => t.t);
+  assert.ok(said.includes('Top star'));
+  assert.ok(!said.includes('Foot star'));
+  assert.ok(r.texts.filter(t => /^[NESW]{1,3}$/.test(t.t)).every(t => t.y <= H - 110));
+});
+
 test('a constellation’s name steps off a star’s name, or is left off', () => {
   // "PISCIS AUSTRINUS" was written across "Fomalhaut" (store screenshots).
   const spot = at(200, 220);

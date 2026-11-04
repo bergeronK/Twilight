@@ -145,3 +145,24 @@ test('behind the bars, where an older web view is inset from them, the header’
   // The bars' icons stay light over it.
   assert.strictEqual(JSON.parse(read('native/capacitor.config.json')).plugins.SystemBars.style, 'DARK');
 });
+
+// Chromium 153 has DeviceOrientationEvent.requestPermission, and with no
+// one to ask it answers "prompt"; read as a refusal, Sky View said
+// "Compass permission was denied" (found taking the Play screenshots,
+// 2026-11-04). Android's web view is Chromium.
+test('the motion permission: only "denied" is a refusal', async () => {
+  const src = declSource('StarFinder');
+  const body = src.slice(src.indexOf('  const ensureSensors = async () => {'), src.indexOf('  const startAim = name =>'));
+  const run = async answer => {
+    const states = [];
+    const DeviceOrientationEvent = { requestPermission: () => typeof answer === 'function' ? answer() : Promise.resolve(answer) };
+    const ensure = new Function('nativeMotion', 'setAimSensor', 'window', 'DeviceOrientationEvent', body + '\nreturn ensureSensors;')(
+      () => null, s => states.push(s), { isSecureContext: true }, DeviceOrientationEvent);
+    await ensure();
+    return states.pop();
+  };
+  assert.strictEqual(await run('granted'), 'granted');
+  assert.strictEqual(await run('prompt'), 'granted', 'no one to ask: listen');
+  assert.strictEqual(await run('denied'), 'denied');
+  assert.strictEqual(await run(() => Promise.reject(new Error('not from a tap'))), 'denied');
+});
