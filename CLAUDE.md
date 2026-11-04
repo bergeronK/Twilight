@@ -890,7 +890,53 @@ stargazer is the default, navigator material is kept whole but folded.
   and `NSCalendarsUsageDescription`; nothing collected (privacy.html's "Your
   calendar", `app-store-privacy-answers.md` 4b). **New download buttons go
   through `saveFile`**, or they won't work in the app. Android's web view
-  drops downloads too and has no such plugin yet. `native-files.test.js`.
+  drops downloads too: the Android app has the same two plugins in Java
+  (next entry). `native-files.test.js`.
+- **The Android app (2026-11-04, v168; owner: Android next, while 1.0 is
+  in App Review).** Never built before; now CI builds it and runs it in an
+  emulator (`.github/workflows/android-build.yml`: a debug APK, its
+  bundled pages and permissions checked, no CALENDAR, background location,
+  storage or AD_ID; then an API 34 emulator where
+  `scripts/android-launch-check.sh` installs it with location granted,
+  reads the page through the web view's DevTools socket with
+  `scripts/android-check.js` (mounted, platform android, both plugins seen
+  by `nativeShare`/`nativeCalendar`, `twBack`), presses back on the
+  welcome, then again to leave). Its first run caught a `--` inside an XML
+  comment, which the resource merger refuses. What the app adds:
+  - **`TwilyteSharePlugin.java` and `TwilyteCalendarPlugin.java`**, under
+    the iPhone app's JS names and keys (`NATIVE_FILES` is both platforms).
+    Share: written to the cache, out through the manifest's
+    `FileProvider`. Calendar: one event opens the calendar's own new-event
+    screen (`ACTION_INSERT`, no permission; its reminder is the calendar's
+    default, so the Play description doesn't promise one); a month opens
+    its .ics (`saveFile` now sends `ics` and `fileName` with the events)
+    in a calendar app that imports one, else the share sheet. **No
+    calendar permission on Android**, matching the iPhone app's add-only
+    access; `/privacy.html` says so.
+  - **Back** (`MainActivity.java`): Capacitor leaves it to its App plugin,
+    which Twilyte doesn't use, so back left the app from anywhere. Now it
+    asks the page first: `twBack()` sends an Escape, which Sky View, the
+    welcome, Settings and the place picker already close on and now
+    `preventDefault`, and returns whether one took it; then the web view
+    goes back (Help, Privacy); then the app leaves. **Anything new that
+    closes on Escape should `preventDefault` it**, or back skips it.
+  - The window background is the header's colour (`colors.xml`): on a web
+    view before 140 Capacitor's SystemBars insets the page from the bars
+    rather than drawing under them, and the day theme's white there hid
+    the bars' light icons.
+  - **Found taking the Play shots, fixed for every platform:** Chromium
+    (153 here) has `DeviceOrientationEvent.requestPermission`, and with no
+    one to ask answers "prompt", which `ensureSensors` read as a refusal
+    ("Compass permission was denied"); only "denied" refuses now. And
+    Sky View's bottom words are measured (`statusRef`, `footH`, a
+    ResizeObserver): at 360 px they ran to four lines, over the fixed
+    76 px kept clear, and a star's name and the horizon's E were written
+    under them. The top keeps its fixed band (a name beside the buttons'
+    short second row is clear of them).
+  - Listing: `docs/play-store-listing.md` (texts, graphics, App content
+    answers, the closed-test rule for new personal accounts, the upload
+    key, and the checks to make on a real phone). Not yet seen on a real
+    Android phone at all. `android-app.test.js`.
 - **A review for faults users would meet (2026-10-10, v163, owner: "fix the
   ones that affect app users").** Five reviewers read the app in slices and
   a browser sweep ran it as the iPhone app at the poles, the date line, DST
@@ -1985,6 +2031,13 @@ things a syntax check cannot see:
   15 while tilting); `mwReusable`'s rules and `mwShift` against the exact
   projection; the four memoised sections and their stable props. All 24
   mutations of it were seen to fail.
+- **`android-app.test.js`** — the Android app's two plugins against the
+  page's side (names, methods, every key sent read, registered before the
+  bridge, the FileProvider, no calendar permission, `ACTION_INSERT` in
+  ms), `saveFile` as the Android app, `twBack` and every Escape handler's
+  `preventDefault`, MainActivity's back, the window colour, no `--` in an
+  XML comment, the motion permission's "prompt", and the Play listing's
+  limits and image sizes.
 - **`visitor-counter.test.js`** — `pingVisitorCounter` with the clock,
   storage, network and `window` injected: once per 24h, the cached total
   inside the window, a 500 `{"count":0}` ignored, network failure, storage
@@ -2207,8 +2260,12 @@ year). **A 6.5-inch iPhone set too** (`iphone-6.5-*`, 1284 × 2778,
 `IPHONE_65`): App Store Connect's iPhone slot was 6.5" and refused the
 6.9" set. Likewise a 12.9" iPad set (`ipad-12.9-*`, 2048 × 2732,
 `IPAD_129`) beside the 13" one. The PWA shots stay the website. The Android shots
-(`generate-android.js`) still show the website's words: give them the same
-treatment (`'android'`) before the Play listing.
+(`generate-android.js`) go through the same `capture` as the Android app
+(`app: 'android'`, 360 x 640 at 3x) since 2026-11-04, with
+`play-icon-512.png` beside them. **The generators' Sky View aim reads the
+star table**, which since 2026-10-21 has a screen reader's ", magnitude
+0.0" line; the iOS set hasn't been retaken since, so expect changes there
+(the bottom band, the permission) if it is.
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and
@@ -2326,15 +2383,12 @@ treatment (`'android'`) before the Play listing.
   iPad), so `TARGETED_DEVICE_FAMILY` stays `"1,2"`. iPad layout was reviewed
   at 13" portrait/landscape and 11" portrait — no overflow, no iPad-specific
   CSS needed. Each set includes a Sky View shot.
-- Android store assets: **done** (`store-assets/android/`, feature graphic +
-  3 phone screenshots, regen via `node store-assets/generate-android.js`).
-  Android scaffolding under `native/android/` was audited this pass
-  (`AndroidManifest.xml` permissions, launcher icons, Gradle plugin wiring)
-  and found sound — no changes needed. **Cannot validate a real Gradle/APK
-  build from this sandbox**: no Android SDK installed, and `dl.google.com`
-  (the SDK repository) is blocked by the environment's network policy, same
-  as `api.open-meteo.com` — mirrors the "iOS needs a Mac" constraint. A real
-  build/signing/Play Console upload needs a machine with the Android SDK.
+- Android: **built and run in CI, listing written** (2026-11-04; see "The
+  Android app"). The sandbox still can't build it (no SDK, `dl.google.com`
+  blocked); CI can. Left for the owner: a Play Console account, the upload
+  key, a signed bundle from Android Studio, the closed test, a look on a
+  real phone (`docs/play-store-listing.md`), and the Pro decision below
+  (Android can't tell 1.0's people apart; `docs/monetization.md`).
 
 ## Conventions established this session (follow unless told otherwise)
 

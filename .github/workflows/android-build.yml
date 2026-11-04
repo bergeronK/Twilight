@@ -65,7 +65,8 @@ jobs:
 
       # What went into the app: the bundled web app, and no permission the
       # privacy policy doesn't name (no calendar access: the app adds events
-      # through the calendar's own screen).
+      # through the calendar's own screen; no advertising ID, which Play's
+      # form says the app doesn't use).
       - name: Check the built app
         run: |
           apk=native/android/app/build/outputs/apk/debug/app-debug.apk
@@ -77,7 +78,7 @@ jobs:
           aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
           "$aapt2" dump permissions "$apk" | tee permissions.txt
           # (`! grep` would pass either way: bash's -e ignores a negated command.)
-          if grep -E 'CALENDAR|BACKGROUND_LOCATION|READ_EXTERNAL|WRITE_EXTERNAL' permissions.txt; then
+          if grep -E 'CALENDAR|BACKGROUND_LOCATION|READ_EXTERNAL|WRITE_EXTERNAL|AD_ID' permissions.txt; then
             echo "a permission the privacy policy doesn't name"; exit 1
           fi
           "$aapt2" dump badging "$apk" | grep -E "^package:|sdkVersion|targetSdkVersion"

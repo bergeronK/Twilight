@@ -179,3 +179,32 @@ test('the Android resources and manifest are XML a build accepts', () => {
     for (const c of read(f).matchAll(/<!--([^]*?)-->/g)) assert.ok(!c[1].includes('--'), `${f}: "--" in a comment`);
   }
 });
+
+// docs/play-store-listing.md: the text blocks by heading, as the App
+// Store's listing test reads its own.
+test('the Play listing fits Google’s limits, and its images are the sizes Play takes', () => {
+  const md = read('docs/play-store-listing.md'), L = {};
+  for (const m of md.matchAll(/^### ([^\n]+)\n```\n([\s\S]*?)\n```/gm)) L[m[1]] = m[2];
+  const limits = { 'App name (30)': 30, 'Short description (80)': 80, 'Full description (4000)': 4000, 'Release notes (500)': 500 };
+  for (const [k, max] of Object.entries(limits)) {
+    assert.ok(L[k], `${k} present`);
+    assert.ok([...L[k]].length <= max, `${k}: ${[...L[k]].length} > ${max}`);
+  }
+  assert.strictEqual(L['App name (30)'], 'Twilyte');
+  const desc = L['Full description (4000)'];
+  assert.doesNotMatch(desc, /\bPro\b|purchase|subscription|preview/i, 'nothing sold in 1.0');
+  assert.doesNotMatch(desc, /space station|northern lights|aurora/i, 'not yet seen working');
+  assert.doesNotMatch(desc, /with a reminder/, 'Android’s calendar screen takes no reminder');
+  assert.doesNotMatch(desc, /iPhone|iOS|App Store/);
+  for (const u of ['support@twilyte.info', 'https://twilyte.info/privacy.html']) assert.ok(md.includes(u), u);
+  // PNG width and height, from the header.
+  const size = f => { const b = fs.readFileSync(path.join(ROOT, 'store-assets/android', f)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+  assert.deepStrictEqual(size('play-icon-512.png'), [512, 512]);
+  assert.deepStrictEqual(size('feature-graphic.png'), [1024, 500]);
+  for (const f of ['phone-01-console.png', 'phone-02-stars.png', 'phone-03-ephemeris.png', 'phone-04-skyview.png']) {
+    assert.deepStrictEqual(size(f), [1080, 1920], f);
+    assert.ok(md.includes(f), f);
+  }
+  // No advertising ID, as the form answers: CI's permission check holds it.
+  assert.match(read('.github/workflows/android-build.yml'), /CALENDAR\|BACKGROUND_LOCATION\|READ_EXTERNAL\|WRITE_EXTERNAL\|AD_ID/);
+});
