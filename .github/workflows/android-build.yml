@@ -1,0 +1,111 @@
+name: Android build
+
+# Compiles the Android app (native/android, Capacitor 8 over the web app),
+# then runs it in an emulator, so a Java, Gradle or manifest error, or an
+# app that builds and then stops, shows up here: nothing in the repo's own
+# sandbox can build Android (no SDK; dl.google.com is blocked there). The
+# app's own Java (the share and calendar plugins, the back button) is
+# compiled nowhere else.
+#
+# No keys or secrets: a debug build only. Signing and the Play upload need
+# the owner's upload key (native/README.md).
+
+on:
+  push:
+    paths:
+      - 'native/**'
+      - 'index.html'
+      - 'scripts/android-check.js'
+      - 'scripts/android-launch-check.sh'
+      - '.github/workflows/android-build.yml'
+  pull_request:
+    paths:
+      - 'native/**'
+      - 'index.html'
+      - 'scripts/android-check.js'
+      - 'scripts/android-launch-check.sh'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # Capacitor 8's CLI needs Node 22; its Android library, Java 21.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install and sync the web app into the Android project
+        working-directory: native
+        run: |
+          npm ci
+          node sync-web.js
+          npx cap sync android
+
+      - name: Build the debug app
+        working-directory: native/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      # What went into the app: the bundled web app, and no permission the
+      # privacy policy doesn't name (no calendar access: the app adds events
+      # through the calendar's own screen).
+      - name: Check the built app
+        run: |
+          apk=native/android/app/build/outputs/apk/debug/app-debug.apk
+          ls -l "$apk"
+          unzip -l "$apk" | grep -E 'assets/public/(index|privacy|support)\.html|assets/public/lp/index\.json'
+          for f in index.html privacy.html support.html lp/index.json; do
+            unzip -l "$apk" | grep -q "assets/public/$f"
+          done
+          aapt2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          "$aapt2" dump permissions "$apk" | tee permissions.txt
+          # (`! grep` would pass either way: bash's -e ignores a negated command.)
+          if grep -E 'CALENDAR|BACKGROUND_LOCATION|READ_EXTERNAL|WRITE_EXTERNAL' permissions.txt; then
+            echo "a permission the privacy policy doesn't name"; exit 1
+          fi
+          "$aapt2" dump badging "$apk" | grep -E "^package:|sdkVersion|targetSdkVersion"
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Building is not launching (the iPhone app's first run was stopped at
+      # launch after building cleanly): start it, read the page, press back.
+      - name: Launch in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/android-launch-check.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-emulator-launch
+          path: |
+            android-launch.png
+            android-after-back.png
+            android-logcat.txt
+          if-no-files-found: ignore
