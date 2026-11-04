@@ -2309,7 +2309,13 @@ star table**, which since 2026-10-21 has a screen reader's ", magnitude
 - **Free app plus one purchase, Twilyte Pro; no ads, no subscription;
   alerts stay free; 1.0's people keep Pro** (2026-10-05). Which features
   join the week planner in Pro, and the price ($4.99 proposed), are still
-  the owner's to confirm (`docs/monetization.md`).
+  the owner's to confirm (`docs/monetization.md`). **Before Pro goes on
+  sale, Open-Meteo's terms**: its free API is for non-commercial use, and
+  commercial use means contacting them (its README, read 2026-11-04;
+  `docs/monetization.md`, step 0 of "Turning it on"). Its data is CC BY
+  4.0: the week planner ends "Cloud forecast by Open-Meteo.com (CC BY
+  4.0)." and the footer credits it for the forecast too (v169;
+  `offline.test.js`).
 
 **Blocked on the repo owner, not on engineering:**
 - **Deploy the alerts Worker** (`alerts/README.md`: KV namespace, VAPID keys,
