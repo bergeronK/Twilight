@@ -97,7 +97,7 @@ test('Sky View keeps names and letters out from under its bottom words, however 
   assert.match(dome, /const statusRef = useRef\(null\);/);
   assert.match(dome, /const measure = \(\) => setFootH\(Math\.ceil\(b\.offsetHeight\)\);/);
   assert.match(dome, /ro\.observe\(b\);/);
-  assert.match(dome, /\/\/ Bottom status\n\s*React\.createElement\('div', \{\n\s*ref: statusRef,/);
+  assert.match(dome, /\/\/ Bottom status[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*React\.createElement\('div', \{\n\s*ref: statusRef,/);
   assert.match(dome, /const clearBottom = Math\.max\(76, footH\);/);
   assert.match(dome, /clearBottom, keepClear: \{ w: 0, h: 0, bottom: clearBottom \}/);
   assert.match(dome, /mw, lat, lst, footH\]\);/, 'redrawn when the words change height');
@@ -202,4 +202,15 @@ test("Sky View carries Aim Assist's Align, where the error is seen", () => {
   // handler, and only when it can mean something (sensors live, a target).
   assert.match(declSource('StarFinder'), /align: skyShift \? null : \{ onAlign: alignHere, ok: alignOk, far: alignFarMsg, onReset: \(\) => prefStore\.setAimOffset\(0\), offset: aimOffset \}/);
   assert.match(declSource('SkyDome'), /live && target && align && React\.createElement/);
+});
+
+// The release review (2026-10-21): Sky View's bottom words had nothing
+// behind them, and bright stars and lines ran through them. A wash in the
+// sky's own shade, which red light mode turns red, fading up from the foot.
+test('Sky View’s bottom words sit on a shade of the sky, not a box', () => {
+  const dome = declSource('SkyDome');
+  const at = dome.indexOf('ref: statusRef,');
+  const style = dome.slice(at, dome.indexOf('}\n    },', at));
+  assert.match(style, /background: 'linear-gradient\(180deg, rgba\(var\(--sky-shade-rgb\),0\) 0, rgba\(var\(--sky-shade-rgb\),\.72\) 22px, rgba\(var\(--sky-shade-rgb\),\.88\) 100%\)'/);
+  assert.doesNotMatch(style, /border|borderRadius/, 'read-only: no box');
 });

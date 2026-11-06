@@ -190,3 +190,84 @@ test('galaxies and clusters on the chart: violet outlines, the famous ones named
   // Named after every star, so none of theirs is pushed off.
   assert.ok(names.indexOf('Andromeda Galaxy') > Math.max(...names.map((n, i) => (d.stars.some(s => s.name === n) ? i : -1))));
 });
+
+// The release review (2026-10-21) left the chart's labels colliding: a name
+// was judged crowded only by where it started (54 px), so a long one, or one
+// turned left at the edge, ran into the next; and the stars were named in
+// the order they are drawn, faintest first, so Bellatrix took Betelgeuse's
+// place (the Grand Canyon, 2026-11-06).
+function boxedCtx() {
+  const g = stubCtx();
+  let align = 'left';
+  Object.defineProperty(g, 'textAlign', { set(v) { align = v; }, get() { return align; }, configurable: true });
+  g.fillText = (t, x, y) => g.texts.push({ t, x, y, align });
+  return g;
+}
+const COMPASS = new Set(['N', 'E', 'S', 'W', 'NE', 'SE', 'SW', 'NW']);
+const boxes = g => g.texts.filter(t => !COMPASS.has(t.t)).map(t => {
+  const w = t.t.length * 6;
+  return { t: t.t, x1: t.align === 'right' ? t.x - w : t.x, x2: t.align === 'right' ? t.x : t.x + w, y1: t.y - 6, y2: t.y + 6 };
+});
+const overlaps = bs => bs.flatMap((a, i) => bs.slice(i + 1).filter(b => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1).map(b => a.t + ' / ' + b.t));
+
+test('the chart names the brighter of two crowded stars', () => {
+  const g = boxedCtx();
+  const d = { ...baseData(), fix: [], planets: [], moon: null, polaris: null,
+    // Drawn faintest first, as the Stars tab hands them over.
+    stars: [{ name: 'Bellatrix', mag: 1.6, az: 100, alt: 40, nav: true }, { name: 'Betelgeuse', mag: 0.5, az: 100, alt: 40.6, nav: true }] };
+  m.drawSkyChart(g, SIZE, d);
+  const said = g.texts.map(t => t.t);
+  assert.ok(said.includes('Betelgeuse'), said.join(', '));
+  assert.deepStrictEqual(overlaps(boxes(g)), []);
+});
+
+test('a name goes to the left of its star when the right is taken, and none overlap in a crowd', () => {
+  const R = R_OF(SIZE), c = SIZE / 2;
+  // Two stars on one line, the fainter 40 px to the left of the brighter:
+  // its name to the right would run into the brighter star's.
+  const at = (x, y) => {
+    let best = null;
+    for (let az = 0; az < 360; az += 0.25) for (let alt = 1; alt < 90; alt += 0.25) {
+      const p = m.chartXY(az, alt, R), dd = Math.hypot(c + p.x - x, c + p.y - y);
+      if (!best || dd < best.dd) best = { az, alt, dd };
+    }
+    return best;
+  };
+  const a = at(170, 120), b = at(130, 120);
+  const g = boxedCtx();
+  m.drawSkyChart(g, SIZE, { ...baseData(), fix: [], planets: [], moon: null, polaris: null,
+    stars: [{ name: 'Faintstar', mag: 1.2, az: b.az, alt: b.alt, nav: true }, { name: 'Brightstar', mag: 0.2, az: a.az, alt: a.alt, nav: true }] });
+  const t = Object.fromEntries(g.texts.map(x => [x.t, x]));
+  assert.strictEqual(t.Brightstar.align, 'left', 'right of its star');
+  assert.strictEqual(t.Faintstar.align, 'right', 'turned to the left of its star');
+  // A crowd: forty named stars packed into one corner of the sky.
+  const crowd = [];
+  for (let i = 0; i < 40; i++) crowd.push({ name: 'Star' + 'abcdefghij'.slice(0, 2 + (i % 8)), mag: (i * 37 % 16) / 10, az: 80 + (i * 7) % 40, alt: 25 + (i * 11) % 30, nav: true });
+  const g2 = boxedCtx();
+  m.drawSkyChart(g2, SIZE, { ...baseData(), fix: [], stars: crowd, deep: [{ name: 'Andromeda Galaxy', id: 'M31', type: 's', mag: 3.4, size: 190, az: 95, alt: 40 }] });
+  const bs = boxes(g2);
+  assert.ok(bs.length > 5, `${bs.length} named`);
+  assert.deepStrictEqual(overlaps(bs), []);
+  assert.ok(bs.every(x => x.x1 >= 0 && x.x2 <= SIZE), 'every name on the chart');
+});
+
+test('the fix stars are named even in a crowd', () => {
+  const g = boxedCtx();
+  const d = baseData();
+  d.stars.push({ name: 'Nearvega', mag: -1, az: 270, alt: 58.5, nav: true });
+  m.drawSkyChart(g, SIZE, d);
+  for (const n of ['Vega', 'Deneb', 'Altair']) assert.ok(g.texts.some(t => t.t === n), n);
+});
+
+// Box-placed, the plain name of a fix star found room beside its amber one
+// ("Vega" twice, 2026-11-06): the start-point check had hidden it by chance.
+test('no name is written twice', () => {
+  const g = boxedCtx();
+  const d = baseData();
+  d.stars.push({ name: 'Polaris', mag: 1.98, az: 0, alt: 42, nav: true });
+  d.labelMag = 2;
+  m.drawSkyChart(g, SIZE, d);
+  const said = g.texts.map(t => t.t).filter(t => !COMPASS.has(t));
+  assert.deepStrictEqual(said.filter((t, i) => said.indexOf(t) !== i), []);
+  for (const n of ['Vega', 'Deneb', 'Altair', 'Polaris']) assert.ok(said.includes(n), n);
+});

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-c2XtI3rFLNbUez/RGqyGX6ujXfXKn/MK4NVTUCal2IM=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fD18B+sFART8LEd6gfvy3hvfMqowUgiaxUEdnHWwcyA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -2416,7 +2416,7 @@ const C = {
 // Bumped with sw.js's CACHE, so a Sensor details screenshot says which build
 // it came from. It sat at v56 for weeks while the app moved on, which made
 // every field report ambiguous.
-const BUILD = "v169";
+const BUILD = "v170";
 const PAGE_BG = "radial-gradient(1200px 760px at 75% -10%, #1b2440 0%, #0a0e1e 45%, #04050d 100%)";
 // In red light mode all three tabs share the red tokens' wash instead: the
 // navy above is blue light, which is what the mode is there to keep out.
@@ -5145,26 +5145,46 @@ function drawSkyChart(g, size, d) {
   // without burying the chart in text.
   g.font = '600 11px Inter, system-ui, sans-serif';
   g.textBaseline = 'middle';
-  const placed = [];
   // Crowded labels are dropped rather than overlapped — except the fix
   // stars, which are what the chart exists to show and are named whatever
-  // sits next to them.
+  // sits next to them. Each name is a box as wide as its words, kept clear
+  // of the names already written and of their stars' dots; it goes to the
+  // right of its point, or to the left when that side is taken or runs off
+  // the chart. (It was judged by where names started, 54 px apart, so a
+  // long name, or one turned to the left at the edge, ran into the next:
+  // the release review, 2026-10-21.)
+  // A name is written once: a fix star is also in the star list, and Polaris
+  // can be too (the old start-point check hid the second copy by accident).
+  const placed = [], named = new Set();
+  const boxOf = (text, p, gap, left) => {
+    const w = g.measureText(text).width;
+    return left ? { x1: p.x - gap - w, x2: p.x - gap, y1: p.y - 7, y2: p.y + 7 }
+      : { x1: p.x + gap, x2: p.x + gap + w, y1: p.y - 7, y2: p.y + 7 };
+  };
+  const clash = b => placed.some(q => b.x1 < q.x2 + 2 && b.x2 > q.x1 - 2 && b.y1 < q.y2 && b.y2 > q.y1);
   const label = (text, p, color, gap, force) => {
-    if (!force && placed.some(q => Math.abs(q.x - p.x) < 54 && Math.abs(q.y - p.y) < 13)) return;
-    const flip = p.x + gap + g.measureText(text).width > size - 4;
-    g.textAlign = flip ? 'right' : 'left';
+    if (named.has(text)) return;
+    const sides = [false, true].filter(l => { const b = boxOf(text, p, gap, l); return b.x1 >= 2 && b.x2 <= size - 4; });
+    if (!sides.length) sides.push(p.x + gap + g.measureText(text).width > size - 4);
+    let left = sides.find(l => !clash(boxOf(text, p, gap, l)));
+    if (left === undefined) { if (!force) return; left = sides[0]; }
+    g.textAlign = left ? 'right' : 'left';
     g.fillStyle = color;
-    g.fillText(text, flip ? p.x - gap : p.x + gap, p.y);
-    placed.push({ x: p.x, y: p.y });
+    g.fillText(text, left ? p.x - gap : p.x + gap, p.y);
+    placed.push(boxOf(text, p, gap, left), { x1: p.x - 3, x2: p.x + 3, y1: p.y - 3, y2: p.y + 3 });
+    named.add(text);
   };
   (d.fix || []).forEach(s => { const p = P(s.az, s.alt); if (p) label(s.name, p, '#e8b563', 10, true); });
   (d.planets || []).forEach(pl => { const p = P(pl.az, pl.alt); if (p) label(pl.name, p, 'rgba(240,201,138,.9)', 7); });
   if (d.moon) { const p = P(d.moon.az, d.moon.alt); if (p) label('Moon', p, 'rgba(238,242,255,.85)', 12); }
-  d.stars.forEach(s => {
-    if (!s.nav || !s.name || s.mag > (d.labelMag === undefined ? 1.6 : d.labelMag)) return;
-    const p = P(s.az, s.alt);
-    if (p) label(s.name, p, 'rgba(238,242,255,.66)', 6);
-  });
+  // Brightest first: the stars are drawn faintest first (so the bright ones
+  // sit on top), and named in that order Bellatrix took Betelgeuse's place.
+  d.stars.filter(s => s.nav && s.name && s.mag <= (d.labelMag === undefined ? 1.6 : d.labelMag))
+    .sort((a, b) => a.mag - b.mag)
+    .forEach(s => {
+      const p = P(s.az, s.alt);
+      if (p) label(s.name, p, 'rgba(238,242,255,.66)', 6);
+    });
   if (d.polaris) {
     const p = P(d.polaris.az, d.polaris.alt);
     if (p) label('Polaris', p, 'rgba(238,242,255,.66)', 6);
@@ -9049,10 +9069,15 @@ function SkyDome({ bodies, lines, names, viewQ, screenAngle, targetName, onPick,
         React.createElement('div', { style: { color: 'rgba(238,242,255,.5)', marginTop: 6, lineHeight: 1.45 } }, diag.summary)
       )
     ),
-    // Bottom status
+    // Bottom status, over a shade that fades up from the foot (the release
+    // review, 2026-10-21: the words had nothing behind them, and bright
+    // stars and lines ran through them). A wash, not a box: read-only.
     React.createElement('div', {
       ref: statusRef,
-      style: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 14px max(14px, env(safe-area-inset-bottom))', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(238,242,255,.7)', textAlign: 'center', lineHeight: 1.5 }
+      style: {
+        position: 'absolute', left: 0, right: 0, bottom: 0, padding: '22px 14px max(14px, env(safe-area-inset-bottom))', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(238,242,255,.7)', textAlign: 'center', lineHeight: 1.5,
+        background: 'linear-gradient(180deg, rgba(var(--sky-shade-rgb),0) 0, rgba(var(--sky-shade-rgb),.72) 22px, rgba(var(--sky-shade-rgb),.88) 100%)'
+      }
     },
       // With the camera on, the overlay has to be matched to the lens by eye:
       // no browser API reports a camera's field of view, so this is the only

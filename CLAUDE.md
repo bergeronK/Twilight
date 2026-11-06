@@ -1040,8 +1040,13 @@ stargazer is the default, navigator material is kept whole but folded.
     and to untick Mac and Apple Vision availability (no motion sensors
     there).
   - Left: the Ephemeris lists the day's moonset even when it comes before
-    the moonrise (an almanac's day, correct); label collisions on the
-    whole-sky chart; Sky View's bottom line without a backing.
+    the moonrise (an almanac's day, correct). **Fixed since (v170,
+    2026-11-06):** the whole-sky chart's names are boxes as wide as their
+    words, kept clear of each other and of their stars' dots, to the right
+    of the point or else the left, brightest star first (named faintest
+    first, as drawn, Bellatrix had taken Betelgeuse's place), each written
+    once (`star-chart.test.js`); Sky View's bottom words sit on a wash of
+    `--sky-shade-rgb` fading up from the foot (`sky-view-preview.test.js`).
 - **Offline at a dark site (2026-10-21, a review of v164 run as the iPhone
   app with every outside request refused, in Utah at night).** The main way
   stargazers use it. What changed, and the rule each now follows:
