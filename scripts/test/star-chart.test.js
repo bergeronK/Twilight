@@ -258,3 +258,16 @@ test('the fix stars are named even in a crowd', () => {
   m.drawSkyChart(g, SIZE, d);
   for (const n of ['Vega', 'Deneb', 'Altair']) assert.ok(g.texts.some(t => t.t === n), n);
 });
+
+// Box-placed, the plain name of a fix star found room beside its amber one
+// ("Vega" twice, 2026-11-06): the start-point check had hidden it by chance.
+test('no name is written twice', () => {
+  const g = boxedCtx();
+  const d = baseData();
+  d.stars.push({ name: 'Polaris', mag: 1.98, az: 0, alt: 42, nav: true });
+  d.labelMag = 2;
+  m.drawSkyChart(g, SIZE, d);
+  const said = g.texts.map(t => t.t).filter(t => !COMPASS.has(t));
+  assert.deepStrictEqual(said.filter((t, i) => said.indexOf(t) !== i), []);
+  for (const n of ['Vega', 'Deneb', 'Altair', 'Polaris']) assert.ok(said.includes(n), n);
+});

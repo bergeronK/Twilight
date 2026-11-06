@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-8H7pHzdPl4A2MpaOIfuxgbSMNamY3HKqp+F+YgB1q70=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-LtvvfGVmfcoHWp4+TD4Lt7CBdUP12N0xoz2a4TCIlgA=' 'sha256-2WFykE7wvy9rfb6MuxdEk17+inylzAieA3wTF6WO6oc=' 'sha256-5iQLZZarga65DX0f9Sd0iyRmfHgUzB8mc6W/19dA1m0=' 'sha256-fD18B+sFART8LEd6gfvy3hvfMqowUgiaxUEdnHWwcyA=' 'sha256-JAy4ooiqCu/2GUX/T0oycyxLZ4vrWZ1Xwxtepo5wmOg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://geocoding-api.open-meteo.com https://api.open-meteo.com https://twilight-counter.ken-b39.workers.dev https://twilyte-alerts.ken-b39.workers.dev https://celestrak.org https://services.swpc.noaa.gov; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0e0d0b" />
 <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
@@ -5153,7 +5153,9 @@ function drawSkyChart(g, size, d) {
   // the chart. (It was judged by where names started, 54 px apart, so a
   // long name, or one turned to the left at the edge, ran into the next:
   // the release review, 2026-10-21.)
-  const placed = [];
+  // A name is written once: a fix star is also in the star list, and Polaris
+  // can be too (the old start-point check hid the second copy by accident).
+  const placed = [], named = new Set();
   const boxOf = (text, p, gap, left) => {
     const w = g.measureText(text).width;
     return left ? { x1: p.x - gap - w, x2: p.x - gap, y1: p.y - 7, y2: p.y + 7 }
@@ -5161,6 +5163,7 @@ function drawSkyChart(g, size, d) {
   };
   const clash = b => placed.some(q => b.x1 < q.x2 + 2 && b.x2 > q.x1 - 2 && b.y1 < q.y2 && b.y2 > q.y1);
   const label = (text, p, color, gap, force) => {
+    if (named.has(text)) return;
     const sides = [false, true].filter(l => { const b = boxOf(text, p, gap, l); return b.x1 >= 2 && b.x2 <= size - 4; });
     if (!sides.length) sides.push(p.x + gap + g.measureText(text).width > size - 4);
     let left = sides.find(l => !clash(boxOf(text, p, gap, l)));
@@ -5169,6 +5172,7 @@ function drawSkyChart(g, size, d) {
     g.fillStyle = color;
     g.fillText(text, left ? p.x - gap : p.x + gap, p.y);
     placed.push(boxOf(text, p, gap, left), { x1: p.x - 3, x2: p.x + 3, y1: p.y - 3, y2: p.y + 3 });
+    named.add(text);
   };
   (d.fix || []).forEach(s => { const p = P(s.az, s.alt); if (p) label(s.name, p, '#e8b563', 10, true); });
   (d.planets || []).forEach(pl => { const p = P(pl.az, pl.alt); if (p) label(pl.name, p, 'rgba(240,201,138,.9)', 7); });
