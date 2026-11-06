@@ -93,11 +93,21 @@ the Build field in Xcode). So:
    run) and take the plan they offer; its key would go in the request
    from a Worker, not in the app, since anything shipped in the app can
    be read. The other way is to move the forecast behind our own Worker
-   to a source that allows commercial use (Apple's WeatherKit REST has
-   cloud cover by height and precipitation chance, with calls included
-   in the developer membership; MET Norway's free forecast has cloud by
-   height but rain chance only in some regions), which is a bigger
-   change. The data is CC BY 4.0 either way: the week planner and the
+   to a source that allows commercial use, which is a bigger change.
+   **Apple's WeatherKit** (developer.apple.com/weatherkit, read
+   2026-11-06): commercial use on any platform; 500,000 calls a month
+   included with the developer membership, then $49.99 a month for 1
+   million (up to $9,999.99 for 200 million); the Apple Weather mark
+   and Apple's legal link wherever its data is shown. But only its
+   Swift framework (the iPhone app, through a native plugin) has cloud
+   cover by height (`cloudCoverByAltitude`); its REST API, which Android
+   and the website would use through a Worker holding the signing key,
+   gives total `cloudCover` only, so the sunset and sunrise colour
+   (`skyGlow`: high and middle cloud against low) couldn't be worked
+   out there. The week planner, the cloudy headline and the alerts
+   need only total cloud and the chance of rain, which both have.
+   **MET Norway**'s free forecast has cloud by height, and rain chance
+   only in some regions. The data is CC BY 4.0 either way: the week planner and the
    footer credit it (v169).
 1. **App Store Connect:** sign the Paid Apps agreement (Agreements, Tax
    and Banking; needed for any purchase) and enrol in the Small Business
