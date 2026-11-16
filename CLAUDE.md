@@ -28,6 +28,13 @@ fresh session (or a Cowork session) never has to re-derive project state.
   Release This Version has been clicked and the EU trader-status question
   answered. The Xcode project is at Build 3, so the next upload is 4 (and
   under 100 while the app sells nothing; see `monetization.test.js`).
+- **The store listing for launch (2026-11-16)**: the store name is now
+  **"Twilyte: Sunset & Stargazing"** (owner; the Home Screen name stays
+  Twilyte), new subtitle and keywords, and captioned screenshots, five per
+  size (`docs/app-store-listing.md`). `docs/launch-kit.md` has the social
+  posts, the Geminids promotional text and the featuring nomination. Ask
+  whether they went into App Store Connect (likely by a developer reject
+  and resubmit, if the approved version's fields were locked).
 - **Android**: built, launched and checked in CI's emulator since v168;
   listing in `docs/play-store-listing.md`. Not on Play, never run on a
   real phone. **Play is on hold until iOS is launched and live** (owner,
@@ -55,8 +62,7 @@ fresh session (or a Cowork session) never has to re-derive project state.
      the DNS move to Cloudflare (keep Microsoft's mail records).
 - **Nothing in engineering is waiting.** Possible next work, only when
   asked: Pro's 1.1 code once the decisions are made; a forecast Worker
-  once Open-Meteo answers; retaking the iOS screenshots (`generate.js`
-  changed after the 2026-10-05 set).
+  once Open-Meteo answers.
 - **How the owner works:** concise replies. One PR per change, opened as a
   draft from the session's `claude/` branch; merged as a merge commit
   only when the owner says "merge", then the branch restarts from `main`.
@@ -2320,8 +2326,10 @@ year). **A 6.5-inch iPhone set too** (`iphone-6.5-*`, 1284 × 2778,
 (`app: 'android'`, 360 x 640 at 3x) since 2026-11-04, with
 `play-icon-512.png` beside them. **The generators' Sky View aim reads the
 star table**, which since 2026-10-21 has a screen reader's ", magnitude
-0.0" line; the iOS set hasn't been retaken since, so expect changes there
-(the bottom band, the permission) if it is.
+0.0" line. **The iOS set was retaken with captions on 2026-11-16**: five
+shots a size, each framed with a few words (`SHOTS`, `frame`), the first at
+golden hour and Sky View second, Find guiding to Orion
+(`openSkyViewFind`); `--store-only` leaves the PWA shots alone.
 
 **Owner decisions made (don't re-ask):**
 - **iOS device family: Universal** (iPhone + iPad). iPad screenshots and

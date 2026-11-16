@@ -15,12 +15,16 @@ its "Before you submit" list says.
 
 ### Name (30)
 ```
-Twilyte
+Twilyte: Sunset & Stargazing
 ```
+The store name, chosen 2026-11-16 (owner) so two strong search words sit
+in the field Apple weighs most; no one searches for "Twilyte" yet. The
+name under the icon on the Home Screen stays "Twilyte" (the Xcode
+project's display name).
 
 ### Subtitle (30)
 ```
-Twilight times & tonight’s sky
+Twilight times & night sky map
 ```
 
 ### Primary category
@@ -93,8 +97,11 @@ Twilyte doesn’t track you. There is no account, no advertising and no analytic
 
 ### Keywords (100)
 ```
-sunset,sunrise,golden hour,blue hour,stargazing,astronomy,star map,moon phase,constellation,dark sky
+sunrise,golden,hour,blue,astronomy,star,moon,phase,constellation,planet,meteor,milky,way,dark,dusk
 ```
+Apple matches single words across the name, subtitle and keywords, so no
+word here repeats one there, and "golden,blue,hour" covers golden hour and
+blue hour. No spaces after the commas.
 
 ### What’s New
 Not shown for a first version. If 1.0 is already out when the fixes below
@@ -216,19 +223,27 @@ through.
 
 ## Screenshots
 
-Retaken for 1.0 on 2026-10-05, in `store-assets/ios/`, in the order to
-upload them (Console, Stars, Ephemeris, Sky View):
-- **6.5-inch iPhone**, 1284 × 2778: `iphone-6.5-01-console.png` to
-  `iphone-6.5-04-skyview.png`. This is the iPhone slot App Store Connect
-  showed (2026-10-05); it refused the 6.9-inch set.
-- **6.9-inch iPhone**, 1260 × 2736: `iphone-6.9-01-console.png` to
-  `iphone-6.9-04-skyview.png`, for the 6.9-inch slot where it's offered.
-- **13-inch iPad**, 2064 × 2752: `ipad-13-01-console.png` to
-  `ipad-13-04-skyview.png`.
-- **12.9-inch iPad**, 2048 × 2732: `ipad-12.9-01-console.png` to
-  `ipad-12.9-04-skyview.png`, for an iPad slot that asks for the older
-  size.
+Retaken 2026-11-16 with **a few words over each** (owner), in
+`store-assets/ios/`, in upload order. The first three are what a search
+result shows:
+1. `01-golden-hour`: "Your sky, right now" (the painting at golden hour)
+2. `02-sky-view`: "Point your phone. Name the stars." (Find guiding to
+   Orion)
+3. `03-tonight`: "When it’s truly dark" (the Console at night, Bortle 2)
+4. `04-ephemeris`: "Every stage of twilight"
+5. `05-whole-sky`: "The whole sky tonight"
 
-App Store Connect scales these down for the smaller sizes. They show the
-app as the iPhone app draws it, with no website wording. To retake them:
-`node store-assets/generate.js`, with a local server running.
+Four sizes, five each, prefixed by size:
+- **6.5-inch iPhone**, 1284 × 2778: `iphone-6.5-*`. The iPhone slot App
+  Store Connect showed (2026-10-05); it refused the 6.9-inch set.
+- **6.9-inch iPhone**, 1260 × 2736: `iphone-6.9-*`, where that slot is
+  offered.
+- **13-inch iPad**, 2064 × 2752: `ipad-13-*`.
+- **12.9-inch iPad**, 2048 × 2732: `ipad-12.9-*`, for an iPad slot that
+  asks for the older size.
+
+Delete the old four from each slot before uploading. The screens are the
+iPhone app as it draws them (no website wording), inside a frame with the
+words; the frame and words are drawn by `generate.js` (`SHOTS`, `frame`).
+To retake them: `node store-assets/generate.js --store-only`, with a local
+server running.

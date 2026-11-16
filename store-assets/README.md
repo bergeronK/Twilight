@@ -10,12 +10,23 @@ change.
 
 ## `ios/`
 
-Four screenshots at **1260 × 2736 px** — the 6.9" iPhone size, required by
-App Store Connect for any app that runs on iPhone (per
-[Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)).
-One per tab (Console, Stars, Ephemeris) plus Sky View, captured with a mocked
-forecast and a fixed evening clock so the app shows a fully-populated
-"tonight" state rather than empty/loading placeholders.
+Five screenshots for each of four sizes (6.9" and 6.5" iPhone, 13" and
+12.9" iPad; per
+[Apple's screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/)),
+**each with a few words over it** since 2026-11-16 (`SHOTS` in
+`generate.js`): the Console at golden hour, Sky View with Find guiding to
+Orion, the Console at night, the Ephemeris and the Stars tab. Each screen
+is captured as the iPhone app draws it, with a mocked forecast and a fixed
+clock (tonight at 22:15; golden hour is when the app's own `sunAltitude`
+puts the Sun 3° down this evening), then `frame` draws the words and the
+screen on the app's night colours at the slot's exact size. The raw
+captures go to a temporary folder; only the framed shots are kept.
+`--store-only` leaves the PWA's two screenshots alone.
+
+`openSkyViewFind` picks a constellation in Find (Orion first, else another
+well-known one that's up), steers the view with synthetic orientation
+events until the guide says it's in the ring, then turns a little so the
+whole figure is in frame.
 
 The Sky View shot (`openSkyView` in `generate.js`, shared with the Android
 generator) aims the view by reading a well-placed bright star out of the
@@ -31,7 +42,7 @@ Regenerate after any visual change to `index.html`:
 
 ```sh
 python3 -m http.server 8137 &      # from the repo root
-node store-assets/generate.js
+node store-assets/generate.js --store-only   # without the flag, the PWA shots too
 ```
 
 ### iPad

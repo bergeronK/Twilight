@@ -153,8 +153,14 @@ test('the App Store listing fits Apple’s limits and says nothing the app doesn
     assert.ok(L[k], `${k} present`);
     assert.ok([...L[k]].length <= max, `${k}: ${[...L[k]].length} > ${max}`);
   }
-  assert.strictEqual(L['Name (30)'], 'Twilyte');
+  // The brand leads the store name (owner, 2026-11-16: "Twilyte: Sunset &
+  // Stargazing"), so search words follow it.
+  assert.match(L['Name (30)'], /^Twilyte\b/);
   const kw = L['Keywords (100)'].split(',');
+  // Apple matches words across the name, subtitle and keywords: a keyword
+  // already in either is wasted.
+  const shown = new Set((L['Name (30)'] + ' ' + L['Subtitle (30)']).toLowerCase().split(/[^a-z]+/));
+  assert.deepStrictEqual(kw.filter(k => k.split(' ').some(w => shown.has(w))), [], 'keywords repeating the name or subtitle');
   assert.ok(kw.every(k => k === k.trim() && k), 'no spaces around commas, no empty keywords');
   assert.strictEqual(new Set(kw).size, kw.length, 'no repeats');
   assert.strictEqual(L['Support URL'], 'https://twilyte.info/support.html');

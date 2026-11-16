@@ -1,0 +1,169 @@
+# Launch kit — Twilyte 1.0 (iOS)
+
+Written 2026-11-16. App Review had approved build 3 (manual release), and
+the owner wanted the listing at its best and the social posts ready before
+clicking Release This Version.
+
+App Store link once it's live: `https://apps.apple.com/app/id6819388363`
+
+## 1. What can still change before release
+
+- **Promotional text: anytime**, with no review. Use it for whatever is
+  timely (section 3).
+- **Name, subtitle, keywords, description, screenshots: probably locked**
+  while the version is Pending Developer Release. Open the 1.0 page in App
+  Store Connect and look: if the fields are greyed out, there are two ways:
+  1. **Reject the build yourself (Developer Reject) on 1.0, edit, and
+     resubmit.** The same build, so App Review usually takes a day or two,
+     and the Notes field already answers what they asked last time.
+     Recommended if you take the name or screenshot changes below: the
+     first weeks are when search ranking is settled.
+  2. **Release 1.0 as it is** and put the changes in 1.0.1. A new version
+     needs a new build (Build 4), so it waits for the next app change.
+
+## 2. The listing
+
+### Name and subtitle (decided 2026-11-16: A)
+Apple weighs the name most, then the subtitle, then the keywords, and no
+one searches for "Twilyte" yet. A descriptive tail on the name puts two
+strong search words in the heaviest field:
+
+| | Name (30) | Subtitle (30) |
+|---|---|---|
+| **A, recommended** | `Twilyte: Sunset & Stargazing` (28) | `Twilight times & night sky map` (30) |
+| B, as now | `Twilyte` | `Twilight times & tonight’s sky` (30) |
+
+The home-screen name stays "Twilyte" either way (that is the Xcode
+project's display name, not the store name).
+
+### Keywords (100)
+Apple matches single words across name, subtitle and keywords, so a word
+already in either is wasted here, and "golden,blue,hour" covers both golden
+hour and blue hour. No spaces after the commas.
+
+With A (98):
+```
+sunrise,golden,hour,blue,astronomy,star,moon,phase,constellation,planet,meteor,milky,way,dark,dusk
+```
+With B (100):
+```
+sunset,sunrise,golden,hour,blue,stargazing,astronomy,star,map,moon,phase,constellation,planet,meteor
+```
+(The current set spends "sky", already in the subtitle, and multi-word
+phrases.)
+
+### Screenshots (done 2026-11-16)
+Only the first three show in search results, and the old ones were bare
+app screens. The new set (`app-store-listing.md`, "Screenshots") makes
+these changes:
+- **A caption over each**: "Your sky, right now" · "Point your phone.
+  Name the stars." · "When it’s truly dark" · "Every stage of twilight" ·
+  "The whole sky tonight".
+- **Sky View second, not fourth**: it's the shot that sells the app.
+- **Sky View in use**: Find guiding to Orion, the figure in amber, instead
+  of the bare view whose foot asked "Drawn sky not lining up?". The Align
+  line is still there, small (it shows whenever a target is picked).
+- **The first shot at golden hour**, the painting in twilight colours,
+  since twilight is the name.
+
+### Description
+Fine as is. Apple doesn't index it for search; it's read by people already
+interested.
+
+### Also in App Store Connect
+- **Featuring nomination** (App Store Connect → Featuring → Nominations →
+  New launch). Apple asks for a few weeks' notice, but a late one still
+  counts. Points to make: built by one person, no account, no ads, no
+  tracking, everything worked out on the phone, VoiceOver and Larger Text
+  supported, a red light mode for night vision, accurate to a minute
+  against professional astronomy software.
+- **After release:** In-App Events for the Geminids (next section) and
+  later showers; Product Page Optimization to test the screenshot sets
+  against each other.
+- **Ratings drive ranking**, and the app never asks for one. A good 1.0.1
+  addition: ask once, after a few visits, on a clear night (iOS's own
+  review prompt).
+
+## 3. The timely hook: the Geminids
+
+The year's best meteor shower peaks on the night of **13–14 December
+2026**, with a crescent Moon (about 20% lit) that sets in the evening, so
+the peak hours are dark. Twilyte's "Worth a look tonight" shows it with the
+rate expected from the reader's own place.
+
+Promotional text for launch (170):
+```
+The Geminids peak on 13–14 December, with a dark sky after the Moon sets. Twilyte shows when it gets dark where you are and how many meteors you could see.
+```
+After the shower, back to the evergreen line in `app-store-listing.md`.
+
+## 4. Social posts
+
+Post when 1.0 is live, so the App Store link works. A day or two before,
+the teasers can link to the website (`twilyte.info`), which is the same app
+and is live now. Attach a picture: the Console's "Share tonight's sky"
+card (1080 × 1350) is made for this, or the store screenshots.
+
+Avoid in every post: the space station and the northern lights (not yet
+seen working in the app), and "free forever" (Pro is coming). Optional, as
+it's a public promise: 1.0's people keep Pro when it comes.
+
+### X / Threads / Bluesky (under 280)
+Launch:
+> Twilyte is out on the App Store 🌅✨
+> When does it get dark tonight? How dark does your sky get? What's worth going outside for?
+> One free app, no account, no ads, no tracking.
+> https://apps.apple.com/app/id6819388363
+
+Geminids:
+> The Geminids peak on the night of 13–14 Dec, and the Moon sets early. Twilyte tells you how many you could see from where you are, and when it's dark enough to start. https://apps.apple.com/app/id6819388363
+
+Teaser (before release):
+> Every evening the sky goes through three twilights before it's truly dark. I built an app that tells you when each one starts where you are, and paints your sky as it is right now. On the App Store soon; on the web today: https://twilyte.info
+
+### Instagram / Facebook
+Picture: the share card, or the dusk screenshot.
+> Twilyte is now on the App Store. 🌌
+>
+> Open it and you see your own sky right now: the twilight's colours, the stars you could actually see from where you stand, the Moon and planets where they really are.
+>
+> 🌅 Sunset, sunrise, golden and blue hour, every stage of twilight
+> 🌑 How dark your sky gets, from NASA's satellite measurements
+> ✨ What's worth a look tonight, from meteor showers to planets side by side
+> 📱 Point your phone up and Sky View names the stars
+>
+> Free. No account, no ads, no tracking. Link in bio.
+>
+> #stargazing #astronomy #nightsky #sunset #goldenhour #bluehour #milkyway #darksky #astrophotography #meteorshower
+
+### Reddit
+Read each subreddit's self-promotion rule first; most allow one post from
+the maker if it's useful and answered in person. Good fits: r/stargazing,
+r/iOSapps, r/SideProject; r/Astronomy only if its rules allow apps.
+Title: *I built a free stargazing app that tells you when it's actually dark tonight, and how dark your sky gets*
+> Hi all. I made Twilyte because I kept looking up three things before going out: when astronomical twilight ends, where the Moon is, and whether my sky is dark enough to bother.
+>
+> It shows your own sky painted as it is right now, every stage of twilight with a countdown, your Bortle class from NASA's night-lights data, up to three things worth seeing tonight (the Geminids on the 13th–14th), and Sky View, which names what your phone points at. A red light mode keeps your night vision.
+>
+> No account, no ads, no analytics; the astronomy is all worked out on the phone. iPhone and iPad: https://apps.apple.com/app/id6819388363, and the same thing in a browser at https://twilyte.info.
+>
+> I'd really like to hear what's missing or wrong.
+
+### Hacker News (Show HN)
+Link the website: HN readers try things in the browser.
+Title: *Show HN: Twilyte – twilight times and tonight's sky, in one HTML file*
+> Twilyte is a stargazing app: when each stage of twilight is, how dark your sky gets, what's worth looking at, and a sky view that names what your phone points at.
+>
+> It's one HTML file with React inlined and no build step, under a strict CSP. Everything is computed on the device: Meeus's Sun and Moon, SGP4, the World Magnetic Model for the compass, eclipses, Jupiter's moons. Sun times agree with PyEphem to within 23 seconds. The Bortle class comes from NASA Black Marble night lights through a light-spread model, cut into 10° tiles so a place fetches one.
+>
+> No account, no analytics. The iPhone app is the same page in Capacitor, out today.
+>
+> https://twilyte.info
+
+### Mastodon (astronomy is big there)
+As X, plus `#Astronomy #Stargazing #DarkSky #Geminids`.
+
+### Product Hunt
+Tagline (60): `Twilight times, your sky's darkness, and what to see tonight`.
+Description: the Instagram text without the emoji. Gallery: the store
+screenshots. Launch on a Tuesday to Thursday, 12:01 AM Pacific.

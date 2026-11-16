@@ -46,7 +46,7 @@ test('the store screenshots skip it', () => {
   assert.match(android, /const \{ capture, openSkyView \} = require\('\.\/generate\.js'\);/);
   assert.match(android, /const PHONE = \{ w: 360, h: 640, dsr: 3, mobile: true, app: 'android' \};/);
   assert.strictEqual((android.match(/await capture\(browser, '\w+', path\.join\(OUT, 'phone-0\d-\w+\.png'\), (null|openSkyView), PHONE\);/g) || []).length, 4);
-  assert.match(read('generate.js'), /module\.exports = \{ capture, openSkyView \};/);
+  assert.match(read('generate.js'), /module\.exports = \{ capture, openSkyView\b[^}]*\};/);
 });
 
 test('a saved place is kept quietly when the device’s location can’t be had', () => {
