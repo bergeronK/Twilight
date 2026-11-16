@@ -15,16 +15,19 @@ its "Before you submit" list says.
 
 ### Name (30)
 ```
-Twilyte: Sunset & Stargazing
+Twilyte: Twilight & Night Sky
 ```
-The store name, chosen 2026-11-16 (owner) so two strong search words sit
-in the field Apple weighs most; no one searches for "Twilyte" yet. The
+The store name (owner, 2026-11-16): the app is about twilight morning and
+evening and the night between, and "twilight" is the strongest search word
+for it, in the field Apple weighs most; no one searches for "Twilyte" yet.
+"Twilyte: Sunset & Stargazing" was chosen first the same day and dropped:
+it named only the evening. The
 name under the icon on the Home Screen stays "Twilyte" (the Xcode
 project's display name).
 
 ### Subtitle (30)
 ```
-Twilight times & night sky map
+Sunrise, sunset & stargazing
 ```
 
 ### Primary category
@@ -97,7 +100,7 @@ Twilyte doesn’t track you. There is no account, no advertising and no analytic
 
 ### Keywords (100)
 ```
-sunrise,golden,hour,blue,astronomy,star,moon,phase,constellation,planet,meteor,milky,way,dark,dusk
+golden,hour,blue,dusk,dawn,astronomy,star,map,moon,phase,constellation,planet,meteor,milky,way,dark
 ```
 Apple matches single words across the name, subtitle and keywords, so no
 word here repeats one there, and "golden,blue,hour" covers golden hour and
