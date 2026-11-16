@@ -23,32 +23,36 @@ fresh session (or a Cowork session) never has to re-derive project state.
 
 - **Live: v170** on twilyte.info (`main` at the merge of #164). No open PRs.
   Tests: all pass but one known `todo` (the iOS heading at beta 135).
-- **iOS 1.0: build 3 has been in App Review since 2026-11-04** (manual
-  release, App Store Connect app ID 6819388363). The last session didn't
-  know the outcome: ask the owner. The Xcode project is at Build 3, so the
-  next upload is 4 (and under 100 while the app sells nothing; see
-  `monetization.test.js`).
+- **iOS 1.0: build 3 approved by App Review (owner, 2026-11-16)**,
+  manual release, App Store Connect app ID 6819388363. Ask whether
+  Release This Version has been clicked and the EU trader-status question
+  answered. The Xcode project is at Build 3, so the next upload is 4 (and
+  under 100 while the app sells nothing; see `monetization.test.js`).
 - **Android**: built, launched and checked in CI's emulator since v168;
   listing in `docs/play-store-listing.md`. Not on Play, never run on a
-  real phone.
+  real phone. **Play is on hold until iOS is launched and live** (owner,
+  2026-11-16): don't raise it before then.
 - **Waiting on the owner** (ask about these; don't re-ask the decisions
   listed under "Owner decisions made"):
-  1. App Review's result, then Release This Version; the EU trader-status
-     question.
-  2. **The Open-Meteo email** (drafted 2026-11-06: commercial use, before
-     Pro goes on sale). Their answer decides between their paid API and
+  1. Release This Version; the EU trader-status question.
+  2. **The Open-Meteo email: drafted 2026-11-06, not sent** (owner,
+     2026-11-16). It asks about commercial use, and must be settled before
+     Pro goes on sale. Their answer decides between their paid API and
      Apple's WeatherKit. `docs/monetization.md`, step 0: WeatherKit's REST
      API has only total cloud, so on Android and the web the sunset and
      sunrise colour (`skyGlow`, which needs low, middle and high cloud)
      would be lost; its key would live in a Worker.
-  3. Pro: the price ($4.99 proposed), the free/Pro split, and how Android
-     treats early supporters (it can't tell them apart).
-  4. Play: a Console account, the upload key, a signed bundle, the closed
-     test (12 testers for 14 days), a look on a real phone.
-  5. iPhone checks: Larger Text at AX1-AX3, a GPS fix in airplane mode,
-     the countdown after the background, the painting's tilt.
-  6. Deploy the alerts Worker; the old 1-year visitor hashes; the DNS move
-     to Cloudflare (keep Microsoft's mail records).
+  3. Pro: still open (2026-11-16). The price ($4.99 proposed), the
+     free/Pro split, and how Android treats early supporters (it can't
+     tell them apart).
+  4. Play (after iOS is live): a Console account, the upload key, a signed
+     bundle, the closed test (12 testers for 14 days), a look on a real
+     phone.
+  5. iPhone checks still to do: a GPS fix in airplane mode, the painting's
+     tilt. **Done on the owner's iPhone (2026-11-16):** Larger Text, and
+     the countdown after the background.
+  6. Deploy the alerts Worker (not yet); the old 1-year visitor hashes;
+     the DNS move to Cloudflare (keep Microsoft's mail records).
 - **Nothing in engineering is waiting.** Possible next work, only when
   asked: Pro's 1.1 code once the decisions are made; a forecast Worker
   once Open-Meteo answers; retaking the iOS screenshots (`generate.js`
