@@ -19,6 +19,47 @@ old URL, and `/privacy.html` links to it). This file is read automatically at
 the start of every Claude Code session in this repo — keep it current so a
 fresh session (or a Cowork session) never has to re-derive project state.
 
+## Start here: where things stand (2026-11-16)
+
+- **Live: v170** on twilyte.info (`main` at the merge of #164). No open PRs.
+  Tests: all pass but one known `todo` (the iOS heading at beta 135).
+- **iOS 1.0: build 3 has been in App Review since 2026-11-04** (manual
+  release, App Store Connect app ID 6819388363). The last session didn't
+  know the outcome: ask the owner. The Xcode project is at Build 3, so the
+  next upload is 4 (and under 100 while the app sells nothing; see
+  `monetization.test.js`).
+- **Android**: built, launched and checked in CI's emulator since v168;
+  listing in `docs/play-store-listing.md`. Not on Play, never run on a
+  real phone.
+- **Waiting on the owner** (ask about these; don't re-ask the decisions
+  listed under "Owner decisions made"):
+  1. App Review's result, then Release This Version; the EU trader-status
+     question.
+  2. **The Open-Meteo email** (drafted 2026-11-06: commercial use, before
+     Pro goes on sale). Their answer decides between their paid API and
+     Apple's WeatherKit. `docs/monetization.md`, step 0: WeatherKit's REST
+     API has only total cloud, so on Android and the web the sunset and
+     sunrise colour (`skyGlow`, which needs low, middle and high cloud)
+     would be lost; its key would live in a Worker.
+  3. Pro: the price ($4.99 proposed), the free/Pro split, and how Android
+     treats early supporters (it can't tell them apart).
+  4. Play: a Console account, the upload key, a signed bundle, the closed
+     test (12 testers for 14 days), a look on a real phone.
+  5. iPhone checks: Larger Text at AX1-AX3, a GPS fix in airplane mode,
+     the countdown after the background, the painting's tilt.
+  6. Deploy the alerts Worker; the old 1-year visitor hashes; the DNS move
+     to Cloudflare (keep Microsoft's mail records).
+- **Nothing in engineering is waiting.** Possible next work, only when
+  asked: Pro's 1.1 code once the decisions are made; a forecast Worker
+  once Open-Meteo answers; retaking the iOS screenshots (`generate.js`
+  changed after the 2026-10-05 set).
+- **How the owner works:** concise replies. One PR per change, opened as a
+  draft from the session's `claude/` branch; merged as a merge commit
+  only when the owner says "merge", then the branch restarts from `main`.
+  **Actions minutes are scarce** (ran out 2026-11-04): don't trigger
+  workflows needlessly; the iOS and Android jobs run only on PRs that touch
+  their files.
+
 ## What this app is
 
 Three tabs, one `index.html`, no build step:
