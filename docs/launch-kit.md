@@ -23,34 +23,25 @@ App Store link once it's live: `https://apps.apple.com/app/id6819388363`
 
 ## 2. The listing
 
-### Name and subtitle (decided 2026-11-16: A)
+### Name, subtitle and keywords (decided 2026-11-16)
 Apple weighs the name most, then the subtitle, then the keywords, and no
-one searches for "Twilyte" yet. A descriptive tail on the name puts two
-strong search words in the heaviest field:
+one searches for "Twilyte" yet, so the name carries a descriptive tail.
+The owner's rule for it: twilight happens at both ends of the night, so
+the name mustn't speak of only one ("Sunset & Stargazing" was dropped for
+that).
 
-| | Name (30) | Subtitle (30) |
-|---|---|---|
-| **A, recommended** | `Twilyte: Sunset & Stargazing` (28) | `Twilight times & night sky map` (30) |
-| B, as now | `Twilyte` | `Twilight times & tonight’s sky` (30) |
+| Name (30) | Subtitle (30) |
+|---|---|
+| `Twilyte: Twilight & Night Sky` (29) | `Sunrise, sunset & stargazing` (28) |
 
-The home-screen name stays "Twilyte" either way (that is the Xcode
-project's display name, not the store name).
-
-### Keywords (100)
-Apple matches single words across name, subtitle and keywords, so a word
-already in either is wasted here, and "golden,blue,hour" covers both golden
-hour and blue hour. No spaces after the commas.
-
-With A (98):
+Keywords (99). Apple matches single words across name, subtitle and
+keywords, so none repeats a word from either, and "golden,blue,hour" covers
+golden hour and blue hour. No spaces after the commas.
 ```
-sunrise,golden,hour,blue,astronomy,star,moon,phase,constellation,planet,meteor,milky,way,dark,dusk
+golden,hour,blue,dusk,dawn,astronomy,star,map,moon,phase,constellation,planet,meteor,milky,way,dark
 ```
-With B (100):
-```
-sunset,sunrise,golden,hour,blue,stargazing,astronomy,star,map,moon,phase,constellation,planet,meteor
-```
-(The current set spends "sky", already in the subtitle, and multi-word
-phrases.)
+The home-screen name stays "Twilyte" (the Xcode project's display name,
+not the store name).
 
 ### Screenshots (done 2026-11-16)
 Only the first three show in search results, and the old ones were bare

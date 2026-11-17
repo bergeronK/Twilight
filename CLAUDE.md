@@ -29,10 +29,12 @@ fresh session (or a Cowork session) never has to re-derive project state.
   answered. The Xcode project is at Build 3, so the next upload is 4 (and
   under 100 while the app sells nothing; see `monetization.test.js`).
 - **The store listing for launch (2026-11-16)**: the store name is now
-  **"Twilyte: Sunset & Stargazing"** (owner; the Home Screen name stays
-  Twilyte), new subtitle and keywords, and captioned screenshots, five per
-  size (`docs/app-store-listing.md`). `docs/launch-kit.md` has the social
-  posts, the Geminids promotional text and the featuring nomination. Ask
+  **"Twilyte: Twilight & Night Sky"** (owner: twilight is morning and
+  evening, so not "Sunset & Stargazing", tried first; the Home Screen name
+  stays Twilyte), subtitle "Sunrise, sunset & stargazing", new keywords,
+  and captioned screenshots, five per size (`docs/app-store-listing.md`).
+  `docs/launch-kit.md` has the social posts, the Geminids promotional
+  text and the featuring nomination. Ask
   whether they went into App Store Connect (likely by a developer reject
   and resubmit, if the approved version's fields were locked).
 - **Android**: built, launched and checked in CI's emulator since v168;
