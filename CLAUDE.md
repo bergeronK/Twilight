@@ -64,7 +64,12 @@ fresh session (or a Cowork session) never has to re-derive project state.
      the DNS move to Cloudflare (keep Microsoft's mail records).
 - **Nothing in engineering is waiting.** Possible next work, only when
   asked: Pro's 1.1 code once the decisions are made; a forecast Worker
-  once Open-Meteo answers.
+  once Open-Meteo answers; **the 2025 light-pollution data, for 1.1**
+  (owner, 2026-11-21). NASA published VNP46A4 2025 (Collection 2, `5200`)
+  in March 2026; `lp/` is still 2024. The `EARTHDATA_TOKEN` secret expires
+  2026-11-29, so it needs a new token first, then `YEAR` bumped in
+  `light-pollution.yml` (about 40 Actions minutes, the download uncached).
+  The apps carry `lp/`, so it reaches them only in a new build.
 - **How the owner works:** concise replies. One PR per change, opened as a
   draft from the session's `claude/` branch; merged as a merge commit
   only when the owner says "merge", then the branch restarts from `main`.
